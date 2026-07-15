@@ -1,5 +1,5 @@
 {
-  "created_at": "2026-07-15T16:03:00",
+  "created_at": "2026-07-15T16:25:14",
   "python": "D:\\Anaconda\\envs\\pyTorch2.7\\python.exe",
   "device": "cuda",
   "modalities": {
@@ -26,7 +26,7 @@
       "gpu_memory_peak_mb": 36.03076171875,
       "gpu_memory_peak_reserved_mb": 56.0,
       "checkpoint_size_mb": 0.6421403884887695,
-      "output_dir": "D:\\work\\2026.7.14_kaggle\\40class\\outputs\\task03_optimized_smoke\\imu\\optimized_smoke_20260715_160300_imu"
+      "output_dir": "D:\\work\\2026.7.14_kaggle\\40class\\outputs\\task03_optimized_smoke\\imu\\optimized_smoke_20260715_162514_imu"
     },
     "skeleton": {
       "status": "passed",
@@ -51,7 +51,7 @@
       "gpu_memory_peak_mb": 22.3310546875,
       "gpu_memory_peak_reserved_mb": 28.0,
       "checkpoint_size_mb": 0.6743669509887695,
-      "output_dir": "D:\\work\\2026.7.14_kaggle\\40class\\outputs\\task03_optimized_smoke\\skeleton\\optimized_smoke_20260715_160346_skeleton"
+      "output_dir": "D:\\work\\2026.7.14_kaggle\\40class\\outputs\\task03_optimized_smoke\\skeleton\\optimized_smoke_20260715_162600_skeleton"
     },
     "radar": {
       "status": "passed",
@@ -76,88 +76,88 @@
       "gpu_memory_peak_mb": 21.20458984375,
       "gpu_memory_peak_reserved_mb": 26.0,
       "checkpoint_size_mb": 0.5557146072387695,
-      "output_dir": "D:\\work\\2026.7.14_kaggle\\40class\\outputs\\task03_optimized_smoke\\radar\\optimized_smoke_20260715_160432_radar"
+      "output_dir": "D:\\work\\2026.7.14_kaggle\\40class\\outputs\\task03_optimized_smoke\\radar\\optimized_smoke_20260715_162648_radar"
     },
     "ir": {
       "status": "passed",
       "train_samples": 1933,
       "val_samples": 1000,
       "num_workers": 4,
-      "batch_size": 12,
+      "batch_size": 4,
       "input_shape": [
-        12,
+        4,
         12,
         3,
         192,
         192
       ],
       "logits_shape": [
-        12,
+        4,
         40
       ],
       "embedding_shape": [
-        12,
+        4,
         128
       ],
-      "loss": 3.6469727158546448,
-      "gpu_memory_peak_mb": 980.001953125,
-      "gpu_memory_peak_reserved_mb": 1326.0,
+      "loss": 3.5574951171875,
+      "gpu_memory_peak_mb": 356.86865234375,
+      "gpu_memory_peak_reserved_mb": 478.0,
       "checkpoint_size_mb": 3.969975471496582,
-      "output_dir": "D:\\work\\2026.7.14_kaggle\\40class\\outputs\\task03_optimized_smoke\\ir\\optimized_smoke_20260715_160518_ir"
+      "output_dir": "D:\\work\\2026.7.14_kaggle\\40class\\outputs\\task03_optimized_smoke\\ir\\optimized_smoke_20260715_162734_ir"
     },
     "thermal": {
       "status": "passed",
       "train_samples": 1845,
       "val_samples": 1046,
       "num_workers": 4,
-      "batch_size": 12,
+      "batch_size": 4,
       "input_shape": [
-        12,
+        4,
         12,
         3,
         192,
         192
       ],
       "logits_shape": [
-        12,
+        4,
         40
       ],
       "embedding_shape": [
-        12,
+        4,
         128
       ],
-      "loss": 3.656005859375,
-      "gpu_memory_peak_mb": 980.001953125,
-      "gpu_memory_peak_reserved_mb": 1326.0,
+      "loss": 3.5635986328125,
+      "gpu_memory_peak_mb": 356.86865234375,
+      "gpu_memory_peak_reserved_mb": 478.0,
       "checkpoint_size_mb": 3.969975471496582,
-      "output_dir": "D:\\work\\2026.7.14_kaggle\\40class\\outputs\\task03_optimized_smoke\\thermal\\optimized_smoke_20260715_160615_thermal"
+      "output_dir": "D:\\work\\2026.7.14_kaggle\\40class\\outputs\\task03_optimized_smoke\\thermal\\optimized_smoke_20260715_162832_thermal"
     },
     "depth_color": {
       "status": "passed",
       "train_samples": 1931,
       "val_samples": 1000,
       "num_workers": 4,
-      "batch_size": 12,
+      "batch_size": 4,
       "input_shape": [
-        12,
+        4,
         12,
         3,
         192,
         192
       ],
       "logits_shape": [
-        12,
+        4,
         40
       ],
       "embedding_shape": [
-        12,
+        4,
         128
       ],
-      "loss": 3.653564453125,
-      "gpu_memory_peak_mb": 980.001953125,
-      "gpu_memory_peak_reserved_mb": 1326.0,
+      "loss": 3.556396484375,
+      "gpu_memory_peak_mb": 356.86865234375,
+      "gpu_memory_peak_reserved_mb": 478.0,
       "checkpoint_size_mb": 3.969975471496582,
-      "output_dir": "D:\\work\\2026.7.14_kaggle\\40class\\outputs\\task03_optimized_smoke\\depth_color\\optimized_smoke_20260715_160721_depth_color"
+      "output_dir": "D:\\work\\2026.7.14_kaggle\\40class\\outputs\\task03_optimized_smoke\\depth_color\\optimized_smoke_20260715_162940_depth_color"
     }
   },
   "status": "passed"

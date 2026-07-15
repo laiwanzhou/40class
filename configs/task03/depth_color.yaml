@@ -10,7 +10,7 @@ seed: 20260715
 num_frames: 12
 image_size: 192
 embedding_dim: 128
-batch_size: 12
+batch_size: 4
 epochs: 2
 learning_rate: 0.0003
 weight_decay: 0.0001

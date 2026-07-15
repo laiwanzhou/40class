@@ -29,21 +29,24 @@ Measurements include real data loading and decoding, H2D transfer, CUDA AMP forw
 
 ## Selected configurations
 
-- `depth_color`: `num_workers=4`, `batch_size=12`
+- `depth_color`: `num_workers=4`, `batch_size=4`
 - `imu`: `num_workers=4`, `batch_size=16`
 - `skeleton`: `num_workers=4`, `batch_size=16`
 - `radar`: `num_workers=4`, `batch_size=16`
-- `ir`: `num_workers=4`, `batch_size=12`
-- `thermal`: `num_workers=4`, `batch_size=12`
+- `ir`: `num_workers=4`, `batch_size=4`
+- `thermal`: `num_workers=4`, `batch_size=4`
 
 Selection requires a passed run with no CUDA OOM or worker failure. Throughput is primary; when configurations are within 5% of the best rate, the smaller worker or batch value is selected.
 CPU utilization may remain high; success is judged by stable completion and measured throughput rather than a single utilization snapshot.
 
-Depth_Color improved from 11.928 samples/s at workers 0 and batch 4 to 57.986
-samples/s at workers 4 and batch 12, a 4.86x increase. Batch 16 reached 58.171
-samples/s, only 0.32% faster, while peak reserved memory rose from 1268 MB to
-1728 MB; batch 12 was therefore selected. IMU, Skeleton, and Radar improved by
+The throughput-only provisional choice was batch 12: 57.986 samples/s versus
+58.171 at batch 16, with lower reserved memory. The first two-epoch retest then
+showed that batch 12 reduced visual optimizer updates to about one third and
+caused a material validation regression at the fixed learning rate and epoch
+count. The final visual choice is therefore batch 4 with workers 4, which
+preserves the original update count while still improving Depth_Color from
+11.928 to 52.878 samples/s, a 4.43x increase. IMU, Skeleton, and Radar improved by
 3.45x, 3.60x, and 4.02x respectively when moving from workers 0 to workers 4.
-IR and Thermal both passed their 100-batch confirmation at workers 4 and batch
-12. The pipeline still performs online decode and may remain CPU-limited, but
+IR and Thermal both passed their provisional 100-batch confirmation at workers
+4 and batch 12 before the quality guard selected batch 4. The pipeline still performs online decode and may remain CPU-limited, but
 the measured throughput increase demonstrates substantially less GPU waiting.

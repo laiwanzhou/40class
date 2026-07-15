@@ -158,10 +158,11 @@ def main() -> None:
             f"{row['val_macro_f1']:.6f} | {row['train_samples_per_second']:.2f} | "
             f"{row['gpu_peak_allocated_mb']:.2f}/{row['gpu_peak_reserved_mb']:.2f} | {row['checkpoint_size_mb']:.3f} |"
         )
+    depth_batch = int(rows[-1]["batch_size"])
     depth = benchmark[
         (benchmark["modality"] == "Depth_Color")
         & (benchmark["num_workers"] == 4)
-        & (benchmark["batch_size"] == 12)
+        & (benchmark["batch_size"] == depth_batch)
     ].iloc[0]
     baseline = benchmark[
         (benchmark["modality"] == "Depth_Color")
@@ -175,9 +176,9 @@ def main() -> None:
             "",
             f"Depth_Color steady-state training throughput increased from {baseline['samples_per_second']:.3f} to {depth['samples_per_second']:.3f} samples/s ({depth['samples_per_second'] / baseline['samples_per_second']:.2f}x).",
             "All tested worker configurations (0, 2, 4) exited normally, and all selected configurations completed without worker deadlock or CUDA OOM.",
-            "The final visual batch is 12 because batch 16 was less than 5% faster while reserving more GPU memory. All temporal modalities retain batch 16.",
+            "Batch 12 was the provisional throughput choice, but its first two-epoch retest materially reduced visual validation quality because fixed epochs meant about one third as many optimizer updates. The final visual batch is 4 with workers 4; all temporal modalities retain batch 16.",
             "CPU use can remain high because image/CSV/JSON decoding is still performed online, but higher samples/s means GPU input waiting is substantially reduced.",
-            "Task Manager CPU/GPU percentages and nvidia-smi process-memory observations are approximate manual snapshots and are recorded separately from the reproducible PyTorch peak metrics.",
+            "During a 10-sample IR visual-training observation with the provisional batch 12 configuration, total CPU was approximately 29.7%-40.4%, GPU utilization 5%-51%, and nvidia-smi memory 3183-3207 MiB. A final batch 4 visual snapshot used about 2308 MiB process memory. These are approximate manual snapshots; the reproducible PyTorch peak metrics above are authoritative for tensor allocations.",
         ]
     )
     REPORT_MD.write_text("\n".join(lines) + "\n", encoding="utf-8")
