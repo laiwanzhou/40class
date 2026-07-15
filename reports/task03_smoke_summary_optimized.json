@@ -1,0 +1,164 @@
+{
+  "created_at": "2026-07-15T16:03:00",
+  "python": "D:\\Anaconda\\envs\\pyTorch2.7\\python.exe",
+  "device": "cuda",
+  "modalities": {
+    "imu": {
+      "status": "passed",
+      "train_samples": 1916,
+      "val_samples": 987,
+      "num_workers": 4,
+      "batch_size": 16,
+      "input_shape": [
+        16,
+        256,
+        80
+      ],
+      "logits_shape": [
+        16,
+        40
+      ],
+      "embedding_shape": [
+        16,
+        128
+      ],
+      "loss": 3.69091796875,
+      "gpu_memory_peak_mb": 36.03076171875,
+      "gpu_memory_peak_reserved_mb": 56.0,
+      "checkpoint_size_mb": 0.6421403884887695,
+      "output_dir": "D:\\work\\2026.7.14_kaggle\\40class\\outputs\\task03_optimized_smoke\\imu\\optimized_smoke_20260715_160300_imu"
+    },
+    "skeleton": {
+      "status": "passed",
+      "train_samples": 1931,
+      "val_samples": 1000,
+      "num_workers": 4,
+      "batch_size": 16,
+      "input_shape": [
+        16,
+        64,
+        102
+      ],
+      "logits_shape": [
+        16,
+        40
+      ],
+      "embedding_shape": [
+        16,
+        128
+      ],
+      "loss": 3.69287109375,
+      "gpu_memory_peak_mb": 22.3310546875,
+      "gpu_memory_peak_reserved_mb": 28.0,
+      "checkpoint_size_mb": 0.6743669509887695,
+      "output_dir": "D:\\work\\2026.7.14_kaggle\\40class\\outputs\\task03_optimized_smoke\\skeleton\\optimized_smoke_20260715_160346_skeleton"
+    },
+    "radar": {
+      "status": "passed",
+      "train_samples": 1918,
+      "val_samples": 996,
+      "num_workers": 4,
+      "batch_size": 16,
+      "input_shape": [
+        16,
+        64,
+        21
+      ],
+      "logits_shape": [
+        16,
+        40
+      ],
+      "embedding_shape": [
+        16,
+        128
+      ],
+      "loss": 3.7490234375,
+      "gpu_memory_peak_mb": 21.20458984375,
+      "gpu_memory_peak_reserved_mb": 26.0,
+      "checkpoint_size_mb": 0.5557146072387695,
+      "output_dir": "D:\\work\\2026.7.14_kaggle\\40class\\outputs\\task03_optimized_smoke\\radar\\optimized_smoke_20260715_160432_radar"
+    },
+    "ir": {
+      "status": "passed",
+      "train_samples": 1933,
+      "val_samples": 1000,
+      "num_workers": 4,
+      "batch_size": 12,
+      "input_shape": [
+        12,
+        12,
+        3,
+        192,
+        192
+      ],
+      "logits_shape": [
+        12,
+        40
+      ],
+      "embedding_shape": [
+        12,
+        128
+      ],
+      "loss": 3.6469727158546448,
+      "gpu_memory_peak_mb": 980.001953125,
+      "gpu_memory_peak_reserved_mb": 1326.0,
+      "checkpoint_size_mb": 3.969975471496582,
+      "output_dir": "D:\\work\\2026.7.14_kaggle\\40class\\outputs\\task03_optimized_smoke\\ir\\optimized_smoke_20260715_160518_ir"
+    },
+    "thermal": {
+      "status": "passed",
+      "train_samples": 1845,
+      "val_samples": 1046,
+      "num_workers": 4,
+      "batch_size": 12,
+      "input_shape": [
+        12,
+        12,
+        3,
+        192,
+        192
+      ],
+      "logits_shape": [
+        12,
+        40
+      ],
+      "embedding_shape": [
+        12,
+        128
+      ],
+      "loss": 3.656005859375,
+      "gpu_memory_peak_mb": 980.001953125,
+      "gpu_memory_peak_reserved_mb": 1326.0,
+      "checkpoint_size_mb": 3.969975471496582,
+      "output_dir": "D:\\work\\2026.7.14_kaggle\\40class\\outputs\\task03_optimized_smoke\\thermal\\optimized_smoke_20260715_160615_thermal"
+    },
+    "depth_color": {
+      "status": "passed",
+      "train_samples": 1931,
+      "val_samples": 1000,
+      "num_workers": 4,
+      "batch_size": 12,
+      "input_shape": [
+        12,
+        12,
+        3,
+        192,
+        192
+      ],
+      "logits_shape": [
+        12,
+        40
+      ],
+      "embedding_shape": [
+        12,
+        128
+      ],
+      "loss": 3.653564453125,
+      "gpu_memory_peak_mb": 980.001953125,
+      "gpu_memory_peak_reserved_mb": 1326.0,
+      "checkpoint_size_mb": 3.969975471496582,
+      "output_dir": "D:\\work\\2026.7.14_kaggle\\40class\\outputs\\task03_optimized_smoke\\depth_color\\optimized_smoke_20260715_160721_depth_color"
+    }
+  },
+  "status": "passed"
+}

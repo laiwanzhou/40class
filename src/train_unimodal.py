@@ -30,6 +30,20 @@ DEFAULT_DATA_ROOT = Path(r"D:\work\2026.7.14_kaggle\datasets\Small-Model-Track\t
 VISUAL_MODALITIES = {"Depth_Color", "IR", "Thermal"}
 
 
+def seed_worker(worker_id: int) -> None:
+    del worker_id
+    worker_seed = torch.initial_seed() % (2**32)
+    random.seed(worker_seed)
+    np.random.seed(worker_seed)
+    torch.set_num_threads(1)
+    try:
+        import cv2
+
+        cv2.setNumThreads(0)
+    except ImportError:
+        pass
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Train one CUHK-X unimodal baseline.")
     parser.add_argument("--config", type=Path, required=True)
@@ -75,8 +89,8 @@ def load_config(config_path: Path, args: argparse.Namespace) -> dict[str, Any]:
     config["max_train_batches"] = args.max_train_batches
     config["max_val_batches"] = args.max_val_batches
     config["requested_run_id"] = args.run_id
-    if int(config.get("num_workers", 0)) != 0:
-        raise ValueError("This Windows project requires num_workers=0.")
+    if int(config.get("num_workers", 0)) < 0:
+        raise ValueError("num_workers must be 0 or a positive integer.")
     if int(config["epochs"]) <= 0:
         raise ValueError("epochs must be positive.")
     return config
@@ -177,15 +191,26 @@ def loader_for(
         actual = Subset(dataset, range(limit))
     generator = torch.Generator().manual_seed(int(config["seed"]) + (0 if training else 1))
     workers = int(config.get("num_workers", 0))
-    return DataLoader(
-        actual,
-        batch_size=min(int(config["batch_size"]), len(actual)),
-        shuffle=training,
-        num_workers=workers,
-        pin_memory=True,
-        persistent_workers=workers > 0,
-        generator=generator,
-    )
+    loader_kwargs: dict[str, Any] = {
+        "dataset": actual,
+        "batch_size": min(int(config["batch_size"]), len(actual)),
+        "shuffle": training,
+        "num_workers": workers,
+        "pin_memory": True,
+        "generator": generator,
+        "worker_init_fn": seed_worker,
+    }
+    if workers > 0:
+        loader_kwargs.update(
+            {
+                "persistent_workers": True,
+                "prefetch_factor": 2,
+                "multiprocessing_context": "spawn",
+            }
+        )
+    else:
+        loader_kwargs["persistent_workers"] = False
+    return DataLoader(**loader_kwargs)
 
 
 def save_checkpoint(path: Path, model: nn.Module, epoch: int, val_accuracy: float) -> None:
@@ -274,6 +299,7 @@ def run_experiment(config: dict[str, Any]) -> dict[str, Any]:
     stale_epochs = 0
     for epoch in range(1, epochs + 1):
         epoch_start = time.perf_counter()
+        train_start = time.perf_counter()
         train_metrics = run_epoch(
             model,
             train_loader,
@@ -285,6 +311,8 @@ def run_experiment(config: dict[str, Any]) -> dict[str, Any]:
             max_batches=config.get("max_train_batches"),
             gradient_clip=float(config.get("gradient_clip", 1.0)),
         )
+        train_time_seconds = time.perf_counter() - train_start
+        val_start = time.perf_counter()
         val_metrics = run_epoch(
             model,
             val_loader,
@@ -293,6 +321,7 @@ def run_experiment(config: dict[str, Any]) -> dict[str, Any]:
             amp_enabled,
             max_batches=config.get("max_val_batches"),
         )
+        val_time_seconds = time.perf_counter() - val_start
         history.append(
             {
                 "epoch": epoch,
@@ -302,6 +331,8 @@ def run_experiment(config: dict[str, Any]) -> dict[str, Any]:
                 "val_accuracy": val_metrics["accuracy"],
                 "val_macro_f1": val_metrics["macro_f1"],
                 "learning_rate": optimizer.param_groups[0]["lr"],
+                "train_time_seconds": train_time_seconds,
+                "val_time_seconds": val_time_seconds,
                 "epoch_time_seconds": time.perf_counter() - epoch_start,
             }
         )
@@ -348,6 +379,7 @@ def run_experiment(config: dict[str, Any]) -> dict[str, Any]:
     pd.DataFrame(history).to_csv(run_dir / "history.csv", index=False, encoding="utf-8-sig")
     parameter_count = sum(parameter.numel() for parameter in model.parameters())
     peak_memory_mb = float(torch.cuda.max_memory_allocated(device) / (1024 * 1024)) if device.type == "cuda" else 0.0
+    peak_reserved_mb = float(torch.cuda.max_memory_reserved(device) / (1024 * 1024)) if device.type == "cuda" else 0.0
     result: dict[str, Any] = {
         "status": "passed",
         "smoke_test": bool(config["smoke_test"]),
@@ -364,6 +396,9 @@ def run_experiment(config: dict[str, Any]) -> dict[str, Any]:
         "checkpoint_size_mb": checkpoint_size_mb,
         "inference_ms_per_sample": measure_inference_ms(model, sample, device, amp_enabled),
         "gpu_memory_peak_mb": peak_memory_mb,
+        "gpu_memory_peak_reserved_mb": peak_reserved_mb,
+        "num_workers": int(config.get("num_workers", 0)),
+        "batch_size": int(config["batch_size"]),
         "input_shape": list(first_inputs.shape),
         "logits_shape": list(first_output["logits"].shape),
         "embedding_shape": list(first_output["embedding"].shape),

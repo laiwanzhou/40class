@@ -29,9 +29,12 @@ def run_epoch(
 ) -> dict[str, float]:
     training = optimizer is not None
     model.train(training)
-    total_loss = 0.0
-    labels_all: list[np.ndarray] = []
-    predictions_all: list[np.ndarray] = []
+    device_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+    device_correct = torch.zeros((), device=device, dtype=torch.int64)
+    device_finite = torch.ones((), device=device, dtype=torch.bool)
+    labels_all: list[torch.Tensor] = []
+    predictions_all: list[torch.Tensor] = []
+    sample_count = 0
     batches = 0
     context = torch.enable_grad if training else torch.no_grad
     with context():
@@ -44,8 +47,7 @@ def run_epoch(
             with torch.autocast(device_type=device.type, dtype=torch.float16, enabled=amp_enabled):
                 output = model(inputs, temporal_mask=temporal_mask)
                 loss = criterion(output["logits"], labels)
-            if not torch.isfinite(loss):
-                raise FloatingPointError(f"Non-finite loss at batch {batch_index}")
+            device_finite.logical_and_(torch.isfinite(loss.detach()))
             if training:
                 assert scaler is not None
                 scaler.scale(loss).backward()
@@ -53,19 +55,24 @@ def run_epoch(
                 torch.nn.utils.clip_grad_norm_(model.parameters(), gradient_clip)
                 scaler.step(optimizer)
                 scaler.update()
-            total_loss += float(loss.detach().cpu())
             predictions = output["logits"].argmax(dim=1)
-            labels_all.append(labels.detach().cpu().numpy())
-            predictions_all.append(predictions.detach().cpu().numpy())
+            batch_size = labels.shape[0]
+            device_loss_sum += loss.detach().to(torch.float64) * batch_size
+            device_correct += (predictions == labels).sum()
+            sample_count += batch_size
+            labels_all.append(labels.detach())
+            predictions_all.append(predictions.detach())
             batches += 1
     if batches == 0:
         raise ValueError("DataLoader produced no batches.")
-    labels_np = np.concatenate(labels_all)
-    predictions_np = np.concatenate(predictions_all)
+    if not bool(device_finite.item()):
+        raise FloatingPointError("Non-finite loss encountered during epoch.")
+    labels_np = torch.cat(labels_all).cpu().numpy()
+    predictions_np = torch.cat(predictions_all).cpu().numpy()
     metrics = classification_metrics(labels_np, predictions_np)
     return {
-        "loss": total_loss / batches,
-        "accuracy": float(metrics["accuracy"]),
+        "loss": (device_loss_sum / sample_count).item(),
+        "accuracy": (device_correct.to(torch.float64) / sample_count).item(),
         "macro_f1": float(metrics["macro_f1"]),
     }
 
@@ -79,29 +86,37 @@ def collect_predictions(
 ) -> dict[str, object]:
     model.eval()
     sample_ids: list[str] = []
-    labels_all: list[np.ndarray] = []
-    logits_all: list[np.ndarray] = []
-    embeddings_all: list[np.ndarray] = []
-    losses: list[float] = []
+    labels_all: list[torch.Tensor] = []
+    logits_all: list[torch.Tensor] = []
+    embeddings_all: list[torch.Tensor] = []
+    device_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
+    device_finite = torch.ones((), device=device, dtype=torch.bool)
+    sample_count = 0
     with torch.no_grad():
         for batch in loader:
             inputs, labels, temporal_mask = _move_batch(batch, device)
             with torch.autocast(device_type=device.type, dtype=torch.float16, enabled=amp_enabled):
                 output = model(inputs, temporal_mask=temporal_mask)
                 loss = criterion(output["logits"], labels)
-            if not torch.isfinite(output["logits"]).all() or not torch.isfinite(output["embedding"]).all():
-                raise FloatingPointError("Non-finite validation logits or embeddings.")
+            device_finite.logical_and_(torch.isfinite(output["logits"]).all())
+            device_finite.logical_and_(torch.isfinite(output["embedding"]).all())
             sample_ids.extend(str(value) for value in batch["sample_id"])
-            labels_all.append(labels.cpu().numpy())
-            logits_all.append(output["logits"].float().cpu().numpy())
-            embeddings_all.append(output["embedding"].float().cpu().numpy())
-            losses.append(float(loss.cpu()))
-    labels_np = np.concatenate(labels_all)
-    logits_np = np.concatenate(logits_all)
-    embeddings_np = np.concatenate(embeddings_all)
+            batch_size = labels.shape[0]
+            device_loss_sum += loss.detach().to(torch.float64) * batch_size
+            sample_count += batch_size
+            labels_all.append(labels.detach())
+            logits_all.append(output["logits"].detach())
+            embeddings_all.append(output["embedding"].detach())
+    if sample_count == 0:
+        raise ValueError("DataLoader produced no prediction batches.")
+    if not bool(device_finite.item()):
+        raise FloatingPointError("Non-finite validation logits or embeddings.")
+    labels_np = torch.cat(labels_all).cpu().numpy()
+    logits_np = torch.cat(logits_all).float().cpu().numpy()
+    embeddings_np = torch.cat(embeddings_all).float().cpu().numpy()
     predictions = logits_np.argmax(axis=1)
     metrics = classification_metrics(labels_np, predictions)
-    metrics["loss"] = float(np.mean(losses))
+    metrics["loss"] = (device_loss_sum / sample_count).item()
     return {
         "sample_ids": np.asarray(sample_ids, dtype=str),
         "labels": labels_np,
