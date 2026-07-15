@@ -1,0 +1,21 @@
+modality: IMU
+path_column: imu_path
+model_name: imu_tcn
+data_root: D:\work\2026.7.14_kaggle\datasets\Small-Model-Track\train
+manifest: metadata/manifest.csv
+fold: metadata/splits/fold_0.json
+output_root: outputs/task03
+device: cuda
+seed: 20260715
+sequence_length: 256
+embedding_dim: 128
+tcn_channels: [64, 128]
+batch_size: 16
+epochs: 2
+learning_rate: 0.0003
+weight_decay: 0.0001
+dropout: 0.2
+early_stopping_patience: 2
+gradient_clip: 1.0
+amp: true
+num_workers: 0

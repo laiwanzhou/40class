@@ -1,0 +1,147 @@
+{
+  "created_at": "2026-07-15T14:24:10",
+  "python": "D:\\Anaconda\\envs\\pyTorch2.7\\python.exe",
+  "device": "cuda",
+  "num_workers": 0,
+  "modalities": {
+    "imu": {
+      "status": "passed",
+      "train_samples": 1916,
+      "val_samples": 987,
+      "input_shape": [
+        16,
+        256,
+        80
+      ],
+      "logits_shape": [
+        16,
+        40
+      ],
+      "embedding_shape": [
+        16,
+        128
+      ],
+      "loss": 3.6865234375,
+      "gpu_memory_peak_mb": 36.029296875,
+      "checkpoint_size_mb": 0.6421403884887695,
+      "output_dir": "D:\\work\\2026.7.14_kaggle\\40class\\outputs\\task03_smoke\\imu\\smoke_20260715_142410_imu"
+    },
+    "skeleton": {
+      "status": "passed",
+      "train_samples": 1931,
+      "val_samples": 1000,
+      "input_shape": [
+        16,
+        64,
+        102
+      ],
+      "logits_shape": [
+        16,
+        40
+      ],
+      "embedding_shape": [
+        16,
+        128
+      ],
+      "loss": 3.685302734375,
+      "gpu_memory_peak_mb": 22.32958984375,
+      "checkpoint_size_mb": 0.6743669509887695,
+      "output_dir": "D:\\work\\2026.7.14_kaggle\\40class\\outputs\\task03_smoke\\skeleton\\smoke_20260715_142418_skeleton"
+    },
+    "radar": {
+      "status": "passed",
+      "train_samples": 1918,
+      "val_samples": 996,
+      "input_shape": [
+        16,
+        64,
+        21
+      ],
+      "logits_shape": [
+        16,
+        40
+      ],
+      "embedding_shape": [
+        16,
+        128
+      ],
+      "loss": 3.7576904296875,
+      "gpu_memory_peak_mb": 21.203125,
+      "checkpoint_size_mb": 0.5557146072387695,
+      "output_dir": "D:\\work\\2026.7.14_kaggle\\40class\\outputs\\task03_smoke\\radar\\smoke_20260715_142425_radar"
+    },
+    "ir": {
+      "status": "passed",
+      "train_samples": 1933,
+      "val_samples": 1000,
+      "input_shape": [
+        4,
+        12,
+        3,
+        192,
+        192
+      ],
+      "logits_shape": [
+        4,
+        40
+      ],
+      "embedding_shape": [
+        4,
+        128
+      ],
+      "loss": 3.5517578125,
+      "gpu_memory_peak_mb": 356.86572265625,
+      "checkpoint_size_mb": 3.969975471496582,
+      "output_dir": "D:\\work\\2026.7.14_kaggle\\40class\\outputs\\task03_smoke\\ir\\smoke_20260715_142433_ir"
+    },
+    "thermal": {
+      "status": "passed",
+      "train_samples": 1845,
+      "val_samples": 1046,
+      "input_shape": [
+        4,
+        12,
+        3,
+        192,
+        192
+      ],
+      "logits_shape": [
+        4,
+        40
+      ],
+      "embedding_shape": [
+        4,
+        128
+      ],
+      "loss": 3.5604248046875,
+      "gpu_memory_peak_mb": 356.86572265625,
+      "checkpoint_size_mb": 3.969975471496582,
+      "output_dir": "D:\\work\\2026.7.14_kaggle\\40class\\outputs\\task03_smoke\\thermal\\smoke_20260715_142443_thermal"
+    },
+    "depth_color": {
+      "status": "passed",
+      "train_samples": 1931,
+      "val_samples": 1000,
+      "input_shape": [
+        4,
+        12,
+        3,
+        192,
+        192
+      ],
+      "logits_shape": [
+        4,
+        40
+      ],
+      "embedding_shape": [
+        4,
+        128
+      ],
+      "loss": 3.5526123046875,
+      "gpu_memory_peak_mb": 356.86572265625,
+      "checkpoint_size_mb": 3.969975471496582,
+      "output_dir": "D:\\work\\2026.7.14_kaggle\\40class\\outputs\\task03_smoke\\depth_color\\smoke_20260715_142452_depth_color"
+    }
+  },
+  "status": "passed"
+}
