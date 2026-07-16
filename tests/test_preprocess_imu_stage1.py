@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 from pathlib import Path
 
 import pytest
@@ -181,6 +182,76 @@ def test_device_names_map_to_sensor_positions(
     device_name: str, expected: str | None
 ) -> None:
     assert imu.parse_sensor_position(device_name) == expected
+
+
+def test_content_validation_combines_reasons_in_deterministic_order() -> None:
+    records = [
+        [
+            "not-a-time",
+            "mystery-device",
+            "bad-acc-x",
+            *(["1"] * 15),
+            "20",
+            "v1",
+            "80",
+        ],
+        ["2025-01-01", "also-unknown", *(["1"] * 16), "20", "v1", "80"],
+    ]
+    frame = pd.DataFrame(records, columns=RAW_COLUMNS)
+    frame["source_file"] = "content.csv"
+    frame["source_line_number"] = [2, 3]
+    frame["source_row_index"] = [1, 2]
+    read_result = imu.CsvReadResult(
+        source_file="content.csv",
+        dataframe=frame,
+        total_input_rows=2,
+    )
+
+    result = imu.validate_dataframe(read_result)
+
+    assert result.dataframe.empty
+    assert result.unknown_sensor_rows == 2
+    assert [row.reject_stage for row in result.rejected_rows] == [
+        "content",
+        "content",
+    ]
+    assert [row.reject_reason for row in result.rejected_rows] == [
+        "invalid_time;unknown_sensor;non_numeric_acc_x_g",
+        "unknown_sensor",
+    ]
+    assert json.loads(result.rejected_rows[0].raw_row) == records[0]
+
+
+def test_invalid_optional_metadata_warns_without_rejecting_valid_row() -> None:
+    record = [
+        "2025-01-01 00:00:00",
+        "WTLL(device)",
+        *(["1"] * 16),
+        "not-a-temperature",
+        "v1",
+        "not-a-battery",
+    ]
+    frame = pd.DataFrame([record], columns=RAW_COLUMNS)
+    frame["source_file"] = "metadata.csv"
+    frame["source_line_number"] = [2]
+    frame["source_row_index"] = [1]
+    read_result = imu.CsvReadResult(
+        source_file="metadata.csv",
+        dataframe=frame,
+        warnings=["upstream warning"],
+        total_input_rows=1,
+    )
+
+    result = imu.validate_dataframe(read_result)
+
+    assert len(result.dataframe) == 1
+    assert result.rejected_rows == []
+    assert result.warnings == [
+        "upstream warning",
+        f"Invalid optional metadata values in {RAW_COLUMNS[18]}: 1",
+        f"Invalid optional metadata values in {RAW_COLUMNS[20]}: 1",
+    ]
+    assert not set(RAW_COLUMNS[18:]).intersection(result.dataframe.columns)
 
 
 def test_action_discovery_sorts_class_ids_as_integers(tmp_path: Path) -> None:

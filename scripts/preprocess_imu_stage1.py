@@ -106,6 +106,24 @@ FEATURE_COLUMNS = (
 )
 OPTIONAL_METADATA_COLUMNS = ("温度(°C)", "版本号()", "电量(%)")
 REQUIRED_SOURCE_COLUMNS = (TIME_COLUMN, DEVICE_COLUMN, *FEATURE_COLUMNS)
+FEATURE_COLUMN_MAP = {
+    "加速度X(g)": "acc_x_g",
+    "加速度Y(g)": "acc_y_g",
+    "加速度Z(g)": "acc_z_g",
+    "角速度X(°/s)": "gyro_x_dps",
+    "角速度Y(°/s)": "gyro_y_dps",
+    "角速度Z(°/s)": "gyro_z_dps",
+    "角度X(°)": "angle_x_deg",
+    "角度Y(°)": "angle_y_deg",
+    "角度Z(°)": "angle_z_deg",
+    "磁场X(uT)": "mag_x_ut",
+    "磁场Y(uT)": "mag_y_ut",
+    "磁场Z(uT)": "mag_z_ut",
+    "四元数0()": "quat_0",
+    "四元数1()": "quat_1",
+    "四元数2()": "quat_2",
+    "四元数3()": "quat_3",
+}
 
 
 def normalize_column_name(name: object) -> str:
@@ -325,6 +343,99 @@ def parse_sensor_position(device_name: object) -> str | None:
     if match is None:
         return None
     return DEVICE_PREFIX_TO_SENSOR[match.group(1)]
+
+
+def validate_dataframe(result: CsvReadResult) -> ValidatedCsvResult:
+    raw_frame = result.dataframe.copy()
+    absolute_time = pd.to_datetime(
+        raw_frame[TIME_COLUMN], errors="coerce", format="mixed"
+    )
+    sensor_position = raw_frame[DEVICE_COLUMN].map(parse_sensor_position)
+    converted_features = pd.DataFrame(index=raw_frame.index)
+    rejection_reasons: list[list[str]] = [[] for _ in range(len(raw_frame))]
+
+    for position, invalid in enumerate(absolute_time.isna().to_numpy()):
+        if invalid:
+            rejection_reasons[position].append("invalid_time")
+    for position, invalid in enumerate(sensor_position.isna().to_numpy()):
+        if invalid:
+            rejection_reasons[position].append("unknown_sensor")
+
+    for source_column, output_column in FEATURE_COLUMN_MAP.items():
+        converted = pd.to_numeric(raw_frame[source_column], errors="coerce")
+        converted_features[output_column] = converted
+        for position, invalid in enumerate(converted.isna().to_numpy()):
+            if invalid:
+                rejection_reasons[position].append(f"non_numeric_{output_column}")
+
+    warnings = list(result.warnings)
+    for column in (OPTIONAL_METADATA_COLUMNS[0], OPTIONAL_METADATA_COLUMNS[2]):
+        if column not in raw_frame.columns:
+            continue
+        original = raw_frame[column]
+        converted = pd.to_numeric(original, errors="coerce")
+        invalid_count = int((original.notna() & converted.isna()).sum())
+        if invalid_count:
+            warnings.append(
+                f"Invalid optional metadata values in {column}: {invalid_count}"
+            )
+
+    rejected_rows = list(result.rejected_rows)
+    source_columns = [
+        column
+        for column in raw_frame.columns
+        if column
+        not in {"source_file", "source_line_number", "source_row_index"}
+    ]
+    for position, reasons in enumerate(rejection_reasons):
+        if not reasons:
+            continue
+        row = raw_frame.iloc[position]
+
+        def trace_index(column: str) -> int | None:
+            value = row.get(column)
+            return None if value is None or pd.isna(value) else int(value)
+
+        raw_values: list[Any] = []
+        for column in source_columns:
+            value = row[column]
+            if pd.isna(value):
+                raw_values.append(None)
+            elif hasattr(value, "item"):
+                raw_values.append(value.item())
+            else:
+                raw_values.append(value)
+        rejected_rows.append(
+            RejectedRow(
+                source_file=str(row.get("source_file", result.source_file)),
+                source_line_number=trace_index("source_line_number"),
+                source_row_index=trace_index("source_row_index"),
+                reject_stage="content",
+                reject_reason=";".join(reasons),
+                raw_row=json.dumps(raw_values, ensure_ascii=False),
+            )
+        )
+
+    validated = pd.DataFrame(
+        {
+            "absolute_time": absolute_time,
+            "sensor_position": sensor_position,
+        },
+        index=raw_frame.index,
+    )
+    validated = pd.concat([validated, converted_features], axis=1)
+    for column in ("source_file", "source_line_number", "source_row_index"):
+        validated[column] = raw_frame[column]
+    accepted_mask = pd.Series(
+        [not reasons for reasons in rejection_reasons], index=raw_frame.index
+    )
+
+    return ValidatedCsvResult(
+        dataframe=validated.loc[accepted_mask].reset_index(drop=True),
+        rejected_rows=rejected_rows,
+        warnings=warnings,
+        unknown_sensor_rows=int(sensor_position.isna().sum()),
+    )
 
 
 def natural_key(value: str) -> tuple[tuple[int, object], ...]:
