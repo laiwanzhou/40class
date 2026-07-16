@@ -255,6 +255,19 @@ def main() -> None:
         "No test data, fold_1/fold_2, pretrained weights, preprocessing cache, architecture change, augmentation change, or parameter ablation was used.",
         "The best checkpoint remains selected by validation Accuracy.",
         "",
+        "## Frozen training configuration",
+        "",
+        "All runs use CrossEntropyLoss, AdamW (learning rate 3e-4, weight decay 1e-4), "
+        "CosineAnnealingLR, dropout 0.2, gradient clipping at 1.0, CUDA AMP, seed 20260715, "
+        "num_workers=4, embedding_dim=128, and 40 output classes. No pretrained weights are used.",
+        "",
+        "| Modalities | Model and aggregation | Input | Batch | Epochs/patience |",
+        "| --- | --- | --- | ---: | ---: |",
+        "| Depth_Color / IR / Thermal | MobileNetV3-Small (`weights=None`) with temporal mean pooling | 12 frames, 3x192x192 | 4 | 30/6 |",
+        "| IMU | residual TCN, channels [64,128] | 256x80 sequence | 16 | 40/8 |",
+        "| Skeleton | root-centered + velocity residual TCN, channels [64,128] | 64x102 sequence | 16 | 40/8 |",
+        "| Radar | 21 per-frame statistics + residual TCN, channels [64,128] | 64x21 sequence | 16 | 40/8 |",
+        "",
         "## Formal configurations and results",
         "",
         "| Modality | Train/val | Requested/completed | Early stop | Best epoch | Best Acc | Best Macro-F1 | Best val loss | Final Acc | Mean epoch | Total | GPU alloc/reserved MB |",
@@ -269,6 +282,14 @@ def main() -> None:
             f"{row['mean_epoch_seconds']:.2f}s | {format_duration(row['total_training_seconds'])} | "
             f"{row['gpu_peak_allocated_mb']:.2f}/{row['gpu_peak_reserved_mb']:.2f} |"
         )
+    aggregate_training_seconds = sum(row["total_training_seconds"] for row in rows)
+    lines.extend(
+        [
+            "",
+            f"Aggregate epoch time across the six serial runs: {format_duration(aggregate_training_seconds)}. "
+            "This excludes startup, data-loader spawn, artifact validation, and report-generation overhead.",
+        ]
+    )
     lines.extend(["", "## Accuracy and Macro-F1 checkpoint analysis", ""])
     for row in rows:
         lines.append(
@@ -311,6 +332,18 @@ def main() -> None:
             "- Visual modalities should next compare 192x192 with aspect-ratio-preserving 224x224, then 12 versus 16 frames and weak spatial/temporal augmentation, one variable at a time.",
             "- IMU should next compare sequence length 256/384 and controlled sensor noise or amplitude scaling; Skeleton should compare 64/96 steps and stronger joint-time structure.",
             "- Learning rate, weight decay, dropout, alternative user ratios, fold_1/fold_2, candidate-B models, and multimodal fusion remain outside this run.",
+            "",
+            "## Input-pipeline and hardware observations",
+            "",
+            "The earlier workers=0 pipeline saturated CPU-side loading and left substantial GPU idle time. "
+            "The selected workers=4 pipeline materially improved throughput, but image decoding remains online, "
+            "so the visual modalities are still partly CPU/input limited and GPU utilization remains bursty rather than continuously saturated.",
+            "",
+            "During this formal run, manual nvidia-smi snapshots for the visual modalities were approximately "
+            "1.8-2.0 GiB total device memory with utilization fluctuating around 5%-47%. These snapshots include "
+            "CUDA context and non-tensor overhead. The reproducible PyTorch peaks were IR 357.34/504.00 MB, "
+            "Thermal 357.32/504.00 MB, and Depth_Color 357.34/484.00 MB allocated/reserved. "
+            "Thus training definitely ran on CUDA; low instantaneous utilization reflects input/validation waits, not CPU-only training.",
             "",
             "## Integrity and runtime checks",
             "",
