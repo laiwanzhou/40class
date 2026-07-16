@@ -1,34 +1,103 @@
 {
   "fold": 0,
-  "method": "StratifiedGroupKFold",
-  "n_splits": 3,
-  "shuffle": true,
-  "random_state": 20260715,
+  "method": "ExhaustiveUserGroupHoldout",
+  "selection_version": "14train_4val_v1",
   "group_field": "user_id",
   "label_field": "class_id",
+  "target_train_user_count": 14,
+  "target_val_user_count": 4,
+  "target_val_sample_ratio": 0.2,
+  "selection_source": "metadata/manifest.csv only",
+  "selection_uses_model_results": false,
   "train_users": [
+    "user1",
     "user2",
     "user3",
-    "user4",
+    "user5",
+    "user6",
     "user7",
     "user8",
     "user9",
-    "user17",
+    "user16",
+    "user18",
+    "user19",
     "user20",
     "user21",
-    "user22",
+    "user22"
+  ],
+  "val_users": [
+    "user4",
+    "user17",
     "user23",
     "user24"
   ],
-  "val_users": [
-    "user1",
-    "user5",
-    "user6",
-    "user16",
-    "user18",
-    "user19"
-  ],
-  "train_sample_count": 1967,
-  "val_sample_count": 1069,
-  "val_class_count": 40
+  "train_sample_count": 2427,
+  "val_sample_count": 609,
+  "val_sample_ratio": 0.20059288537549408,
+  "train_class_count": 40,
+  "val_class_count": 40,
+  "per_modality_counts": {
+    "Depth_Color": {
+      "train_samples": 2341,
+      "val_samples": 590,
+      "val_ratio": 0.2012964858410099,
+      "train_class_count": 40,
+      "val_class_count": 40,
+      "min_val_class_samples": 5,
+      "max_val_class_samples": 71,
+      "mean_val_class_samples": 14.75
+    },
+    "IMU": {
+      "train_samples": 2319,
+      "val_samples": 584,
+      "val_ratio": 0.2011712022046159,
+      "train_class_count": 40,
+      "val_class_count": 40,
+      "min_val_class_samples": 5,
+      "max_val_class_samples": 68,
+      "mean_val_class_samples": 14.6
+    },
+    "IR": {
+      "train_samples": 2342,
+      "val_samples": 591,
+      "val_ratio": 0.2015001704739175,
+      "train_class_count": 40,
+      "val_class_count": 40,
+      "min_val_class_samples": 5,
+      "max_val_class_samples": 71,
+      "mean_val_class_samples": 14.775
+    },
+    "Radar": {
+      "train_samples": 2329,
+      "val_samples": 585,
+      "val_ratio": 0.20075497597803707,
+      "train_class_count": 40,
+      "val_class_count": 40,
+      "min_val_class_samples": 5,
+      "max_val_class_samples": 71,
+      "mean_val_class_samples": 14.625
+    },
+    "Skeleton": {
+      "train_samples": 2341,
+      "val_samples": 590,
+      "val_ratio": 0.2012964858410099,
+      "train_class_count": 40,
+      "val_class_count": 40,
+      "min_val_class_samples": 5,
+      "max_val_class_samples": 71,
+      "mean_val_class_samples": 14.75
+    },
+    "Thermal": {
+      "train_samples": 2299,
+      "val_samples": 592,
+      "val_ratio": 0.20477343479764787,
+      "train_class_count": 40,
+      "val_class_count": 40,
+      "min_val_class_samples": 5,
+      "max_val_class_samples": 63,
+      "mean_val_class_samples": 14.8
+    }
+  },
+  "selection_score": 0.31170414208645636,
+  "candidate_rank": 1
 }

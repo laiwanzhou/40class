@@ -1,0 +1,34 @@
+{
+  "fold": 0,
+  "method": "StratifiedGroupKFold",
+  "n_splits": 3,
+  "shuffle": true,
+  "random_state": 20260715,
+  "group_field": "user_id",
+  "label_field": "class_id",
+  "train_users": [
+    "user2",
+    "user3",
+    "user4",
+    "user7",
+    "user8",
+    "user9",
+    "user17",
+    "user20",
+    "user21",
+    "user22",
+    "user23",
+    "user24"
+  ],
+  "val_users": [
+    "user1",
+    "user5",
+    "user6",
+    "user16",
+    "user18",
+    "user19"
+  ],
+  "train_sample_count": 1967,
+  "val_sample_count": 1069,
+  "val_class_count": 40
+}
