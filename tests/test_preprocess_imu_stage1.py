@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import io
 from pathlib import Path
 
 import pytest
@@ -64,6 +65,31 @@ def test_multiline_record_tracks_first_physical_line(tmp_path: Path) -> None:
 
     result = imu.read_csv_robust(source)
 
+    assert result.dataframe["source_line_number"].tolist() == [2, 4]
+
+
+def test_cr_only_utf8_sig_tracks_physical_record_start_lines(tmp_path: Path) -> None:
+    source = tmp_path / "cr-only.csv"
+    multiline_row = [
+        "2025-01-01\r00:00:00",
+        "WTLL(device)",
+        *(["1"] * 17),
+        "v1",
+        "80",
+    ]
+    following_row = ["2025-01-02", "WTLL(device)", *(["2"] * 17), "v1", "80"]
+    text = io.StringIO(newline="")
+    writer = csv.writer(text, lineterminator="\r")
+    writer.writerow(RAW_COLUMNS)
+    writer.writerow(multiline_row)
+    writer.writerow(following_row)
+    source.write_bytes(text.getvalue().encode("utf-8-sig"))
+
+    result = imu.read_csv_robust(source)
+
+    assert result.file_errors == []
+    assert result.total_input_rows == 2
+    assert result.dataframe["source_row_index"].tolist() == [1, 2]
     assert result.dataframe["source_line_number"].tolist() == [2, 4]
 
 

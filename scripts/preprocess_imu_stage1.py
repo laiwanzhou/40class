@@ -143,9 +143,51 @@ def read_csv_robust(path: Path) -> CsvReadResult:
         with path.open("rb") as handle:
             def decoded_lines() -> Any:
                 nonlocal decode_line_number
-                for decode_line_number, raw_line in enumerate(handle, start=1):
-                    encoding = "utf-8-sig" if decode_line_number == 1 else "utf-8"
-                    yield raw_line.decode(encoding)
+                buffer = bytearray()
+                physical_line_number = 0
+                while True:
+                    chunk = handle.read(8192)
+                    end_of_file = not chunk
+                    buffer.extend(chunk)
+                    separator_index = 0
+                    while separator_index < len(buffer):
+                        byte = buffer[separator_index]
+                        if byte == 10:
+                            line_end = separator_index + 1
+                        elif byte == 13:
+                            if separator_index + 1 == len(buffer) and not end_of_file:
+                                break
+                            line_end = separator_index + 1
+                            if (
+                                separator_index + 1 < len(buffer)
+                                and buffer[separator_index + 1] == 10
+                            ):
+                                line_end += 1
+                        else:
+                            separator_index += 1
+                            continue
+
+                        raw_line = bytes(buffer[:line_end])
+                        del buffer[:line_end]
+                        separator_index = 0
+                        physical_line_number += 1
+                        decode_line_number = physical_line_number
+                        encoding = (
+                            "utf-8-sig" if physical_line_number == 1 else "utf-8"
+                        )
+                        yield raw_line.decode(encoding)
+
+                    if end_of_file:
+                        if buffer:
+                            physical_line_number += 1
+                            decode_line_number = physical_line_number
+                            encoding = (
+                                "utf-8-sig"
+                                if physical_line_number == 1
+                                else "utf-8"
+                            )
+                            yield bytes(buffer).decode(encoding)
+                        break
 
             reader = csv.reader(decoded_lines(), strict=True)
             try:
