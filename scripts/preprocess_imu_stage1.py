@@ -2,8 +2,12 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 import re
+import shutil
+import stat
 import unicodedata
+import uuid
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -73,6 +77,53 @@ class WriteResult:
     written: bool
     output_directory: Path
     error_message: str = ""
+
+
+def _verified_action_path(output_root: Path, path: Path) -> Path:
+    resolved_root = output_root.resolve()
+    lexical_path = Path(os.path.abspath(path))
+    if lexical_path == resolved_root or not lexical_path.is_relative_to(
+        resolved_root
+    ):
+        raise ValueError(f"Managed path is outside output root: {lexical_path}")
+    current = resolved_root
+    for component in lexical_path.relative_to(resolved_root).parts:
+        current /= component
+        if not os.path.lexists(current):
+            continue
+        attributes = getattr(current.lstat(), "st_file_attributes", 0)
+        reparse_attribute = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+        is_junction = getattr(current, "is_junction", lambda: False)()
+        if (
+            (reparse_attribute and attributes & reparse_attribute)
+            or current.is_symlink()
+            or is_junction
+        ):
+            raise ValueError(f"Managed path contains reparse point: {current}")
+    resolved_path = lexical_path.resolve()
+    if resolved_path == resolved_root or not resolved_path.is_relative_to(
+        resolved_root
+    ):
+        raise ValueError(f"Managed path is outside output root: {resolved_path}")
+    return lexical_path
+
+
+def _verified_sibling(
+    output_root: Path, destination: Path, candidate: Path
+) -> Path:
+    resolved_destination = _verified_action_path(output_root, destination)
+    resolved_candidate = _verified_action_path(output_root, candidate)
+    if resolved_candidate.parent != resolved_destination.parent:
+        raise ValueError(
+            f"Managed temporary path is not beside destination: {resolved_candidate}"
+        )
+    return resolved_candidate
+
+
+def _remove_managed_tree(output_root: Path, path: Path) -> None:
+    resolved_path = _verified_action_path(output_root, path)
+    if resolved_path.exists():
+        shutil.rmtree(resolved_path)
 
 
 SENSOR_ORDER = {"LL": 0, "RL": 1, "LA": 2, "RA": 3, "C": 4}
@@ -728,3 +779,133 @@ def process_action(descriptor: ActionDescriptor) -> ActionResult:
         qc=qc,
         manifest_row=manifest_row,
     )
+
+
+def write_action_result(
+    result: ActionResult, output_root: Path, overwrite: bool
+) -> WriteResult:
+    resolved_root = output_root.resolve()
+    requested_destination = Path(
+        os.path.abspath(resolved_root / result.descriptor.relative_action_path)
+    )
+    try:
+        destination = _verified_action_path(resolved_root, requested_destination)
+    except Exception as error:
+        return WriteResult(
+            written=False,
+            output_directory=requested_destination,
+            error_message=str(error),
+        )
+    input_root = result.descriptor.input_directory.resolve()
+    for _ in result.descriptor.relative_action_path.parts:
+        input_root = input_root.parent
+    if destination.is_relative_to(input_root) or input_root.is_relative_to(
+        destination
+    ):
+        return WriteResult(
+            written=False,
+            output_directory=destination,
+            error_message="Output destination overlaps input action tree",
+        )
+    if destination.exists() and not destination.is_dir():
+        return WriteResult(
+            written=False,
+            output_directory=destination,
+            error_message="Existing action output is not a directory",
+        )
+    if destination.exists() and not overwrite:
+        return WriteResult(written=False, output_directory=destination)
+
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    token = uuid.uuid4().hex
+    staging = _verified_sibling(
+        resolved_root,
+        destination,
+        destination.parent / f".{destination.name}.staging-{token}",
+    )
+    backup = _verified_sibling(
+        resolved_root,
+        destination,
+        destination.parent / f".{destination.name}.backup-{token}",
+    )
+    backup_created = False
+    staging_created = False
+    try:
+        staging.mkdir()
+        staging_created = True
+        successful = result.status != "failed"
+        if successful:
+            if result.merged.columns.tolist() != OUTPUT_COLUMNS:
+                raise ValueError("Merged output columns do not match OUTPUT_COLUMNS")
+            result.merged.to_csv(
+                staging / "imu_merged.csv",
+                index=False,
+                encoding="utf-8-sig",
+            )
+        (staging / "qc.json").write_text(
+            json.dumps(result.qc, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        if not result.rejected.empty:
+            if result.rejected.columns.tolist() != REJECTED_COLUMNS:
+                raise ValueError(
+                    "Rejected output columns do not match REJECTED_COLUMNS"
+                )
+            result.rejected.to_csv(
+                staging / "rejected_rows.csv",
+                index=False,
+                encoding="utf-8-sig",
+            )
+
+        expected_names = {"qc.json"}
+        if successful:
+            expected_names.add("imu_merged.csv")
+        if not result.rejected.empty:
+            expected_names.add("rejected_rows.csv")
+        actual_names = {path.name for path in staging.iterdir()}
+        if actual_names != expected_names or not all(
+            path.is_file() for path in staging.iterdir()
+        ):
+            raise RuntimeError(
+                "Staged managed artifact set mismatch: "
+                f"expected {sorted(expected_names)}, got {sorted(actual_names)}"
+            )
+
+        if destination.exists():
+            destination.rename(backup)
+            backup_created = True
+        staging.rename(destination)
+        staging_created = False
+    except Exception as error:
+        error_messages = [str(error)]
+        if backup_created and backup.exists():
+            if not destination.exists():
+                try:
+                    backup.rename(destination)
+                    backup_created = False
+                except Exception as restore_error:
+                    error_messages.append(f"backup restore failed: {restore_error}")
+        if staging_created:
+            try:
+                _remove_managed_tree(resolved_root, staging)
+            except Exception as cleanup_error:
+                error_messages.append(f"staging cleanup failed: {cleanup_error}")
+        return WriteResult(
+            written=False,
+            output_directory=destination,
+            error_message="; ".join(error_messages),
+        )
+
+    if backup_created:
+        try:
+            _remove_managed_tree(resolved_root, backup)
+        except Exception as cleanup_error:
+            return WriteResult(
+                written=True,
+                output_directory=destination,
+                error_message=(
+                    f"backup cleanup failed; backup retained at {backup}: "
+                    f"{cleanup_error}"
+                ),
+            )
+    return WriteResult(written=True, output_directory=destination)

@@ -4,6 +4,8 @@ import csv
 import hashlib
 import io
 import json
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -48,6 +50,51 @@ def write_imu_csv(path, rows: list[tuple[str, str]]) -> None:
     for timestamp, device in rows:
         records.append([timestamp, device, *([1.0] * 17), "v1", 80])
     pd.DataFrame(records, columns=RAW_COLUMNS).to_csv(path, index=False, encoding="utf-8")
+
+
+def make_action_result(
+    tmp_path: Path,
+    *,
+    status: str = "success",
+    rejected: bool = False,
+) -> imu.ActionResult:
+    relative_path = Path("0_Wash_face") / "user1" / "1-1-1"
+    descriptor = imu.ActionDescriptor(
+        class_id=0,
+        class_name="Wash_face",
+        user_id="user1",
+        action_id="1-1-1",
+        input_directory=tmp_path / "input" / relative_path,
+        relative_action_path=relative_path,
+        input_csv_files=(),
+    )
+    merged = pd.DataFrame(
+        [[0.0, 0, "LL", *([1.0] * 16), "part.csv", 1]],
+        columns=imu.OUTPUT_COLUMNS,
+    )
+    rejected_frame = pd.DataFrame(
+        (
+            [["part.csv", 2, 1, "content", "invalid_time", '["bad"]']]
+            if rejected
+            else []
+        ),
+        columns=imu.REJECTED_COLUMNS,
+    )
+    if status == "failed":
+        merged = pd.DataFrame(columns=imu.OUTPUT_COLUMNS)
+    qc = {
+        "status": status,
+        "valid_output_rows": len(merged),
+        "rejected_rows": len(rejected_frame),
+    }
+    return imu.ActionResult(
+        descriptor=descriptor,
+        status=status,
+        merged=merged,
+        rejected=rejected_frame,
+        qc=qc,
+        manifest_row={"status": status},
+    )
 
 
 def test_structural_inspection_rejects_rows_and_preserves_indices(
@@ -470,3 +517,305 @@ def test_action_processing_preserves_input_bytes_paths_and_entries(
     assert result.merged["source_file"].tolist() == ["part-1.csv", "part-2.csv"]
     assert after == before
     assert not (tmp_path / "out").exists()
+
+
+@pytest.mark.parametrize("has_rejected_rows", [False, True])
+def test_write_action_result_stages_exact_utf8_sig_artifact_set(
+    tmp_path: Path, has_rejected_rows: bool
+) -> None:
+    output_root = tmp_path / "new_IMU"
+    result = make_action_result(tmp_path, rejected=has_rejected_rows)
+
+    write_result = imu.write_action_result(result, output_root, overwrite=False)
+
+    output_directory = output_root / result.descriptor.relative_action_path
+    expected_names = {"imu_merged.csv", "qc.json"}
+    if has_rejected_rows:
+        expected_names.add("rejected_rows.csv")
+    assert write_result == imu.WriteResult(True, output_directory)
+    assert {path.name for path in output_directory.iterdir()} == expected_names
+    merged_path = output_directory / "imu_merged.csv"
+    assert merged_path.read_bytes()[:3] == b"\xef\xbb\xbf"
+    actual_merged = pd.read_csv(merged_path, encoding="utf-8-sig")
+    assert actual_merged.columns.tolist() == imu.OUTPUT_COLUMNS
+    pd.testing.assert_frame_equal(actual_merged, result.merged)
+    assert json.loads((output_directory / "qc.json").read_text("utf-8")) == result.qc
+    if has_rejected_rows:
+        actual_rejected = pd.read_csv(
+            output_directory / "rejected_rows.csv", encoding="utf-8-sig"
+        )
+        assert actual_rejected.columns.tolist() == imu.REJECTED_COLUMNS
+        pd.testing.assert_frame_equal(actual_rejected, result.rejected)
+    assert not any(".staging-" in path.name for path in output_root.rglob("*"))
+    assert not any(".backup-" in path.name for path in output_root.rglob("*"))
+
+
+def test_overwrite_success_with_failed_removes_stale_merged_csv(
+    tmp_path: Path,
+) -> None:
+    output_root = tmp_path / "new_IMU"
+    successful = make_action_result(tmp_path)
+    failed = make_action_result(tmp_path, status="failed", rejected=True)
+    assert imu.write_action_result(successful, output_root, overwrite=False).written
+
+    write_result = imu.write_action_result(failed, output_root, overwrite=True)
+
+    output_directory = output_root / failed.descriptor.relative_action_path
+    assert write_result == imu.WriteResult(True, output_directory)
+    assert {path.name for path in output_directory.iterdir()} == {
+        "qc.json",
+        "rejected_rows.csv",
+    }
+    assert not (output_directory / "imu_merged.csv").exists()
+    assert json.loads((output_directory / "qc.json").read_text("utf-8")) == failed.qc
+    assert not any(".staging-" in path.name for path in output_root.rglob("*"))
+    assert not any(".backup-" in path.name for path in output_root.rglob("*"))
+
+
+def test_overwrite_rejected_with_clean_success_removes_stale_rejection_csv(
+    tmp_path: Path,
+) -> None:
+    output_root = tmp_path / "new_IMU"
+    rejected = make_action_result(tmp_path, rejected=True)
+    clean = make_action_result(tmp_path)
+    assert imu.write_action_result(rejected, output_root, overwrite=False).written
+
+    write_result = imu.write_action_result(clean, output_root, overwrite=True)
+
+    output_directory = output_root / clean.descriptor.relative_action_path
+    assert write_result == imu.WriteResult(True, output_directory)
+    assert {path.name for path in output_directory.iterdir()} == {
+        "imu_merged.csv",
+        "qc.json",
+    }
+    assert not (output_directory / "rejected_rows.csv").exists()
+    actual_merged = pd.read_csv(
+        output_directory / "imu_merged.csv", encoding="utf-8-sig"
+    )
+    pd.testing.assert_frame_equal(actual_merged, clean.merged)
+    assert not any(".staging-" in path.name for path in output_root.rglob("*"))
+    assert not any(".backup-" in path.name for path in output_root.rglob("*"))
+
+
+def test_existing_action_skip_is_byte_for_byte_immutable(tmp_path: Path) -> None:
+    output_root = tmp_path / "new_IMU"
+    original = make_action_result(tmp_path, rejected=True)
+    assert imu.write_action_result(original, output_root, overwrite=False).written
+    output_directory = output_root / original.descriptor.relative_action_path
+    (output_directory / "preserve.bin").write_bytes(b"\x00manual\xff")
+
+    def snapshot() -> dict[str, bytes]:
+        return {
+            path.relative_to(output_directory).as_posix(): path.read_bytes()
+            for path in output_directory.rglob("*")
+            if path.is_file()
+        }
+
+    before = snapshot()
+    replacement = make_action_result(tmp_path)
+    replacement.qc["status"] = "changed"
+
+    write_result = imu.write_action_result(
+        replacement, output_root, overwrite=False
+    )
+
+    assert write_result == imu.WriteResult(False, output_directory)
+    assert snapshot() == before
+    assert not any(".staging-" in path.name for path in output_root.rglob("*"))
+    assert not any(".backup-" in path.name for path in output_root.rglob("*"))
+
+
+def test_writer_rejects_destination_overlapping_input_action(tmp_path: Path) -> None:
+    result = make_action_result(tmp_path)
+    result.descriptor.input_directory.mkdir(parents=True)
+    sentinel = result.descriptor.input_directory / "source.csv"
+    sentinel.write_bytes(b"original input bytes")
+
+    write_result = imu.write_action_result(
+        result, tmp_path / "input", overwrite=True
+    )
+
+    assert not write_result.written
+    assert "overlaps input action" in write_result.error_message
+    assert sentinel.read_bytes() == b"original input bytes"
+    assert {path.name for path in result.descriptor.input_directory.iterdir()} == {
+        "source.csv"
+    }
+
+
+def test_overwrite_install_failure_restores_original_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    output_root = tmp_path / "new_IMU"
+    original = make_action_result(tmp_path, rejected=True)
+    assert imu.write_action_result(original, output_root, overwrite=False).written
+    output_directory = output_root / original.descriptor.relative_action_path
+    before = {
+        path.name: path.read_bytes()
+        for path in output_directory.iterdir()
+        if path.is_file()
+    }
+    real_rename = Path.rename
+
+    def fail_staging_install(path: Path, target: Path) -> Path:
+        if ".staging-" in path.name:
+            raise OSError("injected Windows rename failure")
+        return real_rename(path, target)
+
+    monkeypatch.setattr(Path, "rename", fail_staging_install)
+
+    write_result = imu.write_action_result(
+        make_action_result(tmp_path), output_root, overwrite=True
+    )
+
+    assert not write_result.written
+    assert "injected Windows rename failure" in write_result.error_message
+    assert {
+        path.name: path.read_bytes()
+        for path in output_directory.iterdir()
+        if path.is_file()
+    } == before
+    assert not any(".staging-" in path.name for path in output_root.rglob("*"))
+    assert not any(".backup-" in path.name for path in output_root.rglob("*"))
+
+
+def test_partial_backup_cleanup_failure_preserves_committed_destination(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    output_root = tmp_path / "new_IMU"
+    original = make_action_result(tmp_path, rejected=True)
+    assert imu.write_action_result(original, output_root, overwrite=False).written
+    output_directory = output_root / original.descriptor.relative_action_path
+    (output_directory / "unmanaged.bin").write_bytes(b"old unmanaged bytes")
+    replacement = make_action_result(tmp_path)
+    replacement.qc["generation"] = "replacement"
+    real_rmtree = shutil.rmtree
+
+    def partially_delete_backup_then_fail(path: Path, *args, **kwargs) -> None:
+        candidate = Path(path)
+        if ".backup-" in candidate.name:
+            (candidate / "unmanaged.bin").unlink()
+            raise OSError("injected partial backup cleanup failure")
+        real_rmtree(candidate, *args, **kwargs)
+
+    monkeypatch.setattr(shutil, "rmtree", partially_delete_backup_then_fail)
+
+    write_result = imu.write_action_result(
+        replacement, output_root, overwrite=True
+    )
+
+    assert write_result.written
+    assert write_result.output_directory == output_directory
+    assert "injected partial backup cleanup failure" in write_result.error_message
+    assert {path.name for path in output_directory.iterdir()} == {
+        "imu_merged.csv",
+        "qc.json",
+    }
+    assert json.loads((output_directory / "qc.json").read_text("utf-8")) == (
+        replacement.qc
+    )
+    backups = [
+        path
+        for path in output_directory.parent.iterdir()
+        if ".backup-" in path.name
+    ]
+    assert len(backups) == 1
+    assert not (backups[0] / "unmanaged.bin").exists()
+
+
+def test_writer_rejects_windows_junction_in_mirrored_destination(
+    tmp_path: Path,
+) -> None:
+    output_root = tmp_path / "new_IMU"
+    result = make_action_result(tmp_path)
+    requested = output_root / result.descriptor.relative_action_path
+    requested.parent.mkdir(parents=True)
+    victim = output_root / "different-action"
+    victim.mkdir(parents=True)
+    sentinel = victim / "victim.bin"
+    sentinel.write_bytes(b"must survive")
+    completed = subprocess.run(
+        ["cmd", "/c", "mklink", "/J", str(requested), str(victim)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if completed.returncode != 0:
+        pytest.skip(f"Windows junction creation unavailable: {completed.stderr}")
+
+    write_result = imu.write_action_result(result, output_root, overwrite=True)
+
+    assert not write_result.written
+    assert "reparse" in write_result.error_message.casefold()
+    assert write_result.output_directory == requested
+    assert sentinel.read_bytes() == b"must survive"
+    assert requested.is_junction()
+
+
+def test_writer_rejects_supported_symlink_in_mirrored_destination(
+    tmp_path: Path,
+) -> None:
+    output_root = tmp_path / "new_IMU"
+    result = make_action_result(tmp_path)
+    requested = output_root / result.descriptor.relative_action_path
+    requested.parent.mkdir(parents=True)
+    victim = output_root / "different-action"
+    victim.mkdir(parents=True)
+    sentinel = victim / "victim.bin"
+    sentinel.write_bytes(b"must survive")
+    try:
+        requested.symlink_to(victim, target_is_directory=True)
+    except OSError as error:
+        pytest.skip(f"Directory symlink creation unavailable: {error}")
+
+    write_result = imu.write_action_result(result, output_root, overwrite=True)
+
+    assert not write_result.written
+    assert "reparse" in write_result.error_message.casefold()
+    assert write_result.output_directory == requested
+    assert sentinel.read_bytes() == b"must survive"
+    assert requested.is_symlink()
+
+
+@pytest.mark.parametrize("overwrite", [False, True])
+def test_writer_rejects_regular_file_at_action_destination(
+    tmp_path: Path, overwrite: bool
+) -> None:
+    output_root = tmp_path / "new_IMU"
+    result = make_action_result(tmp_path)
+    destination = output_root / result.descriptor.relative_action_path
+    destination.parent.mkdir(parents=True)
+    destination.write_bytes(b"conflicting regular file")
+
+    write_result = imu.write_action_result(result, output_root, overwrite=overwrite)
+
+    assert not write_result.written
+    assert "not a directory" in write_result.error_message
+    assert write_result.output_directory == destination
+    assert destination.read_bytes() == b"conflicting regular file"
+
+
+def test_staging_uuid_collision_preserves_preexisting_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    output_root = tmp_path / "new_IMU"
+    result = make_action_result(tmp_path)
+    destination = output_root / result.descriptor.relative_action_path
+    destination.parent.mkdir(parents=True)
+    staging = destination.parent / f".{destination.name}.staging-collision"
+    staging.mkdir()
+    sentinel = staging / "preexisting.bin"
+    sentinel.write_bytes(b"not owned by writer")
+
+    class FixedUuid:
+        hex = "collision"
+
+    monkeypatch.setattr(imu.uuid, "uuid4", lambda: FixedUuid())
+
+    write_result = imu.write_action_result(result, output_root, overwrite=False)
+
+    assert not write_result.written
+    assert write_result.error_message
+    assert sentinel.read_bytes() == b"not owned by writer"
+    assert {path.name for path in staging.iterdir()} == {"preexisting.bin"}
+    assert not destination.exists()
