@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import io
 import json
 from pathlib import Path
@@ -18,6 +19,27 @@ RAW_COLUMNS = [
     "磁场X(uT)", "磁场Y(uT)", "磁场Z(uT)",
     "四元数0()", "四元数1()", "四元数2()", "四元数3()",
     "温度(°C)", "版本号()", "电量(%)",
+]
+
+QC_KEYS = [
+    "class_id", "class_name", "user_id", "action_id", "input_directory",
+    "input_csv_files", "csv_file_count", "status", "total_input_rows",
+    "valid_output_rows", "rejected_rows", "unknown_sensor_rows",
+    "present_sensors", "missing_sensors", "rows_per_sensor",
+    "duplicate_timestamp_count_per_sensor", "min_relative_time_ms",
+    "max_relative_time_ms", "duration_s", "columns_written", "warnings",
+    "error_message", "action_start_time", "action_end_time",
+    "structural_rejected_rows", "content_rejected_rows", "file_errors",
+]
+MANIFEST_KEYS = [
+    "sample_id", "class_id", "class_name", "user_id", "action_id",
+    "relative_action_path", "output_csv", "status", "csv_file_count",
+    "total_input_rows", "valid_output_rows", "rejected_rows",
+    "unknown_sensor_rows", "present_sensors", "missing_sensors", "ll_rows",
+    "rl_rows", "la_rows", "ra_rows", "c_rows", "ll_duplicate_timestamps",
+    "rl_duplicate_timestamps", "la_duplicate_timestamps",
+    "ra_duplicate_timestamps", "c_duplicate_timestamps", "duration_s",
+    "warning_count", "error_message",
 ]
 
 
@@ -278,10 +300,173 @@ def test_all_sensors_share_the_actions_earliest_time_zero(tmp_path) -> None:
         ],
     )
 
-    imu.process_action_directory(action_dir, input_root, tmp_path / "new_IMU")
-
-    output = pd.read_csv(
-        tmp_path / "new_IMU" / "0_Wash_face" / "user1" / "1-1-1" / "imu_merged.csv"
+    result = imu.process_action_directory(
+        action_dir, input_root, tmp_path / "new_IMU"
     )
+
+    output = result.merged
     assert output["relative_time_ms"].tolist() == [0, 150]
     assert output["sensor_position"].tolist() == ["LL", "RL"]
+    assert not (tmp_path / "new_IMU").exists()
+
+
+def test_exact_submillisecond_time_controls_sort_and_duplicates(tmp_path: Path) -> None:
+    input_root = tmp_path / "IMU"
+    action_dir = input_root / "0_Wash_face" / "user1" / "1-1-1"
+    action_dir.mkdir(parents=True)
+    write_imu_csv(
+        action_dir / "part.csv",
+        [
+            ("2025-01-01 00:00:00.1004", "WTLL(device)"),
+            ("2025-01-01 00:00:00.1002", "WTLL(device)"),
+            ("2025-01-01 00:00:00.1002", "WTLL(device)"),
+        ],
+    )
+
+    result = imu.process_action_directory(action_dir, input_root, tmp_path / "out")
+
+    assert result.merged["source_row_index"].tolist() == [2, 3, 1]
+    assert result.merged["relative_time_ms"].tolist() == [0, 0, 0]
+    assert result.qc["duplicate_timestamp_count_per_sensor"]["LL"] == 1
+
+
+def test_equal_cross_sensor_timestamps_are_not_duplicates(tmp_path: Path) -> None:
+    input_root = tmp_path / "IMU"
+    action_dir = input_root / "0_Wash_face" / "user1" / "1-1-1"
+    action_dir.mkdir(parents=True)
+    write_imu_csv(
+        action_dir / "part.csv",
+        [
+            ("2025-01-01 00:00:00.1002", "WTRL(device)"),
+            ("2025-01-01 00:00:00.1002", "WTLL(device)"),
+        ],
+    )
+
+    result = imu.process_action_directory(action_dir, input_root, tmp_path / "out")
+
+    assert result.merged["sensor_position"].tolist() == ["LL", "RL"]
+    counts = result.qc["duplicate_timestamp_count_per_sensor"]
+    assert counts["LL"] == 0
+    assert counts["RL"] == 0
+
+
+def test_incomplete_sensors_and_output_schema(tmp_path: Path) -> None:
+    input_root = tmp_path / "IMU"
+    action_dir = input_root / "0_Wash_face" / "user1" / "1-1-1"
+    action_dir.mkdir(parents=True)
+    write_imu_csv(
+        action_dir / "part.csv",
+        [
+            ("2025-01-01 00:00:00.100", "WTLL(device)"),
+            ("2025-01-01 00:00:00.200", "WTRL(device)"),
+        ],
+    )
+
+    result = imu.process_action_directory(action_dir, input_root, tmp_path / "out")
+
+    assert result.status == "incomplete_sensors"
+    assert result.qc["missing_sensors"] == ["LA", "RA", "C"]
+    assert result.merged.columns.tolist() == imu.OUTPUT_COLUMNS
+
+
+def test_qc_and_manifest_have_complete_ordered_typed_metadata(tmp_path: Path) -> None:
+    input_root = tmp_path / "IMU"
+    action_dir = input_root / "0_Wash_face" / "user1" / "1-1-1"
+    action_dir.mkdir(parents=True)
+    write_imu_csv(
+        action_dir / "part.csv",
+        [
+            ("2025-01-01 00:00:00.100", "WTLL(device)"),
+            ("2025-01-01 00:00:00.100", "WTLL(device)"),
+            ("2025-01-01 00:00:00.200", "WTRL(device)"),
+            ("2025-01-01 00:00:00.300", "WTLA(device)"),
+            ("2025-01-01 00:00:00.400", "WTRA(device)"),
+            ("2025-01-01 00:00:00.500", "WTC(device)"),
+        ],
+    )
+
+    result = imu.process_action_directory(action_dir, input_root, tmp_path / "out")
+
+    assert list(result.qc) == QC_KEYS
+    assert list(result.manifest_row) == MANIFEST_KEYS
+    assert result.status == "success_with_warnings"
+    assert result.qc["input_directory"] == str(action_dir.resolve())
+    assert result.qc["input_csv_files"] == ["part.csv"]
+    assert result.qc["rows_per_sensor"] == {
+        "LL": 2, "RL": 1, "LA": 1, "RA": 1, "C": 1
+    }
+    assert result.qc["duplicate_timestamp_count_per_sensor"] == {
+        "LL": 1, "RL": 0, "LA": 0, "RA": 0, "C": 0
+    }
+    assert result.qc["min_relative_time_ms"] == 0
+    assert result.qc["max_relative_time_ms"] == 400
+    assert result.qc["duration_s"] == pytest.approx(0.4)
+    assert result.qc["action_start_time"] == "2025-01-01T00:00:00.100000"
+    assert result.qc["action_end_time"] == "2025-01-01T00:00:00.500000"
+    assert result.qc["columns_written"] == imu.OUTPUT_COLUMNS
+    assert result.manifest_row["sample_id"] == "0__user1__1-1-1"
+    assert result.manifest_row["relative_action_path"] == "0_Wash_face/user1/1-1-1"
+    assert result.manifest_row["output_csv"] == (
+        "0_Wash_face/user1/1-1-1/imu_merged.csv"
+    )
+    assert isinstance(result.manifest_row["warning_count"], int)
+
+
+def test_fatal_error_in_any_direct_csv_fails_whole_action(tmp_path: Path) -> None:
+    input_root = tmp_path / "IMU"
+    action_dir = input_root / "0_Wash_face" / "user1" / "1-1-1"
+    action_dir.mkdir(parents=True)
+    write_imu_csv(
+        action_dir / "good.csv",
+        [("2025-01-01 00:00:00.100", "WTLL(device)")],
+    )
+    (action_dir / "bad.csv").write_text(
+        f"{RAW_COLUMNS[0]},{RAW_COLUMNS[1]}\n", encoding="utf-8"
+    )
+
+    result = imu.process_action_directory(action_dir, input_root, tmp_path / "out")
+
+    assert result.status == "failed"
+    assert result.merged.empty
+    assert result.merged.columns.tolist() == imu.OUTPUT_COLUMNS
+    assert result.qc["valid_output_rows"] == 0
+    assert result.qc["file_errors"][0]["source_file"] == "bad.csv"
+    assert result.qc["file_errors"][0]["error_type"] == "missing_required_columns"
+    assert result.manifest_row["output_csv"] == ""
+
+
+def test_action_processing_preserves_input_bytes_paths_and_entries(
+    tmp_path: Path,
+) -> None:
+    input_root = tmp_path / "IMU"
+    action_dir = input_root / "0_Wash_face" / "user1" / "1-1-1"
+    action_dir.mkdir(parents=True)
+    write_imu_csv(
+        action_dir / "part-2.csv",
+        [("2025-01-01 00:00:00.200", "WTRL(device)")],
+    )
+    write_imu_csv(
+        action_dir / "part-1.csv",
+        [("2025-01-01 00:00:00.100", "WTLL(device)")],
+    )
+
+    def snapshot() -> tuple[list[str], dict[str, str]]:
+        paths = sorted(
+            path.relative_to(input_root).as_posix()
+            for path in input_root.rglob("*")
+        )
+        hashes = {
+            path.relative_to(input_root).as_posix(): hashlib.sha256(
+                path.read_bytes()
+            ).hexdigest()
+            for path in input_root.rglob("*.csv")
+        }
+        return paths, hashes
+
+    before = snapshot()
+    result = imu.process_action_directory(action_dir, input_root, tmp_path / "out")
+    after = snapshot()
+
+    assert result.merged["source_file"].tolist() == ["part-1.csv", "part-2.csv"]
+    assert after == before
+    assert not (tmp_path / "out").exists()

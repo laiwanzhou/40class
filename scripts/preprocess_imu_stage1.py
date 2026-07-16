@@ -4,7 +4,7 @@ import csv
 import json
 import re
 import unicodedata
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -76,6 +76,37 @@ class WriteResult:
 
 
 SENSOR_ORDER = {"LL": 0, "RL": 1, "LA": 2, "RA": 3, "C": 4}
+OUTPUT_COLUMNS = [
+    "relative_time_s",
+    "relative_time_ms",
+    "sensor_position",
+    "acc_x_g",
+    "acc_y_g",
+    "acc_z_g",
+    "gyro_x_dps",
+    "gyro_y_dps",
+    "gyro_z_dps",
+    "angle_x_deg",
+    "angle_y_deg",
+    "angle_z_deg",
+    "mag_x_ut",
+    "mag_y_ut",
+    "mag_z_ut",
+    "quat_0",
+    "quat_1",
+    "quat_2",
+    "quat_3",
+    "source_file",
+    "source_row_index",
+]
+REJECTED_COLUMNS = [
+    "source_file",
+    "source_line_number",
+    "source_row_index",
+    "reject_stage",
+    "reject_reason",
+    "raw_row",
+]
 DEVICE_PREFIX_TO_SENSOR = {
     "WTLL": "LL",
     "WTRL": "RL",
@@ -486,4 +517,214 @@ def discover_action_directories(input_root: Path) -> list[ActionDescriptor]:
             natural_key(item.action_id),
             item.relative_action_path.as_posix().casefold(),
         ),
+    )
+
+
+def process_action_directory(
+    action_dir: Path, input_root: Path, output_root: Path
+) -> ActionResult:
+    del output_root
+    relative = action_dir.relative_to(input_root)
+    if len(relative.parts) < 3:
+        raise ValueError(f"Invalid action path: {relative.as_posix()}")
+    class_text, class_name = relative.parts[0].split("_", 1)
+    csv_files = tuple(
+        sorted(
+            (
+                path
+                for path in action_dir.iterdir()
+                if path.is_file() and path.suffix.casefold() == ".csv"
+            ),
+            key=lambda path: natural_key(path.name),
+        )
+    )
+    descriptor = ActionDescriptor(
+        class_id=int(class_text),
+        class_name=class_name,
+        user_id=relative.parts[1],
+        action_id=relative.parts[-1],
+        input_directory=action_dir,
+        relative_action_path=relative,
+        input_csv_files=csv_files,
+    )
+    return process_action(descriptor)
+
+
+def process_action(descriptor: ActionDescriptor) -> ActionResult:
+    frames: list[pd.DataFrame] = []
+    rejected_rows: list[RejectedRow] = []
+    warnings: list[str] = []
+    file_errors: list[FileError] = []
+    total_input_rows = 0
+    unknown_sensor_rows = 0
+
+    for path in descriptor.input_csv_files:
+        read_result = read_csv_robust(path)
+        total_input_rows += read_result.total_input_rows
+        if read_result.file_errors:
+            rejected_rows.extend(read_result.rejected_rows)
+            warnings.extend(read_result.warnings)
+            file_errors.extend(read_result.file_errors)
+            continue
+        validated = validate_dataframe(read_result)
+        frames.append(validated.dataframe)
+        rejected_rows.extend(validated.rejected_rows)
+        warnings.extend(validated.warnings)
+        unknown_sensor_rows += validated.unknown_sensor_rows
+        file_errors.extend(read_result.file_errors)
+
+    rejected = pd.DataFrame(
+        [asdict(row) for row in rejected_rows], columns=REJECTED_COLUMNS
+    )
+    candidate = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+    duplicate_counts = {sensor: 0 for sensor in SENSOR_ORDER}
+    rows_per_sensor = {sensor: 0 for sensor in SENSOR_ORDER}
+    action_start_time: pd.Timestamp | None = None
+    action_end_time: pd.Timestamp | None = None
+    merged = pd.DataFrame(columns=OUTPUT_COLUMNS)
+
+    if not file_errors and not candidate.empty:
+        action_start_time = candidate["absolute_time"].min()
+        action_end_time = candidate["absolute_time"].max()
+        candidate["relative_time_s"] = (
+            candidate["absolute_time"] - action_start_time
+        ).dt.total_seconds()
+        candidate["relative_time_ms"] = (
+            candidate["relative_time_s"] * 1000
+        ).round().astype("int64")
+        candidate["sensor_order"] = candidate["sensor_position"].map(SENSOR_ORDER)
+        candidate = candidate.sort_values(
+            ["absolute_time", "sensor_order", "source_file", "source_row_index"],
+            kind="mergesort",
+        ).reset_index(drop=True)
+        duplicate_mask = candidate.duplicated(
+            ["sensor_position", "absolute_time"], keep="first"
+        )
+        for sensor, count in (
+            candidate.loc[duplicate_mask, "sensor_position"].value_counts().items()
+        ):
+            duplicate_counts[str(sensor)] = int(count)
+        counts = candidate["sensor_position"].value_counts()
+        rows_per_sensor = {
+            sensor: int(counts.get(sensor, 0)) for sensor in SENSOR_ORDER
+        }
+        merged = candidate.loc[:, OUTPUT_COLUMNS]
+
+    present_sensors = [
+        sensor for sensor in SENSOR_ORDER if rows_per_sensor[sensor] > 0
+    ]
+    missing_sensors = [
+        sensor for sensor in SENSOR_ORDER if rows_per_sensor[sensor] == 0
+    ]
+    duplicate_total = sum(duplicate_counts.values())
+    structural_rejected_rows = sum(
+        row.reject_stage == "structural" for row in rejected_rows
+    )
+    content_rejected_rows = sum(
+        row.reject_stage == "content" for row in rejected_rows
+    )
+    if file_errors or merged.empty:
+        status = "failed"
+    elif missing_sensors:
+        status = "incomplete_sensors"
+    elif rejected_rows or duplicate_total or warnings:
+        status = "success_with_warnings"
+    else:
+        status = "success"
+
+    error_parts = [
+        f"{error.source_file}: {error.error_type}: {error.message}"
+        for error in file_errors
+    ]
+    if status == "failed" and not error_parts:
+        error_parts.append("No valid output rows")
+    error_message = "; ".join(error_parts).replace("\r", " ").replace("\n", " ")
+    duration_s = (
+        None
+        if action_start_time is None or action_end_time is None
+        else float((action_end_time - action_start_time).total_seconds())
+    )
+    min_relative_time_ms = (
+        None if merged.empty else int(merged["relative_time_ms"].min())
+    )
+    max_relative_time_ms = (
+        None if merged.empty else int(merged["relative_time_ms"].max())
+    )
+    qc = {
+        "class_id": int(descriptor.class_id),
+        "class_name": descriptor.class_name,
+        "user_id": descriptor.user_id,
+        "action_id": descriptor.action_id,
+        "input_directory": str(descriptor.input_directory.resolve()),
+        "input_csv_files": [path.name for path in descriptor.input_csv_files],
+        "csv_file_count": int(len(descriptor.input_csv_files)),
+        "status": status,
+        "total_input_rows": int(total_input_rows),
+        "valid_output_rows": int(len(merged)),
+        "rejected_rows": int(len(rejected_rows)),
+        "unknown_sensor_rows": int(unknown_sensor_rows),
+        "present_sensors": present_sensors,
+        "missing_sensors": missing_sensors,
+        "rows_per_sensor": rows_per_sensor,
+        "duplicate_timestamp_count_per_sensor": duplicate_counts,
+        "min_relative_time_ms": min_relative_time_ms,
+        "max_relative_time_ms": max_relative_time_ms,
+        "duration_s": duration_s,
+        "columns_written": list(OUTPUT_COLUMNS) if not merged.empty else [],
+        "warnings": warnings,
+        "error_message": error_message,
+        "action_start_time": (
+            None if action_start_time is None else action_start_time.isoformat()
+        ),
+        "action_end_time": (
+            None if action_end_time is None else action_end_time.isoformat()
+        ),
+        "structural_rejected_rows": int(structural_rejected_rows),
+        "content_rejected_rows": int(content_rejected_rows),
+        "file_errors": [asdict(error) for error in file_errors],
+    }
+    output_csv = (
+        ""
+        if status == "failed"
+        else (descriptor.relative_action_path / "imu_merged.csv").as_posix()
+    )
+    manifest_row = {
+        "sample_id": (
+            f"{descriptor.class_id}__{descriptor.user_id}__{descriptor.action_id}"
+        ),
+        "class_id": int(descriptor.class_id),
+        "class_name": descriptor.class_name,
+        "user_id": descriptor.user_id,
+        "action_id": descriptor.action_id,
+        "relative_action_path": descriptor.relative_action_path.as_posix(),
+        "output_csv": output_csv,
+        "status": status,
+        "csv_file_count": int(len(descriptor.input_csv_files)),
+        "total_input_rows": int(total_input_rows),
+        "valid_output_rows": int(len(merged)),
+        "rejected_rows": int(len(rejected_rows)),
+        "unknown_sensor_rows": int(unknown_sensor_rows),
+        "present_sensors": ";".join(present_sensors),
+        "missing_sensors": ";".join(missing_sensors),
+        "ll_rows": rows_per_sensor["LL"],
+        "rl_rows": rows_per_sensor["RL"],
+        "la_rows": rows_per_sensor["LA"],
+        "ra_rows": rows_per_sensor["RA"],
+        "c_rows": rows_per_sensor["C"],
+        "ll_duplicate_timestamps": duplicate_counts["LL"],
+        "rl_duplicate_timestamps": duplicate_counts["RL"],
+        "la_duplicate_timestamps": duplicate_counts["LA"],
+        "ra_duplicate_timestamps": duplicate_counts["RA"],
+        "c_duplicate_timestamps": duplicate_counts["C"],
+        "duration_s": duration_s,
+        "warning_count": int(len(warnings)),
+        "error_message": error_message,
+    }
+    return ActionResult(
+        descriptor=descriptor,
+        status=status,
+        merged=merged,
+        rejected=rejected,
+        qc=qc,
+        manifest_row=manifest_row,
     )
