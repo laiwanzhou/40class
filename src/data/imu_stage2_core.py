@@ -5,14 +5,19 @@ from dataclasses import dataclass
 import numpy as np
 
 from src.data.imu_stage2_contracts import (
+    DataStatus,
     FEATURE_ORDER,
     SENSOR_ORDER,
     Stage1ActionData,
+    Stage2ActionResult,
+    SequenceLengthSafetyError,
 )
 
 
 QUATERNION_NORM_EPS = 1e-8
 CIRCULAR_RESULTANT_EPS = 1e-8
+GRID_STEP_NS = 100_000_000
+MAX_INTERPOLATION_GAP_NS = 300_000_000
 
 
 def _feature_slice(first: str, last: str) -> slice:
@@ -61,6 +66,14 @@ class AggregatedSensorSeries:
             raise ValueError("time_ns must be strictly increasing")
         if not np.isfinite(self.values).all():
             raise ValueError("aggregated values must be finite")
+
+
+@dataclass(frozen=True)
+class SensorGridResult:
+    values: np.ndarray
+    valid_mask: np.ndarray
+    exact_mask: np.ndarray
+    interpolated_mask: np.ndarray
 
 
 def _integer_column(frame, name: str) -> np.ndarray:
@@ -295,3 +308,269 @@ def split_continuous_segments(
             )
         )
     return segments
+
+
+def build_action_grid(stage1_end_ns: int) -> np.ndarray:
+    if isinstance(stage1_end_ns, (bool, np.bool_)) or not isinstance(
+        stage1_end_ns, (int, np.integer)
+    ):
+        raise ValueError("stage1_end_ns must be an integer")
+    if stage1_end_ns < 0:
+        raise ValueError("stage1_end_ns must be non-negative")
+    grid_end_ns = int(stage1_end_ns) // GRID_STEP_NS * GRID_STEP_NS
+    return np.arange(0, grid_end_ns + GRID_STEP_NS, GRID_STEP_NS, dtype=np.int64)
+
+
+def _interpolate_values(left: np.ndarray, right: np.ndarray, alpha: float) -> np.ndarray | None:
+    values = left + alpha * (right - left)
+    values[ANGLE_SLICE] = _wrap_degrees(values[ANGLE_SLICE])
+
+    left_quaternion = left[QUATERNION_SLICE] / np.linalg.norm(left[QUATERNION_SLICE])
+    right_quaternion = right[QUATERNION_SLICE] / np.linalg.norm(right[QUATERNION_SLICE])
+    if np.dot(left_quaternion, right_quaternion) < 0.0:
+        right_quaternion *= -1.0
+    quaternion = (1.0 - alpha) * left_quaternion + alpha * right_quaternion
+    quaternion_norm = np.linalg.norm(quaternion)
+    if not np.isfinite(quaternion_norm) or quaternion_norm < QUATERNION_NORM_EPS:
+        return None
+    values[QUATERNION_SLICE] = quaternion / quaternion_norm
+    return values if np.isfinite(values).all() else None
+
+
+def interpolate_sensor_on_grid(
+    series: AggregatedSensorSeries,
+    grid_ns: np.ndarray,
+    max_gap_ns: int = MAX_INTERPOLATION_GAP_NS,
+) -> SensorGridResult:
+    if not isinstance(grid_ns, np.ndarray) or grid_ns.dtype != np.int64 or grid_ns.ndim != 1:
+        raise ValueError("grid_ns must be a one-dimensional int64 array")
+    if isinstance(max_gap_ns, (bool, np.bool_)) or not isinstance(
+        max_gap_ns, (int, np.integer)
+    ):
+        raise ValueError("max_gap_ns must be an integer")
+    if max_gap_ns < 0:
+        raise ValueError("max_gap_ns must be non-negative")
+
+    values = np.full((len(grid_ns), len(FEATURE_ORDER)), np.nan, dtype=np.float64)
+    valid_mask = np.zeros(len(grid_ns), dtype=bool)
+    exact_mask = np.zeros(len(grid_ns), dtype=bool)
+    interpolated_mask = np.zeros(len(grid_ns), dtype=bool)
+    for segment in split_continuous_segments(series, max_gap_ns=max_gap_ns):
+        times = segment.time_ns
+        for grid_index, grid_time in enumerate(grid_ns):
+            if valid_mask[grid_index]:
+                continue
+            right_index = int(np.searchsorted(times, grid_time, side="left"))
+            if right_index < len(times) and times[right_index] == grid_time:
+                direct = segment.values[right_index].copy()
+                direct[ANGLE_SLICE] = _wrap_degrees(direct[ANGLE_SLICE])
+                if np.isfinite(direct).all():
+                    values[grid_index] = direct
+                    valid_mask[grid_index] = True
+                    exact_mask[grid_index] = True
+                continue
+            if right_index == 0 or right_index == len(times):
+                continue
+            left_index = right_index - 1
+            left_time = times[left_index]
+            right_time = times[right_index]
+            gap_ns = right_time - left_time
+            if not (left_time < grid_time < right_time) or gap_ns > max_gap_ns:
+                continue
+            alpha = float((grid_time - left_time) / gap_ns)
+            interpolated = _interpolate_values(
+                segment.values[left_index], segment.values[right_index], alpha
+            )
+            if interpolated is not None:
+                values[grid_index] = interpolated
+                valid_mask[grid_index] = True
+                interpolated_mask[grid_index] = True
+    return SensorGridResult(values, valid_mask, exact_mask, interpolated_mask)
+
+
+def select_data_status(
+    *,
+    failed: bool,
+    no_usable_grid_cells: bool,
+    incomplete_sensors: bool,
+    has_warnings: bool,
+) -> DataStatus:
+    if failed:
+        return DataStatus.FAILED
+    if no_usable_grid_cells:
+        return DataStatus.NO_USABLE_GRID_CELLS
+    if incomplete_sensors:
+        return DataStatus.INCOMPLETE_SENSORS
+    if has_warnings:
+        return DataStatus.SUCCESS_WITH_WARNINGS
+    return DataStatus.SUCCESS
+
+
+def _validate_sensor_mask(sensor_mask: np.ndarray) -> np.ndarray:
+    if not isinstance(sensor_mask, np.ndarray):
+        raise ValueError("sensor_mask must be a NumPy array")
+    if sensor_mask.dtype != np.bool_ or sensor_mask.shape != (len(SENSOR_ORDER),):
+        raise ValueError("sensor_mask must have dtype bool and shape (5,)")
+    return sensor_mask.copy()
+
+
+def _warning_codes(
+    *,
+    incomplete_sensors: bool,
+    duplicate_group_count: int,
+    excluded_record_count: int,
+    degenerate_angle_group_count: int,
+    degenerate_quaternion_group_count: int,
+    no_usable_grid_cells: bool,
+) -> list[str]:
+    return [
+        code
+        for code, enabled in (
+            ("incomplete_sensors", incomplete_sensors),
+            ("duplicate_timestamps_aggregated", duplicate_group_count > 0),
+            ("records_excluded", excluded_record_count > 0),
+            ("angle_aggregation_degenerate", degenerate_angle_group_count > 0),
+            ("quaternion_aggregation_degenerate", degenerate_quaternion_group_count > 0),
+            ("no_usable_grid_cells", no_usable_grid_cells),
+        )
+        if enabled
+    ]
+
+
+def process_stage2_action(
+    data: Stage1ActionData,
+    hard_safety_limit_t: int = 10_000,
+) -> Stage2ActionResult:
+    if isinstance(hard_safety_limit_t, (bool, np.bool_)) or not isinstance(
+        hard_safety_limit_t, (int, np.integer)
+    ) or hard_safety_limit_t <= 0:
+        raise ValueError("hard_safety_limit_t must be a positive integer")
+    records = validate_stage1_records(data)
+    grid_end_ns = int(records.action_end_ns) // GRID_STEP_NS * GRID_STEP_NS
+    grid_length = grid_end_ns // GRID_STEP_NS + 1
+    if grid_length > hard_safety_limit_t:
+        raise SequenceLengthSafetyError(
+            data.sample_id,
+            "grid length exceeds hard safety limit before allocation",
+        )
+    sensor_mask = _validate_sensor_mask(data.sensor_mask)
+    grid_ns = build_action_grid(int(records.action_end_ns))
+    values = np.full(
+        (grid_length, len(SENSOR_ORDER), len(FEATURE_ORDER)), np.nan, dtype=np.float64
+    )
+    valid_mask = np.zeros((grid_length, len(SENSOR_ORDER)), dtype=bool)
+    exact_mask = np.zeros((grid_length, len(SENSOR_ORDER)), dtype=bool)
+    interpolated_mask = np.zeros((grid_length, len(SENSOR_ORDER)), dtype=bool)
+    per_sensor_qc: dict[str, dict[str, int]] = {}
+
+    for sensor_index, sensor_position in enumerate(SENSOR_ORDER):
+        if not sensor_mask[sensor_index]:
+            continue
+        series = aggregate_sensor_timestamps(data, sensor_position=sensor_position)
+        per_sensor_qc[sensor_position] = series.qc
+        grid_result = interpolate_sensor_on_grid(series, grid_ns)
+        values[:, sensor_index, :] = grid_result.values
+        valid_mask[:, sensor_index] = grid_result.valid_mask
+        exact_mask[:, sensor_index] = grid_result.exact_mask
+        interpolated_mask[:, sensor_index] = grid_result.interpolated_mask
+
+    qc_totals = {
+        name: sum(sensor_qc.get(name, 0) for sensor_qc in per_sensor_qc.values())
+        for name in (
+            "duplicate_group_count",
+            "duplicate_extra_record_count",
+            "duplicate_max_group_size",
+            "excluded_record_count",
+            "aggregation_failed_timestamp_count",
+            "duplicate_excluded_record_count",
+            "duplicate_aggregation_failed_timestamp_count",
+            "nonfinite_feature_record_count",
+            "invalid_quaternion_record_count",
+            "degenerate_angle_group_count",
+            "degenerate_quaternion_group_count",
+        )
+    }
+    if per_sensor_qc:
+        qc_totals["duplicate_max_group_size"] = max(
+            sensor_qc["duplicate_max_group_size"] for sensor_qc in per_sensor_qc.values()
+        )
+
+    no_usable_grid_cells = not bool(valid_mask.any())
+    incomplete_sensors = not bool(sensor_mask.all())
+    warning_codes = _warning_codes(
+        incomplete_sensors=incomplete_sensors,
+        duplicate_group_count=qc_totals["duplicate_group_count"],
+        excluded_record_count=qc_totals["excluded_record_count"],
+        degenerate_angle_group_count=qc_totals["degenerate_angle_group_count"],
+        degenerate_quaternion_group_count=qc_totals["degenerate_quaternion_group_count"],
+        no_usable_grid_cells=no_usable_grid_cells,
+    )
+    status = select_data_status(
+        failed=False,
+        no_usable_grid_cells=no_usable_grid_cells,
+        incomplete_sensors=incomplete_sensors,
+        has_warnings=bool(warning_codes),
+    )
+
+    usable_times = grid_ns[valid_mask.any(axis=1)]
+    valid_cell_count = int(valid_mask.sum())
+    invalid_cell_count = int(valid_mask.size - valid_cell_count)
+    qc: dict[str, object] = {
+        "stage1_action_end_ns": int(records.action_end_ns),
+        "grid_end_ns": int(grid_ns[-1]),
+        "unrepresented_tail_ns": int(records.action_end_ns - grid_ns[-1]),
+        "grid_length": grid_length,
+        "first_usable_timestamp_ns": int(usable_times[0]) if len(usable_times) else None,
+        "last_usable_timestamp_ns": int(usable_times[-1]) if len(usable_times) else None,
+        "imu_usable": not no_usable_grid_cells,
+        "usable_sensor_mask": valid_mask.any(axis=0).tolist(),
+        "missing_sensors": [
+            sensor for sensor, present in zip(SENSOR_ORDER, sensor_mask, strict=True) if not present
+        ],
+        "usable_sensors": [
+            sensor
+            for sensor, usable in zip(SENSOR_ORDER, valid_mask.any(axis=0), strict=True)
+            if usable
+        ],
+        "valid_cell_count": valid_cell_count,
+        "invalid_cell_count": invalid_cell_count,
+        "valid_cell_ratio": valid_cell_count / valid_mask.size,
+        "all_sensor_valid_timestep_count": int(valid_mask.all(axis=1).sum()),
+        "all_sensor_invalid_timestep_count": int((~valid_mask.any(axis=1)).sum()),
+        "exact_hit_count": int(exact_mask.sum()),
+        "interpolated_count": int(interpolated_mask.sum()),
+        "invalid_count": invalid_cell_count,
+        "per_sensor_valid_count": {
+            sensor: int(valid_mask[:, index].sum())
+            for index, sensor in enumerate(SENSOR_ORDER)
+        },
+        "duplicate_groups_per_sensor": {
+            sensor: sensor_qc["duplicate_group_count"]
+            for sensor, sensor_qc in per_sensor_qc.items()
+        },
+        "excluded_records_per_sensor": {
+            sensor: sensor_qc["excluded_record_count"]
+            for sensor, sensor_qc in per_sensor_qc.items()
+        },
+        "aggregation_failures_per_sensor": {
+            sensor: sensor_qc["aggregation_failed_timestamp_count"]
+            for sensor, sensor_qc in per_sensor_qc.items()
+        },
+        "warning_codes": warning_codes,
+        **qc_totals,
+    }
+    if not np.isfinite(values[valid_mask]).all():
+        raise ValueError("valid grid cells must be finite before float32 conversion")
+    if not np.isnan(values[~valid_mask]).all():
+        raise ValueError("invalid grid cells must be NaN before float32 conversion")
+    result = Stage2ActionResult(
+        sample_id=data.sample_id,
+        values=values.astype(np.float32),
+        sensor_mask=sensor_mask,
+        valid_mask=valid_mask,
+        timestamps_ms=(grid_ns // 1_000_000).astype(np.int64),
+        qc=qc,
+        status=status,
+    )
+    result.validate()
+    return result
