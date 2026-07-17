@@ -84,6 +84,19 @@ class ActionResult:
     manifest_row: dict[str, Any]
 
 
+@dataclass
+class InMemoryActionResult:
+    descriptor: ActionDescriptor
+    validated_results: tuple[ValidatedCsvResult | None, ...]
+    read_results: tuple[CsvReadResult, ...]
+    exact_rows: pd.DataFrame
+    rejected_rows: list[RejectedRow]
+    warnings: list[str]
+    file_errors: list[FileError]
+    total_input_rows: int
+    unknown_sensor_rows: int
+
+
 @dataclass(frozen=True)
 class WriteResult:
     written: bool
@@ -633,7 +646,16 @@ def process_action_directory(
     return process_action(descriptor)
 
 
-def process_action(descriptor: ActionDescriptor) -> ActionResult:
+def build_in_memory_action_result(
+    descriptor: ActionDescriptor,
+    read_results: tuple[CsvReadResult, ...],
+    validated_results: tuple[ValidatedCsvResult | None, ...],
+) -> InMemoryActionResult:
+    if len(read_results) != len(descriptor.input_csv_files):
+        raise ValueError("read result count does not match input files")
+    if len(validated_results) != len(read_results):
+        raise ValueError("validated result count does not match read results")
+
     frames: list[pd.DataFrame] = []
     rejected_rows: list[RejectedRow] = []
     warnings: list[str] = []
@@ -641,25 +663,68 @@ def process_action(descriptor: ActionDescriptor) -> ActionResult:
     total_input_rows = 0
     unknown_sensor_rows = 0
 
-    for path in descriptor.input_csv_files:
-        read_result = read_csv_robust(path)
+    for source_file_rank, (read_result, validated) in enumerate(
+        zip(read_results, validated_results, strict=True)
+    ):
         total_input_rows += read_result.total_input_rows
         if read_result.file_errors:
+            if validated is not None:
+                raise ValueError("fatal read result must not be validated")
             rejected_rows.extend(read_result.rejected_rows)
             warnings.extend(read_result.warnings)
             file_errors.extend(read_result.file_errors)
             continue
-        validated = validate_dataframe(read_result)
-        frames.append(validated.dataframe)
+        if validated is None:
+            raise ValueError("successful read result requires validation")
+        exact_frame = validated.dataframe.copy()
+        exact_frame["_source_file_rank"] = source_file_rank
+        frames.append(exact_frame)
         rejected_rows.extend(validated.rejected_rows)
         warnings.extend(validated.warnings)
         unknown_sensor_rows += validated.unknown_sensor_rows
         file_errors.extend(read_result.file_errors)
 
+    exact_rows = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+    return InMemoryActionResult(
+        descriptor=descriptor,
+        validated_results=validated_results,
+        read_results=read_results,
+        exact_rows=exact_rows,
+        rejected_rows=rejected_rows,
+        warnings=warnings,
+        file_errors=file_errors,
+        total_input_rows=total_input_rows,
+        unknown_sensor_rows=unknown_sensor_rows,
+    )
+
+
+def process_action_in_memory(descriptor: ActionDescriptor) -> InMemoryActionResult:
+    """Return validated exact-time rows without writing Stage 1 artifacts."""
+    read_results = tuple(
+        read_csv_robust(path) for path in descriptor.input_csv_files
+    )
+    validated_results = tuple(
+        None if result.file_errors else validate_dataframe(result)
+        for result in read_results
+    )
+    return build_in_memory_action_result(
+        descriptor,
+        read_results,
+        validated_results,
+    )
+
+
+def build_legacy_action_result(memory: InMemoryActionResult) -> ActionResult:
+    descriptor = memory.descriptor
+    rejected_rows = list(memory.rejected_rows)
+    warnings = list(memory.warnings)
+    file_errors = list(memory.file_errors)
+    total_input_rows = memory.total_input_rows
+    unknown_sensor_rows = memory.unknown_sensor_rows
     rejected = pd.DataFrame(
         [asdict(row) for row in rejected_rows], columns=REJECTED_COLUMNS
     )
-    candidate = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+    candidate = memory.exact_rows.copy()
     duplicate_counts = {sensor: 0 for sensor in SENSOR_ORDER}
     rows_per_sensor = {sensor: 0 for sensor in SENSOR_ORDER}
     action_start_time: pd.Timestamp | None = None
@@ -811,6 +876,10 @@ def process_action(descriptor: ActionDescriptor) -> ActionResult:
         qc=qc,
         manifest_row=manifest_row,
     )
+
+
+def process_action(descriptor: ActionDescriptor) -> ActionResult:
+    return build_legacy_action_result(process_action_in_memory(descriptor))
 
 
 def write_action_result(

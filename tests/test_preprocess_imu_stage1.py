@@ -484,6 +484,73 @@ def test_fatal_error_in_any_direct_csv_fails_whole_action(tmp_path: Path) -> Non
     assert result.manifest_row["output_csv"] == ""
 
 
+def test_in_memory_core_never_validates_a_fatal_read_result(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    input_root = tmp_path / "IMU"
+    action_dir = input_root / "0_Wash_face" / "user1" / "1-1-1"
+    action_dir.mkdir(parents=True)
+    bad_csv = action_dir / "bad.csv"
+    bad_csv.write_text(f"{RAW_COLUMNS[0]},{RAW_COLUMNS[1]}\n", encoding="utf-8")
+    descriptor = imu.ActionDescriptor(
+        class_id=0,
+        class_name="Wash_face",
+        user_id="user1",
+        action_id="1-1-1",
+        input_directory=action_dir,
+        relative_action_path=Path("0_Wash_face/user1/1-1-1"),
+        input_csv_files=(bad_csv,),
+    )
+    original_validate = imu.validate_dataframe
+
+    def guarded_validate(result: imu.CsvReadResult) -> imu.ValidatedCsvResult:
+        assert not result.file_errors
+        return original_validate(result)
+
+    monkeypatch.setattr(imu, "validate_dataframe", guarded_validate)
+
+    memory = imu.process_action_in_memory(descriptor)
+    legacy = imu.build_legacy_action_result(memory)
+
+    assert memory.validated_results == (None,)
+    assert [error.error_type for error in memory.file_errors] == [
+        "missing_required_columns"
+    ]
+    assert legacy.status == "failed"
+    assert legacy.manifest_row["output_csv"] == ""
+
+
+def test_in_memory_core_round_trips_through_legacy_adapter(tmp_path: Path) -> None:
+    input_root = tmp_path / "IMU"
+    action_dir = input_root / "0_Wash_face" / "user1" / "1-1-1"
+    action_dir.mkdir(parents=True)
+    part2 = action_dir / "part2.csv"
+    part10 = action_dir / "part10.csv"
+    write_imu_csv(part2, [("2025-01-01 00:00:00.200", "WTRL(device)")])
+    write_imu_csv(part10, [("2025-01-01 00:00:00.100", "WTLL(device)")])
+    descriptor = imu.ActionDescriptor(
+        class_id=0,
+        class_name="Wash_face",
+        user_id="user1",
+        action_id="1-1-1",
+        input_directory=action_dir,
+        relative_action_path=Path("0_Wash_face/user1/1-1-1"),
+        input_csv_files=(part2, part10),
+    )
+
+    memory = imu.process_action_in_memory(descriptor)
+    adapted = imu.build_legacy_action_result(memory)
+    public = imu.process_action(descriptor)
+
+    assert memory.exact_rows["absolute_time"].dtype == "datetime64[ns]"
+    assert memory.exact_rows["_source_file_rank"].tolist() == [0, 1]
+    pd.testing.assert_frame_equal(adapted.merged, public.merged)
+    pd.testing.assert_frame_equal(adapted.rejected, public.rejected)
+    assert adapted.status == public.status
+    assert adapted.qc == public.qc
+    assert adapted.manifest_row == public.manifest_row
+
+
 def test_action_processing_preserves_input_bytes_paths_and_entries(
     tmp_path: Path,
 ) -> None:
