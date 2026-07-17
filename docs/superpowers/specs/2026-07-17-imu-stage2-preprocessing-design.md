@@ -370,6 +370,7 @@ invariants. It stores unstandardized physical values and no padding.
     "grid_frequency_hz": 10,
     "grid_step_ns": 100000000,
     "max_interpolation_gap_ns": 300000000,
+    "hard_safety_limit_t": 10000,
     "sensor_order": ["LL", "RL", "LA", "RA", "C"],
     "feature_order": [
       "acc_x_g", "acc_y_g", "acc_z_g",
@@ -424,7 +425,12 @@ stage2_contract_sha256
 ```
 
 The Stage 1 manifest-row digest uses a fixed field set and canonical
-serialization. These fingerprints are required for validated resume behavior.
+serialization. The loader reads the accepted Stage 1 manifest with
+`dtype=str` and `keep_default_na=False`, requires its columns to equal the
+frozen Stage 1 `MANIFEST_COLUMNS` in order, and hashes canonical JSON for the
+mapping `{column: original_csv_text}` across every column in that order. This
+avoids Pandas type inference and makes empty fields unambiguous. These
+fingerprints are required for validated resume behavior.
 
 ### Manifest fields
 
@@ -560,6 +566,38 @@ normally.
 `--dry-run` performs discovery, loading, time adaptation, transformation,
 contract validation, status assignment, and aggregation, but creates no output
 root, logs, manifests, schemas, action directories, staging, or backups.
+With `--summary-format json`, stdout is exactly one canonical JSON summary and
+contains no human log text. An external orchestrator may redirect that stdout
+to an audit file without making the preprocessing process write. Formal
+validation consumes this machine-readable summary and never parses human log
+lines. The summary has these fixed top-level keys:
+
+```text
+summary_version
+source_stage1_manifest_sha256
+stage2_contract_sha256
+action_count
+data_status_counts
+imu_usable_action_count
+strict_5sensor_candidate_count
+total_grid_length
+valid_cell_count
+invalid_cell_count
+exact_hit_count
+interpolated_count
+all_sensor_valid_timestep_count
+all_sensor_invalid_timestep_count
+duplicate_group_count
+duplicate_extra_record_count
+duplicate_max_group_size
+excluded_record_count
+aggregation_failed_timestamp_count
+```
+
+`data_status_counts` contains every fixed data status, including zero counts,
+in status-registry order. The summary excludes run timestamps, paths, write
+statuses, and localized text so dry-run and formal data results can be compared
+directly.
 
 Offline exit codes are:
 
@@ -582,8 +620,13 @@ eligible_for_strict_training, selected_for_run, split, exclusion_reason
 ```
 
 `label_index` comes from a versioned `class_order.json`, never an assumption
-about `class_id` or `class_id-1`. The class-order contract records version,
-SHA-256, and `num_classes`; every label satisfies
+about `class_id` or `class_id-1`. V1 derives the ordered class records from the
+Stage 2 manifest's unique `(class_id,class_name)` pairs sorted by integer
+`class_id`, verifies a one-to-one ID/name mapping, and assigns consecutive
+`label_index` values by that explicit order. The number of classes is derived,
+not hard-coded. The class-order digest hashes only canonical JSON for the
+ordered contract records and excludes provenance and the digest field itself.
+The class-order contract records version, SHA-256, and `num_classes`; every label satisfies
 `0 <= label_index < num_classes`, and each class identity maps consistently.
 
 Strict v1 eligibility requires a label, `imu_usable`, all five historical and
@@ -595,7 +638,10 @@ selected_for_run == (split is "train" or "validation")
 ```
 
 Unselected rows have a blank split. Train and validation user sets are
-disjoint. The approved user-split file and its SHA-256 are recorded.
+disjoint. The v1 default split input is the tracked
+`metadata/splits/fold_0.json`; the training-index CLI accepts an explicit
+`--split-file` override, and always records the selected file's repository-
+relative path and byte-level SHA-256.
 
 `training_index.json` records:
 
@@ -653,6 +699,10 @@ contract, fixed orders, `[5,16]`, `ddof=0`, threshold, run/fold, users, exact
 training sample hash, source manifest, generator, Git commit, and creation
 time. Validation and inference verify the contract digest, file digest, fold,
 orders, shapes, and exact sample-set hash. They never re-estimate statistics.
+`normalization_contract_sha256` hashes only canonical normalization-contract
+JSON; `normalization_file_sha256` is the byte-level SHA-256 of
+`imu_normalization.npz`. The inference bundle separately hashes the JSON file
+itself.
 
 Loading order is: validate Stage 2 artifact, validate normalization artifact,
 standardize only true valid cells, set invalid real cells to zero, and derive
@@ -688,10 +738,15 @@ Sampler configuration records version, bucket boundaries, feature budget,
 minimum/maximum batch size, seed, and `drop_last`. Each epoch verifies no
 unexpected omissions or duplicates.
 
-`hard_safety_limit_T` detects corruption rather than truncating data. The
-loader raises `SequenceLengthSafetyError`. Offline Stage 2 marks that action
-failed and continues; selected train/validation data stops the training run;
-online inference degrades only that sample's IMU and continues.
+`hard_safety_limit_t` detects corruption rather than truncating data. V1 uses
+the fixed default `10_000`, records it in the Stage 2 contract and inference
+configuration, and exposes the same explicitly named CLI/config field at every
+entry point. The Stage 2 core checks the computed grid length before allocating
+the grid, and the dataset rechecks persisted lengths before allocation. A
+mismatch between configured values is a contract error. The core/loader raises
+`SequenceLengthSafetyError`. Offline Stage 2 marks that action failed and
+continues; selected train/validation data stops the training run; online
+inference degrades only that sample's IMU and continues.
 
 Model implementations are architecture-neutral but must satisfy these
 behaviors:
@@ -784,11 +839,15 @@ No broad exception handler may disguise a code defect as missing input.
 
 ### Inference bundle
 
-`inference_bundle_manifest.json` records repository-relative paths and SHA-256
+`inference_bundle_manifest.json` records bundle-root-relative POSIX paths and SHA-256
 for checkpoint, model config, Stage 2 schema, normalization NPZ and JSON,
 class-order JSON, submission-contract JSON, and inference config. Startup first
 verifies every file and digest, then validates internal hash bindings, and only
 then loads the model. This prevents damaged, replaced, or mixed-fold bundles.
+A dedicated bundle-builder CLI creates this manifest from explicit input paths,
+including an organizer-provided sample-submission file used to derive the
+submission contract. The inference CLI only consumes a completed bundle and
+never derives or rewrites bundle contracts at runtime.
 
 The model output contract is fixed to finite logits `[B,num_classes]`.
 Prediction is `argmax(dim=1)`; an exact tie selects the lowest index. Other

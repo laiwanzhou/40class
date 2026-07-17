@@ -1,6 +1,11 @@
 # IMU Stage 2 Preprocessing Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use
+> `superpowers:executing-plans` by default. Use
+> `superpowers:subagent-driven-development` only when the current user
+> instruction explicitly authorizes delegation or subagents. Execute only the
+> numbered Task scope currently authorized. Steps use checkbox (`- [ ]`)
+> syntax for tracking.
 
 **Goal:** Build the approved IMU Stage 2 v1 offline and online pipeline: exact-time feature-aware 10 Hz tensors, auditable artifacts, leak-free training normalization, variable-length masked batching, and raw-test inference.
 
@@ -17,6 +22,7 @@
 - Feature order is exactly the 16-column order in the approved design.
 - Stage 2 uses only exact `int64 relative_time_ns`; never float seconds or rounded milliseconds as a key.
 - Grid step is exactly `100_000_000 ns`; maximum interpolation endpoint gap is exactly `300_000_000 ns`; extrapolation is forbidden.
+- `hard_safety_limit_t` is exactly `10_000` in the v1 Stage 2 contract, offline CLI, dataset, and inference config; mismatched values are contract errors.
 - Persist unstandardized variable-length arrays; do not crop, window, pad, clip, or silently skip samples.
 - Invalid persisted cells are NaN; normalization changes only valid cells and then replaces invalid model inputs with zero.
 - `sensor_mask`, `valid_mask`, `sequence_mask`, `usable_sensor_mask`, and IMU modality availability keep distinct meanings.
@@ -24,6 +30,15 @@
 - Online degradation catches only the explicit typed-error allowlist; unknown exceptions are global failures.
 - Do not run the full dataset, formal Stage 2 generation, training, or competition inference until the corresponding plan checkpoint is explicitly approved.
 - Use `apply_patch` for source edits. Do not commit generated data, audit outputs, checkpoints, normalization artifacts, or submissions.
+- A request naming no range, `next task`, or one Task number authorizes exactly one complete numbered Task: RED, correct RED verification, minimal implementation, GREEN, required regressions, diff review, one local commit, and stop.
+- Multiple Tasks may run only when the user explicitly names the complete numeric range. Run and commit them in order; stop immediately on a failed Task or specification conflict and stop after the last authorized Task.
+- Task 14 requires explicit authorization naming Task 14. Task 15 is never implied by a range or `continue`: it requires Task 14 to finish and then a separate explicit formal-run authorization.
+- A Task commit is local by default. Push only when the current instruction explicitly authorizes it, only to `origin/IMU`, after proving the remote has not unexpectedly advanced; never force-push, merge, create a PR, or modify `main`.
+- Tasks 1-13 each create exactly one independent implementation commit. Tasks 14 and 15 are read-only audit/data-run gates with no tracked deliverable: they must keep starting and ending HEAD identical, must not create empty commits, and must not add their external audit or generated data.
+- Never use `git add .` or `git add -A`. Stage only the current Task's allowlisted paths, inspect `git diff --cached --name-only`, and reject generated artifacts before every commit.
+- Every authorized implementation Task starts by checking local path, branch, HEAD, tracked status, the current Task text/spec, and dependency commits. It then completes the Task's RED test and confirms the intended failure before implementation, reaches focused GREEN, runs the Task's stated regressions, runs `git diff --check`, reviews changed and staged paths, creates exactly one Task commit, verifies its contents and tracked status, reports, and stops unless another Task number is explicitly authorized.
+- Every stop report states authorized scope, starting and ending HEAD, per-Task commit SHA, changed files, RED and GREEN/regression commands with results, `git diff --check`, whether Stage 1 code or data changed, whether data/model/audit artifacts were generated, tracked status, push/remote state, and remaining risks or plan corrections.
+- Every new standalone script executed as `python scripts/<name>.py` defines `PROJECT_ROOT = Path(__file__).resolve().parents[1]` and inserts that exact path into `sys.path` before importing `src`; it must work from a current directory other than the repository root and must not depend on `PYTHONPATH`.
 
 ## Planned file structure
 
@@ -35,12 +50,16 @@
 - Create `scripts/build_imu_training_index.py`: class order, user split, strict eligibility, canonical index, and hashes.
 - Create `scripts/compute_imu_normalization.py`: fold-only streaming statistics and normalization artifacts.
 - Create `src/data/imu_stage2_dataset.py`: validated action loading, valid-only normalization, length sampler, and dynamic collate.
+- Create `configs/task03/imu_stage2_v1.yaml`: v1 safety, bucket, batch-budget, and model defaults without a fixed sequence length or class count.
 - Create `src/models/imu_stage2_tcn.py`: mask-aware v1 IMU classifier and model-output contract.
 - Create `src/inference/imu_stage2_pipeline.py` and `src/inference/__init__.py`: test discovery, source adaptation, bundle validation, typed degradation, batching, and submission publication.
-- Create `scripts/infer_imu_stage2.py` and `inference.sh`: public online entry points.
+- Create `scripts/build_imu_inference_bundle.py`: derive the submission contract from an explicit organizer sample file and create the hash-verified bundle manifest.
+- Create `configs/task03/imu_stage2_inference_v1.yaml`: deterministic online batching, safety, output, and unavailable-modality policy.
+- Create `scripts/infer_imu_stage2.py` and `inference.sh`: public online entry points that consume, but never mutate, a completed bundle.
 - Create focused tests under `tests/imu_stage2/`; leave `src/data/imu_dataset.py`, `src/models/tcn.py`, and the legacy config unchanged.
 - Modify `scripts/preprocess_imu_stage1.py` only where necessary to expose an exact-time in-memory result without changing its CLI or artifacts.
 - Modify `tests/test_preprocess_imu_stage1.py` only for Stage 1 regression/replay coverage created by that extraction.
+- Modify `.gitignore` in Task 1 to exclude repository-local `artifacts/`, `stage2_audits/`, `inference_audits/`, `submissions/`, and `inference_bundle/`; explicit staged-path review remains mandatory.
 
 ---
 
@@ -50,6 +69,7 @@
 - Create: `src/data/imu_stage2_contracts.py`
 - Create: `tests/imu_stage2/test_contracts.py`
 - Create: `tests/imu_stage2/__init__.py`
+- Modify: `.gitignore`
 
 **Interfaces:**
 - Produces: `SENSOR_ORDER`, `FEATURE_ORDER`, `Stage1ActionData`, `Stage2ActionResult`, `TestSampleDescriptor`, `ImuActionSource`, `InferenceSample`.
@@ -58,6 +78,19 @@
 - [ ] **Step 1: Write failing contract and hash tests**
 
 ```python
+def make_minimal_result() -> Stage2ActionResult:
+    valid_mask = np.ones((1, 5), dtype=bool)
+    return Stage2ActionResult(
+        sample_id="sample",
+        values=np.zeros((1, 5, 16), dtype=np.float32),
+        sensor_mask=np.ones(5, dtype=bool),
+        valid_mask=valid_mask,
+        timestamps_ms=np.array([0], dtype=np.int64),
+        qc={},
+        status=DataStatus.SUCCESS,
+    )
+
+
 def test_contract_hash_ignores_provenance() -> None:
     contract = {"schema_version": "imu-stage2-v1", "grid_step_ns": 100_000_000}
     assert contract_sha256(contract) == contract_sha256(dict(reversed(list(contract.items()))))
@@ -135,15 +168,30 @@ exception with fixed `error_code`, `failure_stage`, `sample_id`, and
 `safe_message`; do not define a generic degradable base that callers can use
 to catch unknown exceptions.
 
-- [ ] **Step 4: Verify GREEN and commit**
+- [ ] **Step 4: Add repository-local generated-output guards**
+
+Append exactly these directory patterns to `.gitignore` without changing its
+existing rules:
+
+```gitignore
+artifacts/
+stage2_audits/
+inference_audits/
+submissions/
+inference_bundle/
+```
+
+- [ ] **Step 5: Verify GREEN, inspect the staged allowlist, and commit**
 
 ```powershell
 python -m pytest tests/imu_stage2/test_contracts.py -q
-git add src/data/imu_stage2_contracts.py tests/imu_stage2
+git add -- .gitignore src/data/imu_stage2_contracts.py tests/imu_stage2/test_contracts.py tests/imu_stage2/__init__.py
+git diff --cached --name-only
 git commit -m "feat(imu): define stage 2 contracts"
 ```
 
-Expected: all Task 1 tests pass; commit contains contracts/tests only.
+Expected: all Task 1 tests pass; staged paths are exactly the four allowlisted
+paths; the commit contains contracts, tests, and ignore guards only.
 
 ---
 
@@ -161,6 +209,7 @@ Expected: all Task 1 tests pass; commit contains contracts/tests only.
 - Produces: `discover_stage1_artifacts(root: Path) -> list[Stage1ArtifactDescriptor]`.
 - Produces: `load_stage1_action(descriptor: Stage1ArtifactDescriptor) -> Stage1ActionData`.
 - Produces: `process_raw_imu_source(source: ImuActionSource) -> Stage1ActionData`.
+- Produces: `InMemoryActionResult`, an internal exact-absolute-time result that preserves all legacy Stage 1 QC inputs.
 - Produces: `build_in_memory_action_result(descriptor, csv_results, validated_results) -> InMemoryActionResult`.
 
 - [ ] **Step 1: Add exact-decimal RED tests**
@@ -182,7 +231,10 @@ def test_decimal_seconds_to_ns_rejects_subnanosecond() -> None:
 Add a synthetic accepted Stage 1 action and assert `relative_time_s` is read as
 text, `relative_time_ns.dtype == np.int64`, row alignment is preserved, fixed
 features are selected explicitly, and source file ranks follow natural input
-file order.
+file order. Read the accepted Stage 1 manifest with `dtype=str` and
+`keep_default_na=False`; assert the row fingerprint uses every current
+`scripts.preprocess_imu_stage1.MANIFEST_COLUMNS` field as original CSV text and
+changes when any one field changes.
 
 - [ ] **Step 2: Verify RED**
 
@@ -218,7 +270,25 @@ Hash the Stage 1 CSV/QC bytes and canonical selected manifest row.
 - [ ] **Step 4: Extract the raw in-memory adapter without changing Stage 1 output**
 
 Add a pure Stage 1 return boundary that retains exact parsed absolute time and
-file rank until the bridge computes integer differences:
+file rank until the bridge computes integer differences. Define the internal
+result explicitly:
+
+```python
+@dataclass
+class InMemoryActionResult:
+    descriptor: ActionDescriptor
+    validated_results: tuple[ValidatedCsvResult | None, ...]
+    read_results: tuple[CsvReadResult, ...]
+    exact_rows: pd.DataFrame
+    rejected_rows: list[RejectedRow]
+    warnings: list[str]
+    file_errors: list[FileError]
+    total_input_rows: int
+    unknown_sensor_rows: int
+```
+
+Then construct it through the same read/validation decisions as the frozen
+legacy path:
 
 ```python
 def process_action_in_memory(descriptor: ActionDescriptor) -> InMemoryActionResult:
@@ -228,7 +298,7 @@ def process_action_in_memory(descriptor: ActionDescriptor) -> InMemoryActionResu
         for path in descriptor.input_csv_files
     )
     validated_results = tuple(
-        validate_dataframe(result)
+        None if result.file_errors else validate_dataframe(result)
         for result in csv_results
     )
     return build_in_memory_action_result(
@@ -244,6 +314,10 @@ def process_action(descriptor: ActionDescriptor) -> ActionResult:
 ```
 
 The extraction must reuse the existing robust CSV scanner and validation code.
+`build_in_memory_action_result()` accepts
+`tuple[ValidatedCsvResult | None,...]`; a `None` is paired with its fatal
+`CsvReadResult`, contributes the same file errors/warnings/rejections as the
+current `process_action()`, and is never passed into `validate_dataframe()`.
 The legacy adapter must reproduce the same `imu_merged.csv`, QC, manifest row,
 warnings, and statuses byte-for-byte or value-for-value as existing tests
 require. `process_raw_imu_source()` converts exact absolute-time deltas directly
@@ -348,7 +422,7 @@ Expected: aggregation and segment tests pass with no float-time grouping.
 - Consumes: aggregated per-sensor segments.
 - Produces: `build_action_grid(stage1_end_ns: int) -> np.ndarray`.
 - Produces: `interpolate_sensor_on_grid(series: AggregatedSensorSeries, grid_ns: np.ndarray, max_gap_ns: int = 300_000_000) -> SensorGridResult`.
-- Produces: `process_stage2_action(data: Stage1ActionData, hard_safety_limit_t: int) -> Stage2ActionResult`.
+- Produces: `process_stage2_action(data: Stage1ActionData, hard_safety_limit_t: int = 10_000) -> Stage2ActionResult`.
 
 - [ ] **Step 1: Add grid-boundary RED tests**
 
@@ -364,7 +438,8 @@ def test_grid_uses_floor_and_includes_endpoint(end_ns: int, expected_ms: list[in
 Add exact-hit, 300-ms-inclusive interpolation, over-300-ms rejection,
 no-extrapolation, angle wrap, quaternion nlerp, and shared-endpoint tests.
 Also assert the core raises `SequenceLengthSafetyError` before allocating the
-grid when the computed `T` exceeds `hard_safety_limit_t`.
+grid when the computed `T` exceeds `hard_safety_limit_t`, and rejects any
+non-positive safety limit as a configuration error.
 
 - [ ] **Step 2: Verify RED**
 
@@ -416,7 +491,8 @@ Expected: all Task 3-4 core tests pass.
 
 Assert provenance changes leave `contract_sha256` unchanged, exact NPZ keys
 and dtypes reopen with `allow_pickle=False`, invalid cells remain NaN, JSON
-rejects non-finite values, and a malformed NPZ fails validation.
+rejects non-finite values, `hard_safety_limit_t` is exactly `10_000`, and a
+malformed NPZ fails validation.
 
 - [ ] **Step 2: Verify RED**
 
@@ -472,7 +548,7 @@ Expected: all IO tests pass and temporary paths are absent.
 
 **Interfaces:**
 - Produces: `validate_roots()`, `preflight_run_mode()`, `build_manifest()`, `main(argv) -> int`.
-- CLI options: `--input-root`, `--output-root`, `--dry-run`, `--resume`, `--overwrite`.
+- CLI options: `--input-root`, `--output-root`, `--dry-run`, `--resume`, `--overwrite`, `--hard-safety-limit-t` (default `10_000`), and `--summary-format {human,json}`.
 
 - [ ] **Step 1: Add root-safety and fresh-mode RED tests**
 
@@ -493,20 +569,30 @@ Expected: CLI module missing.
 Reject simultaneous `--resume` and `--overwrite`. Fresh mode requires empty or
 missing output. Resume requires compatible schema plus full managed-tree and
 fingerprint validation. Overwrite requires the same contract and never clears
-the root.
+the root. Both resume and overwrite reject unknown managed-tree files before
+action processing. The requested safety limit must be positive and must equal
+the schema's `hard_safety_limit_t` for any existing output root.
 
 - [ ] **Step 4: Add dry-run and exit-code RED tests**
 
 Use synthetic accepted Stage 1 artifacts for success, incomplete, no-usable,
 and failed actions. Assert dry-run performs transformations but leaves output
-absent. Assert offline exit codes 0/1/2 and failed count fields remain blank.
+absent. With `--summary-format json`, assert `json.loads(captured_stdout)`
+succeeds, stdout contains exactly one JSON object whose key set equals the
+design's fixed machine-summary fields, every data status is present including
+zeros, and human diagnostics do not appear there. Assert offline exit codes
+0/1/2 and failed count fields remain blank. Invoke the script by absolute path
+with `cwd=tmp_path` and a cleared `PYTHONPATH`; `--help` and dry-run must still
+import `src` successfully.
 
 - [ ] **Step 5: Implement sequential orchestration and root artifacts**
 
 Process actions independently, emit best-effort failed QC when sample identity
 exists, preserve `status` across resume skips, write `write_status` separately,
 and atomically publish schema/manifest. Serialize sensor and warning fields in
-fixed registry order and manifest in UTF-8 BOM.
+fixed registry order and manifest in UTF-8 BOM. JSON summary mode serializes
+the same aggregate object used by formal validation directly to stdout; it
+never reparses localized or human-readable log lines.
 
 - [ ] **Step 6: Add resume/overwrite RED tests and make them GREEN**
 
@@ -522,7 +608,8 @@ git add scripts/preprocess_imu_stage2.py tests/imu_stage2/test_stage2_cli.py
 git commit -m "feat(imu): add stage 2 offline cli"
 ```
 
-Expected: focused suite passes; help lists all five options.
+Expected: focused suite passes; help lists all seven options and both summary
+formats.
 
 ---
 
@@ -533,13 +620,17 @@ Expected: focused suite passes; help lists all five options.
 - Create: `tests/imu_stage2/test_training_index.py`
 
 **Interfaces:**
-- Produces: `build_class_order()`, `build_training_index()`, `hash_training_index()`.
+- Produces: `build_class_order(stage2_manifest: pd.DataFrame) -> ClassOrderContract`, `build_training_index()`, `hash_training_index()`.
 - Writes: `class_order.json`, `training_index.csv`, `training_index.json`.
+- CLI requires `--stage2-manifest` and `--output-dir`; `--split-file` defaults to the tracked `metadata/splits/fold_0.json`.
 
 - [ ] **Step 1: Add RED tests for label mapping and strict eligibility**
 
 Use non-contiguous `class_id` values to prove label index is contract-derived,
-not `class_id` arithmetic. Assert strict eligibility requires label,
+not `class_id` arithmetic. Build ordered class records from unique
+`(class_id,class_name)` pairs sorted by integer class ID and enumerate their
+`label_index`; assert inconsistent ID/name mappings fail and `num_classes` is
+derived rather than fixed at 40. Assert strict eligibility requires label,
 `imu_usable`, all historical sensors, all usable sensors, and success/warning
 status.
 
@@ -548,7 +639,10 @@ status.
 Assert selected iff split is train/validation, unselected split is blank,
 train/validation users are disjoint, and swapping splits changes
 `training_index_sha256` even when sample sets are unchanged. Assert a changed
-class order or Stage 2 manifest digest invalidates metadata.
+class order or Stage 2 manifest digest invalidates metadata. Assert
+`split_definition_sha256` equals the byte-level digest of the explicitly chosen
+split file and `class_order_sha256` hashes canonical ordered contract records,
+excluding provenance and the digest field itself.
 
 - [ ] **Step 3: Verify RED**
 
@@ -560,8 +654,10 @@ Expected: training-index module missing.
 
 - [ ] **Step 4: Implement canonical artifacts**
 
-Map the approved split file's `train_users` and `val_users`. Validate every
-`label_index` in `[0,num_classes)`. Hash canonical sample-ID-sorted behavior
+Load `metadata/splits/fold_0.json` unless `--split-file` explicitly selects
+another path; record its repository-relative path and byte digest. Map its
+`train_users` and `val_users`. Validate every `label_index` in
+`[0,num_classes)`. Hash canonical sample-ID-sorted behavior
 rows `(sample_id,label_index,split,selected_for_run,
 eligible_for_strict_training,stage2_npz_relpath)`. Save source manifest,
 contract, split, class-order, index, and three sample-set digests.
@@ -587,6 +683,7 @@ Expected: all index tests pass with no user overlap.
 **Interfaces:**
 - Produces: `StreamingMoments`, `compute_normalization()`, `validate_normalization_artifacts()`.
 - Writes: `imu_normalization.npz`, `imu_normalization.json`.
+- CLI requires `--training-index`, `--training-index-metadata`, `--stage2-root`, `--stage2-schema`, and a fresh `--output-dir`; it never infers a fold or sample set from directory names.
 
 - [ ] **Step 1: Add numerical and leakage RED tests**
 
@@ -609,6 +706,9 @@ Accumulate count, mean, M2, minimum, and maximum in float64 per sensor-feature.
 Reject zero counts, non-finite results, or meaningful negative variance. Cast
 saved arrays to the exact contract dtypes, record near-constant names, and bind
 Stage 2 contract, fold, and exact training sample hash.
+`normalization_contract_sha256` hashes canonical contract JSON only;
+`normalization_file_sha256` hashes the exact written NPZ bytes, while the later
+bundle manifest separately hashes the normalization JSON bytes.
 
 - [ ] **Step 4: Add artifact-tamper RED tests**
 
@@ -632,10 +732,26 @@ Expected: exact numerical and tamper tests pass.
 **Files:**
 - Create: `src/data/imu_stage2_dataset.py`
 - Create: `tests/imu_stage2/test_stage2_dataset.py`
+- Create: `configs/task03/imu_stage2_v1.yaml`
 
 **Interfaces:**
 - Produces: `IMUStage2Dataset`, `LengthBucketBatchSampler`, `collate_imu_stage2()`.
 - Produces: `SequenceLengthSafetyError` from the contracts module.
+- Produces the v1 loader/sampler config below; artifact paths, fold, and class count remain explicit runtime inputs.
+
+```yaml
+config_version: imu-stage2-loader-v1
+hard_safety_limit_t: 10000
+bucket_boundaries: [24, 48, 64, 96, 128, 192, 256]
+batch_feature_budget: 327680
+maximum_batch_size: 16
+minimum_batch_size: 1
+shuffle_seed: 20260715
+drop_last: false
+embedding_dim: 128
+tcn_channels: [64, 128]
+dropout: 0.2
+```
 
 - [ ] **Step 1: Add valid-only normalization and padding RED tests**
 
@@ -664,14 +780,18 @@ arrays from the maximum real length and never consult legacy
 
 Assert deterministic seed behavior, bucket-local batching, batch feature
 budget, an over-budget singleton, no omissions/duplicates when `drop_last`
-false, and exact declared omissions when true. Assert `T>hard_safety_limit_T`
-raises the typed error without truncation.
+false, and exact declared omissions when true. Assert the dataset requires
+`hard_safety_limit_t=10_000`, rejects a value inconsistent with the Stage 2
+contract, and raises the typed error without truncation when `T` exceeds it.
+Assert the new config has no `sequence_length` key and does not read the legacy
+`configs/task03/imu.yaml` value `256`.
 
 - [ ] **Step 5: Implement sampler, verify, and commit**
 
 ```powershell
 python -m pytest tests/imu_stage2/test_stage2_dataset.py -q
-git add src/data/imu_stage2_dataset.py tests/imu_stage2/test_stage2_dataset.py
+git add -- configs/task03/imu_stage2_v1.yaml src/data/imu_stage2_dataset.py tests/imu_stage2/test_stage2_dataset.py
+git diff --cached --name-only
 git commit -m "feat(imu): load variable stage 2 sequences"
 ```
 
@@ -688,11 +808,14 @@ Expected: dataset/sampler/collate tests pass.
 
 **Interfaces:**
 - Produces: `IMUStage2Classifier.forward(batch) -> {"embedding", "logits"}`.
-- Consumes: collate output and `imu_modality_mask`.
+- Produces: `build_checkpoint_metadata(...) -> dict[str, object]` with Stage 2, training-index, normalization, class-order, submission-contract, and `num_classes` bindings.
+- Consumes: collate output, `imu_modality_mask`, derived `num_classes`, and model fields from `configs/task03/imu_stage2_v1.yaml`.
 
 - [ ] **Step 1: Add model-output and invariance RED tests**
 
-Set `model.eval()` and test finite logits `[B,40]`. Compare logits after adding
+Construct a synthetic seven-class `ClassOrderContract`, pass its derived
+`num_classes=7` into the model, and test finite logits `[B,7]`; no model code or
+test may contain a fixed 40-class output dimension. Compare logits after adding
 right padding, randomizing invalid-cell placeholders, randomizing an unusable
 sensor, and randomizing an unavailable-modality technical placeholder. Test a
 sample alone and in different legal batch partitions. Use one explicit test
@@ -713,6 +836,9 @@ each with its own `sequence_mask & valid_mask[:,:,s]`, fuse only sensors where
 `usable_sensor_mask` is true, and select a packaged learned null embedding when
 `imu_modality_mask` is false. Mask padded outputs after biased temporal blocks.
 Return logits without applying softmax.
+Create checkpoint metadata only through `build_checkpoint_metadata()` and
+require all six approved digests plus the derived class count; missing or empty
+bindings fail before checkpoint serialization.
 
 - [ ] **Step 4: Add deterministic decision tests**
 
@@ -792,15 +918,36 @@ Expected: discovery, error isolation, placeholder, and bundle tests pass.
 ### Task 12: Add submission contract, inference CLI, and atomic output
 
 **Files:**
+- Create: `scripts/build_imu_inference_bundle.py`
 - Create: `scripts/infer_imu_stage2.py`
 - Create: `inference.sh`
+- Create: `configs/task03/imu_stage2_inference_v1.yaml`
 - Create: `tests/imu_stage2/test_inference_cli.py`
 - Modify: `src/inference/imu_stage2_pipeline.py`
 
 **Interfaces:**
 - Produces: `derive_submission_contract(sample_submission_path: Path) -> dict[str, object]`.
+- Produces: `build_inference_bundle_manifest(bundle_root: Path, artifact_paths: Mapping[str, Path]) -> dict[str, object]`.
 - Produces: `validate_logits()`, `decode_predictions()`, `write_submission_atomic()`, `main(argv) -> int`.
+- Bundle-builder CLI requires `--checkpoint`, `--model-config`, `--stage2-schema`, `--normalization-npz`, `--normalization-json`, `--class-order`, `--sample-submission`, `--inference-config`, and `--output-dir`.
 - Public command: `bash inference.sh RAW_TEST_ROOT OUTPUT_CSV`.
+- `inference.sh` resolves its own directory and passes
+  `--bundle-root "$SCRIPT_DIR/inference_bundle"`; it never searches the current
+  working directory or an environment-dependent artifact location.
+
+The tracked inference config is exact and contains no artifact path:
+
+```yaml
+config_version: imu-stage2-inference-v1
+hard_safety_limit_t: 10000
+inference_seed: 20260715
+deterministic_algorithms: true
+batch_feature_budget: 327680
+maximum_batch_size: 16
+model_output_type: logits
+prediction_rule: argmax
+imu_unavailable_policy: packaged_null_embedding
+```
 
 - [ ] **Step 1: Add model-output and submission-contract RED tests**
 
@@ -810,7 +957,15 @@ fixture having the official adapter's sample-ID and prediction columns. Bundle
 preparation must receive the organizer-provided sample-submission path through
 an explicit `--sample-submission` argument; the derived contract fixes column
 names, encoding, header, row order, and class representation and is then
-validated without guessing.
+validated without guessing. Assert the bundle builder copies the seven packaged
+artifact inputs (all explicit inputs except the sample-submission template),
+adds the derived submission contract as the eighth managed artifact, emits byte-level SHA-256
+for every managed artifact, rejects an existing/non-empty output directory,
+uses bundle-root-relative POSIX paths, and produces a manifest that Task 11's
+loader accepts before model load.
+Assert the tracked inference config matches the Stage 2 safety limit, uses the
+declared null-embedding path implemented in Task 10, and contains no absolute
+artifact or data path.
 
 - [ ] **Step 2: Add output-overwrite RED tests**
 
@@ -825,9 +980,16 @@ sample with no duplicates or extras.
 python -m pytest tests/imu_stage2/test_inference_cli.py -q
 ```
 
-Expected: CLI and submission functions missing.
+Expected: bundle-builder, CLI, and submission functions are missing.
 
 - [ ] **Step 4: Implement deterministic inference and output publication**
+
+First implement the bundle-builder CLI. It derives and writes
+`submission_contract.json`, verifies checkpoint internal bindings against all
+input contracts, copies the allowlisted inputs to a fresh bundle root, hashes
+their final bytes, writes `inference_bundle_manifest.json` atomically, and
+reopens the bundle through Task 11's validator. It never modifies source
+artifacts. Then implement inference as follows.
 
 Call `model.eval()` under `torch.inference_mode()`, disable augmentation,
 apply fixed seed/configuration, validate logits, use `argmax`, decode through
@@ -855,7 +1017,8 @@ output arguments without machine-specific paths.
 
 ```powershell
 python -m pytest tests/imu_stage2/test_inference_cli.py tests/imu_stage2/test_online_pipeline.py -q
-git add scripts/infer_imu_stage2.py inference.sh src/inference/imu_stage2_pipeline.py tests/imu_stage2/test_inference_cli.py
+git add -- configs/task03/imu_stage2_inference_v1.yaml scripts/build_imu_inference_bundle.py scripts/infer_imu_stage2.py inference.sh src/inference/imu_stage2_pipeline.py tests/imu_stage2/test_inference_cli.py
+git diff --cached --name-only
 git commit -m "feat(imu): run raw-test stage 2 inference"
 ```
 
@@ -873,6 +1036,9 @@ Expected: inference and output-contract tests pass.
 **Interfaces:**
 - Verifies all Stage 1 bridge, Stage 2, IO, training, and inference contracts.
 - Produces a read-only formal validation CLI for a generated Stage 2 root.
+- Validator CLI requires `--input-root` and `--output-root`, accepts canonical
+  `--expected-summary`, and writes only the explicitly requested external
+  `--audit-output`; it never modifies either data root.
 
 - [ ] **Step 1: Add synthetic exact replay tests**
 
@@ -910,7 +1076,7 @@ return 0/1/2 without modifying Stage 2 or Stage 1 data.
 ```powershell
 python -m pytest tests/imu_stage2 -q
 python -m pytest tests/test_preprocess_imu_stage1.py -q
-python -m py_compile scripts/preprocess_imu_stage2.py scripts/build_imu_training_index.py scripts/compute_imu_normalization.py scripts/infer_imu_stage2.py scripts/validate_imu_stage2_output.py
+python -m py_compile scripts/preprocess_imu_stage2.py scripts/build_imu_training_index.py scripts/compute_imu_normalization.py scripts/build_imu_inference_bundle.py scripts/infer_imu_stage2.py scripts/validate_imu_stage2_output.py
 git add tests/imu_stage2/test_replay_equivalence.py tests/imu_stage2/test_stage2_end_to_end.py scripts/validate_imu_stage2_output.py
 git commit -m "test(imu): verify stage 2 end to end"
 ```
@@ -931,20 +1097,23 @@ Expected: all Stage 1 and Stage 2 tests pass; all scripts compile.
 
 - [ ] **Step 1: Confirm worktree and input boundary**
 
+Proceed only when the current user instruction explicitly names Task 14. A
+generic `continue` or completion of Task 13 is not authorization.
+
 ```powershell
 git branch --show-current
 git rev-parse HEAD
 git status --short
 ```
 
-Expected: branch `IMU`; only approved Stage 2 implementation/test/config work
-is present. Record the current commit rather than assuming the design-doc SHA.
+Expected: branch `IMU`; tracked worktree clean after the Task 13 commit. Record
+the current commit rather than assuming the design-doc SHA.
 
 - [ ] **Step 2: Run all regression and focused checks fresh**
 
 ```powershell
 python -m pytest tests/test_preprocess_imu_stage1.py tests/imu_stage2 -q
-python -m py_compile scripts/preprocess_imu_stage1.py scripts/preprocess_imu_stage2.py scripts/build_imu_training_index.py scripts/compute_imu_normalization.py scripts/infer_imu_stage2.py scripts/validate_imu_stage2_output.py
+python -m py_compile scripts/preprocess_imu_stage1.py scripts/preprocess_imu_stage2.py scripts/build_imu_training_index.py scripts/compute_imu_normalization.py scripts/build_imu_inference_bundle.py scripts/infer_imu_stage2.py scripts/validate_imu_stage2_output.py
 python scripts/preprocess_imu_stage2.py --help
 python scripts/infer_imu_stage2.py --help
 git diff --check
@@ -958,23 +1127,35 @@ diff check is clean.
 Hash `manifest.csv`, every `imu_merged.csv`, and every Stage 1 `qc.json` into an
 audit directory outside the repository and dataset trees. Record file count,
 relative path, size, and SHA-256. Abort the dry-run if snapshot creation fails.
+Create a new timestamped `$DryRunAuditRoot` outside both trees and set
+`$DryRunExpectedSummary = Join-Path $DryRunAuditRoot
+'dry_run_expected_summary.json'`. Never reuse or empty an existing audit root.
 
 - [ ] **Step 4: Execute the real Stage 2 dry-run only**
 
 ```powershell
-python scripts/preprocess_imu_stage2.py `
+$DryRunJson = (& python scripts/preprocess_imu_stage2.py `
   --input-root "D:\work\2026.7.14_kaggle\datasets\Small-Model-Track\train\new_IMU" `
   --output-root "D:\work\2026.7.14_kaggle\datasets\Small-Model-Track\train\new_IMU_stage2" `
-  --dry-run
+  --dry-run `
+  --summary-format json | Out-String).Trim()
+$DryRunExitCode = $LASTEXITCODE
+if ($DryRunExitCode -ne 0) { throw "Stage 2 dry-run failed: $DryRunExitCode" }
+$null = $DryRunJson | ConvertFrom-Json
+[System.IO.File]::WriteAllText(
+  $DryRunExpectedSummary,
+  $DryRunJson + "`n",
+  [System.Text.UTF8Encoding]::new($false)
+)
 ```
 
 Expected: exit 0, 2,863 actions discovered, no output root or other write, and
-real status/grid/duplicate/interpolation counts printed. Do not assume the
+the JSON object contains real status/grid/duplicate/interpolation counts. Do not assume the
 strict candidate count; record the measured value for a separately approved
-formal-run validation script. Save the independently parsed console summary as
-`dry_run_expected_summary.json` in the external Task 14 audit directory and
-report its absolute path. The preprocessing process itself still writes
-nothing.
+formal-run validation script. Save the validated machine JSON directly; never
+parse human or localized console lines. The preprocessing process itself still
+writes nothing. The 2,863 check is an external acceptance assertion against the
+accepted Stage 1 manifest, never a production discovery constant.
 
 - [ ] **Step 5: Re-hash Stage 1 and prove zero-write behavior**
 
@@ -986,7 +1167,10 @@ processing.
 
 Select documented representatives for clean, duplicate, incomplete, long-gap,
 late/early sensor, isolated exact-hit, and varied-length behavior. Run both
-entry paths in read-only mode and require exact array/QC equality.
+entry paths in read-only mode using raw training root
+`D:\work\2026.7.14_kaggle\datasets\Small-Model-Track\train\IMU` and accepted
+Stage 1 root `...\train\new_IMU`; require exact array/QC equality and write no
+intermediate data.
 
 - [ ] **Step 7: Audit every design requirement**
 
