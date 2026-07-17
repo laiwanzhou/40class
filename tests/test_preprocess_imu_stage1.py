@@ -4,6 +4,8 @@ import csv
 import hashlib
 import io
 import json
+import logging
+import math
 import shutil
 import subprocess
 from pathlib import Path
@@ -819,3 +821,655 @@ def test_staging_uuid_collision_preserves_preexisting_directory(
     assert sentinel.read_bytes() == b"not owned by writer"
     assert {path.name for path in staging.iterdir()} == {"preexisting.bin"}
     assert not destination.exists()
+
+
+@pytest.mark.parametrize("relationship", ["equal", "output_below", "input_below"])
+def test_cli_rejects_overlapping_roots_before_any_write(
+    tmp_path: Path, relationship: str
+) -> None:
+    if relationship == "equal":
+        input_root = output_root = tmp_path / "shared"
+        input_root.mkdir()
+    elif relationship == "output_below":
+        input_root = tmp_path / "input"
+        input_root.mkdir()
+        output_root = input_root / "generated"
+    else:
+        output_root = tmp_path / "outer"
+        input_root = output_root / "input"
+        input_root.mkdir(parents=True)
+    sentinel = input_root / "sentinel.bin"
+    sentinel.write_bytes(b"unchanged")
+    before = {
+        path.relative_to(tmp_path).as_posix(): (
+            None if path.is_dir() else path.read_bytes()
+        )
+        for path in tmp_path.rglob("*")
+    }
+
+    exit_code = imu.main(
+        ["--input-root", str(input_root), "--output-root", str(output_root)]
+    )
+
+    after = {
+        path.relative_to(tmp_path).as_posix(): (
+            None if path.is_dir() else path.read_bytes()
+        )
+        for path in tmp_path.rglob("*")
+    }
+    assert exit_code == 2
+    assert after == before
+    assert not (output_root / "processing.log").exists()
+    assert not (output_root / "manifest.csv").exists()
+    assert not any(".staging-" in path.name for path in tmp_path.rglob("*"))
+    assert not any(".backup-" in path.name for path in tmp_path.rglob("*"))
+
+
+def _write_action(
+    input_root: Path,
+    class_name: str,
+    action_id: str,
+    sensors: tuple[str, ...] = ("WTLL", "WTRL", "WTLA", "WTRA", "WTC"),
+) -> Path:
+    action = input_root / class_name / "user1" / action_id
+    action.mkdir(parents=True)
+    write_imu_csv(
+        action / "part.csv",
+        [
+            (f"2025-01-01 00:00:00.{index + 1:03d}", f"{sensor}(device)")
+            for index, sensor in enumerate(sensors)
+        ],
+    )
+    return action
+
+
+def test_cli_dry_run_reports_chinese_summary_and_writes_nothing(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    input_root = tmp_path / "input"
+    output_root = tmp_path / "output"
+    _write_action(input_root, "1_One", "1-1-1")
+
+    exit_code = imu.main(
+        [
+            "--input-root", str(input_root),
+            "--output-root", str(output_root),
+            "--dry-run",
+        ]
+    )
+
+    summary = capsys.readouterr().err
+    assert exit_code == 0
+    assert not output_root.exists()
+    for label in (
+        "类别数", "用户数", "动作总数", "成功数", "成功但有警告数",
+        "传感器不完整数", "已跳过现有输出数", "失败数", "输入总行数",
+        "有效输出行数", "拒绝行数", "LL 缺失动作数", "RL 缺失动作数",
+        "LA 缺失动作数", "RA 缺失动作数", "C 缺失动作数",
+    ):
+        assert label in summary
+
+
+def test_cli_dry_run_scans_after_failure_returns_one_and_writes_nothing(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    input_root = tmp_path / "input"
+    output_root = tmp_path / "output"
+    failed = _write_action(input_root, "1_One", "1-1-1")
+    (failed / "part.csv").write_text(
+        f"{RAW_COLUMNS[0]},{RAW_COLUMNS[1]}\n", encoding="utf-8"
+    )
+    _write_action(input_root, "2_Two", "1-1-1")
+
+    exit_code = imu.main(
+        [
+            "--input-root", str(input_root),
+            "--output-root", str(output_root),
+            "--dry-run",
+        ]
+    )
+
+    summary = capsys.readouterr().err
+    assert exit_code == 1
+    assert "动作总数: 2" in summary
+    assert "失败数: 1" in summary
+    assert not output_root.exists()
+
+
+def test_cli_normal_run_writes_sorted_complete_manifest_log_qc_and_skips(
+    tmp_path: Path,
+) -> None:
+    input_root = tmp_path / "input"
+    output_root = tmp_path / "output"
+    _write_action(input_root, "10_Ten", "1-1-1")
+    incomplete = _write_action(
+        input_root, "2_Two", "1-1-2", sensors=("WTLL", "WTRL")
+    )
+    failed = _write_action(input_root, "2_Two", "1-1-3")
+    (failed / "part.csv").write_text(
+        f"{RAW_COLUMNS[0]},{RAW_COLUMNS[1]}\n", encoding="utf-8"
+    )
+    skipped = _write_action(input_root, "1_One", "1-1-1")
+    prior = imu.process_action_directory(skipped, input_root, output_root)
+    assert imu.write_action_result(prior, output_root, overwrite=False).written
+    skipped_dir = output_root / "1_One" / "user1" / "1-1-1"
+    skipped_before = {
+        path.name: path.read_bytes() for path in skipped_dir.iterdir()
+    }
+
+    exit_code = imu.main(
+        ["--input-root", str(input_root), "--output-root", str(output_root)]
+    )
+
+    assert exit_code == 1
+    assert (output_root / "processing.log").exists()
+    manifest_path = output_root / "manifest.csv"
+    assert manifest_path.read_bytes()[:3] == b"\xef\xbb\xbf"
+    manifest = pd.read_csv(manifest_path, encoding="utf-8-sig")
+    assert manifest.columns.tolist() == MANIFEST_KEYS
+    assert manifest["class_id"].tolist() == [1, 2, 2, 10]
+    assert set(manifest["status"]) == {
+        "success", "incomplete_sensors", "failed", "skipped_existing"
+    }
+    failed_dir = output_root / "2_Two" / "user1" / "1-1-3"
+    assert (failed_dir / "qc.json").exists()
+    assert not (failed_dir / "imu_merged.csv").exists()
+    assert (output_root / incomplete.relative_to(input_root) / "imu_merged.csv").exists()
+    assert {
+        path.name: path.read_bytes() for path in skipped_dir.iterdir()
+    } == skipped_before
+    assert "two directory renames" in (output_root / "processing.log").read_text(
+        encoding="utf-8"
+    )
+
+
+def test_build_manifest_natural_sorts_users_and_actions(tmp_path: Path) -> None:
+    results = []
+    for class_id, user_id, action_id in (
+        (10, "user2", "1-1-10"),
+        (2, "user10", "1-1-2"),
+        (2, "user2", "1-1-10"),
+        (2, "user2", "1-1-2"),
+    ):
+        result = make_action_result(tmp_path)
+        result.descriptor = imu.ActionDescriptor(
+            class_id=class_id,
+            class_name=str(class_id),
+            user_id=user_id,
+            action_id=action_id,
+            input_directory=tmp_path / "input",
+            relative_action_path=Path(str(class_id)) / user_id / action_id,
+            input_csv_files=(),
+        )
+        result.manifest_row = dict.fromkeys(MANIFEST_KEYS, "")
+        for column in (
+            "class_id", "csv_file_count", "total_input_rows", "valid_output_rows",
+            "rejected_rows", "unknown_sensor_rows", "ll_rows", "rl_rows",
+            "la_rows", "ra_rows", "c_rows", "ll_duplicate_timestamps",
+            "rl_duplicate_timestamps", "la_duplicate_timestamps",
+            "ra_duplicate_timestamps", "c_duplicate_timestamps", "warning_count",
+        ):
+            result.manifest_row[column] = 0
+        result.manifest_row["duration_s"] = None
+        result.manifest_row.update(
+            class_id=class_id, user_id=user_id, action_id=action_id
+        )
+        results.append(result)
+
+    manifest = imu.build_manifest(results)
+
+    assert list(zip(manifest.class_id, manifest.user_id, manifest.action_id)) == [
+        (2, "user2", "1-1-2"),
+        (2, "user2", "1-1-10"),
+        (2, "user10", "1-1-2"),
+        (10, "user2", "1-1-10"),
+    ]
+    assert manifest.columns.tolist() == MANIFEST_KEYS
+
+
+def test_cli_global_discovery_error_returns_two_without_action_writes(
+    tmp_path: Path,
+) -> None:
+    input_root = tmp_path / "input"
+    output_root = tmp_path / "output"
+    malformed = input_root / "not-an-action"
+    malformed.mkdir(parents=True)
+    (malformed / "data.csv").write_text("x\n", encoding="utf-8")
+
+    exit_code = imu.main(
+        ["--input-root", str(input_root), "--output-root", str(output_root)]
+    )
+
+    assert exit_code == 2
+    assert not output_root.exists()
+
+
+def test_cli_help_lists_exact_four_options() -> None:
+    completed = subprocess.run(
+        ["python", "scripts/preprocess_imu_stage1.py", "--help"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0
+    for option in ("--input-root", "--output-root", "--overwrite", "--dry-run"):
+        assert option in completed.stdout
+
+
+def test_cli_writer_exception_becomes_failed_qc_and_continues(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    input_root = tmp_path / "input"
+    output_root = tmp_path / "output"
+    _write_action(input_root, "1_One", "1-1-1")
+    _write_action(input_root, "2_Two", "1-1-1")
+    real_writer = imu.write_action_result
+    calls = 0
+
+    def fail_first_writer_setup(result, root, overwrite):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise OSError("injected writer setup failure")
+        return real_writer(result, root, overwrite)
+
+    monkeypatch.setattr(imu, "write_action_result", fail_first_writer_setup)
+
+    exit_code = imu.main(
+        ["--input-root", str(input_root), "--output-root", str(output_root)]
+    )
+
+    assert exit_code == 1
+    manifest = pd.read_csv(output_root / "manifest.csv", encoding="utf-8-sig")
+    assert manifest["status"].tolist() == ["failed", "success"]
+    assert "injected writer setup failure" in manifest.loc[0, "error_message"]
+    first_output = output_root / "1_One" / "user1" / "1-1-1"
+    assert (first_output / "qc.json").exists()
+    assert not (first_output / "imu_merged.csv").exists()
+    assert (output_root / "2_Two" / "user1" / "1-1-1" / "imu_merged.csv").exists()
+
+
+@pytest.mark.parametrize("dry_run", [False, True])
+def test_malformed_json_object_qc_skips_without_mutation(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    dry_run: bool,
+) -> None:
+    input_root = tmp_path / "input"
+    output_root = tmp_path / "output"
+    action = _write_action(input_root, "1_One", "1-1-1")
+    prior = imu.process_action_directory(action, input_root, output_root)
+    assert imu.write_action_result(prior, output_root, overwrite=False).written
+    output_directory = output_root / "1_One" / "user1" / "1-1-1"
+    (output_directory / "qc.json").write_text(
+        json.dumps(
+            {
+                "total_input_rows": {"invalid": "mapping"},
+                "valid_output_rows": "not-an-integer",
+                "present_sensors": 42,
+                "missing_sensors": None,
+                "rows_per_sensor": [],
+                "warnings": None,
+            }
+        ),
+        encoding="utf-8",
+    )
+    before = {
+        path.relative_to(output_directory).as_posix(): path.read_bytes()
+        for path in output_directory.rglob("*") if path.is_file()
+    }
+    argv = ["--input-root", str(input_root), "--output-root", str(output_root)]
+    if dry_run:
+        argv.append("--dry-run")
+
+    exit_code = imu.main(argv)
+
+    assert exit_code == 0
+    assert {
+        path.relative_to(output_directory).as_posix(): path.read_bytes()
+        for path in output_directory.rglob("*") if path.is_file()
+    } == before
+    if dry_run:
+        assert not (output_root / "processing.log").exists()
+        assert not (output_root / "manifest.csv").exists()
+        assert "无法读取现有 QC" in capsys.readouterr().err
+    else:
+        manifest = pd.read_csv(output_root / "manifest.csv", encoding="utf-8-sig")
+        assert manifest.loc[0, "status"] == "skipped_existing"
+        assert manifest.loc[0, "total_input_rows"] == 0
+        assert "无法读取现有 QC" in (output_root / "processing.log").read_text(
+            encoding="utf-8"
+        )
+
+
+def test_dry_run_summary_failure_returns_two_without_writes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    input_root = tmp_path / "input"
+    output_root = tmp_path / "output"
+    _write_action(input_root, "1_One", "1-1-1")
+
+    def fail_summary(results):
+        raise OSError("injected console reporting failure")
+
+    monkeypatch.setattr(imu, "_summarize", fail_summary)
+
+    exit_code = imu.main(
+        [
+            "--input-root", str(input_root),
+            "--output-root", str(output_root),
+            "--dry-run",
+        ]
+    )
+
+    assert exit_code == 2
+    assert not output_root.exists()
+
+
+def test_skipped_qc_error_message_strips_carriage_return_and_line_feed(
+    tmp_path: Path,
+) -> None:
+    input_root = tmp_path / "input"
+    output_root = tmp_path / "output"
+    action = _write_action(input_root, "1_One", "1-1-1")
+    prior = imu.process_action_directory(action, input_root, output_root)
+    assert imu.write_action_result(prior, output_root, overwrite=False).written
+    qc_path = output_root / "1_One" / "user1" / "1-1-1" / "qc.json"
+    qc = json.loads(qc_path.read_text(encoding="utf-8"))
+    qc["error_message"] = "line one\rline two\nline three\r\nline four"
+    qc_path.write_text(json.dumps(qc), encoding="utf-8")
+
+    assert imu.main(
+        ["--input-root", str(input_root), "--output-root", str(output_root)]
+    ) == 0
+
+    manifest = pd.read_csv(output_root / "manifest.csv", encoding="utf-8-sig")
+    assert manifest.loc[0, "error_message"] == (
+        "line one line two line three  line four"
+    )
+    assert "\r" not in manifest.loc[0, "error_message"]
+    assert "\n" not in manifest.loc[0, "error_message"]
+
+
+def test_cli_normal_clean_run_returns_zero(tmp_path: Path) -> None:
+    input_root = tmp_path / "input"
+    output_root = tmp_path / "output"
+    _write_action(input_root, "1_One", "1-1-1")
+
+    exit_code = imu.main(
+        ["--input-root", str(input_root), "--output-root", str(output_root)]
+    )
+
+    assert exit_code == 0
+    manifest = pd.read_csv(output_root / "manifest.csv", encoding="utf-8-sig")
+    assert manifest["status"].tolist() == ["success"]
+
+
+def test_cli_returned_csv_write_failure_gets_failed_qc_and_continues(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    input_root = tmp_path / "input"
+    output_root = tmp_path / "output"
+    _write_action(input_root, "1_One", "1-1-1")
+    _write_action(input_root, "2_Two", "1-1-1")
+    real_to_csv = pd.DataFrame.to_csv
+    injected = False
+
+    def fail_first_merged_csv(frame, path_or_buf=None, *args, **kwargs):
+        nonlocal injected
+        if (
+            not injected
+            and Path(path_or_buf).name == "imu_merged.csv"
+            and "1_One" in Path(path_or_buf).parts
+        ):
+            injected = True
+            raise OSError("injected merged CSV serialization failure")
+        return real_to_csv(frame, path_or_buf, *args, **kwargs)
+
+    monkeypatch.setattr(pd.DataFrame, "to_csv", fail_first_merged_csv)
+
+    exit_code = imu.main(
+        ["--input-root", str(input_root), "--output-root", str(output_root)]
+    )
+
+    assert exit_code == 1
+    first_output = output_root / "1_One" / "user1" / "1-1-1"
+    failed_qc = json.loads((first_output / "qc.json").read_text(encoding="utf-8"))
+    assert failed_qc["status"] == "failed"
+    assert "injected merged CSV serialization failure" in failed_qc["error_message"]
+    assert not (first_output / "imu_merged.csv").exists()
+    manifest = pd.read_csv(output_root / "manifest.csv", encoding="utf-8-sig")
+    assert manifest["status"].tolist() == ["failed", "success"]
+    assert "injected merged CSV serialization failure" in manifest.loc[0, "error_message"]
+    assert (output_root / "2_Two" / "user1" / "1-1-1" / "imu_merged.csv").exists()
+
+
+def test_cli_qc_only_destination_is_immutable_conflict_and_continues(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    input_root = tmp_path / "input"
+    output_root = tmp_path / "output"
+    first_action = _write_action(input_root, "1_One", "1-1-1")
+    _write_action(input_root, "2_Two", "1-1-1")
+    successful = imu.process_action_directory(first_action, input_root, output_root)
+    prior_failure = imu._failed_action_result(
+        successful.descriptor, OSError("prior action failure")
+    )
+    assert imu.write_action_result(
+        prior_failure, output_root, overwrite=False
+    ).written
+    first_output = output_root / "1_One" / "user1" / "1-1-1"
+    qc_path = first_output / "qc.json"
+    old_qc_bytes = qc_path.read_bytes()
+
+    exit_code = imu.main(
+        ["--input-root", str(input_root), "--output-root", str(output_root)]
+    )
+
+    summary = capsys.readouterr().err
+    assert exit_code == 1
+    assert qc_path.read_bytes() == old_qc_bytes
+    assert {path.name for path in first_output.iterdir()} == {"qc.json"}
+    manifest = pd.read_csv(output_root / "manifest.csv", encoding="utf-8-sig")
+    assert manifest["status"].tolist() == ["failed", "success"]
+    assert pd.isna(manifest.loc[0, "output_csv"])
+    assert "Existing action output conflict" in manifest.loc[0, "error_message"]
+    assert "失败数: 1" in summary
+    assert "成功数: 1" in summary
+    assert (output_root / "2_Two" / "user1" / "1-1-1" / "imu_merged.csv").exists()
+
+    overwrite_exit = imu.main(
+        [
+            "--input-root", str(input_root),
+            "--output-root", str(output_root),
+            "--overwrite",
+        ]
+    )
+
+    assert overwrite_exit == 0
+    assert qc_path.read_bytes() != old_qc_bytes
+    assert (first_output / "imu_merged.csv").exists()
+    overwritten_manifest = pd.read_csv(
+        output_root / "manifest.csv", encoding="utf-8-sig"
+    )
+    assert overwritten_manifest["status"].tolist() == ["success", "success"]
+
+
+class _TrackingHandler(logging.Handler):
+    def __init__(self, *, fail_flush: bool = False, fail_close: bool = False) -> None:
+        super().__init__()
+        self.fail_flush = fail_flush
+        self.fail_close = fail_close
+        self.flush_attempts = 0
+        self.close_attempts = 0
+
+    def emit(self, record: logging.LogRecord) -> None:
+        pass
+
+    def flush(self) -> None:
+        self.flush_attempts += 1
+        if self.fail_flush:
+            self.fail_flush = False
+            raise OSError("injected handler flush failure")
+
+    def close(self) -> None:
+        self.close_attempts += 1
+        if self.fail_close:
+            self.fail_close = False
+            raise OSError("injected handler close failure")
+        super().close()
+
+
+def test_cli_logging_setup_failure_cleans_created_handlers_and_returns_two(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    input_root = tmp_path / "input"
+    output_root = tmp_path / "output"
+    _write_action(input_root, "1_One", "1-1-1")
+    created = _TrackingHandler()
+    monkeypatch.setattr(imu.logging, "StreamHandler", lambda: created)
+
+    def fail_file_handler(*args, **kwargs):
+        raise OSError("injected file-handler setup failure")
+
+    monkeypatch.setattr(imu.logging, "FileHandler", fail_file_handler)
+
+    exit_code = imu.main(
+        ["--input-root", str(input_root), "--output-root", str(output_root)]
+    )
+
+    assert exit_code == 2
+    assert created.close_attempts >= 1
+    assert created not in logging.getLogger("preprocess_imu_stage1").handlers
+
+
+def test_cli_manifest_write_failure_returns_two_and_detaches_handlers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    input_root = tmp_path / "input"
+    output_root = tmp_path / "output"
+    _write_action(input_root, "1_One", "1-1-1")
+
+    real_to_csv = pd.DataFrame.to_csv
+
+    def fail_manifest_write(frame, path_or_buf=None, *args, **kwargs):
+        if Path(path_or_buf).name == "manifest.csv":
+            raise OSError("injected manifest write failure")
+        return real_to_csv(frame, path_or_buf, *args, **kwargs)
+
+    monkeypatch.setattr(pd.DataFrame, "to_csv", fail_manifest_write)
+
+    exit_code = imu.main(
+        ["--input-root", str(input_root), "--output-root", str(output_root)]
+    )
+
+    assert exit_code == 2
+    assert logging.getLogger("preprocess_imu_stage1").handlers == []
+
+
+def test_cli_teardown_failures_attempt_every_resource_and_return_two(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    input_root = tmp_path / "input"
+    output_root = tmp_path / "output"
+    _write_action(input_root, "1_One", "1-1-1")
+    console = _TrackingHandler(fail_flush=True)
+    file_handler = _TrackingHandler(fail_close=True)
+    monkeypatch.setattr(imu.logging, "StreamHandler", lambda: console)
+    monkeypatch.setattr(imu.logging, "FileHandler", lambda *args, **kwargs: file_handler)
+
+    exit_code = imu.main(
+        ["--input-root", str(input_root), "--output-root", str(output_root)]
+    )
+
+    assert exit_code == 2
+    assert console.flush_attempts >= 1
+    assert console.close_attempts >= 1
+    assert file_handler.flush_attempts >= 1
+    assert file_handler.close_attempts >= 1
+    logger = logging.getLogger("preprocess_imu_stage1")
+    assert console not in logger.handlers
+    assert file_handler not in logger.handlers
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda qc: qc.update(total_input_rows=-1),
+        lambda qc: qc["rows_per_sensor"].update(LL=-1),
+        lambda qc: qc["duplicate_timestamp_count_per_sensor"].update(RL=-1),
+        lambda qc: qc.update(duration_s=float("nan")),
+        lambda qc: qc.update(duration_s=-0.1),
+        lambda qc: qc.update(present_sensors=["RL", "LL"]),
+        lambda qc: qc.update(present_sensors=["LL", "LL"]),
+        lambda qc: qc.update(
+            present_sensors=["LL"], missing_sensors=["LL", "RL", "LA", "RA", "C"]
+        ),
+    ],
+    ids=[
+        "negative-count", "negative-sensor-count", "negative-duplicate-count",
+        "nonfinite-duration", "negative-duration", "sensor-order",
+        "duplicate-sensor", "overlapping-sensors",
+    ],
+)
+def test_semantically_malformed_existing_qc_is_immutable_skipped_fallback(
+    tmp_path: Path, mutate
+) -> None:
+    input_root = tmp_path / "input"
+    output_root = tmp_path / "output"
+    action = _write_action(input_root, "1_One", "1-1-1")
+    prior = imu.process_action_directory(action, input_root, output_root)
+    assert imu.write_action_result(prior, output_root, overwrite=False).written
+    output_directory = output_root / "1_One" / "user1" / "1-1-1"
+    qc_path = output_directory / "qc.json"
+    qc = json.loads(qc_path.read_text(encoding="utf-8"))
+    mutate(qc)
+    qc_path.write_text(json.dumps(qc), encoding="utf-8")
+    before = {
+        path.relative_to(output_directory).as_posix(): path.read_bytes()
+        for path in output_directory.rglob("*") if path.is_file()
+    }
+
+    exit_code = imu.main(
+        ["--input-root", str(input_root), "--output-root", str(output_root)]
+    )
+
+    assert exit_code == 0
+    assert {
+        path.relative_to(output_directory).as_posix(): path.read_bytes()
+        for path in output_directory.rglob("*") if path.is_file()
+    } == before
+    manifest = pd.read_csv(output_root / "manifest.csv", encoding="utf-8-sig")
+    assert manifest.loc[0, "status"] == "skipped_existing"
+    assert manifest.loc[0, "total_input_rows"] == 0
+    assert pd.isna(manifest.loc[0, "present_sensors"])
+    assert pd.isna(manifest.loc[0, "missing_sensors"])
+    assert "QC" in (output_root / "processing.log").read_text(encoding="utf-8")
+
+
+def test_build_manifest_preserves_representative_python_types_and_blanks(
+    tmp_path: Path,
+) -> None:
+    action = _write_action(tmp_path / "input", "1_One", "1-1-1")
+    result = imu.process_action_directory(action, tmp_path / "input", tmp_path / "out")
+    failed = imu._failed_action_result(result.descriptor, OSError("failed"))
+
+    manifest = imu.build_manifest([result, failed])
+
+    assert pd.api.types.is_integer_dtype(manifest["class_id"])
+    assert pd.api.types.is_integer_dtype(manifest["total_input_rows"])
+    assert pd.api.types.is_float_dtype(manifest["duration_s"])
+    assert type(manifest.at[0, "status"]) is str
+    assert manifest.at[1, "output_csv"] == ""
+    assert pd.isna(manifest.at[1, "duration_s"])
+    assert math.isfinite(manifest.at[0, "duration_s"])
+
+
+def test_build_manifest_rejects_nonfinite_duration(tmp_path: Path) -> None:
+    action = _write_action(tmp_path / "input", "1_One", "1-1-1")
+    result = imu.process_action_directory(action, tmp_path / "input", tmp_path / "out")
+    result.manifest_row["duration_s"] = float("inf")
+
+    with pytest.raises(ValueError, match="duration_s"):
+        imu.build_manifest([result])

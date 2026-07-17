@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import argparse
 import csv
 import json
+import logging
+import math
 import os
 import re
 import shutil
 import stat
+import sys
 import unicodedata
 import uuid
 from dataclasses import asdict, dataclass, field
@@ -13,6 +17,14 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+
+
+DEFAULT_INPUT_ROOT = Path(
+    r"D:\work\2026.7.14_kaggle\datasets\Small-Model-Track\train\IMU"
+)
+DEFAULT_OUTPUT_ROOT = Path(
+    r"D:\work\2026.7.14_kaggle\datasets\Small-Model-Track\train\new_IMU"
+)
 
 
 @dataclass(frozen=True)
@@ -127,6 +139,26 @@ def _remove_managed_tree(output_root: Path, path: Path) -> None:
 
 
 SENSOR_ORDER = {"LL": 0, "RL": 1, "LA": 2, "RA": 3, "C": 4}
+MANIFEST_COLUMNS = [
+    "sample_id", "class_id", "class_name", "user_id", "action_id",
+    "relative_action_path", "output_csv", "status", "csv_file_count",
+    "total_input_rows", "valid_output_rows", "rejected_rows",
+    "unknown_sensor_rows", "present_sensors", "missing_sensors", "ll_rows",
+    "rl_rows", "la_rows", "ra_rows", "c_rows", "ll_duplicate_timestamps",
+    "rl_duplicate_timestamps", "la_duplicate_timestamps",
+    "ra_duplicate_timestamps", "c_duplicate_timestamps", "duration_s",
+    "warning_count", "error_message",
+]
+QC_FIELDS = [
+    "class_id", "class_name", "user_id", "action_id", "input_directory",
+    "input_csv_files", "csv_file_count", "status", "total_input_rows",
+    "valid_output_rows", "rejected_rows", "unknown_sensor_rows",
+    "present_sensors", "missing_sensors", "rows_per_sensor",
+    "duplicate_timestamp_count_per_sensor", "min_relative_time_ms",
+    "max_relative_time_ms", "duration_s", "columns_written", "warnings",
+    "error_message", "action_start_time", "action_end_time",
+    "structural_rejected_rows", "content_rejected_rows", "file_errors",
+]
 OUTPUT_COLUMNS = [
     "relative_time_s",
     "relative_time_ms",
@@ -814,7 +846,16 @@ def write_action_result(
             error_message="Existing action output is not a directory",
         )
     if destination.exists() and not overwrite:
-        return WriteResult(written=False, output_directory=destination)
+        if (destination / "imu_merged.csv").is_file():
+            return WriteResult(written=False, output_directory=destination)
+        return WriteResult(
+            written=False,
+            output_directory=destination,
+            error_message=(
+                "Existing action output conflict: destination exists without "
+                "imu_merged.csv"
+            ),
+        )
 
     destination.parent.mkdir(parents=True, exist_ok=True)
     token = uuid.uuid4().hex
@@ -909,3 +950,563 @@ def write_action_result(
                 ),
             )
     return WriteResult(written=True, output_directory=destination)
+
+
+def validate_roots(input_root: Path, output_root: Path) -> None:
+    resolved_input = input_root.resolve(strict=False)
+    resolved_output = output_root.resolve(strict=False)
+    if (
+        resolved_input == resolved_output
+        or resolved_input in resolved_output.parents
+        or resolved_output in resolved_input.parents
+    ):
+        raise ValueError("Input and output roots must not overlap")
+    if not resolved_input.exists():
+        raise FileNotFoundError(f"Input root does not exist: {resolved_input}")
+    if not resolved_input.is_dir():
+        raise NotADirectoryError(f"Input root is not a directory: {resolved_input}")
+
+
+def _argument_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Preprocess stage-1 IMU actions")
+    parser.add_argument("--input-root", type=Path, default=DEFAULT_INPUT_ROOT)
+    parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
+    parser.add_argument("--overwrite", action="store_true")
+    parser.add_argument("--dry-run", action="store_true")
+    return parser
+
+
+def _failed_action_result(
+    descriptor: ActionDescriptor, error: BaseException
+) -> ActionResult:
+    message = str(error).replace("\r", " ").replace("\n", " ")
+    rows_per_sensor = {sensor: 0 for sensor in SENSOR_ORDER}
+    duplicate_counts = {sensor: 0 for sensor in SENSOR_ORDER}
+    qc = {
+        "class_id": descriptor.class_id,
+        "class_name": descriptor.class_name,
+        "user_id": descriptor.user_id,
+        "action_id": descriptor.action_id,
+        "input_directory": str(descriptor.input_directory.resolve()),
+        "input_csv_files": [path.name for path in descriptor.input_csv_files],
+        "csv_file_count": len(descriptor.input_csv_files),
+        "status": "failed",
+        "total_input_rows": 0,
+        "valid_output_rows": 0,
+        "rejected_rows": 0,
+        "unknown_sensor_rows": 0,
+        "present_sensors": [],
+        "missing_sensors": list(SENSOR_ORDER),
+        "rows_per_sensor": rows_per_sensor,
+        "duplicate_timestamp_count_per_sensor": duplicate_counts,
+        "min_relative_time_ms": None,
+        "max_relative_time_ms": None,
+        "duration_s": None,
+        "columns_written": [],
+        "warnings": [],
+        "error_message": message,
+        "action_start_time": None,
+        "action_end_time": None,
+        "structural_rejected_rows": 0,
+        "content_rejected_rows": 0,
+        "file_errors": [],
+    }
+    row = {
+        "sample_id": (
+            f"{descriptor.class_id}__{descriptor.user_id}__{descriptor.action_id}"
+        ),
+        "class_id": descriptor.class_id,
+        "class_name": descriptor.class_name,
+        "user_id": descriptor.user_id,
+        "action_id": descriptor.action_id,
+        "relative_action_path": descriptor.relative_action_path.as_posix(),
+        "output_csv": "",
+        "status": "failed",
+        "csv_file_count": len(descriptor.input_csv_files),
+        "total_input_rows": 0,
+        "valid_output_rows": 0,
+        "rejected_rows": 0,
+        "unknown_sensor_rows": 0,
+        "present_sensors": "",
+        "missing_sensors": ";".join(SENSOR_ORDER),
+        "ll_rows": 0,
+        "rl_rows": 0,
+        "la_rows": 0,
+        "ra_rows": 0,
+        "c_rows": 0,
+        "ll_duplicate_timestamps": 0,
+        "rl_duplicate_timestamps": 0,
+        "la_duplicate_timestamps": 0,
+        "ra_duplicate_timestamps": 0,
+        "c_duplicate_timestamps": 0,
+        "duration_s": None,
+        "warning_count": 0,
+        "error_message": message,
+    }
+    return ActionResult(
+        descriptor=descriptor,
+        status="failed",
+        merged=pd.DataFrame(columns=OUTPUT_COLUMNS),
+        rejected=pd.DataFrame(columns=REJECTED_COLUMNS),
+        qc=qc,
+        manifest_row=row,
+    )
+
+
+def _existing_action_result(
+    descriptor: ActionDescriptor, output_root: Path, logger: logging.Logger | None
+) -> ActionResult:
+    output_directory = output_root / descriptor.relative_action_path
+    qc_path = output_directory / "qc.json"
+    qc: dict[str, Any] = {}
+    try:
+        loaded = json.loads(qc_path.read_text(encoding="utf-8"))
+        if not isinstance(loaded, dict):
+            raise ValueError("QC root is not an object")
+        _validate_existing_qc(loaded)
+        qc = loaded
+    except Exception as error:
+        if logger is not None:
+            logger.warning("无法读取现有 QC %s: %s", qc_path, error)
+        else:
+            print(f"无法读取现有 QC {qc_path}: {error}", file=sys.stderr)
+    rows = qc.get("rows_per_sensor", {})
+    duplicates = qc.get("duplicate_timestamp_count_per_sensor", {})
+    present = [sensor for sensor in SENSOR_ORDER if sensor in qc.get("present_sensors", [])]
+    missing = [sensor for sensor in SENSOR_ORDER if sensor in qc.get("missing_sensors", [])]
+    row = {
+        "sample_id": (
+            f"{descriptor.class_id}__{descriptor.user_id}__{descriptor.action_id}"
+        ),
+        "class_id": descriptor.class_id,
+        "class_name": descriptor.class_name,
+        "user_id": descriptor.user_id,
+        "action_id": descriptor.action_id,
+        "relative_action_path": descriptor.relative_action_path.as_posix(),
+        "output_csv": (descriptor.relative_action_path / "imu_merged.csv").as_posix(),
+        "status": "skipped_existing",
+        "csv_file_count": int(qc.get("csv_file_count", len(descriptor.input_csv_files))),
+        "total_input_rows": int(qc.get("total_input_rows", 0)),
+        "valid_output_rows": int(qc.get("valid_output_rows", 0)),
+        "rejected_rows": int(qc.get("rejected_rows", 0)),
+        "unknown_sensor_rows": int(qc.get("unknown_sensor_rows", 0)),
+        "present_sensors": ";".join(present),
+        "missing_sensors": ";".join(missing),
+        "ll_rows": int(rows.get("LL", 0)),
+        "rl_rows": int(rows.get("RL", 0)),
+        "la_rows": int(rows.get("LA", 0)),
+        "ra_rows": int(rows.get("RA", 0)),
+        "c_rows": int(rows.get("C", 0)),
+        "ll_duplicate_timestamps": int(duplicates.get("LL", 0)),
+        "rl_duplicate_timestamps": int(duplicates.get("RL", 0)),
+        "la_duplicate_timestamps": int(duplicates.get("LA", 0)),
+        "ra_duplicate_timestamps": int(duplicates.get("RA", 0)),
+        "c_duplicate_timestamps": int(duplicates.get("C", 0)),
+        "duration_s": qc.get("duration_s"),
+        "warning_count": len(qc.get("warnings", [])),
+        "error_message": str(qc.get("error_message", "")).replace(
+            "\r", " "
+        ).replace("\n", " "),
+    }
+    qc_for_run = dict(qc)
+    qc_for_run["status"] = "skipped_existing"
+    return ActionResult(
+        descriptor=descriptor,
+        status="skipped_existing",
+        merged=pd.DataFrame(columns=OUTPUT_COLUMNS),
+        rejected=pd.DataFrame(columns=REJECTED_COLUMNS),
+        qc=qc_for_run,
+        manifest_row=row,
+    )
+
+
+def _validate_existing_qc(qc: dict[str, Any]) -> None:
+    if set(qc) != set(QC_FIELDS):
+        missing = sorted(set(QC_FIELDS) - set(qc))
+        extra = sorted(set(qc) - set(QC_FIELDS))
+        raise ValueError(f"QC fields mismatch; missing={missing}, extra={extra}")
+
+    def require_int(name: str, *, nullable: bool = False) -> None:
+        value = qc[name]
+        if nullable and value is None:
+            return
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise TypeError(f"QC field {name} must be an integer")
+
+    for name in (
+        "class_id", "csv_file_count", "total_input_rows", "valid_output_rows",
+        "rejected_rows", "unknown_sensor_rows", "structural_rejected_rows",
+        "content_rejected_rows",
+    ):
+        require_int(name)
+    for name in (
+        "class_id", "csv_file_count", "total_input_rows", "valid_output_rows",
+        "rejected_rows", "unknown_sensor_rows", "structural_rejected_rows",
+        "content_rejected_rows",
+    ):
+        if qc[name] < 0:
+            raise ValueError(f"QC field {name} must be non-negative")
+    require_int("min_relative_time_ms", nullable=True)
+    require_int("max_relative_time_ms", nullable=True)
+
+    for name in (
+        "class_name", "user_id", "action_id", "input_directory", "status",
+        "error_message",
+    ):
+        if not isinstance(qc[name], str):
+            raise TypeError(f"QC field {name} must be a string")
+    if qc["status"] not in {
+        "success", "success_with_warnings", "incomplete_sensors", "failed"
+    }:
+        raise ValueError(f"Unknown QC status: {qc['status']}")
+
+    for name in (
+        "input_csv_files", "present_sensors", "missing_sensors",
+        "columns_written", "warnings",
+    ):
+        value = qc[name]
+        if not isinstance(value, list) or not all(
+            isinstance(item, str) for item in value
+        ):
+            raise TypeError(f"QC field {name} must be a string list")
+    for name in ("present_sensors", "missing_sensors"):
+        if any(sensor not in SENSOR_ORDER for sensor in qc[name]):
+            raise ValueError(f"QC field {name} contains an unknown sensor")
+        expected_order = [sensor for sensor in SENSOR_ORDER if sensor in qc[name]]
+        if qc[name] != expected_order:
+            raise ValueError(f"QC field {name} must be unique and in sensor order")
+    if set(qc["present_sensors"]) & set(qc["missing_sensors"]):
+        raise ValueError("QC present_sensors and missing_sensors must be disjoint")
+
+    for name in ("rows_per_sensor", "duplicate_timestamp_count_per_sensor"):
+        value = qc[name]
+        if not isinstance(value, dict) or set(value) != set(SENSOR_ORDER):
+            raise TypeError(f"QC field {name} must contain all sensor keys")
+        if any(isinstance(count, bool) or not isinstance(count, int) for count in value.values()):
+            raise TypeError(f"QC field {name} values must be integers")
+        if any(count < 0 for count in value.values()):
+            raise ValueError(f"QC field {name} values must be non-negative")
+
+    duration = qc["duration_s"]
+    if duration is not None and (
+        isinstance(duration, bool) or not isinstance(duration, (int, float))
+    ):
+        raise TypeError("QC field duration_s must be numeric or null")
+    if duration is not None and (not math.isfinite(duration) or duration < 0):
+        raise ValueError("QC field duration_s must be finite and non-negative")
+    for name in ("action_start_time", "action_end_time"):
+        if qc[name] is not None and not isinstance(qc[name], str):
+            raise TypeError(f"QC field {name} must be a string or null")
+
+    file_errors = qc["file_errors"]
+    if not isinstance(file_errors, list):
+        raise TypeError("QC field file_errors must be a list")
+    expected_error_fields = {
+        "source_file", "error_type", "source_line_number", "message"
+    }
+    for file_error in file_errors:
+        if not isinstance(file_error, dict) or set(file_error) != expected_error_fields:
+            raise TypeError("QC file_errors entry has invalid fields")
+        if not all(
+            isinstance(file_error[name], str)
+            for name in ("source_file", "error_type", "message")
+        ):
+            raise TypeError("QC file_errors text fields must be strings")
+        line = file_error["source_line_number"]
+        if line is not None and (isinstance(line, bool) or not isinstance(line, int)):
+            raise TypeError("QC file error line must be an integer or null")
+
+
+def build_manifest(results: list[ActionResult]) -> pd.DataFrame:
+    ordered = sorted(
+        results,
+        key=lambda result: (
+            int(result.descriptor.class_id),
+            natural_key(result.descriptor.user_id),
+            natural_key(result.descriptor.action_id),
+            result.descriptor.relative_action_path.as_posix().casefold(),
+        ),
+    )
+    rows = [result.manifest_row for result in ordered]
+    integer_columns = (
+        "class_id", "csv_file_count", "total_input_rows", "valid_output_rows",
+        "rejected_rows", "unknown_sensor_rows", "ll_rows", "rl_rows",
+        "la_rows", "ra_rows", "c_rows", "ll_duplicate_timestamps",
+        "rl_duplicate_timestamps", "la_duplicate_timestamps",
+        "ra_duplicate_timestamps", "c_duplicate_timestamps", "warning_count",
+    )
+    string_columns = tuple(
+        column
+        for column in MANIFEST_COLUMNS
+        if column not in integer_columns and column != "duration_s"
+    )
+    for row in rows:
+        if set(row) != set(MANIFEST_COLUMNS):
+            raise ValueError("Manifest row fields do not match MANIFEST_COLUMNS")
+        for column in integer_columns:
+            value = row[column]
+            if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+                raise ValueError(
+                    f"Manifest field {column} must be a non-negative integer"
+                )
+        for column in string_columns:
+            if not isinstance(row[column], str):
+                raise TypeError(f"Manifest field {column} must be a string")
+        duration = row["duration_s"]
+        if duration is not None and (
+            isinstance(duration, bool)
+            or not isinstance(duration, (int, float))
+            or not math.isfinite(duration)
+            or duration < 0
+        ):
+            raise ValueError(
+                "Manifest field duration_s must be finite, non-negative, or null"
+            )
+        if row["status"] == "failed" and row["output_csv"] != "":
+            raise ValueError("Failed manifest row output_csv must be blank")
+    return pd.DataFrame.from_records(rows, columns=MANIFEST_COLUMNS)
+
+
+def _cleanup_logger_handlers(
+    logger: logging.Logger, handlers: list[logging.Handler]
+) -> bool:
+    failed = False
+    for handler in handlers:
+        try:
+            if handler in logger.handlers:
+                logger.removeHandler(handler)
+        except Exception:
+            failed = True
+        try:
+            handler.flush()
+        except Exception:
+            failed = True
+        try:
+            handler.close()
+        except Exception:
+            failed = True
+    return failed
+
+
+def _summarize(results: list[ActionResult]) -> None:
+    statuses = {
+        status: sum(result.status == status for result in results)
+        for status in (
+            "success", "success_with_warnings", "incomplete_sensors",
+            "skipped_existing", "failed",
+        )
+    }
+    lines = [
+        f"类别数: {len({result.descriptor.class_id for result in results})}",
+        f"用户数: {len({result.descriptor.user_id for result in results})}",
+        f"动作总数: {len(results)}",
+        f"成功数: {statuses['success']}",
+        f"成功但有警告数: {statuses['success_with_warnings']}",
+        f"传感器不完整数: {statuses['incomplete_sensors']}",
+        f"已跳过现有输出数: {statuses['skipped_existing']}",
+        f"失败数: {statuses['failed']}",
+        "输入总行数: "
+        f"{sum(int(result.manifest_row.get('total_input_rows', 0)) for result in results)}",
+        "有效输出行数: "
+        f"{sum(int(result.manifest_row.get('valid_output_rows', 0)) for result in results)}",
+        "拒绝行数: "
+        f"{sum(int(result.manifest_row.get('rejected_rows', 0)) for result in results)}",
+    ]
+    for sensor in SENSOR_ORDER:
+        missing_count = sum(
+            sensor in str(result.manifest_row.get("missing_sensors", "")).split(";")
+            for result in results
+        )
+        lines.append(f"{sensor} 缺失动作数: {missing_count}")
+    for line in lines:
+        print(line, file=sys.stderr)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _argument_parser().parse_args(argv)
+    try:
+        validate_roots(args.input_root, args.output_root)
+    except Exception as error:
+        print(f"全局错误: {error}", file=sys.stderr)
+        return 2
+    try:
+        actions = discover_action_directories(args.input_root.resolve())
+    except Exception as error:
+        print(f"全局错误: {error}", file=sys.stderr)
+        return 2
+    if args.dry_run:
+        try:
+            results: list[ActionResult] = []
+            for descriptor in actions:
+                existing_csv = (
+                    args.output_root
+                    / descriptor.relative_action_path
+                    / "imu_merged.csv"
+                )
+                if existing_csv.is_file() and not args.overwrite:
+                    result = _existing_action_result(
+                        descriptor, args.output_root, None
+                    )
+                else:
+                    try:
+                        result = process_action(descriptor)
+                    except Exception as error:
+                        result = _failed_action_result(descriptor, error)
+                result.merged = pd.DataFrame(columns=OUTPUT_COLUMNS)
+                result.rejected = pd.DataFrame(columns=REJECTED_COLUMNS)
+                results.append(result)
+            _summarize(results)
+            return 1 if any(
+                result.status == "failed" for result in results
+            ) else 0
+        except Exception as error:
+            try:
+                print(f"全局错误: {error}", file=sys.stderr)
+            except Exception:
+                pass
+            return 2
+
+    logger = logging.getLogger("preprocess_imu_stage1")
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+    if _cleanup_logger_handlers(logger, list(logger.handlers)):
+        try:
+            print("全局错误: 无法清理既有日志处理器", file=sys.stderr)
+        except Exception:
+            pass
+        return 2
+    invocation_handlers: list[logging.Handler] = []
+    try:
+        args.output_root.mkdir(parents=True, exist_ok=True)
+        formatter = logging.Formatter(
+            "%(asctime)s %(levelname)s %(message)s", "%Y-%m-%d %H:%M:%S"
+        )
+        console_handler = logging.StreamHandler()
+        invocation_handlers.append(console_handler)
+        console_handler.setFormatter(formatter)
+        file_handler = logging.FileHandler(
+            args.output_root / "processing.log", encoding="utf-8"
+        )
+        invocation_handlers.append(file_handler)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(console_handler)
+        logger.addHandler(file_handler)
+    except Exception as error:
+        _cleanup_logger_handlers(logger, invocation_handlers)
+        try:
+            print(f"全局错误: 日志初始化失败: {error}", file=sys.stderr)
+        except Exception:
+            pass
+        return 2
+
+    results = []
+    exit_code = 0
+    try:
+        logger.info(
+            "Task 5 writer note: overwrite installation uses two directory renames; "
+            "a process crash between them can leave a recoverable backup sibling."
+        )
+        for descriptor in actions:
+            existing_csv = (
+                args.output_root / descriptor.relative_action_path / "imu_merged.csv"
+            )
+            if existing_csv.is_file() and not args.overwrite:
+                result = _existing_action_result(descriptor, args.output_root, logger)
+                logger.info("跳过现有输出: %s", descriptor.relative_action_path)
+            else:
+                try:
+                    result = process_action(descriptor)
+                except Exception as error:
+                    logger.exception("动作处理异常: %s", descriptor.input_directory)
+                    result = _failed_action_result(descriptor, error)
+                try:
+                    write_result = write_action_result(
+                        result, args.output_root, overwrite=args.overwrite
+                    )
+                except Exception as error:
+                    logger.exception(
+                        "动作写入异常 %s", descriptor.relative_action_path
+                    )
+                    write_result = WriteResult(
+                        written=False,
+                        output_directory=(
+                            args.output_root / descriptor.relative_action_path
+                        ),
+                        error_message=str(error),
+                    )
+                if not write_result.written and write_result.error_message:
+                    failure_message = write_result.error_message
+                    logger.error(
+                        "动作写入失败 %s: %s",
+                        descriptor.relative_action_path,
+                        failure_message,
+                    )
+                    result = _failed_action_result(
+                        descriptor, OSError(failure_message)
+                    )
+                    try:
+                        write_result = write_action_result(
+                            result, args.output_root, overwrite=args.overwrite
+                        )
+                    except Exception as qc_error:
+                        logger.exception(
+                            "失败动作 QC 写入异常 %s",
+                            descriptor.relative_action_path,
+                        )
+                        write_result = WriteResult(
+                            written=False,
+                            output_directory=(
+                                args.output_root
+                                / descriptor.relative_action_path
+                            ),
+                            error_message=(
+                                f"{failure_message}; failed QC write: {qc_error}"
+                            ),
+                        )
+                    if not write_result.written:
+                        qc_error = write_result.error_message or "unknown QC write failure"
+                        combined_error = (
+                            failure_message
+                            if qc_error == failure_message
+                            else f"{failure_message}; failed QC write: {qc_error}"
+                        )
+                        result.qc["error_message"] = combined_error
+                        result.manifest_row["error_message"] = (
+                            combined_error.replace("\r", " ").replace("\n", " ")
+                        )
+                if not write_result.written:
+                    if not write_result.error_message and existing_csv.is_file():
+                        result = _existing_action_result(
+                            descriptor, args.output_root, logger
+                        )
+                    elif write_result.error_message:
+                        result.status = "failed"
+                        result.qc["status"] = "failed"
+                        result.manifest_row["status"] = "failed"
+                        result.manifest_row["output_csv"] = ""
+                if write_result.error_message and write_result.written:
+                    logger.warning("动作写入警告: %s", write_result.error_message)
+            logger.info("动作状态 %s: %s", result.status, descriptor.relative_action_path)
+            result.merged = pd.DataFrame(columns=OUTPUT_COLUMNS)
+            result.rejected = pd.DataFrame(columns=REJECTED_COLUMNS)
+            results.append(result)
+
+        manifest = build_manifest(results)
+        manifest.to_csv(
+            args.output_root / "manifest.csv",
+            index=False,
+            encoding="utf-8-sig",
+        )
+        _summarize(results)
+        exit_code = 1 if any(result.status == "failed" for result in results) else 0
+    except Exception as error:
+        logger.exception("全局错误: %s", error)
+        exit_code = 2
+    finally:
+        if _cleanup_logger_handlers(logger, invocation_handlers):
+            exit_code = 2
+    return exit_code
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
