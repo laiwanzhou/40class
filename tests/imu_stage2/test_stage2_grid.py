@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from src.data import imu_stage2_core
 from src.data.imu_stage2_contracts import (
     DataStatus,
     FEATURE_ORDER,
@@ -147,6 +148,33 @@ def test_interpolation_rejects_gap_over_300_ms() -> None:
     assert result.exact_mask.tolist() == [True, False, False, False]
     assert not result.interpolated_mask.any()
     assert np.isnan(result.values[1:]).all()
+
+
+def test_fragmented_interpolation_does_not_scan_full_grid_per_segment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    times = np.arange(100, dtype=np.int64) * np.int64(300_000_001)
+    series = _series(
+        times.tolist(),
+        [_values(float(index)) for index in range(len(times))],
+    )
+    grid_ns = build_action_grid(int(times[-1]) + 99_999_901)
+    searchsorted_call_count = 0
+    original_searchsorted = imu_stage2_core.np.searchsorted
+
+    def counted_searchsorted(*args: object, **kwargs: object) -> object:
+        nonlocal searchsorted_call_count
+        searchsorted_call_count += 1
+        return original_searchsorted(*args, **kwargs)
+
+    monkeypatch.setattr(imu_stage2_core.np, "searchsorted", counted_searchsorted)
+
+    result = interpolate_sensor_on_grid(series, grid_ns)
+
+    assert result.valid_mask.sum() == 1
+    assert result.exact_mask[0]
+    assert not result.interpolated_mask.any()
+    assert searchsorted_call_count <= len(series.time_ns) + len(grid_ns)
 
 
 def test_interpolation_does_not_extrapolate_at_either_boundary() -> None:

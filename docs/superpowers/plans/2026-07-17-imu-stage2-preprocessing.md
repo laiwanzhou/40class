@@ -613,6 +613,50 @@ formats.
 
 ---
 
+### Post-Task6 Audit Fix P1: Optimize fragmented sensor-grid interpolation
+
+This independent performance repair is not Task 7 and does not renumber Tasks
+1-15.
+
+**Allowed files:**
+
+- Modify: `src/data/imu_stage2_core.py`
+- Modify: `tests/imu_stage2/test_stage2_grid.py`
+- Modify: `docs/superpowers/specs/2026-07-17-imu-stage2-preprocessing-design.md`
+- Modify: `docs/superpowers/plans/2026-07-17-imu-stage2-preprocessing.md`
+
+- [ ] **Step 1: Add a deterministic complexity RED**
+
+Build 100 valid aggregated timestamps separated by `300_000_001 ns`, producing
+100 singleton segments and about 299 grid cells. Wrap
+`imu_stage2_core.np.searchsorted`, count calls, and require a structural upper
+bound no greater than `N+T`. Do not use wall-clock thresholds, source-string
+inspection, CPU-dependent assertions, or a mock that bypasses the real core.
+
+- [ ] **Step 2: Verify RED before production changes**
+
+Run `tests/imu_stage2/test_stage2_grid.py` and record the old call count. The
+failure must be the segment-by-full-grid scan while all existing numerical grid
+tests remain green.
+
+- [ ] **Step 3: Implement near-linear candidate lookup**
+
+Each segment locates and processes only its covered grid slice; every global
+grid cell enters at most one segment candidate interval. Keep exact hits,
+strict same-segment interpolation endpoints, gap limits, angle/quaternion
+rules, NaNs, masks, status, QC, dtypes, shapes, signatures, and schema contract
+unchanged. Do not allocate a `segment_count * grid_length` candidate matrix.
+
+- [ ] **Step 4: Verify and commit independently**
+
+Run grid tests, aggregation plus grid tests, all Stage 2 tests, Stage 1
+regression, the full repository suite, `py_compile` for the two changed Python
+files, and `git diff --check`. Stage only the four allowlisted files and commit
+with `perf(imu): optimize fragmented grid interpolation`. Do not push or start
+Task 7 without separate authorization.
+
+---
+
 ### Task 7: Generate class order and canonical training indexes
 
 **Files:**
@@ -871,8 +915,13 @@ Expected: model shape and invariance tests pass.
 - [ ] **Step 1: Add discovery/source RED tests**
 
 Create direct `SM_test_0001`, `SM_test_0002`, `.claude`, nested fake samples,
-and one sample without IMU. Assert both legal IDs are discovered in numeric
-order, missing IMU remains represented, and ignored directories are audited.
+and one sample without IMU. In one real IMU directory create `part2.csv` and
+`part10.csv` in an enumeration order that must not determine rank. Assert both
+legal IDs are discovered in numeric order, missing IMU remains represented,
+ignored directories are audited, duplicate paths are removed, and adapted CSV
+paths use deterministic natural order with `part2.csv` before `part10.csv`.
+Assert the resulting `source_file_rank` is fixed before any duplicate timestamp
+aggregation.
 
 - [ ] **Step 2: Add explicit-exception RED tests**
 
@@ -894,6 +943,10 @@ Expected: inference module missing.
 Match only direct `^SM_test_\d{4}$` directories. Build `InferenceSample` with
 either a real Stage 2 result or no result. Catch each allowlisted type in an
 explicit tuple; do not catch a base `Exception` around sample preprocessing.
+Discover only direct recognizable CSV files under each IMU directory, dedupe
+paths, sort by the approved deterministic natural key, and construct
+`ImuActionSource.input_csv_files` and `source_file_rank` from that order rather
+than filesystem enumeration order.
 Construct technical placeholders only inside inference collate and set length
 zero, sequence mask false, timestamp -1, and modality mask false.
 
@@ -1032,6 +1085,8 @@ Expected: inference and output-contract tests pass.
 - Create: `tests/imu_stage2/test_replay_equivalence.py`
 - Create: `tests/imu_stage2/test_stage2_end_to_end.py`
 - Create: `scripts/validate_imu_stage2_output.py`
+- Modify: `src/data/imu_stage1_bridge.py`
+- Modify: `tests/imu_stage2/test_stage1_bridge.py`
 
 **Interfaces:**
 - Verifies all Stage 1 bridge, Stage 2, IO, training, and inference contracts.
@@ -1040,15 +1095,29 @@ Expected: inference and output-contract tests pass.
   `--expected-summary`, and writes only the explicitly requested external
   `--audit-output`; it never modifies either data root.
 
-- [ ] **Step 1: Add synthetic exact replay tests**
+- [ ] **Step 1: Harden arbitrary-length Decimal conversion with RED/GREEN**
 
-Generate raw CSV fixtures, run raw Stage 1 plus Stage 2, write/read the matching
+Before replay work, add bridge tests proving that
+`0.0000000010000000000000000000000000001` is rejected as non-integral
+nanoseconds rather than silently returning `1 ns`. Preserve exact conversion
+for ordinary three- and nine-decimal inputs and arbitrary-length values that
+represent an integer number of nanoseconds. Reject every sub-nanosecond
+remainder, normalize extreme-exponent and Decimal arithmetic failures so raw
+`decimal.Overflow` or related internal exceptions do not escape, and retain
+strict int64 bounds. Implement the minimal bridge correction, then run the
+complete Stage 1 bridge and Stage 1 regression suites before continuing.
+
+- [ ] **Step 2: Add synthetic exact replay tests**
+
+Generate raw fixtures containing `part2.csv` and `part10.csv`, with both files
+contributing records at the same timestamp. Prove discovery fixes their natural
+order before aggregation, run raw Stage 1 plus Stage 2, write/read the matching
 Stage 1 artifact, then run artifact loader plus Stage 2. Assert exact equality
-for timestamps, sensor mask, valid mask, and float32 values with NaNs, plus
-status, warnings, usable sensors, grid length, and all duplicate/interpolation
-counts.
+for timestamps, sensor mask, valid mask, float32 values including NaN positions,
+status, warning codes, usable sensors, grid length, duplicate counts, and
+interpolation counts. Do not use nonzero tolerance to hide ordering differences.
 
-- [ ] **Step 2: Verify the replay test and diagnose any mismatch**
+- [ ] **Step 3: Verify the replay test and diagnose any mismatch**
 
 ```powershell
 python -m pytest tests/imu_stage2/test_replay_equivalence.py -q
@@ -1057,27 +1126,27 @@ python -m pytest tests/imu_stage2/test_replay_equivalence.py -q
 Expected: PASS with exact equality. Do not add a nonzero tolerance to hide a
 mismatch.
 
-- [ ] **Step 3: Add raw-test end-to-end cases**
+- [ ] **Step 4: Add raw-test end-to-end cases**
 
 Cover normal IMU, partial sensors, missing IMU directory, no valid Stage 1
 record, no usable Stage 2 cell, safety-limit degradation, ignored `.claude`,
 bad bundle, unavailable-policy failure, repeated-run byte equality, and batch
 partition invariance.
 
-- [ ] **Step 4: Implement the read-only validator**
+- [ ] **Step 5: Implement the read-only validator**
 
 Validate schema contract/provenance, manifest columns/status/write status,
 source fingerprints, every NPZ/QC pair, failed/QC-only rows, count identities,
 root temporary residue, and action/path containment. Emit JSON summary and
 return 0/1/2 without modifying Stage 2 or Stage 1 data.
 
-- [ ] **Step 5: Run the full synthetic suite and commit**
+- [ ] **Step 6: Run the full synthetic suite and commit**
 
 ```powershell
 python -m pytest tests/imu_stage2 -q
 python -m pytest tests/test_preprocess_imu_stage1.py -q
-python -m py_compile scripts/preprocess_imu_stage2.py scripts/build_imu_training_index.py scripts/compute_imu_normalization.py scripts/build_imu_inference_bundle.py scripts/infer_imu_stage2.py scripts/validate_imu_stage2_output.py
-git add tests/imu_stage2/test_replay_equivalence.py tests/imu_stage2/test_stage2_end_to_end.py scripts/validate_imu_stage2_output.py
+python -m py_compile src/data/imu_stage1_bridge.py scripts/preprocess_imu_stage2.py scripts/build_imu_training_index.py scripts/compute_imu_normalization.py scripts/build_imu_inference_bundle.py scripts/infer_imu_stage2.py scripts/validate_imu_stage2_output.py
+git add -- src/data/imu_stage1_bridge.py tests/imu_stage2/test_stage1_bridge.py tests/imu_stage2/test_replay_equivalence.py tests/imu_stage2/test_stage2_end_to_end.py scripts/validate_imu_stage2_output.py
 git commit -m "test(imu): verify stage 2 end to end"
 ```
 
@@ -1099,6 +1168,10 @@ Expected: all Stage 1 and Stage 2 tests pass; all scripts compile.
 
 Proceed only when the current user instruction explicitly names Task 14. A
 generic `continue` or completion of Task 13 is not authorization.
+Task 14 is additionally blocked until Task 11's natural-order discovery tests,
+Task 13's Decimal hardening RED/GREEN and Stage 1 bridge regression, and Task
+13's offline/online exact replay all pass with a clean tracked worktree. None
+of those repairs may be deferred into this read-only Task 14 gate.
 
 ```powershell
 git branch --show-current

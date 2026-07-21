@@ -357,9 +357,12 @@ def interpolate_sensor_on_grid(
     interpolated_mask = np.zeros(len(grid_ns), dtype=bool)
     for segment in split_continuous_segments(series, max_gap_ns=max_gap_ns):
         times = segment.time_ns
-        for grid_index, grid_time in enumerate(grid_ns):
+        grid_start = int(np.searchsorted(grid_ns, times[0], side="left"))
+        grid_stop = int(np.searchsorted(grid_ns, times[-1], side="right"))
+        for grid_index in range(grid_start, grid_stop):
             if valid_mask[grid_index]:
                 continue
+            grid_time = grid_ns[grid_index]
             right_index = int(np.searchsorted(times, grid_time, side="left"))
             if right_index < len(times) and times[right_index] == grid_time:
                 direct = segment.values[right_index].copy()

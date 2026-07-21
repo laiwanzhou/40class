@@ -130,6 +130,16 @@ non-empty and uses deterministic natural order. Serialized relative paths use
 POSIX separators. Optional training metadata never affects numerical
 processing.
 
+Task 11's raw-test discovery/adaptation layer owns that ordering contract. It
+discovers direct IMU CSV files, removes duplicate paths, and sorts them by one
+deterministic natural key before constructing `ImuActionSource`. Thus
+`part2.csv` precedes `part10.csv`, rather than the lexicographic
+`part10.csv, part2.csv` order, and `source_file_rank` is assigned from that
+natural-order result before duplicate timestamp aggregation. Task 13 replay
+fixtures must place same-timestamp records in multiple raw CSV files and prove
+offline/online exact equality. Audit Fix P1 documents this later gate but does
+not implement raw discovery or sorting.
+
 ### Unified Stage 1 action data
 
 Both Stage 1 entry paths produce:
@@ -169,6 +179,15 @@ relative_time_ns = int(nanoseconds)
 if not (0 <= relative_time_ns <= np.iinfo(np.int64).max):
     raise OverflowError("Relative time is outside int64 range")
 ```
+
+This exact conversion applies to finite decimal text of any length and must
+not inherit rounding from the process-wide default `Decimal` context. Any
+sub-nanosecond remainder is rejected, while extreme exponents and Decimal
+arithmetic failures are normalized to the documented contract exceptions.
+Task 13 starts by hardening this conversion and adding RED/GREEN coverage; it
+may not proceed to replay equivalence until that coverage passes, and Task 14
+may not start before the Task 13 Decimal gate is complete. Audit Fix P1 records
+this mandatory timing but does not change the Decimal implementation.
 
 Online Stage 1 instead subtracts the exact earliest valid absolute timestamp
 from each exact absolute timestamp and emits the nanosecond differences
@@ -323,6 +342,16 @@ Boundary extrapolation, forward fill, and backward fill are forbidden. A
 missing endpoint, over-300-ms gap, missing sensor, non-finite result, or failed
 quaternion makes the whole `(t,s)` unit invalid. All 16 features must succeed
 for `valid_mask[t,s]` to be true. Stage 2 v1 has no per-feature mask.
+
+Interpolation must not rescan the complete global grid for every continuous
+segment. Each segment processes only the grid interval covered by its first
+and last timestamp, and each grid cell belongs to at most one segment candidate
+interval. Time and auxiliary memory must not grow as
+`O(segment_count * grid_length)` or construct a corresponding two-dimensional
+candidate matrix. The target is near `O(N+T)` for `N` aggregated timestamps and
+`T` grid cells, allowing logarithmic `searchsorted` factors. This lookup
+optimization cannot change numerical values, endpoint selection, masks,
+status, QC, dtypes, shapes, or the Stage 2 schema contract/hash.
 
 Calculations use `float64` and `int64`. Only after validation are values cast
 to `float32`; finite/NaN invariants are then checked again. The pure core
