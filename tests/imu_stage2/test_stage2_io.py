@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
 import zipfile
 from pathlib import Path
 
@@ -58,12 +60,31 @@ def make_result(fill: float = 0.0) -> Stage2ActionResult:
         valid_mask=np.ones((1, 5), dtype=bool),
         timestamps_ms=np.array([0], dtype=np.int64),
         qc={
+            "stage1_action_end_ns": 0,
+            "grid_end_ns": 0,
+            "unrepresented_tail_ns": 0,
             "grid_length": 1,
+            "first_usable_timestamp_ns": 0,
+            "last_usable_timestamp_ns": 0,
+            "imu_usable": True,
+            "usable_sensor_mask": [True] * 5,
+            "missing_sensors": [],
+            "usable_sensors": ["LL", "RL", "LA", "RA", "C"],
             "valid_cell_count": 5,
             "invalid_cell_count": 0,
+            "valid_cell_ratio": 1.0,
+            "all_sensor_valid_timestep_count": 1,
+            "all_sensor_invalid_timestep_count": 0,
             "exact_hit_count": 5,
             "interpolated_count": 0,
             "invalid_count": 0,
+            "per_sensor_valid_count": {
+                "LL": 1,
+                "RL": 1,
+                "LA": 1,
+                "RA": 1,
+                "C": 1,
+            },
             "warning_codes": [],
         },
         status=DataStatus.SUCCESS,
@@ -131,6 +152,30 @@ def test_load_schema_rejects_nonfinite_provenance(tmp_path: Path) -> None:
         load_stage2_schema(path)
 
 
+@pytest.mark.parametrize(
+    "source_manifest",
+    ["C:/accepted/new_IMU/manifest.csv", "../manifest.csv", "other.csv"],
+)
+def test_load_schema_rejects_noncanonical_stage1_manifest_path(
+    tmp_path: Path,
+    source_manifest: str,
+) -> None:
+    path = tmp_path / "schema.json"
+    schema = build_stage2_schema(make_provenance())
+    schema["provenance"]["source_stage1_manifest"] = source_manifest
+    path.write_text(json.dumps(schema), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="source_stage1_manifest"):
+        load_stage2_schema(path)
+
+
+def test_schema_rejects_malformed_manifest_sha256() -> None:
+    with pytest.raises(ValueError, match="SHA-256"):
+        build_stage2_schema(
+            make_provenance(source_stage1_manifest_sha256="not-a-digest")
+        )
+
+
 def test_load_npz_requires_exact_keys_dtypes_and_preserves_nan(
     tmp_path: Path,
 ) -> None:
@@ -192,6 +237,19 @@ def test_load_npz_disables_pickle(tmp_path: Path) -> None:
             sample_id="sample",
             status=DataStatus.SUCCESS,
             qc={},
+        )
+
+
+def test_load_npz_rejects_compressed_container(tmp_path: Path) -> None:
+    path = tmp_path / "compressed.npz"
+    np.savez_compressed(path, **make_arrays())
+
+    with pytest.raises(ValueError, match="uncompressed"):
+        load_and_validate_npz(
+            path,
+            sample_id="sample",
+            status=DataStatus.SUCCESS_WITH_WARNINGS,
+            qc={"warning_codes": ["records_excluded"]},
         )
 
 
@@ -302,6 +360,70 @@ def test_validate_existing_action_rejects_negative_counts_with_valid_sum(
         )
 
 
+def test_validate_existing_action_rejects_per_sensor_count_mismatch(
+    tmp_path: Path,
+) -> None:
+    output_root = tmp_path / "out"
+    output_root.mkdir()
+    action_relative_path = Path("class/user/action")
+    write_action_atomic(
+        output_root,
+        action_relative_path,
+        make_result(),
+        make_fingerprints(),
+    )
+    qc_path = output_root / action_relative_path / "qc.json"
+    qc = json.loads(qc_path.read_text(encoding="utf-8"))
+    qc["per_sensor_valid_count"]["LL"] = 999
+    qc_path.write_text(json.dumps(qc), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="per_sensor_valid_count"):
+        validate_existing_action(
+            output_root / action_relative_path,
+            make_fingerprints(),
+        )
+
+
+def test_validate_existing_action_rejects_failed_qc_only_with_npz(
+    tmp_path: Path,
+) -> None:
+    output_root = tmp_path / "out"
+    output_root.mkdir()
+    action_relative_path = Path("class/user/action")
+    write_action_atomic(
+        output_root,
+        action_relative_path,
+        make_result(),
+        make_fingerprints(),
+    )
+    qc_path = output_root / action_relative_path / "qc.json"
+    qc = json.loads(qc_path.read_text(encoding="utf-8"))
+    qc["status"] = "failed"
+    qc["write_status"] = "qc_only"
+    qc_path.write_text(json.dumps(qc), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="tensor-bearing"):
+        validate_existing_action(
+            output_root / action_relative_path,
+            make_fingerprints(),
+        )
+
+
+def test_write_action_rejects_malformed_sha256_fingerprint(
+    tmp_path: Path,
+) -> None:
+    output_root = tmp_path / "out"
+    output_root.mkdir()
+
+    with pytest.raises(ValueError, match="SHA-256"):
+        write_action_atomic(
+            output_root,
+            Path("class/user/action"),
+            make_result(),
+            make_fingerprints(stage1_qc_sha256="not-a-digest"),
+        )
+
+
 def test_validate_existing_action_rejects_unknown_file(tmp_path: Path) -> None:
     output_root = tmp_path / "out"
     output_root.mkdir()
@@ -394,6 +516,99 @@ def test_overwrite_restores_original_after_install_failure(
     assert not list(output_root.rglob(".backup-*"))
 
 
+def test_overwrite_restores_original_after_backup_cleanup_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output_root = tmp_path / "out"
+    output_root.mkdir()
+    action_relative_path = Path("class/user/action")
+    action_directory = output_root / action_relative_path
+    write_action_atomic(
+        output_root,
+        action_relative_path,
+        make_result(fill=0.0),
+        make_fingerprints(),
+    )
+    real_remove = io_module._remove_tree_checked
+    failed = False
+
+    def fail_backup_cleanup_once(root: Path, path: Path, prefix: str) -> None:
+        nonlocal failed
+        if prefix == ".backup-" and not failed:
+            failed = True
+            raise OSError("injected backup cleanup failure")
+        real_remove(root, path, prefix)
+
+    monkeypatch.setattr(io_module, "_remove_tree_checked", fail_backup_cleanup_once)
+
+    with pytest.raises(RuntimeError, match="original action restored"):
+        write_action_atomic(
+            output_root,
+            action_relative_path,
+            make_result(fill=3.0),
+            make_fingerprints(),
+            overwrite=True,
+        )
+
+    assert failed
+    reopened = validate_existing_action(action_directory, make_fingerprints())
+    assert np.all(reopened.values == 0.0)
+    assert not list(output_root.rglob(".staging-*"))
+    assert not list(output_root.rglob(".backup-*"))
+
+
+def test_overwrite_reports_paths_when_backup_cleanup_and_restore_fail(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output_root = tmp_path / "out"
+    output_root.mkdir()
+    action_relative_path = Path("class/user/action")
+    action_directory = output_root / action_relative_path
+    write_action_atomic(
+        output_root,
+        action_relative_path,
+        make_result(fill=0.0),
+        make_fingerprints(),
+    )
+    real_remove = io_module._remove_tree_checked
+    real_replace = io_module._replace_path
+    cleanup_failed = False
+
+    def fail_backup_cleanup_once(root: Path, path: Path, prefix: str) -> None:
+        nonlocal cleanup_failed
+        if prefix == ".backup-" and not cleanup_failed:
+            cleanup_failed = True
+            raise OSError("injected backup cleanup failure")
+        real_remove(root, path, prefix)
+
+    def fail_backup_restore(source: Path, destination: Path) -> None:
+        if source.name.startswith(".backup-") and destination == action_directory:
+            raise OSError("injected backup restore failure")
+        real_replace(source, destination)
+
+    monkeypatch.setattr(io_module, "_remove_tree_checked", fail_backup_cleanup_once)
+    monkeypatch.setattr(io_module, "_replace_path", fail_backup_restore)
+
+    with pytest.raises(RuntimeError) as captured:
+        write_action_atomic(
+            output_root,
+            action_relative_path,
+            make_result(fill=4.0),
+            make_fingerprints(),
+            overwrite=True,
+        )
+
+    message = str(captured.value)
+    assert "restore failed" in message
+    assert str(action_directory) in message
+    assert ".backup-" in message
+    assert not action_directory.exists()
+    assert len(list(output_root.rglob(".staging-*"))) == 1
+    assert len(list(output_root.rglob(".backup-*"))) == 1
+
+
 def test_write_action_rejects_existing_without_overwrite(tmp_path: Path) -> None:
     output_root = tmp_path / "out"
     output_root.mkdir()
@@ -427,3 +642,45 @@ def test_write_action_rejects_path_escape(tmp_path: Path) -> None:
         )
 
     assert not (tmp_path / "escape").exists()
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows junction safety contract")
+def test_overwrite_rejects_windows_junction_without_touching_target(
+    tmp_path: Path,
+) -> None:
+    output_root = tmp_path / "out"
+    output_root.mkdir()
+    real_action = output_root / "real"
+    write_action_atomic(
+        output_root,
+        Path("real"),
+        make_result(fill=1.0),
+        make_fingerprints(),
+    )
+    alias = output_root / "alias"
+    subprocess.run(
+        ["cmd", "/c", "mklink", "/J", str(alias), str(real_action)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    try:
+        assert alias.is_junction()
+
+        with pytest.raises(ValueError, match="reparse"):
+            write_action_atomic(
+                output_root,
+                Path("alias"),
+                make_result(fill=9.0),
+                make_fingerprints(),
+                overwrite=True,
+            )
+
+        reopened = validate_existing_action(real_action, make_fingerprints())
+        assert np.all(reopened.values == 1.0)
+        assert not list(output_root.glob(".staging-*"))
+        assert not list(output_root.glob(".backup-*"))
+        assert alias.is_junction()
+    finally:
+        if os.path.lexists(alias):
+            alias.rmdir()
