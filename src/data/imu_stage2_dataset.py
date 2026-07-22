@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import random
 import zipfile
@@ -12,6 +13,7 @@ import pandas as pd
 import torch
 from torch.utils.data import Dataset, Sampler
 
+from scripts.build_imu_training_index import hash_training_index
 from scripts.compute_imu_normalization import validate_normalization_artifacts
 from src.data.imu_stage2_contracts import DataStatus, SequenceLengthSafetyError
 from src.data.imu_stage2_io import load_and_validate_npz, load_stage2_schema
@@ -20,8 +22,16 @@ from src.data.imu_stage2_io import load_and_validate_npz, load_stage2_schema
 def _load_metadata(value: Mapping[str, object] | Path) -> dict[str, object]:
     if isinstance(value, Mapping):
         return dict(value)
+    def reject_duplicates(pairs: list[tuple[str, object]]) -> dict[str, object]:
+        payload: dict[str, object] = {}
+        for key, item in pairs:
+            if key in payload:
+                raise ValueError(f"Duplicate JSON key: {key}")
+            payload[key] = item
+        return payload
+
     with Path(value).open("r", encoding="utf-8") as handle:
-        payload = json.load(handle)
+        payload = json.load(handle, object_pairs_hook=reject_duplicates)
     if not isinstance(payload, dict):
         raise ValueError("Training index metadata must be an object")
     return payload
@@ -38,20 +48,59 @@ def _as_bool(value: object) -> bool:
     raise ValueError("Boolean training-index value is invalid")
 
 
-def _values_shape_from_npz(path: Path) -> tuple[int, ...]:
+def _read_npy_header(handle: object) -> tuple[tuple[int, ...], np.dtype]:
+    version = np.lib.format.read_magic(handle)
+    if version == (1, 0):
+        shape, _, dtype = np.lib.format.read_array_header_1_0(handle)
+    elif version in {(2, 0), (3, 0)}:
+        shape, _, dtype = np.lib.format.read_array_header_2_0(handle)
+    else:
+        raise ValueError("Unsupported NPY format version")
+    return tuple(int(dimension) for dimension in shape), np.dtype(dtype)
+
+
+def _validate_npz_headers(
+    path: Path,
+    *,
+    sample_id: str,
+    hard_safety_limit_t: int,
+) -> int:
     with zipfile.ZipFile(path) as archive:
-        try:
-            with archive.open("values.npy") as handle:
-                version = np.lib.format.read_magic(handle)
-                if version == (1, 0):
-                    shape, _, _ = np.lib.format.read_array_header_1_0(handle)
-                elif version in {(2, 0), (3, 0)}:
-                    shape, _, _ = np.lib.format.read_array_header_2_0(handle)
-                else:
-                    raise ValueError("Unsupported values.npy format version")
-        except KeyError as error:
-            raise ValueError("Stage 2 NPZ is missing values.npy") from error
-    return tuple(int(dimension) for dimension in shape)
+        expected_members = {
+            "values.npy",
+            "sensor_mask.npy",
+            "valid_mask.npy",
+            "timestamps_ms.npy",
+        }
+        members = archive.infolist()
+        if len(members) != 4 or {member.filename for member in members} != expected_members:
+            raise ValueError("Stage 2 NPZ members do not match contract")
+        if any(member.compress_type != zipfile.ZIP_STORED for member in members):
+            raise ValueError("Stage 2 NPZ must be uncompressed")
+        headers: dict[str, tuple[tuple[int, ...], np.dtype]] = {}
+        for member_name in expected_members:
+            with archive.open(member_name) as handle:
+                headers[member_name] = _read_npy_header(handle)
+    values_shape, values_dtype = headers["values.npy"]
+    if len(values_shape) != 3 or values_shape[1:] != (5, 16) or values_dtype != np.float32:
+        raise ValueError("Persisted Stage 2 values header is invalid")
+    length = values_shape[0]
+    if length < 1:
+        raise ValueError("Persisted Stage 2 length must be positive")
+    if length > hard_safety_limit_t:
+        raise SequenceLengthSafetyError(
+            sample_id,
+            f"Persisted length {length} exceeds {hard_safety_limit_t}",
+        )
+    expected_headers = {
+        "sensor_mask.npy": ((5,), np.dtype(bool)),
+        "valid_mask.npy": ((length, 5), np.dtype(bool)),
+        "timestamps_ms.npy": ((length,), np.dtype(np.int64)),
+    }
+    for member_name, expected in expected_headers.items():
+        if headers[member_name] != expected:
+            raise ValueError(f"Persisted Stage 2 {member_name[:-4]} header is invalid")
+    return length
 
 
 class IMUStage2Dataset(Dataset[dict[str, object]]):
@@ -74,14 +123,6 @@ class IMUStage2Dataset(Dataset[dict[str, object]]):
         self.hard_safety_limit_t = hard_safety_limit_t
         self.stage2_root = Path(stage2_root).resolve(strict=True)
         metadata = _load_metadata(training_index_metadata)
-        self.normalization = validate_normalization_artifacts(
-            Path(normalization_npz),
-            Path(normalization_json),
-            expected_stage2_contract_sha256=str(schema["contract_sha256"]),
-            expected_training_index_sha256=str(metadata["training_index_sha256"]),
-            expected_train_sample_id_sha256=str(metadata["train_sample_id_sha256"]),
-            expected_fold=metadata.get("fold"),
-        )
         if isinstance(training_index, pd.DataFrame):
             frame = training_index.copy()
         else:
@@ -97,6 +138,33 @@ class IMUStage2Dataset(Dataset[dict[str, object]]):
         }
         if not required.issubset(frame.columns):
             raise ValueError("Training index is missing dataset columns")
+        actual_index_sha256 = hash_training_index(frame)
+        if metadata.get("training_index_sha256") != actual_index_sha256:
+            raise ValueError("training_index_sha256 mismatch")
+        selected_train = frame[
+            frame["selected_for_run"].map(_as_bool)
+            & (frame["split"].astype(str) == "train")
+        ]
+        train_sample_payload = "".join(
+            f"{sample_id}\n" for sample_id in sorted(selected_train["sample_id"].astype(str))
+        ).encode("utf-8")
+        actual_train_sample_sha256 = hashlib.sha256(train_sample_payload).hexdigest()
+        if metadata.get("train_sample_id_sha256") != actual_train_sample_sha256:
+            raise ValueError("train_sample_id_sha256 mismatch")
+        if "user_id" not in frame.columns:
+            raise ValueError("Training index is missing user_id")
+        self.normalization = validate_normalization_artifacts(
+            Path(normalization_npz),
+            Path(normalization_json),
+            expected_stage2_contract_sha256=str(schema["contract_sha256"]),
+            expected_training_index_sha256=actual_index_sha256,
+            expected_train_sample_id_sha256=actual_train_sample_sha256,
+            expected_fold=metadata.get("fold"),
+            expected_train_users=selected_train["user_id"].astype(str).unique().tolist(),
+            expected_source_stage2_manifest_sha256=str(
+                metadata["source_stage2_manifest_sha256"]
+            ),
+        )
         frame = frame[frame["selected_for_run"].map(_as_bool)]
         if split is not None:
             if split not in {"train", "validation"}:
@@ -122,16 +190,11 @@ class IMUStage2Dataset(Dataset[dict[str, object]]):
 
     def sequence_length(self, index: int) -> int:
         row = self._rows[index]
-        shape = _values_shape_from_npz(self._artifact_path(row))
-        if len(shape) != 3 or shape[1:] != (5, 16):
-            raise ValueError("Persisted Stage 2 values shape is invalid")
-        length = shape[0]
-        if length > self.hard_safety_limit_t:
-            raise SequenceLengthSafetyError(
-                str(row["sample_id"]),
-                f"Persisted length {length} exceeds {self.hard_safety_limit_t}",
-            )
-        return length
+        return _validate_npz_headers(
+            self._artifact_path(row),
+            sample_id=str(row["sample_id"]),
+            hard_safety_limit_t=self.hard_safety_limit_t,
+        )
 
     @property
     def lengths(self) -> list[int]:

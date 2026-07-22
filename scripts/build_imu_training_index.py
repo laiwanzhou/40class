@@ -23,6 +23,24 @@ from src.data.imu_stage2_io import load_stage2_schema, write_json_atomic
 
 CLASS_ORDER_VERSION = "imu-class-order-v1"
 TRAINING_INDEX_VERSION = "imu-training-index-v1"
+TRAINING_METADATA_KEYS = frozenset(
+    {
+        "training_index_version",
+        "class_order_version",
+        "class_order_sha256",
+        "num_classes",
+        "fold",
+        "split_definition_path",
+        "split_definition_sha256",
+        "source_stage2_manifest_path",
+        "source_stage2_manifest_sha256",
+        "stage2_contract_sha256",
+        "training_index_sha256",
+        "train_sample_id_sha256",
+        "validation_sample_id_sha256",
+        "selected_sample_id_sha256",
+    }
+)
 TRAINING_INDEX_COLUMNS = (
     "sample_id",
     "class_id",
@@ -200,9 +218,12 @@ def _parse_mask(value: object, name: str) -> tuple[bool, ...]:
         parsed = value
     else:
         try:
-            parsed = ast.literal_eval(str(value))
-        except (SyntaxError, ValueError) as error:
-            raise ValueError(f"{name} must be a five-element boolean list") from error
+            parsed = json.loads(str(value))
+        except json.JSONDecodeError:
+            try:
+                parsed = ast.literal_eval(str(value))
+            except (SyntaxError, ValueError) as error:
+                raise ValueError(f"{name} must be a five-element boolean list") from error
     if not isinstance(parsed, (list, tuple)) or len(parsed) != 5:
         raise ValueError(f"{name} must be a five-element boolean list")
     result = tuple(_parse_bool(item, name) for item in parsed)
@@ -391,13 +412,39 @@ def validate_training_index_metadata(
     expected_source_manifest_sha256: str,
     expected_stage2_contract_sha256: str,
     expected_split_definition_sha256: str,
+    expected_fold: object,
+    expected_split_definition_path: str,
+    expected_source_manifest_path: str,
 ) -> None:
+    if set(metadata) != TRAINING_METADATA_KEYS:
+        raise ValueError("Training index metadata keys do not match contract")
+    _validate_training_index_semantics(training_index, class_order)
+    train_ids = training_index.loc[training_index["split"] == "train", "sample_id"]
+    validation_ids = training_index.loc[
+        training_index["split"] == "validation", "sample_id"
+    ]
+    selected_ids = training_index.loc[
+        training_index["selected_for_run"].map(_parse_selected_bool), "sample_id"
+    ]
     expected = {
+        "training_index_version": TRAINING_INDEX_VERSION,
+        "fold": expected_fold,
+        "split_definition_path": _validate_metadata_relative_path(
+            expected_split_definition_path,
+            "split_definition_path",
+        ),
+        "source_stage2_manifest_path": _validate_metadata_relative_path(
+            expected_source_manifest_path,
+            "source_stage2_manifest_path",
+        ),
         "source_stage2_manifest_sha256": expected_source_manifest_sha256.lower(),
         "stage2_contract_sha256": expected_stage2_contract_sha256.lower(),
         "split_definition_sha256": expected_split_definition_sha256.lower(),
         "class_order_sha256": class_order.class_order_sha256,
         "training_index_sha256": hash_training_index(training_index),
+        "train_sample_id_sha256": _hash_sample_ids(train_ids),
+        "validation_sample_id_sha256": _hash_sample_ids(validation_ids),
+        "selected_sample_id_sha256": _hash_sample_ids(selected_ids),
     }
     for key, value in expected.items():
         if metadata.get(key) != value:
@@ -409,6 +456,71 @@ def validate_training_index_metadata(
     for label in training_index["label_index"]:
         if not 0 <= int(label) < class_order.num_classes:
             raise ValueError("label_index is outside class order")
+
+
+def _validate_metadata_relative_path(value: str, name: str) -> str:
+    path = Path(str(value))
+    if path.is_absolute() or not path.parts or ".." in path.parts or "\\" in str(value):
+        raise ValueError(f"{name} must be a safe repository-relative POSIX path")
+    return path.as_posix()
+
+
+def _parse_selected_bool(value: object) -> bool:
+    return _parse_bool(value, "selected_for_run")
+
+
+def _validate_training_index_semantics(
+    training_index: pd.DataFrame,
+    class_order: ClassOrderContract,
+) -> None:
+    required = set(TRAINING_INDEX_COLUMNS)
+    missing = required - set(training_index.columns)
+    if missing:
+        raise ValueError(f"Training index columns are missing: {sorted(missing)}")
+    if training_index["sample_id"].astype(str).duplicated().any():
+        raise ValueError("Duplicate sample_id in training index")
+    label_by_identity = {
+        (int(record["class_id"]), str(record["class_name"])): int(record["label_index"])
+        for record in class_order.classes
+    }
+    train_users: set[str] = set()
+    validation_users: set[str] = set()
+    for row in training_index.to_dict(orient="records"):
+        identity = (int(row["class_id"]), str(row["class_name"]))
+        if identity not in label_by_identity or int(row["label_index"]) != label_by_identity[identity]:
+            raise ValueError("Training index class identity or label_index mismatch")
+        imu_usable = _parse_bool(row["imu_usable"], "imu_usable")
+        sensor_mask = _parse_mask(row["sensor_mask"], "sensor_mask")
+        usable_sensor_mask = _parse_mask(
+            row["usable_sensor_mask"], "usable_sensor_mask"
+        )
+        expected_eligible = bool(
+            imu_usable
+            and all(sensor_mask)
+            and all(usable_sensor_mask)
+            and str(row["status"]) in SUCCESS_STATUSES
+            and str(row["stage2_npz_relpath"]).strip()
+        )
+        actual_eligible = _parse_bool(
+            row["eligible_for_strict_training"],
+            "eligible_for_strict_training",
+        )
+        if actual_eligible != expected_eligible:
+            raise ValueError("eligible_for_strict_training contradicts row data")
+        selected = _parse_selected_bool(row["selected_for_run"])
+        split = str(row["split"])
+        if selected != (split in {"train", "validation"}):
+            raise ValueError("selected_for_run contradicts split")
+        if selected and not actual_eligible:
+            raise ValueError("selected_for_run requires strict eligibility")
+        if split == "train":
+            train_users.add(str(row["user_id"]))
+        elif split == "validation":
+            validation_users.add(str(row["user_id"]))
+        elif split:
+            raise ValueError("Training index split value is invalid")
+    if train_users & validation_users:
+        raise ValueError("Training index train and validation users are not disjoint")
 
 
 def _validate_manifest_artifacts(training_index: pd.DataFrame, stage2_root: Path) -> None:

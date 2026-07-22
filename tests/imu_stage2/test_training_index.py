@@ -154,6 +154,7 @@ def test_metadata_binds_manifest_split_class_order_and_behavior(tmp_path: Path) 
         build_class_order,
         build_training_index,
         build_training_index_metadata,
+        hash_training_index,
         validate_training_index_metadata,
     )
 
@@ -183,7 +184,45 @@ def test_metadata_binds_manifest_split_class_order_and_behavior(tmp_path: Path) 
         expected_source_manifest_sha256=hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
         expected_stage2_contract_sha256="a" * 64,
         expected_split_definition_sha256=hashlib.sha256(split_path.read_bytes()).hexdigest(),
+        expected_fold=0,
+        expected_split_definition_path="fold.json",
+        expected_source_manifest_path="manifest.csv",
     )
+    unexpected = dict(metadata)
+    unexpected["unexpected"] = "value"
+    with pytest.raises(ValueError, match="keys"):
+        validate_training_index_metadata(
+            unexpected,
+            index,
+            contract,
+            expected_source_manifest_sha256=hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+            expected_stage2_contract_sha256="a" * 64,
+            expected_split_definition_sha256=hashlib.sha256(split_path.read_bytes()).hexdigest(),
+            expected_fold=0,
+            expected_split_definition_path="fold.json",
+            expected_source_manifest_path="manifest.csv",
+        )
+
+    for key, replacement in (
+        ("training_index_version", "imu-training-index-v2"),
+        ("fold", 1),
+        ("split_definition_path", "other.json"),
+        ("source_stage2_manifest_path", "other.csv"),
+    ):
+        tampered_contract = dict(metadata)
+        tampered_contract[key] = replacement
+        with pytest.raises(ValueError, match=key):
+            validate_training_index_metadata(
+                tampered_contract,
+                index,
+                contract,
+                expected_source_manifest_sha256=hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+                expected_stage2_contract_sha256="a" * 64,
+                expected_split_definition_sha256=hashlib.sha256(split_path.read_bytes()).hexdigest(),
+                expected_fold=0,
+                expected_split_definition_path="fold.json",
+                expected_source_manifest_path="manifest.csv",
+            )
 
     for key, replacement in (
         ("source_stage2_manifest_sha256", "b" * 64),
@@ -191,6 +230,9 @@ def test_metadata_binds_manifest_split_class_order_and_behavior(tmp_path: Path) 
         ("split_definition_sha256", "b" * 64),
         ("class_order_sha256", "b" * 64),
         ("training_index_sha256", "b" * 64),
+        ("train_sample_id_sha256", "b" * 64),
+        ("validation_sample_id_sha256", "b" * 64),
+        ("selected_sample_id_sha256", "b" * 64),
     ):
         tampered = dict(metadata)
         tampered[key] = replacement
@@ -202,7 +244,44 @@ def test_metadata_binds_manifest_split_class_order_and_behavior(tmp_path: Path) 
                 expected_source_manifest_sha256=hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
                 expected_stage2_contract_sha256="a" * 64,
                 expected_split_definition_sha256=hashlib.sha256(split_path.read_bytes()).hexdigest(),
+                expected_fold=0,
+                expected_split_definition_path="fold.json",
+                expected_source_manifest_path="manifest.csv",
             )
+
+    tampered_index = index.copy()
+    tampered_index.loc[tampered_index["sample_id"] == "s_train_a", "class_name"] = "Wrong"
+    tampered_metadata = dict(metadata)
+    tampered_metadata["training_index_sha256"] = hash_training_index(tampered_index)
+    with pytest.raises(ValueError, match="class identity"):
+        validate_training_index_metadata(
+            tampered_metadata,
+            tampered_index,
+            contract,
+            expected_source_manifest_sha256=hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+            expected_stage2_contract_sha256="a" * 64,
+            expected_split_definition_sha256=hashlib.sha256(split_path.read_bytes()).hexdigest(),
+            expected_fold=0,
+            expected_split_definition_path="fold.json",
+            expected_source_manifest_path="manifest.csv",
+        )
+
+    inconsistent = index.copy()
+    inconsistent.loc[inconsistent["sample_id"] == "s_train_a", "selected_for_run"] = False
+    inconsistent_metadata = dict(metadata)
+    inconsistent_metadata["training_index_sha256"] = hash_training_index(inconsistent)
+    with pytest.raises(ValueError, match="selected_for_run"):
+        validate_training_index_metadata(
+            inconsistent_metadata,
+            inconsistent,
+            contract,
+            expected_source_manifest_sha256=hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+            expected_stage2_contract_sha256="a" * 64,
+            expected_split_definition_sha256=hashlib.sha256(split_path.read_bytes()).hexdigest(),
+            expected_fold=0,
+            expected_split_definition_path="fold.json",
+            expected_source_manifest_path="manifest.csv",
+        )
 
 
 def test_artifact_generation_rejects_a_missing_unselected_npz(tmp_path: Path) -> None:

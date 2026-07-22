@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -137,9 +138,30 @@ def test_normalization_artifacts_bind_contract_and_reject_tampering(tmp_path: Pa
         expected_training_index_sha256="b" * 64,
         expected_train_sample_id_sha256="c" * 64,
         expected_fold=0,
+        expected_train_users=["u1", "u2"],
+        expected_source_stage2_manifest_sha256="d" * 64,
     )
     assert np.array_equal(loaded["count"], statistics["count"])
     assert metadata["normalization_file_sha256"]
+    assert len(metadata["provenance"]["git_commit"]) == 40
+
+    wrong_list = json.loads(original_json) if 'original_json' in locals() else json.loads(
+        (output / "imu_normalization.json").read_text(encoding="utf-8")
+    )
+    wrong_list["near_constant_features"] = ["LL/not_a_feature"]
+    (output / "imu_normalization.json").write_text(json.dumps(wrong_list), encoding="utf-8")
+    with pytest.raises(ValueError, match="near_constant_features"):
+        validate_normalization_artifacts(
+            output / "imu_normalization.npz",
+            output / "imu_normalization.json",
+            expected_stage2_contract_sha256="a" * 64,
+            expected_training_index_sha256="b" * 64,
+            expected_train_sample_id_sha256="c" * 64,
+            expected_fold=0,
+            expected_train_users=["u1", "u2"],
+            expected_source_stage2_manifest_sha256="d" * 64,
+        )
+    (output / "imu_normalization.json").write_text(json.dumps(metadata), encoding="utf-8")
 
     metadata_path = output / "imu_normalization.json"
     original_json = metadata_path.read_text(encoding="utf-8")
@@ -161,6 +183,8 @@ def test_normalization_artifacts_bind_contract_and_reject_tampering(tmp_path: Pa
                 expected_training_index_sha256="b" * 64,
                 expected_train_sample_id_sha256="c" * 64,
                 expected_fold=0,
+                expected_train_users=["u1", "u2"],
+                expected_source_stage2_manifest_sha256="d" * 64,
             )
         metadata_path.write_text(original_json, encoding="utf-8")
 
@@ -175,4 +199,95 @@ def test_normalization_artifacts_bind_contract_and_reject_tampering(tmp_path: Pa
             expected_training_index_sha256="b" * 64,
             expected_train_sample_id_sha256="c" * 64,
             expected_fold=0,
+            expected_train_users=["u1", "u2"],
+            expected_source_stage2_manifest_sha256="d" * 64,
         )
+
+
+def test_normalization_metadata_rejects_duplicate_json_keys(tmp_path: Path) -> None:
+    from scripts.compute_imu_normalization import (
+        StreamingMoments,
+        validate_normalization_artifacts,
+        write_normalization_artifacts,
+    )
+
+    moments = StreamingMoments()
+    moments.update(_sample_values(1.0).astype(np.float64), np.ones((2, 5), dtype=bool))
+    output = tmp_path / "normalization"
+    write_normalization_artifacts(
+        moments.finalize(),
+        output,
+        stage2_contract_sha256="a" * 64,
+        training_index_sha256="b" * 64,
+        train_sample_id_sha256="c" * 64,
+        fold=0,
+        train_users=["u1"],
+        source_stage2_manifest_sha256="d" * 64,
+    )
+    metadata_path = output / "imu_normalization.json"
+    text = metadata_path.read_text(encoding="utf-8")
+    metadata_path.write_text(
+        text.replace('"contract":', '"contract": {}, "contract":', 1),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="Duplicate JSON key"):
+        validate_normalization_artifacts(
+            output / "imu_normalization.npz",
+            metadata_path,
+            expected_stage2_contract_sha256="a" * 64,
+            expected_training_index_sha256="b" * 64,
+            expected_train_sample_id_sha256="c" * 64,
+            expected_fold=0,
+            expected_train_users=["u1"],
+            expected_source_stage2_manifest_sha256="d" * 64,
+        )
+
+
+def test_normalization_rejects_rehashed_incompatible_v1_contract(tmp_path: Path) -> None:
+    from scripts.compute_imu_normalization import (
+        StreamingMoments,
+        validate_normalization_artifacts,
+        write_normalization_artifacts,
+    )
+    from src.data.imu_stage2_contracts import canonical_json_bytes
+
+    moments = StreamingMoments()
+    moments.update(_sample_values(1.0).astype(np.float64), np.ones((2, 5), dtype=bool))
+    output = tmp_path / "normalization"
+    write_normalization_artifacts(
+        moments.finalize(),
+        output,
+        stage2_contract_sha256="a" * 64,
+        training_index_sha256="b" * 64,
+        train_sample_id_sha256="c" * 64,
+        fold=0,
+        train_users=["u1", "u2"],
+        source_stage2_manifest_sha256="d" * 64,
+    )
+    metadata_path = output / "imu_normalization.json"
+    original = json.loads(metadata_path.read_text(encoding="utf-8"))
+    for key, replacement in (
+        ("normalization_version", "imu-normalization-v2"),
+        ("shape", [16, 5]),
+        ("ddof", 1),
+        ("near_constant_threshold", 1e-5),
+        ("statistics_dtype", "float64"),
+        ("train_users", ["other"]),
+    ):
+        payload = json.loads(json.dumps(original))
+        payload["contract"][key] = replacement
+        payload["normalization_contract_sha256"] = hashlib.sha256(
+            canonical_json_bytes(payload["contract"])
+        ).hexdigest()
+        metadata_path.write_text(json.dumps(payload), encoding="utf-8")
+        with pytest.raises(ValueError, match=key):
+            validate_normalization_artifacts(
+                output / "imu_normalization.npz",
+                metadata_path,
+                expected_stage2_contract_sha256="a" * 64,
+                expected_training_index_sha256="b" * 64,
+                expected_train_sample_id_sha256="c" * 64,
+                expected_fold=0,
+                expected_train_users=["u1", "u2"],
+                expected_source_stage2_manifest_sha256="d" * 64,
+            )

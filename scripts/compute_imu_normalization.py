@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import os
+import subprocess
 import sys
 import zipfile
 from datetime import datetime, timezone
@@ -44,6 +45,17 @@ NPZ_KEYS = (
 
 def _sha256_bytes(payload: bytes) -> str:
     return hashlib.sha256(payload).hexdigest()
+
+
+def _current_git_commit() -> str:
+    commit = subprocess.check_output(
+        ["git", "rev-parse", "HEAD"],
+        cwd=REPOSITORY_ROOT,
+        text=True,
+    ).strip()
+    if len(commit) != 40 or any(character not in "0123456789abcdef" for character in commit):
+        raise ValueError("Unable to record a valid Git commit")
+    return commit
 
 
 def _hash_sample_ids(sample_ids: Sequence[str]) -> str:
@@ -260,6 +272,7 @@ def write_normalization_artifacts(
         "contract": contract,
         "provenance": {
             "generator_script": "scripts/compute_imu_normalization.py",
+            "git_commit": _current_git_commit(),
             "created_at": datetime.now(timezone.utc).isoformat(),
             "source_stage2_manifest_sha256": str(source_stage2_manifest_sha256).lower(),
         },
@@ -275,8 +288,20 @@ def _strict_json(path: Path) -> dict[str, object]:
     def reject_constant(value: str) -> None:
         raise ValueError(f"Non-finite JSON value is forbidden: {value}")
 
+    def reject_duplicates(pairs: list[tuple[str, object]]) -> dict[str, object]:
+        payload: dict[str, object] = {}
+        for key, value in pairs:
+            if key in payload:
+                raise ValueError(f"Duplicate JSON key: {key}")
+            payload[key] = value
+        return payload
+
     with Path(path).open("r", encoding="utf-8") as handle:
-        payload = json.load(handle, parse_constant=reject_constant)
+        payload = json.load(
+            handle,
+            parse_constant=reject_constant,
+            object_pairs_hook=reject_duplicates,
+        )
     if not isinstance(payload, dict):
         raise ValueError("Normalization metadata must be an object")
     return payload
@@ -340,6 +365,8 @@ def validate_normalization_artifacts(
     expected_training_index_sha256: str,
     expected_train_sample_id_sha256: str,
     expected_fold: object,
+    expected_train_users: Sequence[str],
+    expected_source_stage2_manifest_sha256: str,
 ) -> dict[str, np.ndarray]:
     metadata = _strict_json(Path(metadata_path))
     required = {
@@ -355,21 +382,53 @@ def validate_normalization_artifacts(
     contract_hash = _sha256_bytes(canonical_json_bytes(contract))
     if metadata["normalization_contract_sha256"] != contract_hash:
         raise ValueError("normalization_contract_sha256 mismatch")
-    expected_bindings = {
-        "stage2_contract_sha256": expected_stage2_contract_sha256.lower(),
-        "training_index_sha256": expected_training_index_sha256.lower(),
-        "train_sample_id_sha256": expected_train_sample_id_sha256.lower(),
-        "fold": expected_fold,
-        "sensor_order": list(SENSOR_ORDER),
-        "feature_order": list(FEATURE_ORDER),
-    }
-    for key, expected in expected_bindings.items():
+    expected_contract = _normalization_contract(
+        stage2_contract_sha256=expected_stage2_contract_sha256,
+        training_index_sha256=expected_training_index_sha256,
+        train_sample_id_sha256=expected_train_sample_id_sha256,
+        fold=expected_fold,
+        train_users=expected_train_users,
+    )
+    if set(contract) != set(expected_contract):
+        raise ValueError("Normalization contract key set mismatch")
+    for key, expected in expected_contract.items():
         if contract.get(key) != expected:
             raise ValueError(f"Normalization contract {key} mismatch")
+    provenance = metadata["provenance"]
+    if not isinstance(provenance, dict) or set(provenance) != {
+        "generator_script",
+        "git_commit",
+        "created_at",
+        "source_stage2_manifest_sha256",
+    }:
+        raise ValueError("Normalization provenance keys mismatch")
+    if provenance["generator_script"] != "scripts/compute_imu_normalization.py":
+        raise ValueError("Normalization provenance generator_script mismatch")
+    git_commit = provenance["git_commit"]
+    if (
+        not isinstance(git_commit, str)
+        or len(git_commit) != 40
+        or any(character not in "0123456789abcdef" for character in git_commit)
+    ):
+        raise ValueError("Normalization provenance git_commit is invalid")
+    if not isinstance(provenance["created_at"], str) or not provenance["created_at"]:
+        raise ValueError("Normalization provenance created_at is invalid")
+    if provenance["source_stage2_manifest_sha256"] != str(
+        expected_source_stage2_manifest_sha256
+    ).lower():
+        raise ValueError("source_stage2_manifest_sha256 mismatch")
     if metadata["normalization_file_sha256"] != sha256_file(Path(npz_path)):
         raise ValueError("normalization_file_sha256 mismatch")
     arrays = _load_npz(Path(npz_path))
     _validate_arrays(arrays)
+    expected_near_constant_features = [
+        f"{sensor}/{feature}"
+        for sensor_index, sensor in enumerate(SENSOR_ORDER)
+        for feature_index, feature in enumerate(FEATURE_ORDER)
+        if bool(arrays["near_constant_mask"][sensor_index, feature_index])
+    ]
+    if metadata["near_constant_features"] != expected_near_constant_features:
+        raise ValueError("near_constant_features mismatch")
     return arrays
 
 

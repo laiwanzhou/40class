@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -28,7 +29,13 @@ def _write_schema(path: Path) -> dict[str, object]:
     return schema
 
 
-def _normalization(tmp_path: Path, schema: dict[str, object]) -> tuple[Path, Path, dict[str, object]]:
+def _normalization(
+    tmp_path: Path,
+    schema: dict[str, object],
+    *,
+    training_index_sha256: str,
+    train_sample_id_sha256: str,
+) -> tuple[Path, Path, dict[str, object]]:
     from scripts.compute_imu_normalization import StreamingMoments, write_normalization_artifacts
 
     moments = StreamingMoments()
@@ -41,8 +48,8 @@ def _normalization(tmp_path: Path, schema: dict[str, object]) -> tuple[Path, Pat
         moments.finalize(),
         output,
         stage2_contract_sha256=str(schema["contract_sha256"]),
-        training_index_sha256="b" * 64,
-        train_sample_id_sha256="c" * 64,
+        training_index_sha256=training_index_sha256,
+        train_sample_id_sha256=train_sample_id_sha256,
         fold=0,
         train_users=["u1"],
         source_stage2_manifest_sha256="d" * 64,
@@ -73,14 +80,15 @@ def _dataset(
     lengths: tuple[int, ...] = (2, 3),
     *,
     hard_safety_limit_t: int = 10_000,
+    metadata_index_mismatch: bool = False,
 ):
     from src.data.imu_stage2_dataset import IMUStage2Dataset
+    from scripts.build_imu_training_index import hash_training_index
 
     stage2_root = tmp_path / "stage2"
     stage2_root.mkdir(parents=True)
     schema_path = stage2_root / "schema.json"
     schema = _write_schema(schema_path)
-    normalization_npz, normalization_json, _ = _normalization(tmp_path, schema)
     rows = []
     for index, length in enumerate(lengths):
         values = np.full((length, 5, 16), 3.0 + index, dtype=np.float32)
@@ -93,21 +101,37 @@ def _dataset(
         rows.append(
             {
                 "sample_id": f"s{index}",
+                "user_id": "u1",
                 "stage2_npz_relpath": relpath,
                 "status": "success" if valid.any() else "no_usable_grid_cells",
                 "selected_for_run": True,
                 "split": "train",
                 "label_index": index,
+                "eligible_for_strict_training": True,
             }
         )
+    frame = pd.DataFrame(rows)
+    training_index_sha256 = hash_training_index(frame)
+    train_sample_id_sha256 = hashlib.sha256(
+        "".join(f"{sample_id}\n" for sample_id in sorted(frame["sample_id"])).encode("utf-8")
+    ).hexdigest()
+    normalization_npz, normalization_json, _ = _normalization(
+        tmp_path,
+        schema,
+        training_index_sha256=training_index_sha256,
+        train_sample_id_sha256=train_sample_id_sha256,
+    )
     metadata = {
         "stage2_contract_sha256": schema["contract_sha256"],
-        "training_index_sha256": "b" * 64,
-        "train_sample_id_sha256": "c" * 64,
+        "training_index_sha256": training_index_sha256,
+        "train_sample_id_sha256": train_sample_id_sha256,
         "fold": 0,
+        "source_stage2_manifest_sha256": "d" * 64,
     }
+    if metadata_index_mismatch:
+        frame.loc[0, "label_index"] = 999
     return IMUStage2Dataset(
-        pd.DataFrame(rows),
+        frame,
         stage2_root=stage2_root,
         stage2_schema=schema_path,
         normalization_npz=normalization_npz,
@@ -155,6 +179,35 @@ def test_dataset_rejects_contract_limit_mismatch_and_oversized_sequence(tmp_path
 
     dataset = _dataset(tmp_path / "oversized", lengths=(10_001,))
     with pytest.raises(SequenceLengthSafetyError):
+        dataset[0]
+
+
+def test_dataset_rejects_training_index_not_bound_to_normalization(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="training_index_sha256"):
+        _dataset(tmp_path, metadata_index_mismatch=True)
+
+
+def test_dataset_validates_all_npz_headers_before_loading_arrays(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.data import imu_stage2_dataset
+
+    dataset = _dataset(tmp_path, lengths=(2,))
+    path = tmp_path / "stage2" / "s0" / "imu_stage2.npz"
+    np.savez(
+        path,
+        values=np.ones((2, 5, 16), dtype=np.float32),
+        sensor_mask=np.ones(5, dtype=bool),
+        valid_mask=np.ones((10_001, 5), dtype=bool),
+        timestamps_ms=np.arange(2, dtype=np.int64) * 100,
+    )
+
+    def must_not_load(*args: object, **kwargs: object) -> object:
+        raise AssertionError("array loader ran before header validation")
+
+    monkeypatch.setattr(imu_stage2_dataset, "load_and_validate_npz", must_not_load)
+    with pytest.raises(ValueError, match="valid_mask"):
         dataset[0]
 
 
