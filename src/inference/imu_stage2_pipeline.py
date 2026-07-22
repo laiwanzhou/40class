@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import json
+import csv
+import os
 import re
+import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
@@ -22,6 +25,7 @@ from src.data.imu_stage2_contracts import (
     NoUsableGridCellsError,
     NoValidStage1RecordsError,
     SequenceLengthSafetyError,
+    Stage1ActionData,
     Stage1DataValidationError,
     TestSampleDescriptor,
     contract_sha256,
@@ -59,6 +63,20 @@ DEGRADABLE_ERROR_TYPES = (
     SequenceLengthSafetyError,
 )
 
+SUBMISSION_CONTRACT_VERSION = "imu-submission-v1"
+SUBMISSION_REPRESENTATIONS = frozenset({"class_id", "class_name", "label_index"})
+INFERENCE_CONFIG_CONTRACT = {
+    "config_version": "imu-stage2-inference-v1",
+    "hard_safety_limit_t": 10_000,
+    "inference_seed": 20260715,
+    "deterministic_algorithms": True,
+    "batch_feature_budget": 327680,
+    "maximum_batch_size": 16,
+    "model_output_type": "logits",
+    "prediction_rule": "argmax",
+    "imu_unavailable_policy": "packaged_null_embedding",
+}
+
 
 @dataclass(frozen=True)
 class TestSampleDiscoveryResult:
@@ -79,6 +97,204 @@ class InferenceBundle:
     model_config: Mapping[str, object]
     inference_config: Mapping[str, object]
     checkpoint_metadata: Mapping[str, object]
+
+
+def derive_submission_contract(sample_submission_path: Path) -> dict[str, object]:
+    path = Path(sample_submission_path).resolve(strict=True)
+    if not path.is_file():
+        raise ValueError("Sample submission must be a regular file")
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        reader = csv.reader(handle)
+        rows = list(reader)
+    if len(rows) < 2 or len(rows[0]) != 2:
+        raise ValueError("Sample submission must have two columns and at least one row")
+    columns = rows[0]
+    if any(not column for column in columns) or len(set(columns)) != 2:
+        raise ValueError("Sample submission columns must be distinct and non-empty")
+    if any(len(row) != 2 for row in rows[1:]):
+        raise ValueError("Sample submission row width does not match its header")
+    sample_id_column, prediction_column = columns
+    if prediction_column not in SUBMISSION_REPRESENTATIONS:
+        raise ValueError("Sample submission prediction representation is unsupported")
+    sample_ids = [row[0] for row in rows[1:]]
+    if any(not sample_id for sample_id in sample_ids) or len(set(sample_ids)) != len(
+        sample_ids
+    ):
+        raise ValueError("Sample submission IDs must be unique and non-empty")
+    contract: dict[str, object] = {
+        "submission_contract_version": SUBMISSION_CONTRACT_VERSION,
+        "columns": columns,
+        "sample_id_column": sample_id_column,
+        "prediction_column": prediction_column,
+        "encoding": "utf-8",
+        "header": True,
+        "row_order": "sample_submission",
+        "sample_ids": sample_ids,
+        "prediction_representation": prediction_column,
+    }
+    return {
+        "contract": contract,
+        "submission_contract_sha256": contract_sha256(contract),
+    }
+
+
+def build_inference_bundle_manifest(
+    bundle_root: Path,
+    artifact_paths: Mapping[str, Path],
+) -> dict[str, object]:
+    root = Path(bundle_root).resolve(strict=True)
+    if set(artifact_paths) != set(BUNDLE_ROLES):
+        raise ValueError("Inference bundle artifact roles do not match contract")
+    files: dict[str, object] = {}
+    for role in BUNDLE_ROLES:
+        path = Path(artifact_paths[role]).resolve(strict=True)
+        try:
+            relative = path.relative_to(root)
+        except ValueError as error:
+            raise ValueError("Managed artifact is outside the inference bundle") from error
+        if not path.is_file() or any(part in {"", ".", ".."} for part in relative.parts):
+            raise ValueError("Managed artifact must be a regular bundle file")
+        files[role] = {"path": relative.as_posix(), "sha256": sha256_file(path)}
+    return {"bundle_manifest_version": BUNDLE_MANIFEST_VERSION, "files": files}
+
+
+def validate_logits(
+    logits: torch.Tensor,
+    *,
+    batch_size: int,
+    num_classes: int,
+) -> torch.Tensor:
+    if not isinstance(logits, torch.Tensor):
+        raise ValueError("logits must be a torch.Tensor")
+    if logits.shape != (batch_size, num_classes):
+        raise ValueError("logits must have shape [B,num_classes]")
+    if not torch.is_floating_point(logits):
+        raise ValueError("logits must use a floating-point dtype")
+    if not torch.isfinite(logits).all():
+        raise ValueError("logits must be finite")
+    return logits
+
+
+def validate_inference_config(config: Mapping[str, object]) -> dict[str, object]:
+    if set(config) != set(INFERENCE_CONFIG_CONTRACT):
+        raise ValueError("Inference configuration fields do not match contract")
+    for key, expected in INFERENCE_CONFIG_CONTRACT.items():
+        actual = config[key]
+        if type(actual) is not type(expected) or actual != expected:
+            raise ValueError(f"Inference configuration {key} is incompatible")
+    return dict(config)
+
+
+def decode_predictions(
+    logits_or_indices: torch.Tensor,
+    class_order: ClassOrderContract,
+    submission_contract: Mapping[str, object],
+) -> list[object]:
+    tensor = torch.as_tensor(logits_or_indices)
+    if tensor.ndim == 2:
+        tensor = torch.argmax(tensor, dim=1)
+    if tensor.ndim != 1:
+        raise ValueError("Predictions must be logits or one-dimensional indices")
+    indices = [int(value) for value in tensor.detach().cpu().tolist()]
+    if any(index < 0 or index >= class_order.num_classes for index in indices):
+        raise ValueError("Prediction index is outside class order")
+    representation = submission_contract.get("prediction_representation")
+    if representation not in SUBMISSION_REPRESENTATIONS:
+        raise ValueError("Submission prediction representation is unsupported")
+    records = list(class_order.classes)
+    if representation == "label_index":
+        return indices
+    return [records[index][str(representation)] for index in indices]
+
+
+def _validate_submission_contract_mapping(contract: Mapping[str, object]) -> None:
+    required = {
+        "submission_contract_version",
+        "columns",
+        "sample_id_column",
+        "prediction_column",
+        "encoding",
+        "header",
+        "row_order",
+        "sample_ids",
+        "prediction_representation",
+    }
+    if set(contract) != required:
+        raise ValueError("Submission contract fields do not match contract")
+    columns = contract["columns"]
+    sample_ids = contract["sample_ids"]
+    if (
+        contract["submission_contract_version"] != SUBMISSION_CONTRACT_VERSION
+        or not isinstance(columns, list)
+        or len(columns) != 2
+        or contract["sample_id_column"] != columns[0]
+        or contract["prediction_column"] != columns[1]
+        or contract["prediction_representation"] != columns[1]
+        or contract["prediction_representation"] not in SUBMISSION_REPRESENTATIONS
+        or contract["encoding"] != "utf-8"
+        or contract["header"] is not True
+        or contract["row_order"] != "sample_submission"
+        or not isinstance(sample_ids, list)
+        or not all(isinstance(value, str) and value for value in sample_ids)
+        or len(set(sample_ids)) != len(sample_ids)
+    ):
+        raise ValueError("Submission contract is incompatible")
+
+
+def validate_submission_file(path: Path, contract: Mapping[str, object]) -> None:
+    _validate_submission_contract_mapping(contract)
+    with Path(path).open("r", encoding="utf-8", newline="") as handle:
+        rows = list(csv.reader(handle))
+    columns = list(contract["columns"])
+    sample_ids = list(contract["sample_ids"])
+    if not rows or rows[0] != columns or len(rows) != len(sample_ids) + 1:
+        raise ValueError("Submission header or row count violates contract")
+    actual_ids: list[str] = []
+    representation = str(contract["prediction_representation"])
+    for row in rows[1:]:
+        if len(row) != 2:
+            raise ValueError("Submission row width violates contract")
+        actual_ids.append(row[0])
+        if representation in {"class_id", "label_index"}:
+            try:
+                int(row[1])
+            except ValueError as error:
+                raise ValueError("Submission prediction must be an integer") from error
+        elif not row[1]:
+            raise ValueError("Submission prediction must be non-empty")
+    if actual_ids != sample_ids:
+        raise ValueError("Submission sample IDs or row order violate contract")
+
+
+def write_submission_atomic(
+    output_path: Path,
+    rows: Sequence[tuple[str, object]],
+    contract: Mapping[str, object],
+    *,
+    overwrite: bool = False,
+) -> None:
+    _validate_submission_contract_mapping(contract)
+    output = Path(output_path)
+    if output.exists() and not overwrite:
+        raise FileExistsError(output)
+    if not output.parent.exists() or not output.parent.is_dir():
+        raise FileNotFoundError(output.parent)
+    expected_ids = list(contract["sample_ids"])
+    if [sample_id for sample_id, _ in rows] != expected_ids:
+        raise ValueError("Submission rows do not match the contracted sample order")
+    temporary = output.parent / f".{output.name}.tmp-{uuid.uuid4().hex}"
+    try:
+        with temporary.open("x", encoding="utf-8", newline="") as handle:
+            writer = csv.writer(handle, lineterminator="\n")
+            writer.writerow(list(contract["columns"]))
+            writer.writerows(rows)
+            handle.flush()
+            os.fsync(handle.fileno())
+        validate_submission_file(temporary, contract)
+        os.replace(temporary, output)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
 
 
 def _natural_key(value: str) -> tuple[tuple[int, object], ...]:
@@ -160,6 +376,18 @@ def preprocess_inference_sample(
     *,
     hard_safety_limit_t: int = 10_000,
 ) -> InferenceSample:
+    sample, _, _ = preprocess_inference_sample_with_diagnostics(
+        descriptor,
+        hard_safety_limit_t=hard_safety_limit_t,
+    )
+    return sample
+
+
+def preprocess_inference_sample_with_diagnostics(
+    descriptor: TestSampleDescriptor,
+    *,
+    hard_safety_limit_t: int = 10_000,
+) -> tuple[InferenceSample, Exception | None, Stage1ActionData | None]:
     try:
         source = adapt_raw_imu_source(descriptor)
         stage1 = process_raw_imu_source(source)
@@ -175,18 +403,26 @@ def preprocess_inference_sample(
                 descriptor.sample_id,
                 "Stage 2 has no usable grid cells",
             )
-        return InferenceSample(
-            sample_id=descriptor.sample_id,
-            imu_result=result,
-            imu_available=True,
-            modality_mask=True,
+        return (
+            InferenceSample(
+                sample_id=descriptor.sample_id,
+                imu_result=result,
+                imu_available=True,
+                modality_mask=True,
+            ),
+            None,
+            stage1,
         )
-    except DEGRADABLE_ERROR_TYPES:
-        return InferenceSample(
-            sample_id=descriptor.sample_id,
-            imu_result=None,
-            imu_available=False,
-            modality_mask=False,
+    except DEGRADABLE_ERROR_TYPES as error:
+        return (
+            InferenceSample(
+                sample_id=descriptor.sample_id,
+                imu_result=None,
+                imu_available=False,
+                modality_mask=False,
+            ),
+            error,
+            None,
         )
 
 
