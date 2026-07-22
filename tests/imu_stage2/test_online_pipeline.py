@@ -89,6 +89,33 @@ def test_discovery_keeps_missing_imu_samples_and_audits_ignored_entries(
     assert discovery.ignored_entries == (".claude", "nested", "notes.txt")
 
 
+def test_discovery_records_deterministic_relative_ignored_names_inside_samples(
+    tmp_path: Path,
+) -> None:
+    from src.inference.imu_stage2_pipeline import discover_test_samples
+
+    root = tmp_path / "test"
+    imu = root / "SM_test_0001" / "IMU"
+    imu.mkdir(parents=True)
+    (root / ".claude").mkdir()
+    (root / "SM_test_0001" / "notes.txt").write_text("ignored", encoding="utf-8")
+    (imu / "readme.md").write_text("ignored", encoding="utf-8")
+    (imu / "nested").mkdir()
+
+    discovery = discover_test_samples(root)
+
+    assert discovery.ignored_entries == (".claude",)
+    assert discovery.sample_ignored_entries == (
+        "SM_test_0001/IMU/nested",
+        "SM_test_0001/IMU/readme.md",
+        "SM_test_0001/notes.txt",
+    )
+    assert all("\\" not in name and not Path(name).is_absolute() for name in (
+        *discovery.ignored_entries,
+        *discovery.sample_ignored_entries,
+    ))
+
+
 def test_raw_adapter_naturally_sorts_direct_csv_before_stage1_ranking(
     tmp_path: Path,
 ) -> None:
@@ -280,6 +307,68 @@ def test_preprocess_converts_no_usable_stage2_result_to_typed_degradation(
     assert not sample.imu_available
     assert sample.imu_result is None
     assert not sample.modality_mask
+
+
+@pytest.mark.parametrize(
+    "error_type",
+    [NoUsableGridCellsError, SequenceLengthSafetyError],
+)
+def test_stage2_degradation_preserves_successful_stage1_diagnostics(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    error_type: type[Exception],
+) -> None:
+    from src.inference import imu_stage2_pipeline as pipeline
+    from src.data.imu_stage2_contracts import TestSampleDescriptor as SampleDescriptor
+
+    descriptor = SampleDescriptor("SM_test_0001", tmp_path, Path("SM_test_0001"))
+    stage1_result = object()
+    monkeypatch.setattr(pipeline, "adapt_raw_imu_source", lambda _: object())
+    monkeypatch.setattr(pipeline, "process_raw_imu_source", lambda _: stage1_result)
+
+    def fail_stage2(*_args: object, **_kwargs: object) -> NoReturn:
+        raise error_type("SM_test_0001", "typed stage 2 degradation")
+
+    monkeypatch.setattr(pipeline, "process_stage2_action", fail_stage2)
+
+    diagnostics = pipeline.preprocess_inference_sample_with_diagnostics(descriptor)
+
+    assert diagnostics.sample == InferenceSample(
+        sample_id="SM_test_0001",
+        imu_result=None,
+        imu_available=False,
+        modality_mask=False,
+    )
+    assert diagnostics.source_status == "available"
+    assert diagnostics.stage1_status == "success"
+    assert diagnostics.stage2_status == "degraded"
+    assert diagnostics.stage1_result is stage1_result
+    assert diagnostics.stage2_result is None
+    assert isinstance(diagnostics.degradation_error, error_type)
+    assert diagnostics.degradation_error.safe_message == "typed stage 2 degradation"
+
+
+def test_stage1_degradation_does_not_claim_stage_progress(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.inference import imu_stage2_pipeline as pipeline
+    from src.data.imu_stage2_contracts import TestSampleDescriptor as SampleDescriptor
+
+    descriptor = SampleDescriptor("SM_test_0001", tmp_path, Path("SM_test_0001"))
+
+    def fail_source(_descriptor: object) -> NoReturn:
+        raise MissingImuDirectoryError("SM_test_0001", "missing")
+
+    monkeypatch.setattr(pipeline, "adapt_raw_imu_source", fail_source)
+    diagnostics = pipeline.preprocess_inference_sample_with_diagnostics(descriptor)
+
+    assert diagnostics.source_status == "unavailable"
+    assert diagnostics.stage1_status == "unavailable"
+    assert diagnostics.stage2_status == "unavailable"
+    assert diagnostics.stage1_result is None
+    assert diagnostics.stage2_result is None
+    assert isinstance(diagnostics.degradation_error, MissingImuDirectoryError)
 
 
 def test_stage2_invariant_failure_is_not_hidden_by_no_usable_degradation(

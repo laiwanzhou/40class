@@ -5,6 +5,7 @@ import json
 import os
 import shlex
 import subprocess
+from argparse import Namespace
 from pathlib import Path
 
 import numpy as np
@@ -281,6 +282,9 @@ def test_inference_cli_predicts_missing_imu_and_writes_bounded_audit(tmp_path: P
     imu = raw / "SM_test_0001" / "IMU"
     imu.mkdir(parents=True)
     _write_raw_csv(imu / "part1.csv", "2025-01-01 00:00:00.000000000", 1.0)
+    (raw / ".claude").mkdir()
+    (raw / "SM_test_0001" / "notes.txt").write_text("ignored", encoding="utf-8")
+    (imu / "readme.md").write_text("ignored", encoding="utf-8")
     (raw / "SM_test_0002").mkdir()
     output = tmp_path / "submission.csv"
     audit = tmp_path / "audit"
@@ -299,6 +303,12 @@ def test_inference_cli_predicts_missing_imu_and_writes_bounded_audit(tmp_path: P
     summary = json.loads((runs[0] / "inference_summary.json").read_text(encoding="utf-8"))
     assert summary["exit_code"] == 0
     assert summary["predicted_sample_count"] == 2
+    assert summary["ignored_entry_count"] == 3
+    assert summary["ignored_root_entries"] == [".claude"]
+    assert summary["ignored_sample_entries"] == [
+        "SM_test_0001/IMU/readme.md",
+        "SM_test_0001/notes.txt",
+    ]
 
 
 def test_inference_cli_global_failure_never_replaces_existing_output(tmp_path: Path) -> None:
@@ -312,6 +322,203 @@ def test_inference_cli_global_failure_never_replaces_existing_output(tmp_path: P
     output.write_text("old\n", encoding="utf-8")
     assert main(["--raw-test-root", str(raw), "--output-csv", str(output), "--bundle-root", str(bundle)]) == 2
     assert output.read_text(encoding="utf-8") == "old\n"
+
+
+@pytest.mark.parametrize(
+    "relation",
+    [
+        "output_equals_raw",
+        "output_inside_raw",
+        "audit_equals_raw",
+        "audit_inside_raw",
+        "output_equals_bundle",
+        "output_inside_bundle",
+        "audit_equals_bundle",
+        "audit_inside_bundle",
+        "output_inside_audit",
+        "audit_inside_output",
+        "output_equals_audit",
+        "raw_inside_audit",
+        "bundle_inside_audit",
+    ],
+)
+def test_ordinary_path_overlap_is_rejected_before_any_io(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    relation: str,
+) -> None:
+    from scripts import infer_imu_stage2
+
+    raw = tmp_path / "raw"
+    bundle = tmp_path / "bundle"
+    raw.mkdir()
+    bundle.mkdir()
+    output = tmp_path / "submission.csv"
+    audit = tmp_path / "audit"
+    if relation == "output_equals_raw":
+        output = raw
+    elif relation == "output_inside_raw":
+        output = raw / "submission.csv"
+    elif relation == "audit_equals_raw":
+        audit = raw
+    elif relation == "audit_inside_raw":
+        audit = raw / "audit"
+    elif relation == "output_equals_bundle":
+        output = bundle
+    elif relation == "output_inside_bundle":
+        output = bundle / "submission.csv"
+    elif relation == "audit_equals_bundle":
+        audit = bundle
+    elif relation == "audit_inside_bundle":
+        audit = bundle / "audit"
+    elif relation == "output_inside_audit":
+        output = audit / "submission.csv"
+    elif relation == "audit_inside_output":
+        audit = output / "audit"
+    elif relation == "output_equals_audit":
+        audit = output
+    elif relation == "raw_inside_audit":
+        audit = tmp_path
+    elif relation == "bundle_inside_audit":
+        audit = tmp_path
+
+    calls: list[str] = []
+
+    def forbidden(name: str):
+        def fail(*_args: object, **_kwargs: object) -> object:
+            calls.append(name)
+            raise AssertionError(f"{name} must not be called")
+        return fail
+
+    monkeypatch.setattr(infer_imu_stage2, "load_inference_bundle", forbidden("bundle"))
+    monkeypatch.setattr(infer_imu_stage2, "discover_test_samples", forbidden("discovery"))
+    monkeypatch.setattr(
+        infer_imu_stage2,
+        "preprocess_inference_sample_with_diagnostics",
+        forbidden("preprocess"),
+    )
+    monkeypatch.setattr(infer_imu_stage2, "write_submission_atomic", forbidden("submission"))
+    before_raw = sorted(path.relative_to(raw).as_posix() for path in raw.rglob("*"))
+    before_bundle = sorted(path.relative_to(bundle).as_posix() for path in bundle.rglob("*"))
+
+    code = infer_imu_stage2.main(
+        [
+            "--raw-test-root", str(raw),
+            "--output-csv", str(output),
+            "--bundle-root", str(bundle),
+            "--audit-dir", str(audit),
+            "--overwrite-output",
+        ]
+    )
+
+    assert code == 2
+    payload = json.loads(capsys.readouterr().out)
+    assert "overlap" in payload["error"].casefold()
+    assert calls == []
+    assert sorted(path.relative_to(raw).as_posix() for path in raw.rglob("*")) == before_raw
+    assert sorted(path.relative_to(bundle).as_posix() for path in bundle.rglob("*")) == before_bundle
+    assert not list(tmp_path.rglob("*.tmp-*"))
+    assert not list(tmp_path.rglob("*.staging-*"))
+    assert not list(tmp_path.rglob("*.backup-*"))
+
+
+def _transaction_payload() -> tuple[list[tuple[str, object]], dict[str, object]]:
+    contract: dict[str, object] = {
+        "submission_contract_version": "imu-submission-v1",
+        "columns": ["sample_id", "class_id"],
+        "sample_id_column": "sample_id",
+        "prediction_column": "class_id",
+        "encoding": "utf-8",
+        "header": True,
+        "row_order": "sample_submission",
+        "sample_ids": ["SM_test_0001"],
+        "prediction_representation": "class_id",
+    }
+    return [("SM_test_0001", 2)], contract
+
+
+@pytest.mark.parametrize("existing", [False, True])
+def test_submission_publish_failure_restores_initial_output_and_never_publishes_success_audit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    existing: bool,
+) -> None:
+    from scripts import infer_imu_stage2
+
+    output = tmp_path / "submission.csv"
+    old = b"sentinel-old-output\n"
+    if existing:
+        output.write_bytes(old)
+    audit = tmp_path / "audit"
+    rows, contract = _transaction_payload()
+    original_replace = infer_imu_stage2.os.replace
+
+    def fail_submission(source: object, destination: object) -> None:
+        if Path(destination) == output:
+            raise OSError("injected submission publish failure")
+        original_replace(source, destination)
+
+    monkeypatch.setattr(infer_imu_stage2.os, "replace", fail_submission)
+    with pytest.raises(OSError, match="submission publish"):
+        infer_imu_stage2._publish_success_transaction(
+            output,
+            rows,
+            contract,
+            audit,
+            [],
+            [],
+            {"status": "success", "exit_code": 0},
+            overwrite=existing,
+        )
+
+    assert output.read_bytes() == old if existing else not output.exists()
+    assert not list(audit.rglob("inference_summary.json")) if audit.exists() else True
+    assert not list(tmp_path.rglob("*.tmp-*"))
+    assert not list(tmp_path.rglob("*.staging-*"))
+    assert not list(tmp_path.rglob("*.backup-*"))
+
+
+@pytest.mark.parametrize("existing", [False, True])
+def test_success_audit_publish_failure_rolls_back_submission(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    existing: bool,
+) -> None:
+    from scripts import infer_imu_stage2
+
+    output = tmp_path / "submission.csv"
+    old = b"sentinel-old-output\n"
+    if existing:
+        output.write_bytes(old)
+    audit = tmp_path / "audit"
+    rows, contract = _transaction_payload()
+    original_replace = infer_imu_stage2.os.replace
+
+    def fail_audit(source: object, destination: object) -> None:
+        destination_path = Path(destination)
+        if destination_path.parent == audit and not destination_path.name.startswith("."):
+            raise OSError("injected audit publish failure")
+        original_replace(source, destination)
+
+    monkeypatch.setattr(infer_imu_stage2.os, "replace", fail_audit)
+    with pytest.raises(OSError, match="audit publish"):
+        infer_imu_stage2._publish_success_transaction(
+            output,
+            rows,
+            contract,
+            audit,
+            [],
+            [],
+            {"status": "success", "exit_code": 0},
+            overwrite=existing,
+        )
+
+    assert output.read_bytes() == old if existing else not output.exists()
+    assert not list(audit.rglob("inference_summary.json")) if audit.exists() else True
+    assert not list(tmp_path.rglob("*.tmp-*"))
+    assert not list(tmp_path.rglob("*.staging-*"))
+    assert not list(tmp_path.rglob("*.backup-*"))
 
 
 def test_unclassified_exception_is_global_code_two_not_sample_degradation(
@@ -370,10 +577,238 @@ def test_save_intermediates_requires_audit_and_never_writes_placeholders(tmp_pat
     audit = tmp_path / "audit"
     assert main(["--raw-test-root", str(raw), "--output-csv", str(output), "--bundle-root", str(bundle), "--audit-dir", str(audit), "--save-intermediates"]) == 0
     run = next(audit.iterdir())
-    assert len(list(run.rglob("imu_stage2.npz"))) == 1
-    assert len(list(run.rglob("imu_merged.csv"))) == 1
-    unavailable_root = run / "intermediates" / "SM_test_0002"
-    assert not unavailable_root.exists()
+    stage1_root = run / "intermediates" / "stage1"
+    stage2_root = run / "intermediates" / "stage2"
+    assert len(list(stage2_root.rglob("imu_stage2.npz"))) == 1
+    assert len(list(stage1_root.rglob("imu_merged.csv"))) == 1
+    assert not (stage2_root / "SM_test_0002").exists()
+
+
+def test_saved_online_intermediates_have_actual_provenance_and_complete_manifests(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from scripts.infer_imu_stage2 import main
+    from scripts import preprocess_imu_stage2 as stage2_cli
+    from src.data.imu_stage1_bridge import discover_stage1_artifacts
+    from src.data.imu_stage2_contracts import NoUsableGridCellsError
+    from src.data.imu_stage2_io import load_stage2_schema, validate_existing_action
+    from src.inference import imu_stage2_pipeline as pipeline
+
+    bundle = _build_bundle(tmp_path)
+    training_schema_bytes = (bundle / "schema.json").read_bytes()
+    raw = tmp_path / "test"
+    for index in (1, 2):
+        imu = raw / f"SM_test_{index:04d}" / "IMU"
+        imu.mkdir(parents=True)
+        _write_raw_csv(
+            imu / "part1.csv",
+            "2025-01-01 00:00:00.000000000",
+            float(index),
+        )
+    original_stage2 = pipeline.process_stage2_action
+
+    def stage2_with_one_degradation(stage1_result: object, **kwargs: object):
+        if getattr(stage1_result, "sample_id") == "SM_test_0002":
+            raise NoUsableGridCellsError("SM_test_0002", "injected no usable grid")
+        return original_stage2(stage1_result, **kwargs)
+
+    monkeypatch.setattr(pipeline, "process_stage2_action", stage2_with_one_degradation)
+    output = tmp_path / "submission.csv"
+    audit = tmp_path / "audit"
+    assert main([
+        "--raw-test-root", str(raw),
+        "--output-csv", str(output),
+        "--bundle-root", str(bundle),
+        "--audit-dir", str(audit),
+        "--save-intermediates",
+    ]) == 0
+
+    run = next(audit.iterdir())
+    stage1_root = run / "intermediates" / "stage1"
+    stage2_root = run / "intermediates" / "stage2"
+    stage1_descriptors = discover_stage1_artifacts(stage1_root)
+    assert [item.sample_id for item in stage1_descriptors] == [
+        "SM_test_0001",
+        "SM_test_0002",
+    ]
+    schema = load_stage2_schema(stage2_root / "schema.json")
+    assert schema["provenance"]["source_stage1_manifest_sha256"] == sha256_file(
+        stage1_root / "manifest.csv"
+    )
+    assert (stage2_root / "schema.json").read_bytes() != training_schema_bytes
+    with (stage2_root / "manifest.csv").open("r", encoding="utf-8-sig", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    assert [row["sample_id"] for row in rows] == ["SM_test_0001"]
+    descriptors_by_id = {item.sample_id: item for item in stage1_descriptors}
+    for row in rows:
+        descriptor = descriptors_by_id[row["sample_id"]]
+        action = stage2_root / Path(row["relative_action_path"])
+        fingerprints = stage2_cli._fingerprints(
+            descriptor, str(schema["contract_sha256"])
+        )
+        validate_existing_action(action, fingerprints)
+        assert (stage2_root / Path(row["stage2_npz_relpath"])).is_file()
+    audit_rows = list(csv.DictReader((run / "inference_manifest.csv").open(encoding="utf-8")))
+    second = next(row for row in audit_rows if row["sample_id"] == "SM_test_0002")
+    assert second["source_status"] == "available"
+    assert second["stage1_status"] == "success"
+    assert second["stage2_status"] == "degraded"
+    assert not (stage2_root / "SM_test_0002" / "imu_stage2.npz").exists()
+
+
+def test_nontrivial_normalization_transforms_only_valid_cells(tmp_path: Path) -> None:
+    from scripts import infer_imu_stage2
+
+    values = np.asarray([[[[5.0] * 16] * 5]], dtype=np.float32)
+    valid = np.zeros((1, 1, 5), dtype=bool)
+    valid[0, 0, 0] = True
+    bundle = Namespace(
+        normalization_arrays={
+            "mean": np.full((5, 16), 1.0, dtype=np.float64),
+            "applied_scale": np.full((5, 16), 2.0, dtype=np.float64),
+        }
+    )
+    normalized = infer_imu_stage2._normalize_batch(
+        {"values": values, "valid_mask": valid}, bundle, torch.device("cpu")
+    )
+
+    result = normalized["values"]
+    assert isinstance(result, torch.Tensor)
+    assert torch.equal(result[0, 0, 0], torch.full((16,), 2.0))
+    assert torch.equal(result[0, 0, 1:], torch.zeros((4, 16)))
+    assert torch.isfinite(result).all()
+
+
+def test_streaming_batcher_flushes_at_budget_without_consuming_next_sample() -> None:
+    from scripts import infer_imu_stage2
+    from src.data.imu_stage2_contracts import InferenceSample, Stage2ActionResult, DataStatus
+
+    events: list[str] = []
+
+    def sample(sample_id: str, length: int) -> InferenceSample:
+        valid = np.ones((length, 5), dtype=bool)
+        result = Stage2ActionResult(
+            sample_id=sample_id,
+            values=np.ones((length, 5, 16), dtype=np.float32),
+            sensor_mask=np.ones(5, dtype=bool),
+            valid_mask=valid,
+            timestamps_ms=np.arange(length, dtype=np.int64) * 100,
+            qc={},
+            status=DataStatus.SUCCESS,
+        )
+        return InferenceSample(sample_id, result, True, True)
+
+    def prepared():
+        for index in range(3):
+            events.append(f"prepare-{index}")
+            yield sample(f"SM_test_{index + 1:04d}", 2)
+
+    config = {"maximum_batch_size": 16, "batch_feature_budget": 2 * 2 * 5 * 16}
+    batches = infer_imu_stage2._streaming_batches(prepared(), config)
+    first = next(batches)
+    events.append("forward-0")
+
+    assert [item.sample_id for item in first] == ["SM_test_0001", "SM_test_0002"]
+    assert events == ["prepare-0", "prepare-1", "forward-0"]
+    second = next(batches)
+    assert [item.sample_id for item in second] == ["SM_test_0003"]
+
+
+@pytest.mark.parametrize(
+    ("lengths", "budget", "expected_sizes"),
+    [
+        ([2, 2, 2], 2 * 2 * 5 * 16, [2, 1]),
+        ([2, 3], 2 * 2 * 5 * 16, [1, 1]),
+        ([5, 1], 2 * 2 * 5 * 16, [1, 1]),
+        ([2, 2, 2], 3 * 2 * 5 * 16, [3]),
+    ],
+)
+def test_streaming_batch_budget_boundaries(
+    lengths: list[int],
+    budget: int,
+    expected_sizes: list[int],
+) -> None:
+    from scripts import infer_imu_stage2
+
+    class Result:
+        def __init__(self, length: int) -> None:
+            self.values = np.empty((length, 5, 16), dtype=np.float32)
+
+    class Sample:
+        def __init__(self, length: int) -> None:
+            self.imu_result = Result(length)
+
+    groups = list(
+        infer_imu_stage2._streaming_batches(
+            (Sample(length) for length in lengths),
+            {"maximum_batch_size": 16, "batch_feature_budget": budget},
+        )
+    )
+    assert [len(group) for group in groups] == expected_sizes
+
+
+def test_submission_bytes_are_partition_independent_and_repeatable(tmp_path: Path) -> None:
+    from scripts import infer_imu_stage2
+    from src.inference.imu_stage2_pipeline import write_submission_atomic
+
+    rows, contract = _transaction_payload()
+    rows = [("SM_test_0001", 2)]
+    outputs: list[bytes] = []
+    for index, budget in enumerate((80, 160, 80)):
+        groups = list(
+            infer_imu_stage2._streaming_batches(
+                [Namespace(imu_result=None)],
+                {"maximum_batch_size": 16, "batch_feature_budget": budget},
+            )
+        )
+        assert [len(group) for group in groups] == [1]
+        output = tmp_path / f"submission-{index}.csv"
+        write_submission_atomic(output, rows, contract)
+        outputs.append(output.read_bytes())
+    assert outputs[0] == outputs[1] == outputs[2]
+
+
+def test_cli_submission_bytes_are_invariant_to_legal_batch_budgets(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from scripts import infer_imu_stage2
+
+    bundle = _build_bundle(tmp_path)
+    raw = tmp_path / "test"
+    for index in (1, 2):
+        imu = raw / f"SM_test_{index:04d}" / "IMU"
+        imu.mkdir(parents=True)
+        _write_raw_csv(
+            imu / "part1.csv",
+            "2025-01-01 00:00:00.000000000",
+            float(index),
+        )
+    outputs: list[bytes] = []
+    summaries: list[dict[str, object]] = []
+    for index, budget in enumerate((80, 320)):
+        config = dict(EXPECTED_INFERENCE_CONFIG)
+        config["batch_feature_budget"] = budget
+        monkeypatch.setattr(infer_imu_stage2, "_validate_config", lambda _bundle, value=config: value)
+        output = tmp_path / f"budget-{index}.csv"
+        code, summary = infer_imu_stage2.run(
+            Namespace(
+                raw_test_root=raw,
+                output_csv=output,
+                bundle_root=bundle,
+                overwrite_output=False,
+                audit_dir=None,
+                save_intermediates=False,
+                device="cpu",
+            )
+        )
+        assert code == 0
+        outputs.append(output.read_bytes())
+        summaries.append(summary)
+    assert summaries[0]["batch_sizes"] == [1, 1]
+    assert summaries[1]["batch_sizes"] == [2]
+    assert outputs[0] == outputs[1]
 
 
 def test_wrapper_forwards_only_explicit_paths_and_packaged_bundle(tmp_path: Path) -> None:
@@ -390,19 +825,22 @@ def test_wrapper_forwards_only_explicit_paths_and_packaged_bundle(tmp_path: Path
             return f"/mnt/{resolved.drive[0].lower()}/{resolved.as_posix()[3:]}"
         return resolved.as_posix()
 
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    wrapper = Path("inference.sh").resolve()
     result = subprocess.run(
         [
             bash,
             "-c",
             f"export PATH={shlex.quote(bash_path(tmp_path))}:\"$PATH\"; "
             f"export CAPTURE={shlex.quote(bash_path(capture))}; "
-            'bash inference.sh "raw root" "output file.csv"',
+            f'bash {shlex.quote(bash_path(wrapper))} "raw root" "output file.csv"',
         ],
-        cwd=Path.cwd(), capture_output=True, text=True, errors="replace",
+        cwd=outside, capture_output=True, text=True, errors="replace",
     )
     assert result.returncode == 0, result.stderr
     forwarded = capture.read_text(encoding="utf-8").splitlines()
     assert forwarded[0].replace("\\", "/").endswith("/scripts/infer_imu_stage2.py")
     assert forwarded[1:] == [
-        "--raw-test-root", "raw root", "--output-csv", "output file.csv", "--bundle-root", bash_path(Path.cwd() / "inference_bundle")
+        "--raw-test-root", "raw root", "--output-csv", "output file.csv", "--bundle-root", bash_path(wrapper.parent / "inference_bundle")
     ]

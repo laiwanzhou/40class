@@ -1138,6 +1138,78 @@ Expected: inference and output-contract tests pass.
 
 ---
 
+### Post-Task12 Audit Repair: Make online publication safe and bounded
+
+This append-only repair does not renumber Task 11-13 and does not begin Task
+13. It is limited to the Task 12 CLI/pipeline, their tests, and this design/plan.
+
+- [ ] **Step 1: RED ordinary-path isolation before all I/O**
+
+Parameterize equal, parent, and child relationships among `raw_test_root`,
+`bundle_root`, `output_csv`, and `audit_dir`. Require code 2, unchanged input
+trees, no output/audit/staging/backup, and spies proving bundle/model loading,
+discovery, preprocessing, submission publication, and audit creation were not
+called. Resolve existing inputs with `strict=True`, planned outputs with
+`strict=False`, and compare path structure rather than string prefixes.
+
+- [ ] **Step 2: RED/GREEN submission and audit publication transaction**
+
+Inject new-output publication failure, overwrite publication failure, and
+final success-audit installation failure. Stage and reread both products,
+retain a backup when overwriting, and expose `status=success, exit_code=0` only
+after both installs succeed. Every managed failure restores the output's exact
+initial state, removes any visible success audit, and cleans invocation-owned
+temporary, staging, and backup paths.
+
+- [ ] **Step 3: RED/GREEN stage-aware diagnostics**
+
+Represent source, Stage 1, and Stage 2 status independently. A typed Stage 2
+degradation retains the successful `Stage1ActionData`, persists it when
+intermediates are requested, publishes no fake Stage 2 NPZ, and leaves the
+seven-error allowlist unchanged. Unknown exceptions continue to escape as
+global failures.
+
+- [ ] **Step 4: RED/GREEN truthful online intermediate roots**
+
+Publish a complete online Stage 1 root and Stage 2 root under the staged audit.
+Generate the Stage 1 manifest first, hash its exact bytes, regenerate the Stage
+2 schema with that source hash, write a deterministic Stage 2 manifest listing
+only successful Stage 2 actions, and run the existing formal validators before
+publication. Never copy the training schema provenance.
+
+- [ ] **Step 5: RED/GREEN bounded incremental preprocessing and inference**
+
+Replace the full-test-set Stage 2 tensor list with deterministic streaming
+preprocessing and immediate batch execution. Compute padded feature cost as
+`prospective_batch_size * prospective_max_T * 5 * 16`; flush at the configured
+budget/maximum batch size, allow one legal over-budget sample only as a
+singleton, and retain `hard_safety_limit_t`. Long-lived state is limited to
+predictions and lightweight audit/manifest/hash rows.
+
+- [ ] **Step 6: Add normal-flow evidence and synchronize contracts**
+
+Record sorted relative POSIX ignored-entry names at root and sample scope. Add
+tests for nonidentity normalization, byte-identical repeat runs, batch-budget
+partition invariance and boundaries, and absolute wrapper invocation from an
+external working directory. Update the design with the same guarantees.
+
+- [ ] **Step 7: Verify and commit independently**
+
+Run Task 11-12 focused tests, all Stage 2 tests, Stage 1 regression, the full
+repository suite, tracked Python compilation for changed files, external-CWD
+CLI help, Bash syntax/forwarding, `git diff --check`, and strict `git fsck`.
+Commit only the allowed files with:
+
+```text
+fix(imu): make online inference publication safe and bounded
+```
+
+Deferred and excluded from this repair: complete symlink/junction/reparse-point
+containment, `part2.csv`/`part02.csv` natural-key tie-breaking, duplicate YAML
+key rejection, and stronger stale-checkpoint cross-binding tests.
+
+---
+
 ### Task 13: Prove offline/online replay equivalence and end-to-end behavior
 
 **Files:**

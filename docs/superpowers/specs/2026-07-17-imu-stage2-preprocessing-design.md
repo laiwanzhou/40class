@@ -855,6 +855,10 @@ accepts names matching `^SM_test_\d{4}$`. Every matching directory becomes a
 descriptor regardless of IMU presence. IDs are unique and naturally sorted.
 Non-samples such as `.claude` are ignored and audited. The observed official
 count of 405 is an acceptance observation, not a hard-coded runtime condition.
+Audit records both root-level ignored entries and ignored entries inside sample
+directories as deterministic, test-root-relative POSIX names; it never records
+machine-specific absolute names, and the recorded count equals both lists'
+combined length.
 
 `RawImuSourceAdapter` then checks `<sample>/IMU`, directory type, recognizable
 CSV presence, and deterministic order. A missing or unusable source produces
@@ -906,6 +910,11 @@ The orchestrator catches these types explicitly. `AssertionError`, `IndexError`,
 `KeyError`, `MemoryError`, unknown `ValueError`/`RuntimeError`, generic
 `Exception`, invariant failures, and model-forward failures are global errors.
 No broad exception handler may disguise a code defect as missing input.
+Source, Stage 1, and Stage 2 progress are recorded independently. In
+particular, a typed Stage 2 degradation retains the successful Stage 1 result,
+reports `source_status=available`, `stage1_status=success`, and
+`stage2_status=degraded`, and may publish that real Stage 1 intermediate without
+inventing a Stage 2 tensor.
 
 ### Inference bundle
 
@@ -943,6 +952,14 @@ batch, and under different legal batch sizes; logits or final decisions must
 meet a predefined model-test tolerance. These tests catch active dropout,
 BatchNorm batch-statistics use, and padding dependence.
 
+`batch_feature_budget` also bounds the pending preprocessed batch, using
+`prospective_batch_size * prospective_max_T * 5 * 16`. The orchestrator
+preprocesses in deterministic sample order, flushes a full pending batch before
+accumulating more samples, runs it immediately, and retains only predictions
+and lightweight audit/provenance rows. It must not retain Stage 2 tensors for
+the full test set. A single legal sample may exceed the feature budget as a
+singleton, but remains subject to `hard_safety_limit_t`.
+
 ### `inference.sh`
 
 The public interface is:
@@ -965,6 +982,13 @@ The default output path must not exist. `--overwrite-output` explicitly allows
 replacement; the old file remains until a same-directory temporary output has
 been reread and fully validated, then `os.replace` publishes it.
 
+Before loading the bundle, discovering samples, reading Stage 1 input, or
+creating any output/audit path, the CLI resolves existing `raw_test_root` and
+`bundle_root` strictly and planned `output_csv` and `audit_dir` non-strictly.
+All four logical paths must be pairwise disjoint under ordinary equal,
+parent, and child relationships. Structural path comparison is required;
+string-prefix comparison is forbidden.
+
 `--audit-dir` must identify a missing or empty directory; repeated runs should
 create unique `run_id` children and never remove unknown files.
 `--save-intermediates` requires an audit directory. Online Stage 1
@@ -972,6 +996,21 @@ intermediates follow the frozen Stage 1 contract, online Stage 2 NPZ/QC follows
 the Stage 2 contract, and inference-only no-modality placeholders are never
 saved as Stage 1 or Stage 2 artifacts. A source-missing sample receives only
 sample-level failure QC.
+Saved intermediates form one complete online Stage 1 root and one complete
+online Stage 2 root. The online Stage 1 manifest includes every successful
+Stage 1 result, including samples whose Stage 2 later degrades. The Stage 2
+manifest lists only real Stage 2 actions. Its schema is regenerated from the
+stable contract with `source_stage1_manifest_sha256` equal to the actual saved
+online manifest; copying training provenance is forbidden. Both roots are
+reread through the formal validators before publication.
+
+Submission and final audit use one rollback-capable publication transaction.
+The success audit (`status=success`, `exit_code=0`) is not visible until the
+validated submission has been installed and the staged audit directory can be
+installed. Any controlled failure removes a newly installed output or restores
+the previous bytes, removes the staged/success audit, and cleans invocation-owned
+staging/backup paths. This is a consistency guarantee across the CLI's managed
+failure paths, not a claim of cross-filesystem atomicity.
 
 Without full intermediates, audit can store `inference_manifest.csv`,
 `processing.log`, `problematic_sample_qc.json`, and
@@ -1001,6 +1040,12 @@ and output roots, path traversal, links outside the action/sample root, and
 cleanup outside the resolved output root. Staging, backup, and destination
 must share the same output root and filesystem; containment is rechecked before
 delete or restore. No non-empty root or unknown file is automatically removed.
+
+The post-Task12 repair enforces the ordinary equal/parent/child path gate above.
+Complete online symlink, junction, and reparse-point containment remains a
+separate deferred hardening item, together with natural-key tie-breaking for
+names such as `part2.csv` versus `part02.csv`, duplicate YAML-key rejection,
+and stronger stale-checkpoint cross-binding tests.
 
 NPZ always loads with `allow_pickle=False`; shapes, dtypes, and length limits
 are validated before large allocation. Formal runs hash input CSV or accepted

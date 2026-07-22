@@ -82,6 +82,18 @@ INFERENCE_CONFIG_CONTRACT = {
 class TestSampleDiscoveryResult:
     samples: tuple[TestSampleDescriptor, ...]
     ignored_entries: tuple[str, ...]
+    sample_ignored_entries: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class InferencePreprocessDiagnostics:
+    sample: InferenceSample
+    source_status: str
+    stage1_status: str
+    stage2_status: str
+    stage1_result: Stage1ActionData | None
+    stage2_result: object | None
+    degradation_error: Exception | None
 
 
 @dataclass(frozen=True)
@@ -311,6 +323,7 @@ def discover_test_samples(test_root: Path) -> TestSampleDiscoveryResult:
         raise NotADirectoryError(root)
     samples: list[TestSampleDescriptor] = []
     ignored: list[str] = []
+    sample_ignored: list[str] = []
     seen_ids: set[str] = set()
     for entry in sorted(root.iterdir(), key=lambda path: _natural_key(path.name)):
         if entry.is_dir() and SAMPLE_ID_PATTERN.fullmatch(entry.name):
@@ -324,10 +337,25 @@ def discover_test_samples(test_root: Path) -> TestSampleDiscoveryResult:
                     source_relative_path=Path(entry.name),
                 )
             )
+            for child in sorted(entry.iterdir(), key=lambda path: _natural_key(path.name)):
+                if child.name != "IMU":
+                    sample_ignored.append(child.relative_to(root).as_posix())
+                    continue
+                if child.is_dir():
+                    for imu_entry in sorted(
+                        child.iterdir(), key=lambda path: _natural_key(path.name)
+                    ):
+                        if not (
+                            imu_entry.is_file()
+                            and imu_entry.suffix.casefold() == ".csv"
+                        ):
+                            sample_ignored.append(imu_entry.relative_to(root).as_posix())
         else:
             ignored.append(entry.name)
     samples.sort(key=lambda item: _natural_key(item.sample_id))
-    return TestSampleDiscoveryResult(tuple(samples), tuple(ignored))
+    return TestSampleDiscoveryResult(
+        tuple(samples), tuple(ignored), tuple(sorted(sample_ignored, key=_natural_key))
+    )
 
 
 def adapt_raw_imu_source(descriptor: TestSampleDescriptor) -> ImuActionSource:
@@ -376,21 +404,43 @@ def preprocess_inference_sample(
     *,
     hard_safety_limit_t: int = 10_000,
 ) -> InferenceSample:
-    sample, _, _ = preprocess_inference_sample_with_diagnostics(
+    diagnostics = preprocess_inference_sample_with_diagnostics(
         descriptor,
         hard_safety_limit_t=hard_safety_limit_t,
     )
-    return sample
+    return diagnostics.sample
 
 
 def preprocess_inference_sample_with_diagnostics(
     descriptor: TestSampleDescriptor,
     *,
     hard_safety_limit_t: int = 10_000,
-) -> tuple[InferenceSample, Exception | None, Stage1ActionData | None]:
+) -> InferencePreprocessDiagnostics:
     try:
         source = adapt_raw_imu_source(descriptor)
+    except DEGRADABLE_ERROR_TYPES as error:
+        return InferencePreprocessDiagnostics(
+            sample=InferenceSample(descriptor.sample_id, None, False, False),
+            source_status="unavailable",
+            stage1_status="unavailable",
+            stage2_status="unavailable",
+            stage1_result=None,
+            stage2_result=None,
+            degradation_error=error,
+        )
+    try:
         stage1 = process_raw_imu_source(source)
+    except DEGRADABLE_ERROR_TYPES as error:
+        return InferencePreprocessDiagnostics(
+            sample=InferenceSample(descriptor.sample_id, None, False, False),
+            source_status="available",
+            stage1_status="degraded",
+            stage2_status="unavailable",
+            stage1_result=None,
+            stage2_result=None,
+            degradation_error=error,
+        )
+    try:
         result = process_stage2_action(
             stage1,
             hard_safety_limit_t=hard_safety_limit_t,
@@ -403,26 +453,30 @@ def preprocess_inference_sample_with_diagnostics(
                 descriptor.sample_id,
                 "Stage 2 has no usable grid cells",
             )
-        return (
-            InferenceSample(
+        sample = InferenceSample(
                 sample_id=descriptor.sample_id,
                 imu_result=result,
                 imu_available=True,
                 modality_mask=True,
-            ),
-            None,
-            stage1,
+        )
+        return InferencePreprocessDiagnostics(
+            sample=sample,
+            source_status="available",
+            stage1_status="success",
+            stage2_status="success",
+            stage1_result=stage1,
+            stage2_result=result,
+            degradation_error=None,
         )
     except DEGRADABLE_ERROR_TYPES as error:
-        return (
-            InferenceSample(
-                sample_id=descriptor.sample_id,
-                imu_result=None,
-                imu_available=False,
-                modality_mask=False,
-            ),
-            error,
-            None,
+        return InferencePreprocessDiagnostics(
+            sample=InferenceSample(descriptor.sample_id, None, False, False),
+            source_status="available",
+            stage1_status="success",
+            stage2_status="degraded",
+            stage1_result=stage1,
+            stage2_result=None,
+            degradation_error=error,
         )
 
 
