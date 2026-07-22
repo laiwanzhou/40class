@@ -1,0 +1,11 @@
+config_version: imu-stage2-loader-v1
+hard_safety_limit_t: 10000
+bucket_boundaries: [24, 48, 64, 96, 128, 192, 256]
+batch_feature_budget: 327680
+maximum_batch_size: 16
+minimum_batch_size: 1
+shuffle_seed: 20260715
+drop_last: false
+embedding_dim: 128
+tcn_channels: [64, 128]
+dropout: 0.2
