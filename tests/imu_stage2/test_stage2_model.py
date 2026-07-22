@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import copy
+from pathlib import Path
 
 import pytest
 import torch
+import yaml
 
 
 MODEL_INVARIANCE_ATOL = 1e-6
@@ -167,3 +169,32 @@ def test_checkpoint_metadata_requires_all_six_hashes_and_derived_class_count() -
             build_checkpoint_metadata(num_classes=7, **invalid)
     with pytest.raises(ValueError, match="num_classes"):
         build_checkpoint_metadata(num_classes=0, **bindings)
+
+
+def test_training_modality_dropout_produces_null_embedding_gradient() -> None:
+    from src.models.imu_stage2_tcn import IMUStage2Classifier
+
+    model = IMUStage2Classifier(
+        num_classes=7,
+        embedding_dim=32,
+        channels=(16, 24),
+        dropout=0.0,
+        modality_dropout=1.0,
+    ).train()
+
+    result = model(_batch())
+    torch.nn.functional.cross_entropy(
+        result["logits"],
+        torch.tensor([0, 1], dtype=torch.int64),
+    ).backward()
+
+    assert model.null_embedding.grad is not None
+    assert torch.count_nonzero(model.null_embedding.grad).item() > 0
+
+
+def test_v1_model_config_enables_controlled_modality_dropout() -> None:
+    config = yaml.safe_load(
+        Path("configs/task03/imu_stage2_v1.yaml").read_text(encoding="utf-8")
+    )
+
+    assert 0.0 < float(config["imu_modality_dropout"]) < 1.0

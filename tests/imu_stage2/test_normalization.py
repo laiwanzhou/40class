@@ -32,6 +32,89 @@ def _sample_values(base: float, length: int = 2) -> np.ndarray:
     return values
 
 
+def _pipeline_contract_fixture(tmp_path: Path) -> dict[str, Path]:
+    from scripts.build_imu_training_index import generate_training_index_artifacts
+    from src.data.imu_stage2_io import build_stage2_schema
+
+    stage2_root = tmp_path / "stage2"
+    stage2_root.mkdir()
+    manifest = pd.DataFrame(
+        [
+            {
+                "sample_id": "train",
+                "class_id": "10",
+                "class_name": "Ten",
+                "user_id": "u_train",
+                "action_id": "a1",
+                "stage2_npz_relpath": "train/imu_stage2.npz",
+                "status": "success",
+                "imu_usable": "True",
+                "sensor_mask": "[True, True, True, True, True]",
+                "usable_sensor_mask": "[True, True, True, True, True]",
+            },
+            {
+                "sample_id": "validation",
+                "class_id": "30",
+                "class_name": "Thirty",
+                "user_id": "u_val",
+                "action_id": "a2",
+                "stage2_npz_relpath": "validation/imu_stage2.npz",
+                "status": "success",
+                "imu_usable": "True",
+                "sensor_mask": "[True, True, True, True, True]",
+                "usable_sensor_mask": "[True, True, True, True, True]",
+            },
+        ]
+    )
+    manifest_path = stage2_root / "manifest.csv"
+    manifest.to_csv(manifest_path, index=False, encoding="utf-8-sig")
+    schema = build_stage2_schema(
+        {
+            "implementation_version": "fixture",
+            "generator_script": "scripts/preprocess_imu_stage2.py",
+            "git_commit": "0" * 40,
+            "created_at": "2026-07-22T00:00:00Z",
+            "source_stage1_manifest": "manifest.csv",
+            "source_stage1_manifest_sha256": "a" * 64,
+        }
+    )
+    schema_path = stage2_root / "schema.json"
+    schema_path.write_text(json.dumps(schema), encoding="utf-8")
+    _write_npz(
+        stage2_root / "train" / "imu_stage2.npz",
+        _sample_values(1.0),
+        np.ones((2, 5), dtype=bool),
+    )
+    _write_npz(
+        stage2_root / "validation" / "imu_stage2.npz",
+        _sample_values(100.0),
+        np.ones((2, 5), dtype=bool),
+    )
+    split_path = tmp_path / "fold.json"
+    split_path.write_text(
+        json.dumps(
+            {"fold": 0, "train_users": ["u_train"], "val_users": ["u_val"]}
+        ),
+        encoding="utf-8",
+    )
+    index_dir = tmp_path / "index"
+    generate_training_index_artifacts(
+        manifest_path,
+        index_dir,
+        split_path,
+        repository_root=tmp_path,
+    )
+    return {
+        "stage2_root": stage2_root,
+        "manifest": manifest_path,
+        "schema": schema_path,
+        "split": split_path,
+        "class_order": index_dir / "class_order.json",
+        "index": index_dir / "training_index.csv",
+        "metadata": index_dir / "training_index.json",
+    }
+
+
 def test_streaming_moments_matches_float64_population_statistics() -> None:
     from scripts.compute_imu_normalization import StreamingMoments
 
@@ -291,3 +374,110 @@ def test_normalization_rejects_rehashed_incompatible_v1_contract(tmp_path: Path)
                 expected_train_users=["u1", "u2"],
                 expected_source_stage2_manifest_sha256="d" * 64,
             )
+
+
+def test_normalization_cli_requires_source_contract_inputs() -> None:
+    from scripts.compute_imu_normalization import _parser
+
+    with pytest.raises(SystemExit):
+        _parser().parse_args(
+            [
+                "--training-index",
+                "training_index.csv",
+                "--training-index-metadata",
+                "training_index.json",
+                "--stage2-root",
+                "stage2",
+                "--stage2-schema",
+                "stage2/schema.json",
+                "--output-dir",
+                "normalization",
+            ]
+        )
+
+
+def test_normalization_rejects_rehashed_split_tampering_before_npz_read(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from scripts.build_imu_training_index import hash_training_index
+    from scripts.compute_imu_normalization import generate_normalization_artifacts
+
+    fixture = _pipeline_contract_fixture(tmp_path)
+    frame = pd.read_csv(fixture["index"], encoding="utf-8-sig", keep_default_na=False)
+    frame.loc[frame["sample_id"] == "validation", "split"] = "train"
+    frame.to_csv(fixture["index"], index=False, encoding="utf-8-sig")
+    metadata = json.loads(fixture["metadata"].read_text(encoding="utf-8"))
+    metadata["training_index_sha256"] = hash_training_index(frame)
+    train_ids = sorted(frame.loc[frame["split"] == "train", "sample_id"].astype(str))
+    metadata["train_sample_id_sha256"] = hashlib.sha256(
+        "".join(f"{sample_id}\n" for sample_id in train_ids).encode("utf-8")
+    ).hexdigest()
+    metadata["validation_sample_id_sha256"] = hashlib.sha256(b"").hexdigest()
+    fixture["metadata"].write_text(json.dumps(metadata), encoding="utf-8")
+
+    monkeypatch.setattr(
+        "scripts.compute_imu_normalization.compute_normalization",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("NPZ computation ran before source-contract validation")
+        ),
+    )
+    with pytest.raises(ValueError, match="split"):
+        generate_normalization_artifacts(
+            fixture["index"],
+            fixture["metadata"],
+            fixture["stage2_root"],
+            fixture["schema"],
+            tmp_path / "normalization",
+            class_order_path=fixture["class_order"],
+            split_path=fixture["split"],
+            stage2_manifest_path=fixture["manifest"],
+            repository_root=tmp_path,
+        )
+
+
+def test_normalization_binds_actual_stage2_root_manifest(tmp_path: Path) -> None:
+    from scripts.compute_imu_normalization import generate_normalization_artifacts
+
+    fixture = _pipeline_contract_fixture(tmp_path)
+    fixture["manifest"].write_bytes(fixture["manifest"].read_bytes() + b"\n")
+
+    with pytest.raises(ValueError, match="source_stage2_manifest_sha256"):
+        generate_normalization_artifacts(
+            fixture["index"],
+            fixture["metadata"],
+            fixture["stage2_root"],
+            fixture["schema"],
+            tmp_path / "normalization",
+            class_order_path=fixture["class_order"],
+            split_path=fixture["split"],
+            stage2_manifest_path=fixture["manifest"],
+            repository_root=tmp_path,
+        )
+
+
+def test_generate_normalization_validates_sources_and_writes_artifacts(
+    tmp_path: Path,
+) -> None:
+    from scripts.compute_imu_normalization import generate_normalization_artifacts
+
+    fixture = _pipeline_contract_fixture(tmp_path)
+    output = tmp_path / "normalization"
+
+    metadata = generate_normalization_artifacts(
+        fixture["index"],
+        fixture["metadata"],
+        fixture["stage2_root"],
+        fixture["schema"],
+        output,
+        class_order_path=fixture["class_order"],
+        split_path=fixture["split"],
+        stage2_manifest_path=fixture["manifest"],
+        repository_root=tmp_path,
+    )
+
+    assert (output / "imu_normalization.npz").is_file()
+    assert (output / "imu_normalization.json").is_file()
+    assert metadata["provenance"]["source_stage2_manifest_sha256"] == hashlib.sha256(
+        fixture["manifest"].read_bytes()
+    ).hexdigest()

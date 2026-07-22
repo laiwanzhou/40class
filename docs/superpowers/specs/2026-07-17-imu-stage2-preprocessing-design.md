@@ -672,6 +672,11 @@ disjoint. The v1 default split input is the tracked
 `--split-file` override, and always records the selected file's repository-
 relative path and byte-level SHA-256.
 
+The Stage 2 output root is intentionally external to the repository.
+`source_stage2_manifest_path` is therefore Stage-2-root-relative and equals
+`manifest.csv` in v1; it is never interpreted as repository-relative. Its
+byte-level SHA-256 binds the index to the external Stage 2 root.
+
 `training_index.json` records:
 
 ```text
@@ -733,6 +738,14 @@ JSON; `normalization_file_sha256` is the byte-level SHA-256 of
 `imu_normalization.npz`. The inference bundle separately hashes the JSON file
 itself.
 
+Before reading any action NPZ, normalization loads the actual class-order and
+split contracts, validates the complete training-index metadata, rebuilds the
+expected index semantics from the actual `stage2_root/manifest.csv`, and
+requires `stage2_schema == stage2_root/schema.json`. The actual manifest digest
+must equal the training-index declaration and the normalization provenance.
+Dataset construction repeats the Stage 2 root manifest and schema identity
+checks before loading samples.
+
 Loading order is: validate Stage 2 artifact, validate normalization artifact,
 standardize only true valid cells, set invalid real cells to zero, and derive
 `usable_sensor_mask`. The resulting values are entirely finite and zero at
@@ -786,6 +799,13 @@ behaviors:
 - invalid time positions cannot affect final pooling;
 - changing placeholder values under a false mask cannot change logits;
 - adding right padding cannot change logits.
+
+The packaged null embedding is learned through controlled training-time IMU
+modality dropout. V1 records a non-zero dropout probability in the model
+configuration; dropout applies only in training mode, while evaluation and
+inference use the declared `imu_modality_mask` unchanged. A training-level
+gradient test must prove that an unavailable-modality batch produces a
+non-zero gradient for the null embedding.
 
 Input gating, masked convolution, repeated block gating, mask input channels,
 or masked attention are all allowed if they pass invariance tests. Padding

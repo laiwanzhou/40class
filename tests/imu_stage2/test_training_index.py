@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 import pandas as pd
@@ -187,6 +189,7 @@ def test_metadata_binds_manifest_split_class_order_and_behavior(tmp_path: Path) 
         expected_fold=0,
         expected_split_definition_path="fold.json",
         expected_source_manifest_path="manifest.csv",
+        expected_split_definition=_split(),
     )
     unexpected = dict(metadata)
     unexpected["unexpected"] = "value"
@@ -201,6 +204,7 @@ def test_metadata_binds_manifest_split_class_order_and_behavior(tmp_path: Path) 
             expected_fold=0,
             expected_split_definition_path="fold.json",
             expected_source_manifest_path="manifest.csv",
+            expected_split_definition=_split(),
         )
 
     for key, replacement in (
@@ -222,6 +226,7 @@ def test_metadata_binds_manifest_split_class_order_and_behavior(tmp_path: Path) 
                 expected_fold=0,
                 expected_split_definition_path="fold.json",
                 expected_source_manifest_path="manifest.csv",
+                expected_split_definition=_split(),
             )
 
     for key, replacement in (
@@ -247,6 +252,7 @@ def test_metadata_binds_manifest_split_class_order_and_behavior(tmp_path: Path) 
                 expected_fold=0,
                 expected_split_definition_path="fold.json",
                 expected_source_manifest_path="manifest.csv",
+                expected_split_definition=_split(),
             )
 
     tampered_index = index.copy()
@@ -264,6 +270,7 @@ def test_metadata_binds_manifest_split_class_order_and_behavior(tmp_path: Path) 
             expected_fold=0,
             expected_split_definition_path="fold.json",
             expected_source_manifest_path="manifest.csv",
+            expected_split_definition=_split(),
         )
 
     inconsistent = index.copy()
@@ -281,6 +288,7 @@ def test_metadata_binds_manifest_split_class_order_and_behavior(tmp_path: Path) 
             expected_fold=0,
             expected_split_definition_path="fold.json",
             expected_source_manifest_path="manifest.csv",
+            expected_split_definition=_split(),
         )
 
 
@@ -318,3 +326,75 @@ def test_artifact_generation_rejects_a_missing_unselected_npz(tmp_path: Path) ->
             split_path,
             repository_root=tmp_path,
         )
+
+
+def test_cli_accepts_stage2_manifest_outside_repository(tmp_path: Path) -> None:
+    from src.data.imu_stage2_io import build_stage2_schema
+
+    repository_root = Path(__file__).resolve().parents[2]
+    split_path = repository_root / "metadata" / "splits" / "fold_0.json"
+    split = json.loads(split_path.read_text(encoding="utf-8"))
+    stage2_root = tmp_path / "external-datasets" / "new_IMU_stage2"
+    stage2_root.mkdir(parents=True)
+    manifest = pd.DataFrame(
+        [
+            {
+                "sample_id": "external_sample",
+                "class_id": "10",
+                "class_name": "Ten",
+                "user_id": str(split["train_users"][0]),
+                "action_id": "a1",
+                "stage2_npz_relpath": "10/user/a1/imu_stage2.npz",
+                "status": "success",
+                "imu_usable": "True",
+                "sensor_mask": "[True, True, True, True, True]",
+                "usable_sensor_mask": "[True, True, True, True, True]",
+            }
+        ]
+    )
+    manifest_path = stage2_root / "manifest.csv"
+    manifest.to_csv(manifest_path, index=False, encoding="utf-8-sig")
+    schema = build_stage2_schema(
+        {
+            "implementation_version": "fixture",
+            "generator_script": "scripts/preprocess_imu_stage2.py",
+            "git_commit": "0" * 40,
+            "created_at": "2026-07-22T00:00:00Z",
+            "source_stage1_manifest": "manifest.csv",
+            "source_stage1_manifest_sha256": "a" * 64,
+        }
+    )
+    (stage2_root / "schema.json").write_text(json.dumps(schema), encoding="utf-8")
+    artifact = stage2_root / "10" / "user" / "a1" / "imu_stage2.npz"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_bytes(b"fixture")
+    output_dir = tmp_path / "index"
+
+    assert not manifest_path.resolve().is_relative_to(repository_root.resolve())
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(repository_root / "scripts" / "build_imu_training_index.py"),
+            "--stage2-manifest",
+            str(manifest_path),
+            "--output-dir",
+            str(output_dir),
+            "--split-file",
+            str(split_path),
+        ],
+        cwd=repository_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert sorted(path.name for path in output_dir.iterdir()) == [
+        "class_order.json",
+        "training_index.csv",
+        "training_index.json",
+    ]
+    metadata = json.loads(
+        (output_dir / "training_index.json").read_text(encoding="utf-8")
+    )
+    assert metadata["source_stage2_manifest_path"] == "manifest.csv"

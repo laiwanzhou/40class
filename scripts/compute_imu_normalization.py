@@ -19,7 +19,13 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
 
-from scripts.build_imu_training_index import hash_training_index
+from scripts.build_imu_training_index import (
+    _repository_relative,
+    build_training_index,
+    hash_training_index,
+    load_class_order,
+    validate_training_index_metadata,
+)
 from src.data.imu_stage2_contracts import (
     FEATURE_ORDER,
     SENSOR_ORDER,
@@ -438,16 +444,64 @@ def generate_normalization_artifacts(
     stage2_root: Path,
     stage2_schema_path: Path,
     output_dir: Path,
+    *,
+    class_order_path: Path,
+    split_path: Path,
+    stage2_manifest_path: Path,
+    repository_root: Path = REPOSITORY_ROOT,
 ) -> dict[str, object]:
+    stage2_root = Path(stage2_root).resolve(strict=True)
+    stage2_schema_path = Path(stage2_schema_path).resolve(strict=True)
+    stage2_manifest_path = Path(stage2_manifest_path).resolve(strict=True)
+    expected_schema_path = (stage2_root / "schema.json").resolve(strict=True)
+    expected_manifest_path = (stage2_root / "manifest.csv").resolve(strict=True)
+    if stage2_schema_path != expected_schema_path:
+        raise ValueError("stage2_schema must be stage2_root/schema.json")
+    if stage2_manifest_path != expected_manifest_path:
+        raise ValueError("stage2_manifest must be stage2_root/manifest.csv")
+    split_path = Path(split_path).resolve(strict=True)
     training_index = pd.read_csv(
         training_index_path, encoding="utf-8-sig", keep_default_na=False
     )
     metadata = _strict_json(Path(training_index_metadata_path))
-    schema = load_stage2_schema(Path(stage2_schema_path))
-    if metadata.get("training_index_sha256") != hash_training_index(training_index):
-        raise ValueError("training_index_sha256 mismatch")
-    if metadata.get("stage2_contract_sha256") != schema["contract_sha256"]:
-        raise ValueError("stage2_contract_sha256 mismatch")
+    schema = load_stage2_schema(stage2_schema_path)
+    class_order = load_class_order(Path(class_order_path))
+    split_definition = _strict_json(split_path)
+    source_manifest = pd.read_csv(
+        stage2_manifest_path,
+        encoding="utf-8-sig",
+        keep_default_na=False,
+    )
+    validate_training_index_metadata(
+        metadata,
+        training_index,
+        class_order,
+        expected_source_manifest_sha256=sha256_file(stage2_manifest_path),
+        expected_stage2_contract_sha256=str(schema["contract_sha256"]),
+        expected_split_definition_sha256=sha256_file(split_path),
+        expected_fold=split_definition.get("fold"),
+        expected_split_definition_path=_repository_relative(
+            split_path,
+            repository_root,
+        ),
+        expected_source_manifest_path="manifest.csv",
+        expected_split_definition=split_definition,
+    )
+    expected_index = build_training_index(
+        source_manifest,
+        class_order,
+        split_definition,
+    )
+    try:
+        pd.testing.assert_frame_equal(
+            training_index.reset_index(drop=True),
+            expected_index.reset_index(drop=True),
+            check_dtype=False,
+        )
+    except AssertionError as error:
+        raise ValueError(
+            "Training index does not match source manifest and split definition"
+        ) from error
     selected_train = training_index[
         training_index["selected_for_run"].map(_as_bool)
         & (training_index["split"] == "train")
@@ -474,6 +528,9 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--training-index-metadata", type=Path, required=True)
     parser.add_argument("--stage2-root", type=Path, required=True)
     parser.add_argument("--stage2-schema", type=Path, required=True)
+    parser.add_argument("--stage2-manifest", type=Path, required=True)
+    parser.add_argument("--class-order", type=Path, required=True)
+    parser.add_argument("--split-file", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     return parser
 
@@ -486,6 +543,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.stage2_root,
         args.stage2_schema,
         args.output_dir,
+        class_order_path=args.class_order,
+        split_path=args.split_file,
+        stage2_manifest_path=args.stage2_manifest,
     )
     return 0
 

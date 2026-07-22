@@ -369,6 +369,19 @@ def _repository_relative(path: Path, repository_root: Path) -> str:
         raise ValueError("Contract input path must be inside repository root") from error
 
 
+def _stage2_root_relative(path: Path, stage2_root: Path) -> str:
+    try:
+        relative = Path(path).resolve(strict=True).relative_to(
+            Path(stage2_root).resolve(strict=True)
+        )
+    except ValueError as error:
+        raise ValueError("Stage 2 contract path must be inside Stage 2 root") from error
+    return _validate_metadata_relative_path(
+        relative.as_posix(),
+        "Stage 2 contract path",
+    )
+
+
 def build_training_index_metadata(
     training_index: pd.DataFrame,
     class_order: ClassOrderContract,
@@ -388,8 +401,8 @@ def build_training_index_metadata(
         "fold": split_definition.get("fold"),
         "split_definition_path": _repository_relative(split_path, repository_root),
         "split_definition_sha256": sha256_file(Path(split_path)),
-        "source_stage2_manifest_path": _repository_relative(
-            source_stage2_manifest_path, repository_root
+        "source_stage2_manifest_path": _stage2_root_relative(
+            source_stage2_manifest_path, Path(source_stage2_manifest_path).parent
         ),
         "source_stage2_manifest_sha256": sha256_file(Path(source_stage2_manifest_path)),
         "stage2_contract_sha256": str(stage2_contract_sha256).lower(),
@@ -415,10 +428,15 @@ def validate_training_index_metadata(
     expected_fold: object,
     expected_split_definition_path: str,
     expected_source_manifest_path: str,
+    expected_split_definition: Mapping[str, object],
 ) -> None:
     if set(metadata) != TRAINING_METADATA_KEYS:
         raise ValueError("Training index metadata keys do not match contract")
     _validate_training_index_semantics(training_index, class_order)
+    _validate_training_index_split_membership(
+        training_index,
+        expected_split_definition,
+    )
     train_ids = training_index.loc[training_index["split"] == "train", "sample_id"]
     validation_ids = training_index.loc[
         training_index["split"] == "validation", "sample_id"
@@ -461,7 +479,7 @@ def validate_training_index_metadata(
 def _validate_metadata_relative_path(value: str, name: str) -> str:
     path = Path(str(value))
     if path.is_absolute() or not path.parts or ".." in path.parts or "\\" in str(value):
-        raise ValueError(f"{name} must be a safe repository-relative POSIX path")
+        raise ValueError(f"{name} must be a safe relative POSIX path")
     return path.as_posix()
 
 
@@ -523,6 +541,29 @@ def _validate_training_index_semantics(
         raise ValueError("Training index train and validation users are not disjoint")
 
 
+def _validate_training_index_split_membership(
+    training_index: pd.DataFrame,
+    split_definition: Mapping[str, object],
+) -> None:
+    train_users, validation_users = _split_users(split_definition)
+    for row in training_index.to_dict(orient="records"):
+        eligible = _parse_bool(
+            row["eligible_for_strict_training"],
+            "eligible_for_strict_training",
+        )
+        user_id = str(row["user_id"])
+        expected_split = ""
+        if eligible and user_id in train_users:
+            expected_split = "train"
+        elif eligible and user_id in validation_users:
+            expected_split = "validation"
+        if str(row["split"]) != expected_split:
+            raise ValueError("Training index split contradicts split definition")
+        selected = _parse_selected_bool(row["selected_for_run"])
+        if selected != bool(expected_split):
+            raise ValueError("Training index selection contradicts split definition")
+
+
 def _validate_manifest_artifacts(training_index: pd.DataFrame, stage2_root: Path) -> None:
     root = Path(stage2_root).resolve(strict=True)
     for relpath in training_index.loc[
@@ -566,7 +607,6 @@ def generate_training_index_artifacts(
     output_dir = Path(output_dir)
     if output_dir.exists() and (not output_dir.is_dir() or any(output_dir.iterdir())):
         raise FileExistsError("Training index output directory must be missing or empty")
-    output_dir.mkdir(parents=True, exist_ok=True)
     manifest = pd.read_csv(stage2_manifest_path, encoding="utf-8-sig", keep_default_na=False)
     split_definition = _strict_json(split_path)
     schema = load_stage2_schema(stage2_manifest_path.parent / "schema.json")
@@ -582,6 +622,7 @@ def generate_training_index_artifacts(
         stage2_contract_sha256=str(schema["contract_sha256"]),
         repository_root=repository_root,
     )
+    output_dir.mkdir(parents=True, exist_ok=True)
     write_json_atomic(output_dir / "class_order.json", class_order.to_payload())
     _write_csv_atomic(output_dir / "training_index.csv", training_index)
     write_json_atomic(output_dir / "training_index.json", metadata)

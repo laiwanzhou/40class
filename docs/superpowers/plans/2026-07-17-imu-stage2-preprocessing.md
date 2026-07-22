@@ -667,6 +667,8 @@ Task 7 without separate authorization.
 - Produces: `build_class_order(stage2_manifest: pd.DataFrame) -> ClassOrderContract`, `build_training_index()`, `hash_training_index()`.
 - Writes: `class_order.json`, `training_index.csv`, `training_index.json`.
 - CLI requires `--stage2-manifest` and `--output-dir`; `--split-file` defaults to the tracked `metadata/splits/fold_0.json`.
+- Records `source_stage2_manifest_path=manifest.csv` relative to the external
+  Stage 2 root; only the split path is repository-relative.
 
 - [ ] **Step 1: Add RED tests for label mapping and strict eligibility**
 
@@ -727,7 +729,10 @@ Expected: all index tests pass with no user overlap.
 **Interfaces:**
 - Produces: `StreamingMoments`, `compute_normalization()`, `validate_normalization_artifacts()`.
 - Writes: `imu_normalization.npz`, `imu_normalization.json`.
-- CLI requires `--training-index`, `--training-index-metadata`, `--stage2-root`, `--stage2-schema`, and a fresh `--output-dir`; it never infers a fold or sample set from directory names.
+- CLI requires `--training-index`, `--training-index-metadata`, `--stage2-root`,
+  `--stage2-schema`, `--stage2-manifest`, `--class-order`, `--split-file`, and a
+  fresh `--output-dir`; it never infers a fold or sample set from directory
+  names.
 
 - [ ] **Step 1: Add numerical and leakage RED tests**
 
@@ -795,6 +800,7 @@ drop_last: false
 embedding_dim: 128
 tcn_channels: [64, 128]
 dropout: 0.2
+imu_modality_dropout: 0.1
 ```
 
 - [ ] **Step 1: Add valid-only normalization and padding RED tests**
@@ -880,6 +886,9 @@ each with its own `sequence_mask & valid_mask[:,:,s]`, fuse only sensors where
 `usable_sensor_mask` is true, and select a packaged learned null embedding when
 `imu_modality_mask` is false. Mask padded outputs after biased temporal blocks.
 Return logits without applying softmax.
+Apply controlled IMU modality dropout only in training mode so the packaged
+null embedding receives gradient even though strict v1 indexed samples all
+have usable IMU. Evaluation and inference must not apply this dropout.
 Create checkpoint metadata only through `build_checkpoint_metadata()` and
 require all six approved digests plus the derived class count; missing or empty
 bindings fail before checkpoint serialization.
@@ -898,6 +907,27 @@ git commit -m "feat(imu): add mask-aware stage 2 classifier"
 ```
 
 Expected: model shape and invariance tests pass.
+
+---
+
+### Post-Task10 Audit Fix: Bind training artifacts to the external Stage 2 root
+
+This independent fix closes the pre-Task11 audit findings without renumbering
+Tasks 1-15. It must:
+
+- prove the Task 7 CLI accepts `manifest.csv` from the external Stage 2 root;
+- validate Task 8 against the actual class order, split, manifest, root schema,
+  and complete training-index contract before reading NPZ data;
+- make Task 9 compare the actual `stage2_root/manifest.csv` digest with both
+  training metadata and normalization provenance;
+- train the Task 10 null embedding through controlled modality dropout and
+  preserve deterministic evaluation behavior;
+- cache validated NPZ lengths while revalidating after a file identity change;
+- run RED, focused Tasks 7-10 tests, all Stage 2 tests, Stage 1 regression, the
+  full repository suite, `py_compile`, and `git diff --check`;
+- land as one independent local commit and not begin Task 11.
+
+Task 11 remains blocked until this audit fix passes independent review.
 
 ---
 

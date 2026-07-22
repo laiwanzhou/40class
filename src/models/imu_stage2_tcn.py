@@ -93,13 +93,17 @@ class IMUStage2Classifier(nn.Module):
         embedding_dim: int = 128,
         channels: Sequence[int] = (64, 128),
         dropout: float = 0.2,
+        modality_dropout: float = 0.1,
     ) -> None:
         super().__init__()
         if isinstance(num_classes, bool) or not isinstance(num_classes, int) or num_classes < 1:
             raise ValueError("num_classes must be a positive derived integer")
         if not channels or any(int(channel) < 1 for channel in channels):
             raise ValueError("channels must contain positive integers")
+        if not 0.0 <= float(modality_dropout) <= 1.0:
+            raise ValueError("modality_dropout must be between 0 and 1")
         self.num_classes = num_classes
+        self.modality_dropout = float(modality_dropout)
         self.sensor_encoders = nn.ModuleList(
             [_SensorEncoder(channels, dropout) for _ in range(5)]
         )
@@ -136,6 +140,15 @@ class IMUStage2Classifier(nn.Module):
             raise ValueError("usable_sensor_mask must have shape [B,5]")
         if modality_mask.shape != (values.shape[0],):
             raise ValueError("imu_modality_mask must have shape [B]")
+        if self.training and self.modality_dropout > 0.0:
+            if self.modality_dropout == 1.0:
+                retained_modality = torch.zeros_like(modality_mask)
+            else:
+                retained_modality = torch.rand(
+                    modality_mask.shape,
+                    device=modality_mask.device,
+                ) >= self.modality_dropout
+            modality_mask = modality_mask & retained_modality
         observation_mask = valid_mask & sequence_mask.unsqueeze(-1)
         gated_values = torch.where(
             observation_mask.unsqueeze(-1), values, torch.zeros_like(values)

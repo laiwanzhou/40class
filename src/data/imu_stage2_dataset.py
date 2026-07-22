@@ -15,7 +15,11 @@ from torch.utils.data import Dataset, Sampler
 
 from scripts.build_imu_training_index import hash_training_index
 from scripts.compute_imu_normalization import validate_normalization_artifacts
-from src.data.imu_stage2_contracts import DataStatus, SequenceLengthSafetyError
+from src.data.imu_stage2_contracts import (
+    DataStatus,
+    SequenceLengthSafetyError,
+    sha256_file,
+)
 from src.data.imu_stage2_io import load_and_validate_npz, load_stage2_schema
 
 
@@ -116,13 +120,23 @@ class IMUStage2Dataset(Dataset[dict[str, object]]):
         hard_safety_limit_t: int,
         split: str | None = None,
     ) -> None:
-        schema = load_stage2_schema(Path(stage2_schema))
+        self.stage2_root = Path(stage2_root).resolve(strict=True)
+        stage2_schema = Path(stage2_schema).resolve(strict=True)
+        expected_schema = (self.stage2_root / "schema.json").resolve(strict=True)
+        if stage2_schema != expected_schema:
+            raise ValueError("stage2_schema must be stage2_root/schema.json")
+        schema = load_stage2_schema(stage2_schema)
         contract_limit = int(schema["contract"]["hard_safety_limit_t"])
         if hard_safety_limit_t != contract_limit:
             raise ValueError("hard_safety_limit_t does not match Stage 2 contract")
         self.hard_safety_limit_t = hard_safety_limit_t
-        self.stage2_root = Path(stage2_root).resolve(strict=True)
         metadata = _load_metadata(training_index_metadata)
+        manifest_path = (self.stage2_root / "manifest.csv").resolve(strict=True)
+        if metadata.get("source_stage2_manifest_path") != "manifest.csv":
+            raise ValueError("source_stage2_manifest_path mismatch")
+        actual_manifest_sha256 = sha256_file(manifest_path)
+        if metadata.get("source_stage2_manifest_sha256") != actual_manifest_sha256:
+            raise ValueError("source_stage2_manifest_sha256 mismatch")
         if isinstance(training_index, pd.DataFrame):
             frame = training_index.copy()
         else:
@@ -161,9 +175,7 @@ class IMUStage2Dataset(Dataset[dict[str, object]]):
             expected_train_sample_id_sha256=actual_train_sample_sha256,
             expected_fold=metadata.get("fold"),
             expected_train_users=selected_train["user_id"].astype(str).unique().tolist(),
-            expected_source_stage2_manifest_sha256=str(
-                metadata["source_stage2_manifest_sha256"]
-            ),
+            expected_source_stage2_manifest_sha256=actual_manifest_sha256,
         )
         frame = frame[frame["selected_for_run"].map(_as_bool)]
         if split is not None:
@@ -173,6 +185,7 @@ class IMUStage2Dataset(Dataset[dict[str, object]]):
         if frame["sample_id"].astype(str).duplicated().any():
             raise ValueError("Dataset sample_id values must be unique")
         self._rows = frame.to_dict(orient="records")
+        self._length_cache: dict[int, tuple[tuple[int, int, int, int], int]] = {}
 
     def __len__(self) -> int:
         return len(self._rows)
@@ -190,10 +203,29 @@ class IMUStage2Dataset(Dataset[dict[str, object]]):
 
     def sequence_length(self, index: int) -> int:
         row = self._rows[index]
-        return _validate_npz_headers(
-            self._artifact_path(row),
+        path = self._artifact_path(row)
+        signature = self._artifact_signature(path)
+        cached = self._length_cache.get(index)
+        if cached is not None and cached[0] == signature:
+            return cached[1]
+        length = _validate_npz_headers(
+            path,
             sample_id=str(row["sample_id"]),
             hard_safety_limit_t=self.hard_safety_limit_t,
+        )
+        if self._artifact_signature(path) != signature:
+            raise ValueError("Stage 2 NPZ changed during header validation")
+        self._length_cache[index] = (signature, length)
+        return length
+
+    @staticmethod
+    def _artifact_signature(path: Path) -> tuple[int, int, int, int]:
+        stat = path.stat()
+        return (
+            int(stat.st_dev),
+            int(stat.st_ino),
+            int(stat.st_size),
+            int(stat.st_mtime_ns),
         )
 
     @property

@@ -35,6 +35,7 @@ def _normalization(
     *,
     training_index_sha256: str,
     train_sample_id_sha256: str,
+    source_stage2_manifest_sha256: str,
 ) -> tuple[Path, Path, dict[str, object]]:
     from scripts.compute_imu_normalization import StreamingMoments, write_normalization_artifacts
 
@@ -52,7 +53,7 @@ def _normalization(
         train_sample_id_sha256=train_sample_id_sha256,
         fold=0,
         train_users=["u1"],
-        source_stage2_manifest_sha256="d" * 64,
+        source_stage2_manifest_sha256=source_stage2_manifest_sha256,
     )
     return output / "imu_normalization.npz", output / "imu_normalization.json", metadata
 
@@ -81,6 +82,7 @@ def _dataset(
     *,
     hard_safety_limit_t: int = 10_000,
     metadata_index_mismatch: bool = False,
+    tamper_manifest: bool = False,
 ):
     from src.data.imu_stage2_dataset import IMUStage2Dataset
     from scripts.build_imu_training_index import hash_training_index
@@ -89,6 +91,9 @@ def _dataset(
     stage2_root.mkdir(parents=True)
     schema_path = stage2_root / "schema.json"
     schema = _write_schema(schema_path)
+    manifest_path = stage2_root / "manifest.csv"
+    manifest_path.write_text("sample_id\ns0\ns1\n", encoding="utf-8")
+    manifest_sha256 = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
     rows = []
     for index, length in enumerate(lengths):
         values = np.full((length, 5, 16), 3.0 + index, dtype=np.float32)
@@ -120,16 +125,20 @@ def _dataset(
         schema,
         training_index_sha256=training_index_sha256,
         train_sample_id_sha256=train_sample_id_sha256,
+        source_stage2_manifest_sha256=manifest_sha256,
     )
     metadata = {
         "stage2_contract_sha256": schema["contract_sha256"],
         "training_index_sha256": training_index_sha256,
         "train_sample_id_sha256": train_sample_id_sha256,
         "fold": 0,
-        "source_stage2_manifest_sha256": "d" * 64,
+        "source_stage2_manifest_path": "manifest.csv",
+        "source_stage2_manifest_sha256": manifest_sha256,
     }
     if metadata_index_mismatch:
         frame.loc[0, "label_index"] = 999
+    if tamper_manifest:
+        manifest_path.write_text("sample_id\nother\n", encoding="utf-8")
     return IMUStage2Dataset(
         frame,
         stage2_root=stage2_root,
@@ -187,6 +196,13 @@ def test_dataset_rejects_training_index_not_bound_to_normalization(tmp_path: Pat
         _dataset(tmp_path, metadata_index_mismatch=True)
 
 
+def test_dataset_rejects_stage2_root_manifest_not_bound_to_metadata(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(ValueError, match="source_stage2_manifest_sha256"):
+        _dataset(tmp_path, tamper_manifest=True)
+
+
 def test_dataset_validates_all_npz_headers_before_loading_arrays(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -209,6 +225,37 @@ def test_dataset_validates_all_npz_headers_before_loading_arrays(
     monkeypatch.setattr(imu_stage2_dataset, "load_and_validate_npz", must_not_load)
     with pytest.raises(ValueError, match="valid_mask"):
         dataset[0]
+
+
+def test_dataset_caches_validated_length_until_artifact_changes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.data import imu_stage2_dataset
+
+    calls = 0
+    original = imu_stage2_dataset._validate_npz_headers
+
+    def counted(*args: object, **kwargs: object) -> int:
+        nonlocal calls
+        calls += 1
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(imu_stage2_dataset, "_validate_npz_headers", counted)
+    dataset = _dataset(tmp_path, lengths=(2,))
+
+    assert dataset.lengths == [2]
+    assert dataset[0]["length"] == 2
+    assert calls == 1
+
+    artifact = tmp_path / "stage2" / "s0" / "imu_stage2.npz"
+    _write_action(
+        artifact,
+        np.ones((3, 5, 16), dtype=np.float32),
+        np.ones((3, 5), dtype=bool),
+    )
+    assert dataset.sequence_length(0) == 3
+    assert calls == 2
 
 
 def test_length_bucket_sampler_is_deterministic_budgeted_and_complete() -> None:
