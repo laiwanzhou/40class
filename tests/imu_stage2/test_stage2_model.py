@@ -172,15 +172,18 @@ def test_checkpoint_metadata_requires_all_six_hashes_and_derived_class_count() -
 
 
 def test_training_modality_dropout_produces_null_embedding_gradient() -> None:
-    from src.models.imu_stage2_tcn import IMUStage2Classifier
+    from src.models.imu_stage2_tcn import build_imu_stage2_model
 
-    model = IMUStage2Classifier(
-        num_classes=7,
+    config = yaml.safe_load(
+        Path("configs/task03/imu_stage2_v1.yaml").read_text(encoding="utf-8")
+    )
+    config.update(
         embedding_dim=32,
-        channels=(16, 24),
+        tcn_channels=[16, 24],
         dropout=0.0,
-        modality_dropout=1.0,
-    ).train()
+        imu_modality_dropout=1.0,
+    )
+    model = build_imu_stage2_model(config, num_classes=7).train()
 
     result = model(_batch())
     torch.nn.functional.cross_entropy(
@@ -188,8 +191,10 @@ def test_training_modality_dropout_produces_null_embedding_gradient() -> None:
         torch.tensor([0, 1], dtype=torch.int64),
     ).backward()
 
-    assert model.null_embedding.grad is not None
-    assert torch.count_nonzero(model.null_embedding.grad).item() > 0
+    gradient = model.null_embedding.grad
+    assert gradient is not None
+    assert torch.isfinite(gradient).all()
+    assert torch.count_nonzero(gradient).item() > 0
 
 
 def test_v1_model_config_enables_controlled_modality_dropout() -> None:
@@ -198,3 +203,100 @@ def test_v1_model_config_enables_controlled_modality_dropout() -> None:
     )
 
     assert 0.0 < float(config["imu_modality_dropout"]) < 1.0
+
+
+def test_production_factory_consumes_all_v1_model_fields() -> None:
+    from src.models import build_imu_stage2_model
+
+    config = yaml.safe_load(
+        Path("configs/task03/imu_stage2_v1.yaml").read_text(encoding="utf-8")
+    )
+    config.update(
+        embedding_dim=37,
+        tcn_channels=[19, 23],
+        dropout=0.17,
+        imu_modality_dropout=0.37,
+    )
+
+    model = build_imu_stage2_model(config, num_classes=7)
+
+    assert model.num_classes == 7
+    assert model.embedding_dim == 37
+    assert model.channels == (19, 23)
+    assert model.dropout_probability == 0.17
+    assert model.modality_dropout == 0.37
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("embedding_dim", None, "embedding_dim"),
+        ("embedding_dim", True, "embedding_dim"),
+        ("embedding_dim", 0, "embedding_dim"),
+        ("tcn_channels", None, "tcn_channels"),
+        ("tcn_channels", [], "tcn_channels"),
+        ("tcn_channels", [16, True], "tcn_channels"),
+        ("tcn_channels", [16, 0], "tcn_channels"),
+        ("dropout", None, "dropout"),
+        ("dropout", True, "dropout"),
+        ("dropout", -0.1, "dropout"),
+        ("dropout", 1.1, "dropout"),
+        ("imu_modality_dropout", None, "imu_modality_dropout"),
+        ("imu_modality_dropout", True, "imu_modality_dropout"),
+        ("imu_modality_dropout", -0.1, "imu_modality_dropout"),
+        ("imu_modality_dropout", 1.1, "imu_modality_dropout"),
+    ],
+)
+def test_production_factory_rejects_invalid_model_fields(
+    field: str,
+    value: object,
+    message: str,
+) -> None:
+    from src.models import build_imu_stage2_model
+
+    config = yaml.safe_load(
+        Path("configs/task03/imu_stage2_v1.yaml").read_text(encoding="utf-8")
+    )
+    if value is None:
+        config.pop(field)
+    else:
+        config[field] = value
+
+    with pytest.raises((KeyError, TypeError, ValueError), match=message):
+        build_imu_stage2_model(config, num_classes=7)
+
+
+@pytest.mark.parametrize("num_classes", [0, -1, True])
+def test_production_factory_rejects_invalid_derived_class_count(num_classes: object) -> None:
+    from src.models import build_imu_stage2_model
+
+    config = yaml.safe_load(
+        Path("configs/task03/imu_stage2_v1.yaml").read_text(encoding="utf-8")
+    )
+    with pytest.raises(ValueError, match="num_classes"):
+        build_imu_stage2_model(config, num_classes=num_classes)  # type: ignore[arg-type]
+
+
+def test_eval_output_is_independent_of_modality_dropout_probability() -> None:
+    from src.models import build_imu_stage2_model
+
+    config = yaml.safe_load(
+        Path("configs/task03/imu_stage2_v1.yaml").read_text(encoding="utf-8")
+    )
+    config.update(embedding_dim=32, tcn_channels=[16, 24], dropout=0.0)
+    torch.manual_seed(77)
+    disabled = build_imu_stage2_model(
+        {**config, "imu_modality_dropout": 0.0}, num_classes=7
+    ).eval()
+    torch.manual_seed(77)
+    forced = build_imu_stage2_model(
+        {**config, "imu_modality_dropout": 1.0}, num_classes=7
+    ).eval()
+
+    with torch.inference_mode():
+        disabled_logits = disabled(_batch())["logits"]
+        forced_logits = forced(_batch())["logits"]
+        repeated_logits = forced(_batch())["logits"]
+
+    _assert_logits_equal(disabled_logits, forced_logits)
+    _assert_logits_equal(forced_logits, repeated_logits)

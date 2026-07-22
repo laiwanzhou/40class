@@ -1,6 +1,7 @@
 from .imu_stage2_tcn import (
     IMUStage2Classifier,
     build_checkpoint_metadata,
+    build_imu_stage2_model,
     predict_label_indices,
 )
 from .tcn import TemporalClassifier
@@ -11,5 +12,6 @@ __all__ = [
     "TemporalClassifier",
     "VisualBaseline",
     "build_checkpoint_metadata",
+    "build_imu_stage2_model",
     "predict_label_indices",
 ]

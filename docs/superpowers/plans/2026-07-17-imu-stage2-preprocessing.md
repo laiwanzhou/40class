@@ -669,6 +669,12 @@ Task 7 without separate authorization.
 - CLI requires `--stage2-manifest` and `--output-dir`; `--split-file` defaults to the tracked `metadata/splits/fold_0.json`.
 - Records `source_stage2_manifest_path=manifest.csv` relative to the external
   Stage 2 root; only the split path is repository-relative.
+- Accepts only the case-sensitive canonical filename `manifest.csv` and fails
+  before publication for any alias.
+- Publishes `class_order.json`, `training_index.csv`, and `training_index.json`
+  as one same-parent staged directory transaction after complete reload and
+  cross-validation; no failure may leave partial output or staging/backup
+  residue.
 
 - [ ] **Step 1: Add RED tests for label mapping and strict eligibility**
 
@@ -858,6 +864,8 @@ Expected: dataset/sampler/collate tests pass.
 
 **Interfaces:**
 - Produces: `IMUStage2Classifier.forward(batch) -> {"embedding", "logits"}`.
+- Produces: `build_imu_stage2_model(config, *, num_classes)` as the sole
+  production constructor for the v1 classifier.
 - Produces: `build_checkpoint_metadata(...) -> dict[str, object]` with Stage 2, training-index, normalization, class-order, submission-contract, and `num_classes` bindings.
 - Consumes: collate output, `imu_modality_mask`, derived `num_classes`, and model fields from `configs/task03/imu_stage2_v1.yaml`.
 
@@ -928,6 +936,27 @@ Tasks 1-15. It must:
 - land as one independent local commit and not begin Task 11.
 
 Task 11 remains blocked until this audit fix passes independent review.
+
+### Post-Task10 Audit Repair: Finalize training publication contracts
+
+This separate repair does not renumber Tasks 1-15 and is not Task 11. It must:
+
+- reject non-canonical Stage 2 manifest filenames before creating output;
+- publish the three Task 07 artifacts through a same-parent staging directory,
+  reload and cross-validate them, then install the complete directory while
+  restoring an originally empty output on failure;
+- expose and export one production model factory that strictly consumes
+  `embedding_dim`, `tcn_channels`, `dropout`, and `imu_modality_dropout` from
+  the v1 YAML plus externally derived `num_classes`;
+- add root A/B normalization and Dataset tamper tests that reject mixed
+  manifests, schemas, metadata, and normalization before NPZ loading;
+- require the null-embedding training gradient to be finite and non-zero and
+  prove eval output is independent of the modality-dropout probability;
+- run RED, focused Tasks 7-10 tests, all Stage 2 tests, Stage 1 regression, the
+  full repository suite, `py_compile`, `git diff --check`, and `git fsck`;
+- land as one appended local commit without push and without starting Task 11.
+
+Task 11 remains blocked until this repair is independently reviewed.
 
 ---
 

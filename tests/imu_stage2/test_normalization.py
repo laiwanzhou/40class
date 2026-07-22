@@ -456,6 +456,47 @@ def test_normalization_binds_actual_stage2_root_manifest(tmp_path: Path) -> None
         )
 
 
+def test_normalization_rejects_cross_root_artifacts_before_npz_load(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from scripts import compute_imu_normalization
+
+    root_a_path = tmp_path / "root_a"
+    root_b_path = tmp_path / "root_b"
+    root_a_path.mkdir()
+    root_b_path.mkdir()
+    root_a = _pipeline_contract_fixture(root_a_path)
+    root_b = _pipeline_contract_fixture(root_b_path)
+    assert json.loads(root_a["schema"].read_text(encoding="utf-8"))[
+        "contract_sha256"
+    ] == json.loads(root_b["schema"].read_text(encoding="utf-8"))["contract_sha256"]
+    root_b["manifest"].write_bytes(root_b["manifest"].read_bytes() + b"\n")
+    assert hashlib.sha256(root_a["manifest"].read_bytes()).hexdigest() != hashlib.sha256(
+        root_b["manifest"].read_bytes()
+    ).hexdigest()
+
+    monkeypatch.setattr(
+        compute_imu_normalization,
+        "load_and_validate_npz",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("cross-root validation reached the NPZ loader")
+        ),
+    )
+    with pytest.raises(ValueError, match="source_stage2_manifest_sha256"):
+        compute_imu_normalization.generate_normalization_artifacts(
+            root_a["index"],
+            root_a["metadata"],
+            root_b["stage2_root"],
+            root_b["schema"],
+            tmp_path / "normalization",
+            class_order_path=root_a["class_order"],
+            split_path=root_a["split"],
+            stage2_manifest_path=root_b["manifest"],
+            repository_root=root_a_path,
+        )
+
+
 def test_generate_normalization_validates_sources_and_writes_artifacts(
     tmp_path: Path,
 ) -> None:

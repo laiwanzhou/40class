@@ -150,6 +150,67 @@ def _dataset(
     )
 
 
+def _dataset_contract_bundle(tmp_path: Path, manifest_marker: str) -> dict[str, object]:
+    from scripts.build_imu_training_index import hash_training_index
+
+    stage2_root = tmp_path / "stage2"
+    stage2_root.mkdir(parents=True)
+    schema_path = stage2_root / "schema.json"
+    schema = _write_schema(schema_path)
+    manifest_path = stage2_root / "manifest.csv"
+    manifest_path.write_text(
+        f"sample_id,marker\ns0,{manifest_marker}\n",
+        encoding="utf-8",
+    )
+    manifest_sha256 = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    frame = pd.DataFrame(
+        [
+            {
+                "sample_id": "s0",
+                "user_id": "u1",
+                "stage2_npz_relpath": "same/path/imu_stage2.npz",
+                "status": "success",
+                "selected_for_run": True,
+                "split": "train",
+                "label_index": 0,
+                "eligible_for_strict_training": True,
+            }
+        ]
+    )
+    _write_action(
+        stage2_root / "same" / "path" / "imu_stage2.npz",
+        np.ones((2, 5, 16), dtype=np.float32),
+        np.ones((2, 5), dtype=bool),
+    )
+    training_index_sha256 = hash_training_index(frame)
+    train_sample_id_sha256 = hashlib.sha256(b"s0\n").hexdigest()
+    normalization_npz, normalization_json, _ = _normalization(
+        tmp_path,
+        schema,
+        training_index_sha256=training_index_sha256,
+        train_sample_id_sha256=train_sample_id_sha256,
+        source_stage2_manifest_sha256=manifest_sha256,
+    )
+    metadata = {
+        "stage2_contract_sha256": schema["contract_sha256"],
+        "training_index_sha256": training_index_sha256,
+        "train_sample_id_sha256": train_sample_id_sha256,
+        "fold": 0,
+        "source_stage2_manifest_path": "manifest.csv",
+        "source_stage2_manifest_sha256": manifest_sha256,
+    }
+    return {
+        "stage2_root": stage2_root,
+        "schema": schema_path,
+        "schema_payload": schema,
+        "manifest": manifest_path,
+        "frame": frame,
+        "metadata": metadata,
+        "normalization_npz": normalization_npz,
+        "normalization_json": normalization_json,
+    }
+
+
 def test_dataset_standardizes_only_valid_cells_and_keeps_full_length(tmp_path: Path) -> None:
     dataset = _dataset(tmp_path)
 
@@ -201,6 +262,68 @@ def test_dataset_rejects_stage2_root_manifest_not_bound_to_metadata(
 ) -> None:
     with pytest.raises(ValueError, match="source_stage2_manifest_sha256"):
         _dataset(tmp_path, tamper_manifest=True)
+
+
+def test_dataset_rejects_cross_root_contract_mixing_before_npz_load(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.data import imu_stage2_dataset
+
+    root_a = _dataset_contract_bundle(tmp_path / "root_a", "A")
+    root_b = _dataset_contract_bundle(tmp_path / "root_b", "B")
+    assert root_a["schema_payload"]["contract_sha256"] == root_b["schema_payload"][
+        "contract_sha256"
+    ]
+
+    positive = imu_stage2_dataset.IMUStage2Dataset(
+        root_a["frame"],
+        stage2_root=root_a["stage2_root"],
+        stage2_schema=root_a["schema"],
+        normalization_npz=root_a["normalization_npz"],
+        normalization_json=root_a["normalization_json"],
+        training_index_metadata=root_a["metadata"],
+        hard_safety_limit_t=10_000,
+    )
+    assert positive[0]["sample_id"] == "s0"
+
+    monkeypatch.setattr(
+        imu_stage2_dataset,
+        "load_and_validate_npz",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("cross-root validation reached the NPZ loader")
+        ),
+    )
+    with pytest.raises(ValueError, match="source_stage2_manifest_sha256"):
+        imu_stage2_dataset.IMUStage2Dataset(
+            root_a["frame"],
+            stage2_root=root_b["stage2_root"],
+            stage2_schema=root_b["schema"],
+            normalization_npz=root_a["normalization_npz"],
+            normalization_json=root_a["normalization_json"],
+            training_index_metadata=root_a["metadata"],
+            hard_safety_limit_t=10_000,
+        )
+    with pytest.raises(ValueError, match="stage2_schema"):
+        imu_stage2_dataset.IMUStage2Dataset(
+            root_a["frame"],
+            stage2_root=root_b["stage2_root"],
+            stage2_schema=root_a["schema"],
+            normalization_npz=root_a["normalization_npz"],
+            normalization_json=root_a["normalization_json"],
+            training_index_metadata=root_a["metadata"],
+            hard_safety_limit_t=10_000,
+        )
+    with pytest.raises(ValueError, match="source_stage2_manifest_sha256"):
+        imu_stage2_dataset.IMUStage2Dataset(
+            root_a["frame"],
+            stage2_root=root_a["stage2_root"],
+            stage2_schema=root_a["schema"],
+            normalization_npz=root_b["normalization_npz"],
+            normalization_json=root_b["normalization_json"],
+            training_index_metadata=root_a["metadata"],
+            hard_safety_limit_t=10_000,
+        )
 
 
 def test_dataset_validates_all_npz_headers_before_loading_arrays(

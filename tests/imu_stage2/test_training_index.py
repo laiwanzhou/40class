@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -67,6 +68,46 @@ def _manifest() -> pd.DataFrame:
 
 def _split() -> dict[str, object]:
     return {"fold": 0, "train_users": ["u_train"], "val_users": ["u_val"]}
+
+
+def _generation_fixture(
+    tmp_path: Path,
+    *,
+    manifest_name: str = "manifest.csv",
+) -> tuple[Path, Path, Path]:
+    from src.data.imu_stage2_io import build_stage2_schema
+
+    stage2_root = tmp_path / "datasets" / "new_IMU_stage2"
+    stage2_root.mkdir(parents=True)
+    manifest = _manifest()
+    manifest_path = stage2_root / manifest_name
+    manifest.to_csv(manifest_path, index=False, encoding="utf-8-sig")
+    schema = build_stage2_schema(
+        {
+            "implementation_version": "fixture",
+            "generator_script": "scripts/preprocess_imu_stage2.py",
+            "git_commit": "0" * 40,
+            "created_at": "2026-07-22T00:00:00Z",
+            "source_stage1_manifest": "manifest.csv",
+            "source_stage1_manifest_sha256": "a" * 64,
+        }
+    )
+    (stage2_root / "schema.json").write_text(json.dumps(schema), encoding="utf-8")
+    for relpath in manifest["stage2_npz_relpath"]:
+        artifact = stage2_root / relpath
+        artifact.parent.mkdir(parents=True, exist_ok=True)
+        artifact.write_bytes(b"fixture")
+    repository_root = tmp_path / "repo"
+    split_path = repository_root / "metadata" / "splits" / "fold_0.json"
+    split_path.parent.mkdir(parents=True)
+    split_path.write_text(json.dumps(_split()), encoding="utf-8")
+    return manifest_path, split_path, repository_root
+
+
+def _assert_no_publication_residue(output_dir: Path) -> None:
+    assert not output_dir.exists() or not any(output_dir.iterdir())
+    assert not list(output_dir.parent.glob(f".{output_dir.name}.staging-*"))
+    assert not list(output_dir.parent.glob(f".{output_dir.name}.backup-*"))
 
 
 def test_class_order_uses_sorted_noncontiguous_ids_and_derived_class_count() -> None:
@@ -398,3 +439,171 @@ def test_cli_accepts_stage2_manifest_outside_repository(tmp_path: Path) -> None:
         (output_dir / "training_index.json").read_text(encoding="utf-8")
     )
     assert metadata["source_stage2_manifest_path"] == "manifest.csv"
+    assert metadata["split_definition_path"] == "metadata/splits/fold_0.json"
+
+
+@pytest.mark.parametrize("manifest_name", ["alternate.csv", "MANIFEST.csv", "Manifest.csv"])
+def test_generation_rejects_noncanonical_stage2_manifest_before_publication(
+    tmp_path: Path,
+    manifest_name: str,
+) -> None:
+    from scripts.build_imu_training_index import generate_training_index_artifacts
+
+    manifest_path, split_path, repository_root = _generation_fixture(
+        tmp_path,
+        manifest_name=manifest_name,
+    )
+    output_dir = tmp_path / "index"
+
+    with pytest.raises(ValueError, match="named exactly manifest.csv"):
+        generate_training_index_artifacts(
+            manifest_path,
+            output_dir,
+            split_path,
+            repository_root=repository_root,
+        )
+
+    _assert_no_publication_residue(output_dir)
+
+
+def test_cli_rejects_noncanonical_stage2_manifest_before_publication(
+    tmp_path: Path,
+) -> None:
+    manifest_path, _, _ = _generation_fixture(
+        tmp_path,
+        manifest_name="alternate.csv",
+    )
+    repository_root = Path(__file__).resolve().parents[2]
+    split_path = repository_root / "metadata" / "splits" / "fold_0.json"
+    output_dir = tmp_path / "index"
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(Path(__file__).resolve().parents[2] / "scripts" / "build_imu_training_index.py"),
+            "--stage2-manifest",
+            str(manifest_path),
+            "--output-dir",
+            str(output_dir),
+            "--split-file",
+            str(split_path),
+        ],
+        cwd=repository_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed.returncode != 0
+    assert "named exactly manifest.csv" in completed.stderr
+    _assert_no_publication_residue(output_dir)
+
+
+def test_transaction_removes_partial_artifacts_when_csv_write_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from scripts import build_imu_training_index
+
+    manifest_path, split_path, repository_root = _generation_fixture(tmp_path)
+    output_dir = tmp_path / "index"
+    monkeypatch.setattr(
+        build_imu_training_index,
+        "_write_csv_atomic",
+        lambda *args, **kwargs: (_ for _ in ()).throw(OSError("injected csv failure")),
+    )
+
+    with pytest.raises(OSError, match="injected csv failure"):
+        build_imu_training_index.generate_training_index_artifacts(
+            manifest_path,
+            output_dir,
+            split_path,
+            repository_root=repository_root,
+        )
+
+    _assert_no_publication_residue(output_dir)
+
+
+def test_transaction_removes_partial_artifacts_when_metadata_write_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from scripts import build_imu_training_index
+
+    manifest_path, split_path, repository_root = _generation_fixture(tmp_path)
+    output_dir = tmp_path / "index"
+    original = build_imu_training_index.write_json_atomic
+    calls = 0
+
+    def fail_second_json(*args: object, **kwargs: object) -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise OSError("injected metadata failure")
+        original(*args, **kwargs)
+
+    monkeypatch.setattr(build_imu_training_index, "write_json_atomic", fail_second_json)
+    with pytest.raises(OSError, match="injected metadata failure"):
+        build_imu_training_index.generate_training_index_artifacts(
+            manifest_path,
+            output_dir,
+            split_path,
+            repository_root=repository_root,
+        )
+
+    _assert_no_publication_residue(output_dir)
+
+
+def test_transaction_cleans_staging_when_cross_validation_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from scripts import build_imu_training_index
+
+    manifest_path, split_path, repository_root = _generation_fixture(tmp_path)
+    output_dir = tmp_path / "index"
+    monkeypatch.setattr(
+        build_imu_training_index,
+        "_validate_staged_training_artifacts",
+        lambda *args, **kwargs: (_ for _ in ()).throw(ValueError("injected staged validation failure")),
+    )
+
+    with pytest.raises(ValueError, match="injected staged validation failure"):
+        build_imu_training_index.generate_training_index_artifacts(
+            manifest_path,
+            output_dir,
+            split_path,
+            repository_root=repository_root,
+        )
+
+    _assert_no_publication_residue(output_dir)
+
+
+def test_transaction_restores_empty_output_when_install_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from scripts import build_imu_training_index
+
+    manifest_path, split_path, repository_root = _generation_fixture(tmp_path)
+    output_dir = tmp_path / "index"
+    output_dir.mkdir()
+    original_replace = os.replace
+
+    def fail_staging_install(source: object, destination: object) -> None:
+        source_path = Path(source)
+        destination_path = Path(destination)
+        if source_path.name.startswith(f".{output_dir.name}.staging-") and destination_path == output_dir:
+            raise OSError("injected install failure")
+        original_replace(source, destination)
+
+    monkeypatch.setattr(build_imu_training_index.os, "replace", fail_staging_install)
+    with pytest.raises(OSError, match="injected install failure"):
+        build_imu_training_index.generate_training_index_artifacts(
+            manifest_path,
+            output_dir,
+            split_path,
+            repository_root=repository_root,
+        )
+
+    _assert_no_publication_residue(output_dir)

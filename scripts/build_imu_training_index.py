@@ -5,10 +5,12 @@ import ast
 import hashlib
 import json
 import os
+import shutil
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping, Sequence
+from uuid import uuid4
 
 import pandas as pd
 
@@ -67,6 +69,9 @@ HASH_COLUMNS = (
     "stage2_npz_relpath",
 )
 SUCCESS_STATUSES = frozenset({"success", "success_with_warnings"})
+TRAINING_ARTIFACT_NAMES = frozenset(
+    {"class_order.json", "training_index.csv", "training_index.json"}
+)
 
 
 @dataclass(frozen=True)
@@ -369,17 +374,13 @@ def _repository_relative(path: Path, repository_root: Path) -> str:
         raise ValueError("Contract input path must be inside repository root") from error
 
 
-def _stage2_root_relative(path: Path, stage2_root: Path) -> str:
-    try:
-        relative = Path(path).resolve(strict=True).relative_to(
-            Path(stage2_root).resolve(strict=True)
-        )
-    except ValueError as error:
-        raise ValueError("Stage 2 contract path must be inside Stage 2 root") from error
-    return _validate_metadata_relative_path(
-        relative.as_posix(),
-        "Stage 2 contract path",
-    )
+def _canonical_stage2_manifest(path: Path) -> Path:
+    resolved = Path(path).resolve(strict=True)
+    if not resolved.is_file():
+        raise ValueError("Stage 2 manifest must be a regular file")
+    if resolved.name != "manifest.csv":
+        raise ValueError("Stage 2 manifest must be named exactly manifest.csv")
+    return resolved
 
 
 def build_training_index_metadata(
@@ -392,6 +393,9 @@ def build_training_index_metadata(
     stage2_contract_sha256: str,
     repository_root: Path = REPOSITORY_ROOT,
 ) -> dict[str, object]:
+    source_stage2_manifest_path = _canonical_stage2_manifest(
+        source_stage2_manifest_path
+    )
     selected = training_index[training_index["selected_for_run"]]
     return {
         "training_index_version": TRAINING_INDEX_VERSION,
@@ -401,9 +405,7 @@ def build_training_index_metadata(
         "fold": split_definition.get("fold"),
         "split_definition_path": _repository_relative(split_path, repository_root),
         "split_definition_sha256": sha256_file(Path(split_path)),
-        "source_stage2_manifest_path": _stage2_root_relative(
-            source_stage2_manifest_path, Path(source_stage2_manifest_path).parent
-        ),
+        "source_stage2_manifest_path": "manifest.csv",
         "source_stage2_manifest_sha256": sha256_file(Path(source_stage2_manifest_path)),
         "stage2_contract_sha256": str(stage2_contract_sha256).lower(),
         "training_index_sha256": hash_training_index(training_index),
@@ -595,6 +597,131 @@ def _write_csv_atomic(path: Path, frame: pd.DataFrame) -> None:
             temporary.unlink()
 
 
+def _validate_staged_training_artifacts(
+    staging_dir: Path,
+    *,
+    expected_class_order: ClassOrderContract,
+    expected_training_index: pd.DataFrame,
+    expected_metadata: Mapping[str, object],
+    split_definition: Mapping[str, object],
+    split_path: Path,
+    source_stage2_manifest_path: Path,
+    stage2_contract_sha256: str,
+    repository_root: Path,
+) -> None:
+    names = {path.name for path in staging_dir.iterdir()}
+    if names != TRAINING_ARTIFACT_NAMES:
+        raise ValueError("Staged training artifact file set is invalid")
+    class_order = load_class_order(staging_dir / "class_order.json")
+    training_index = pd.read_csv(
+        staging_dir / "training_index.csv",
+        encoding="utf-8-sig",
+        keep_default_na=False,
+    )
+    metadata = _strict_json(staging_dir / "training_index.json")
+    if class_order.to_payload() != expected_class_order.to_payload():
+        raise ValueError("Staged class order differs from generated contract")
+    try:
+        pd.testing.assert_frame_equal(
+            training_index.reset_index(drop=True),
+            expected_training_index.reset_index(drop=True),
+            check_dtype=False,
+        )
+    except AssertionError as error:
+        raise ValueError("Staged training index differs from generated index") from error
+    if metadata != dict(expected_metadata):
+        raise ValueError("Staged training metadata differs from generated metadata")
+    validate_training_index_metadata(
+        metadata,
+        training_index,
+        class_order,
+        expected_source_manifest_sha256=sha256_file(source_stage2_manifest_path),
+        expected_stage2_contract_sha256=stage2_contract_sha256,
+        expected_split_definition_sha256=sha256_file(split_path),
+        expected_fold=split_definition.get("fold"),
+        expected_split_definition_path=_repository_relative(
+            split_path,
+            repository_root,
+        ),
+        expected_source_manifest_path="manifest.csv",
+        expected_split_definition=split_definition,
+    )
+
+
+def _cleanup_generated_tree(path: Path) -> None:
+    if path.exists():
+        shutil.rmtree(path)
+
+
+def _publish_training_artifacts(
+    output_dir: Path,
+    *,
+    class_order: ClassOrderContract,
+    training_index: pd.DataFrame,
+    metadata: Mapping[str, object],
+    split_definition: Mapping[str, object],
+    split_path: Path,
+    source_stage2_manifest_path: Path,
+    stage2_contract_sha256: str,
+    repository_root: Path,
+) -> None:
+    output_dir = Path(output_dir)
+    parent = output_dir.parent
+    parent.mkdir(parents=True, exist_ok=True)
+    if output_dir.exists() and (not output_dir.is_dir() or any(output_dir.iterdir())):
+        raise FileExistsError("Training index output directory must be missing or empty")
+    if list(parent.glob(f".{output_dir.name}.staging-*")) or list(
+        parent.glob(f".{output_dir.name}.backup-*")
+    ):
+        raise FileExistsError("Unknown training artifact staging or backup residue exists")
+
+    token = uuid4().hex
+    staging = parent / f".{output_dir.name}.staging-{token}"
+    backup = parent / f".{output_dir.name}.backup-{token}"
+    staging.mkdir(exist_ok=False)
+    had_empty_output = output_dir.exists()
+    backup_moved = False
+    installed = False
+    try:
+        write_json_atomic(staging / "class_order.json", class_order.to_payload())
+        _write_csv_atomic(staging / "training_index.csv", training_index)
+        write_json_atomic(staging / "training_index.json", dict(metadata))
+        _validate_staged_training_artifacts(
+            staging,
+            expected_class_order=class_order,
+            expected_training_index=training_index,
+            expected_metadata=metadata,
+            split_definition=split_definition,
+            split_path=split_path,
+            source_stage2_manifest_path=source_stage2_manifest_path,
+            stage2_contract_sha256=stage2_contract_sha256,
+            repository_root=repository_root,
+        )
+        if had_empty_output:
+            os.replace(output_dir, backup)
+            backup_moved = True
+        os.replace(staging, output_dir)
+        installed = True
+        if backup_moved:
+            backup.rmdir()
+            backup_moved = False
+    except BaseException as error:
+        try:
+            if installed and backup_moved:
+                os.replace(output_dir, staging)
+                installed = False
+            if backup_moved:
+                os.replace(backup, output_dir)
+                backup_moved = False
+            _cleanup_generated_tree(staging)
+        except BaseException as restore_error:
+            raise RuntimeError(
+                "Training artifact transaction recovery failed for "
+                f"output={output_dir} staging={staging} backup={backup}"
+            ) from restore_error
+        raise
+
+
 def generate_training_index_artifacts(
     stage2_manifest_path: Path,
     output_dir: Path,
@@ -602,7 +729,7 @@ def generate_training_index_artifacts(
     *,
     repository_root: Path = REPOSITORY_ROOT,
 ) -> dict[str, object]:
-    stage2_manifest_path = Path(stage2_manifest_path).resolve(strict=True)
+    stage2_manifest_path = _canonical_stage2_manifest(stage2_manifest_path)
     split_path = Path(split_path).resolve(strict=True)
     output_dir = Path(output_dir)
     if output_dir.exists() and (not output_dir.is_dir() or any(output_dir.iterdir())):
@@ -622,10 +749,17 @@ def generate_training_index_artifacts(
         stage2_contract_sha256=str(schema["contract_sha256"]),
         repository_root=repository_root,
     )
-    output_dir.mkdir(parents=True, exist_ok=True)
-    write_json_atomic(output_dir / "class_order.json", class_order.to_payload())
-    _write_csv_atomic(output_dir / "training_index.csv", training_index)
-    write_json_atomic(output_dir / "training_index.json", metadata)
+    _publish_training_artifacts(
+        output_dir,
+        class_order=class_order,
+        training_index=training_index,
+        metadata=metadata,
+        split_definition=split_definition,
+        split_path=split_path,
+        source_stage2_manifest_path=stage2_manifest_path,
+        stage2_contract_sha256=str(schema["contract_sha256"]),
+        repository_root=repository_root,
+    )
     return metadata
 
 

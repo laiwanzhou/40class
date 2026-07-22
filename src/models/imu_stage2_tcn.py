@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import re
 from collections.abc import Mapping, Sequence
 
@@ -103,6 +104,9 @@ class IMUStage2Classifier(nn.Module):
         if not 0.0 <= float(modality_dropout) <= 1.0:
             raise ValueError("modality_dropout must be between 0 and 1")
         self.num_classes = num_classes
+        self.embedding_dim = int(embedding_dim)
+        self.channels = tuple(int(channel) for channel in channels)
+        self.dropout_probability = float(dropout)
         self.modality_dropout = float(modality_dropout)
         self.sensor_encoders = nn.ModuleList(
             [_SensorEncoder(channels, dropout) for _ in range(5)]
@@ -175,6 +179,59 @@ class IMUStage2Classifier(nn.Module):
         )
         logits = self.classifier(embedding)
         return {"embedding": embedding, "logits": logits}
+
+
+def build_imu_stage2_model(
+    config: Mapping[str, object],
+    *,
+    num_classes: int,
+) -> IMUStage2Classifier:
+    required = (
+        "embedding_dim",
+        "tcn_channels",
+        "dropout",
+        "imu_modality_dropout",
+    )
+    for field in required:
+        if field not in config:
+            raise KeyError(f"Missing required model config field: {field}")
+    embedding_dim = config["embedding_dim"]
+    if (
+        isinstance(embedding_dim, bool)
+        or not isinstance(embedding_dim, int)
+        or embedding_dim < 1
+    ):
+        raise ValueError("embedding_dim must be a positive integer")
+    channels_value = config["tcn_channels"]
+    if (
+        isinstance(channels_value, (str, bytes))
+        or not isinstance(channels_value, Sequence)
+        or not channels_value
+        or any(
+            isinstance(channel, bool)
+            or not isinstance(channel, int)
+            or channel < 1
+            for channel in channels_value
+        )
+    ):
+        raise ValueError("tcn_channels must be a non-empty sequence of positive integers")
+
+    def probability(field: str) -> float:
+        value = config[field]
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ValueError(f"{field} must be a finite number between 0 and 1")
+        normalized = float(value)
+        if not math.isfinite(normalized) or not 0.0 <= normalized <= 1.0:
+            raise ValueError(f"{field} must be a finite number between 0 and 1")
+        return normalized
+
+    return IMUStage2Classifier(
+        num_classes=num_classes,
+        embedding_dim=embedding_dim,
+        channels=tuple(channels_value),
+        dropout=probability("dropout"),
+        modality_dropout=probability("imu_modality_dropout"),
+    )
 
 
 def predict_label_indices(logits: torch.Tensor) -> torch.Tensor:

@@ -676,6 +676,18 @@ The Stage 2 output root is intentionally external to the repository.
 `source_stage2_manifest_path` is therefore Stage-2-root-relative and equals
 `manifest.csv` in v1; it is never interpreted as repository-relative. Its
 byte-level SHA-256 binds the index to the external Stage 2 root.
+The Task 07 producer accepts only the case-sensitive canonical filename
+`manifest.csv`; aliases such as `alternate.csv`, `MANIFEST.csv`, or
+`Manifest.csv` fail before any output or staging directory is created.
+
+The three training-index artifacts form one directory-level transaction.
+They are written to a unique same-parent staging directory, reloaded, and
+cross-validated together before that directory is installed as the formal
+output. A pre-existing non-empty output is never overwritten. A pre-existing
+empty output is backed up only for the install window and restored on failure.
+Failed publication leaves neither a partial formal directory nor staging or
+backup residue, and successful output contains exactly the three approved
+files.
 
 `training_index.json` records:
 
@@ -805,7 +817,16 @@ modality dropout. V1 records a non-zero dropout probability in the model
 configuration; dropout applies only in training mode, while evaluation and
 inference use the declared `imu_modality_mask` unchanged. A training-level
 gradient test must prove that an unavailable-modality batch produces a
-non-zero gradient for the null embedding.
+finite, non-zero gradient for the null embedding. The sole production model
+factory consumes `embedding_dim`, `tcn_channels`, `dropout`, and
+`imu_modality_dropout` explicitly from `configs/task03/imu_stage2_v1.yaml`,
+with `num_classes` supplied from the class-order contract. Direct constructor
+defaults are not a substitute for consuming the tracked configuration.
+
+Normalization and Dataset tamper tests must construct two Stage 2 roots with
+the same schema contract and relative NPZ paths but different manifest bytes.
+Mixing root A metadata or normalization with root B schema, manifest, or NPZ
+root must fail before an NPZ loader is reached.
 
 Input gating, masked convolution, repeated block gating, mask input channels,
 or masked attention are all allowed if they pass invariance tests. Padding
