@@ -31,7 +31,7 @@ from src.data.imu_stage2_contracts import (
     contract_sha256,
     sha256_file,
 )
-from src.data.imu_stage2_core import process_stage2_action
+from src.data.imu_stage2_core import GRID_STEP_NS, process_stage2_action
 from src.data.imu_stage2_io import load_stage2_schema
 from src.models.imu_stage2_tcn import (
     CHECKPOINT_HASH_FIELDS,
@@ -93,6 +93,16 @@ class InferencePreprocessDiagnostics:
     stage2_status: str
     stage1_result: Stage1ActionData | None
     stage2_result: object | None
+    degradation_error: Exception | None
+
+
+@dataclass(frozen=True)
+class InferencePreprocessPlan:
+    descriptor: TestSampleDescriptor
+    planned_t: int
+    source_status: str
+    stage1_status: str
+    stage1_result: Stage1ActionData | None
     degradation_error: Exception | None
 
 
@@ -411,35 +421,81 @@ def preprocess_inference_sample(
     return diagnostics.sample
 
 
-def preprocess_inference_sample_with_diagnostics(
+def plan_inference_sample(
     descriptor: TestSampleDescriptor,
     *,
     hard_safety_limit_t: int = 10_000,
-) -> InferencePreprocessDiagnostics:
+) -> InferencePreprocessPlan:
+    if isinstance(hard_safety_limit_t, (bool, np.bool_)) or not isinstance(
+        hard_safety_limit_t, (int, np.integer)
+    ) or hard_safety_limit_t <= 0:
+        raise ValueError("hard_safety_limit_t must be a positive integer")
     try:
         source = adapt_raw_imu_source(descriptor)
     except DEGRADABLE_ERROR_TYPES as error:
-        return InferencePreprocessDiagnostics(
-            sample=InferenceSample(descriptor.sample_id, None, False, False),
+        return InferencePreprocessPlan(
+            descriptor=descriptor,
+            planned_t=0,
             source_status="unavailable",
             stage1_status="unavailable",
-            stage2_status="unavailable",
             stage1_result=None,
-            stage2_result=None,
             degradation_error=error,
         )
     try:
         stage1 = process_raw_imu_source(source)
     except DEGRADABLE_ERROR_TYPES as error:
-        return InferencePreprocessDiagnostics(
-            sample=InferenceSample(descriptor.sample_id, None, False, False),
+        return InferencePreprocessPlan(
+            descriptor=descriptor,
+            planned_t=0,
             source_status="available",
             stage1_status="degraded",
-            stage2_status="unavailable",
             stage1_result=None,
-            stage2_result=None,
             degradation_error=error,
         )
+    planned_t = int(stage1.relative_time_ns.max()) // GRID_STEP_NS + 1
+    if planned_t > hard_safety_limit_t:
+        return InferencePreprocessPlan(
+            descriptor=descriptor,
+            planned_t=0,
+            source_status="available",
+            stage1_status="success",
+            stage1_result=stage1,
+            degradation_error=SequenceLengthSafetyError(
+                descriptor.sample_id,
+                "grid length exceeds hard safety limit before allocation",
+            ),
+        )
+    return InferencePreprocessPlan(
+        descriptor=descriptor,
+        planned_t=planned_t,
+        source_status="available",
+        stage1_status="success",
+        stage1_result=stage1,
+        degradation_error=None,
+    )
+
+
+def materialize_inference_plan(
+    plan: InferencePreprocessPlan,
+    *,
+    hard_safety_limit_t: int = 10_000,
+) -> InferencePreprocessDiagnostics:
+    descriptor = plan.descriptor
+    if plan.degradation_error is not None:
+        return InferencePreprocessDiagnostics(
+            sample=InferenceSample(descriptor.sample_id, None, False, False),
+            source_status=plan.source_status,
+            stage1_status=plan.stage1_status,
+            stage2_status=(
+                "degraded" if plan.stage1_status == "success" else "unavailable"
+            ),
+            stage1_result=plan.stage1_result,
+            stage2_result=None,
+            degradation_error=plan.degradation_error,
+        )
+    stage1 = plan.stage1_result
+    if stage1 is None:
+        raise ValueError("Inference plan without degradation must retain Stage 1")
     try:
         result = process_stage2_action(
             stage1,
@@ -448,6 +504,8 @@ def preprocess_inference_sample_with_diagnostics(
         result.validate()
         if result.sample_id != descriptor.sample_id:
             raise ValueError("Stage 2 sample ID disagrees with discovery descriptor")
+        if len(result.values) != plan.planned_t:
+            raise ValueError("Materialized Stage 2 length disagrees with inference plan")
         if not result.imu_usable:
             raise NoUsableGridCellsError(
                 descriptor.sample_id,
@@ -478,6 +536,21 @@ def preprocess_inference_sample_with_diagnostics(
             stage2_result=None,
             degradation_error=error,
         )
+
+
+def preprocess_inference_sample_with_diagnostics(
+    descriptor: TestSampleDescriptor,
+    *,
+    hard_safety_limit_t: int = 10_000,
+) -> InferencePreprocessDiagnostics:
+    plan = plan_inference_sample(
+        descriptor,
+        hard_safety_limit_t=hard_safety_limit_t,
+    )
+    return materialize_inference_plan(
+        plan,
+        hard_safety_limit_t=hard_safety_limit_t,
+    )
 
 
 def collate_inference_samples(

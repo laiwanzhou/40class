@@ -954,11 +954,16 @@ BatchNorm batch-statistics use, and padding dependence.
 
 `batch_feature_budget` also bounds the pending preprocessed batch, using
 `prospective_batch_size * prospective_max_T * 5 * 16`. The orchestrator
-preprocesses in deterministic sample order, flushes a full pending batch before
-accumulating more samples, runs it immediately, and retains only predictions
-and lightweight audit/provenance rows. It must not retain Stage 2 tensors for
-the full test set. A single legal sample may exceed the feature budget as a
-singleton, but remains subject to `hard_safety_limit_t`.
+preprocesses in deterministic sample order through a lightweight Stage 2 plan
+that retains Stage 1 state and the exact planned sequence length but allocates
+none of the complete Stage 2 values or mask tensors. Prospective padded cost is
+checked from that plan before candidate Stage 2 materialization. A full pending
+batch is forwarded and its tensor references released before the candidate is
+materialized. `planned_T` must equal the materialized tensor length; disagreement
+is a global contract failure, not a sample degradation. Long-lived state retains
+only predictions and lightweight audit/provenance rows. A single legal sample
+may exceed the feature budget as a singleton, but remains subject to
+`hard_safety_limit_t`.
 
 ### `inference.sh`
 
@@ -1005,12 +1010,20 @@ online manifest; copying training provenance is forbidden. Both roots are
 reread through the formal validators before publication.
 
 Submission and final audit use one rollback-capable publication transaction.
-The success audit (`status=success`, `exit_code=0`) is not visible until the
-validated submission has been installed and the staged audit directory can be
-installed. Any controlled failure removes a newly installed output or restores
-the previous bytes, removes the staged/success audit, and cleans invocation-owned
-staging/backup paths. This is a consistency guarantee across the CLI's managed
-failure paths, not a claim of cross-filesystem atomicity.
+For an audited run, installation of the final success audit
+(`status=success`, `exit_code=0`) is the unique logical commit point; without an
+audit, validated submission installation is the commit point. Before that point,
+any controlled failure removes a newly installed output or restores the previous
+bytes and removes invocation-owned staging. Once the success audit is public,
+the run is committed and later backup cleanup is post-commit maintenance: a
+cleanup failure preserves code 0 and the success audit, emits a warning, and may
+leave only the uniquely named backup owned by that transaction for later
+maintenance. It must not reinterpret the committed run as code 2 or attempt to
+roll it back. This is a consistency guarantee across the CLI's managed failure
+paths, not a claim of cross-filesystem atomicity. Every batch releases its large
+group, normalized batch, model output, logits, and validated-logit references
+after decoding; the final batch does not remain alive through intermediate
+finalization or publication.
 
 Without full intermediates, audit can store `inference_manifest.csv`,
 `processing.log`, `problematic_sample_qc.json`, and

@@ -40,7 +40,8 @@ from src.inference.imu_stage2_pipeline import (
     decode_predictions,
     discover_test_samples,
     load_inference_bundle,
-    preprocess_inference_sample_with_diagnostics,
+    materialize_inference_plan,
+    plan_inference_sample,
     validate_inference_config,
     validate_logits,
     write_submission_atomic,
@@ -386,7 +387,18 @@ def _publish_success_transaction(
             os.replace(audit_staging, audit_final)
             audit_published = True
         if output_backup.exists():
-            output_backup.unlink()
+            try:
+                output_backup.unlink()
+            except BaseException as cleanup_error:
+                preserve_backup = True
+                try:
+                    print(
+                        "WARNING: inference transaction committed, but backup cleanup "
+                        f"failed; backup={output_backup}; error={cleanup_error}",
+                        file=sys.stderr,
+                    )
+                except BaseException:
+                    pass
         return audit_final
     except BaseException as publish_error:
         rollback_errors: list[BaseException] = []
@@ -478,72 +490,72 @@ def run(args: argparse.Namespace) -> tuple[int, dict[str, object]]:
             (audit_staging / "intermediates" / "stage1").mkdir(parents=True)
             (audit_staging / "intermediates" / "stage2").mkdir()
 
-        def prepared_samples() -> Iterator[object]:
+        def record_diagnostics(descriptor: object, diagnostics: object) -> object:
             nonlocal unavailable_count
-            for descriptor in discovery.samples:
-                diagnostics = preprocess_inference_sample_with_diagnostics(
-                    descriptor,
-                    hard_safety_limit_t=int(config["hard_safety_limit_t"]),
+            sample = diagnostics.sample
+            error = diagnostics.degradation_error
+            if not sample.imu_available:
+                unavailable_count += 1
+            if args.save_intermediates and diagnostics.stage1_result is not None:
+                assert audit_staging is not None
+                stage1_root = audit_staging / "intermediates" / "stage1"
+                stage2_root = audit_staging / "intermediates" / "stage2"
+                stage1_row, stage1_descriptor = _write_stage1_intermediate(
+                    stage1_root, descriptor.sample_id, diagnostics.stage1_result
                 )
-                sample = diagnostics.sample
-                error = diagnostics.degradation_error
-                if not sample.imu_available:
-                    unavailable_count += 1
-                if args.save_intermediates and diagnostics.stage1_result is not None:
-                    assert audit_staging is not None
-                    stage1_root = audit_staging / "intermediates" / "stage1"
-                    stage2_root = audit_staging / "intermediates" / "stage2"
-                    stage1_row, stage1_descriptor = _write_stage1_intermediate(
-                        stage1_root, descriptor.sample_id, diagnostics.stage1_result
-                    )
-                    stage1_rows.append(stage1_row)
-                    if diagnostics.stage2_result is not None:
-                        stage2_rows.append(
-                            _write_stage2_intermediate(
-                                stage2_root,
-                                stage1_descriptor,
-                                diagnostics.stage2_result,
-                                str(bundle.stage2_schema["contract_sha256"]),
-                            )
+                stage1_rows.append(stage1_row)
+                if diagnostics.stage2_result is not None:
+                    stage2_rows.append(
+                        _write_stage2_intermediate(
+                            stage2_root,
+                            stage1_descriptor,
+                            diagnostics.stage2_result,
+                            str(bundle.stage2_schema["contract_sha256"]),
                         )
-                failure_reason = "" if error is None else str(
-                    getattr(error, "error_code", type(error).__name__)
-                )
-                if error is not None:
-                    problems.append(
-                        {
-                            "sample_id": descriptor.sample_id,
-                            "error_code": failure_reason,
-                            "failure_stage": str(
-                                getattr(error, "failure_stage", "unknown")
-                            ),
-                            "safe_message": str(
-                                getattr(error, "safe_message", str(error))
-                            ),
-                        }
                     )
-                imu_result = sample.imu_result
-                warnings = [] if imu_result is None else list(
-                    imu_result.qc.get("warning_codes", [])
+            failure_reason = "" if error is None else str(
+                getattr(error, "error_code", type(error).__name__)
+            )
+            if error is not None:
+                problems.append(
+                    {
+                        "sample_id": descriptor.sample_id,
+                        "error_code": failure_reason,
+                        "failure_stage": str(
+                            getattr(error, "failure_stage", "unknown")
+                        ),
+                        "safe_message": str(
+                            getattr(error, "safe_message", str(error))
+                        ),
+                    }
                 )
-                row = {
-                    "sample_id": descriptor.sample_id,
-                    "source_status": diagnostics.source_status,
-                    "stage1_status": diagnostics.stage1_status,
-                    "stage2_status": diagnostics.stage2_status,
-                    "imu_available": sample.imu_available,
-                    "modality_mask": sample.modality_mask,
-                    "failure_reason": failure_reason,
-                    "warning_codes": json.dumps(warnings, separators=(",", ":")),
-                    "sequence_length": 0 if imu_result is None else len(imu_result.values),
-                    "prediction": "",
-                }
-                manifest_rows.append(row)
-                manifest_by_id[descriptor.sample_id] = row
-                yield sample
+            imu_result = sample.imu_result
+            warnings = [] if imu_result is None else list(
+                imu_result.qc.get("warning_codes", [])
+            )
+            row = {
+                "sample_id": descriptor.sample_id,
+                "source_status": diagnostics.source_status,
+                "stage1_status": diagnostics.stage1_status,
+                "stage2_status": diagnostics.stage2_status,
+                "imu_available": sample.imu_available,
+                "modality_mask": sample.modality_mask,
+                "failure_reason": failure_reason,
+                "warning_codes": json.dumps(warnings, separators=(",", ":")),
+                "sequence_length": 0 if imu_result is None else len(imu_result.values),
+                "prediction": "",
+            }
+            manifest_rows.append(row)
+            manifest_by_id[descriptor.sample_id] = row
+            return sample
 
-        with torch.inference_mode():
-            for group in _streaming_batches(prepared_samples(), config):
+        def infer_group(group: list[object]) -> None:
+            batch = None
+            output_mapping = None
+            logits = None
+            validated = None
+            group_predictions = None
+            try:
                 batch_sizes.append(len(group))
                 batch = _normalize_batch(
                     collate_inference_samples(group), bundle, device
@@ -558,9 +570,72 @@ def run(args: argparse.Namespace) -> tuple[int, dict[str, object]]:
                 group_predictions = decode_predictions(
                     validated, bundle.class_order, contract
                 )
-                for sample, prediction in zip(group, group_predictions, strict=True):
+                for sample, prediction in zip(
+                    group, group_predictions, strict=True
+                ):
                     manifest_by_id[sample.sample_id]["prediction"] = prediction
                     decoded.append(prediction)
+            finally:
+                group.clear()
+                del batch
+                del output_mapping
+                del logits
+                del validated
+                del group_predictions
+
+        with torch.inference_mode():
+            pending: list[object] = []
+            pending_max_t = 1
+            maximum_batch_size = int(config["maximum_batch_size"])
+            batch_feature_budget = int(config["batch_feature_budget"])
+            hard_safety_limit_t = int(config["hard_safety_limit_t"])
+            for descriptor in discovery.samples:
+                plan = plan_inference_sample(
+                    descriptor,
+                    hard_safety_limit_t=hard_safety_limit_t,
+                )
+                candidate_t = max(pending_max_t, plan.planned_t, 1)
+                prospective_cost = (
+                    candidate_t * 5 * 16 * (len(pending) + 1)
+                )
+                if pending and (
+                    len(pending) >= maximum_batch_size
+                    or prospective_cost > batch_feature_budget
+                ):
+                    group = pending
+                    pending = []
+                    pending_max_t = 1
+                    infer_group(group)
+                    del group
+                diagnostics = materialize_inference_plan(
+                    plan,
+                    hard_safety_limit_t=hard_safety_limit_t,
+                )
+                sample = record_diagnostics(descriptor, diagnostics)
+                del diagnostics
+                del plan
+                pending.append(sample)
+                sample_t = (
+                    0 if sample.imu_result is None else len(sample.imu_result.values)
+                )
+                pending_max_t = max(pending_max_t, sample_t, 1)
+                pending_cost = pending_max_t * 5 * 16 * len(pending)
+                del sample
+                if (
+                    len(pending) >= maximum_batch_size
+                    or pending_cost >= batch_feature_budget
+                ):
+                    group = pending
+                    pending = []
+                    pending_max_t = 1
+                    infer_group(group)
+                    del group
+            if pending:
+                group = pending
+                pending = []
+                infer_group(group)
+                del group
+            del pending
 
         if unavailable_count and config["imu_unavailable_policy"] != "packaged_null_embedding":
             return 1, {

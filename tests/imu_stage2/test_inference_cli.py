@@ -5,6 +5,7 @@ import json
 import os
 import shlex
 import subprocess
+import weakref
 from argparse import Namespace
 from pathlib import Path
 
@@ -45,6 +46,16 @@ def _write_json(path: Path, payload: object) -> None:
 def _write_raw_csv(path: Path, timestamp: str, base: float) -> None:
     row = [timestamp, "WTLL(device)", *[base + index for index in range(16)]]
     pd.DataFrame([row], columns=stage1.REQUIRED_SOURCE_COLUMNS).to_csv(
+        path, index=False, encoding="utf-8-sig"
+    )
+
+
+def _write_raw_csv_rows(path: Path, timestamps: list[str], base: float) -> None:
+    rows = [
+        [timestamp, "WTLL(device)", *[base + index for index in range(16)]]
+        for timestamp in timestamps
+    ]
+    pd.DataFrame(rows, columns=stage1.REQUIRED_SOURCE_COLUMNS).to_csv(
         path, index=False, encoding="utf-8-sig"
     )
 
@@ -395,7 +406,7 @@ def test_ordinary_path_overlap_is_rejected_before_any_io(
     monkeypatch.setattr(infer_imu_stage2, "discover_test_samples", forbidden("discovery"))
     monkeypatch.setattr(
         infer_imu_stage2,
-        "preprocess_inference_sample_with_diagnostics",
+        "plan_inference_sample",
         forbidden("preprocess"),
     )
     monkeypatch.setattr(infer_imu_stage2, "write_submission_atomic", forbidden("submission"))
@@ -519,6 +530,62 @@ def test_success_audit_publish_failure_rolls_back_submission(
     assert not list(tmp_path.rglob("*.tmp-*"))
     assert not list(tmp_path.rglob("*.staging-*"))
     assert not list(tmp_path.rglob("*.backup-*"))
+
+
+def test_post_commit_backup_cleanup_failure_keeps_successful_cli_committed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from scripts import infer_imu_stage2
+
+    bundle = _build_bundle(tmp_path)
+    capsys.readouterr()
+    raw = tmp_path / "test"
+    (raw / "SM_test_0001").mkdir(parents=True)
+    (raw / "SM_test_0002").mkdir()
+    output = tmp_path / "submission.csv"
+    old = b"sentinel-old-output\n"
+    output.write_bytes(old)
+    audit = tmp_path / "audit"
+    original_unlink = infer_imu_stage2.Path.unlink
+    original_rmtree = infer_imu_stage2.shutil.rmtree
+
+    def fail_backup_cleanup(path: Path, *args: object, **kwargs: object) -> None:
+        if ".backup-" in path.name:
+            raise OSError("injected post-commit backup cleanup failure")
+        original_unlink(path, *args, **kwargs)
+
+    def fail_published_audit_rollback(path: object, *args: object, **kwargs: object) -> None:
+        candidate = Path(path)
+        if candidate.parent == audit and not candidate.name.startswith("."):
+            raise OSError("injected published audit rollback failure")
+        original_rmtree(path, *args, **kwargs)
+
+    monkeypatch.setattr(infer_imu_stage2.Path, "unlink", fail_backup_cleanup)
+    monkeypatch.setattr(infer_imu_stage2.shutil, "rmtree", fail_published_audit_rollback)
+
+    code = infer_imu_stage2.main(
+        [
+            "--raw-test-root", str(raw),
+            "--output-csv", str(output),
+            "--bundle-root", str(bundle),
+            "--audit-dir", str(audit),
+            "--overwrite-output",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert code == 0
+    assert json.loads(captured.out)["status"] == "success"
+    assert "cleanup" in captured.err.casefold()
+    assert output.read_bytes() != old
+    summaries = list(audit.rglob("inference_summary.json"))
+    assert len(summaries) == 1
+    audit_summary = json.loads(summaries[0].read_text(encoding="utf-8"))
+    assert audit_summary["status"] == "success"
+    assert audit_summary["exit_code"] == 0
+    assert len(list(tmp_path.rglob("*.backup-*"))) == 1
 
 
 def test_unclassified_exception_is_global_code_two_not_sample_degradation(
@@ -713,6 +780,139 @@ def test_streaming_batcher_flushes_at_budget_without_consuming_next_sample() -> 
     assert events == ["prepare-0", "prepare-1", "forward-0"]
     second = next(batches)
     assert [item.sample_id for item in second] == ["SM_test_0003"]
+
+
+def test_cli_flushes_and_releases_pending_before_materializing_over_budget_candidate(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from scripts import infer_imu_stage2
+    from src.inference import imu_stage2_pipeline as pipeline
+
+    bundle = _build_bundle(tmp_path)
+    raw = tmp_path / "test"
+    first_imu = raw / "SM_test_0001" / "IMU"
+    second_imu = raw / "SM_test_0002" / "IMU"
+    first_imu.mkdir(parents=True)
+    second_imu.mkdir(parents=True)
+    _write_raw_csv_rows(
+        first_imu / "part1.csv",
+        ["2025-01-01 00:00:00.000000000"],
+        1.0,
+    )
+    _write_raw_csv_rows(
+        second_imu / "part1.csv",
+        [
+            "2025-01-01 00:00:00.000000000",
+            "2025-01-01 00:00:00.100000000",
+            "2025-01-01 00:00:00.200000000",
+        ],
+        2.0,
+    )
+    config = dict(EXPECTED_INFERENCE_CONFIG)
+    config["batch_feature_budget"] = 160
+    events: list[str] = []
+    original_stage1 = pipeline.process_raw_imu_source
+    original_stage2 = pipeline.process_stage2_action
+    original_normalize = infer_imu_stage2._normalize_batch
+
+    def observed_stage1(source: object):
+        result = original_stage1(source)
+        events.append(f"plan-{result.sample_id}")
+        return result
+
+    def observed_stage2(stage1_result: object, **kwargs: object):
+        sample_id = str(getattr(stage1_result, "sample_id"))
+        events.append(f"materialize-{sample_id}")
+        result = original_stage2(stage1_result, **kwargs)
+        weakref.finalize(result.values, events.append, f"release-{sample_id}")
+        return result
+
+    def observed_normalize(*args: object, **kwargs: object):
+        events.append("forward")
+        return original_normalize(*args, **kwargs)
+
+    monkeypatch.setattr(infer_imu_stage2, "_validate_config", lambda _bundle: config)
+    monkeypatch.setattr(pipeline, "process_raw_imu_source", observed_stage1)
+    monkeypatch.setattr(pipeline, "process_stage2_action", observed_stage2)
+    monkeypatch.setattr(infer_imu_stage2, "_normalize_batch", observed_normalize)
+
+    code, _summary = infer_imu_stage2.run(
+        Namespace(
+            raw_test_root=raw,
+            output_csv=tmp_path / "submission.csv",
+            bundle_root=bundle,
+            overwrite_output=False,
+            audit_dir=None,
+            save_intermediates=False,
+            device="cpu",
+        )
+    )
+
+    assert code == 0
+    assert events.index("plan-SM_test_0002") < events.index("forward")
+    assert events.index("forward") < events.index("release-SM_test_0001")
+    assert events.index("release-SM_test_0001") < events.index(
+        "materialize-SM_test_0002"
+    )
+
+
+def test_cli_releases_final_batch_tensors_before_publication(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from scripts import infer_imu_stage2
+    from src.inference import imu_stage2_pipeline as pipeline
+
+    bundle = _build_bundle(tmp_path)
+    raw = tmp_path / "test"
+    finalizers: list[weakref.finalize] = []
+    released: list[str] = []
+    for index in (1, 2):
+        imu = raw / f"SM_test_{index:04d}" / "IMU"
+        imu.mkdir(parents=True)
+        _write_raw_csv_rows(
+            imu / "part1.csv",
+            ["2025-01-01 00:00:00.000000000"],
+            float(index),
+        )
+    original_stage2 = pipeline.process_stage2_action
+    original_publish = infer_imu_stage2._publish_success_transaction
+
+    def observed_stage2(stage1_result: object, **kwargs: object):
+        result = original_stage2(stage1_result, **kwargs)
+        finalizers.append(
+            weakref.finalize(
+                result.values,
+                released.append,
+                str(getattr(stage1_result, "sample_id")),
+            )
+        )
+        return result
+
+    def observed_publish(*args: object, **kwargs: object):
+        assert sorted(released) == ["SM_test_0001", "SM_test_0002"]
+        return original_publish(*args, **kwargs)
+
+    monkeypatch.setattr(pipeline, "process_stage2_action", observed_stage2)
+    monkeypatch.setattr(
+        infer_imu_stage2, "_publish_success_transaction", observed_publish
+    )
+
+    code, _summary = infer_imu_stage2.run(
+        Namespace(
+            raw_test_root=raw,
+            output_csv=tmp_path / "submission.csv",
+            bundle_root=bundle,
+            overwrite_output=False,
+            audit_dir=None,
+            save_intermediates=False,
+            device="cpu",
+        )
+    )
+
+    assert code == 0
+    assert all(not finalizer.alive for finalizer in finalizers)
 
 
 @pytest.mark.parametrize(

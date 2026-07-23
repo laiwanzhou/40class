@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from typing import NoReturn
 
 import numpy as np
@@ -296,7 +297,13 @@ def test_preprocess_converts_no_usable_stage2_result_to_typed_degradation(
 
     descriptor = SampleDescriptor("SM_test_0001", tmp_path, Path("SM_test_0001"))
     monkeypatch.setattr(pipeline, "adapt_raw_imu_source", lambda _: object())
-    monkeypatch.setattr(pipeline, "process_raw_imu_source", lambda _: object())
+    monkeypatch.setattr(
+        pipeline,
+        "process_raw_imu_source",
+        lambda _: SimpleNamespace(
+            relative_time_ns=np.asarray([0, 100_000_000], dtype=np.int64)
+        ),
+    )
     result = _make_result()
     result.valid_mask[:] = False
     result.values[:] = np.nan
@@ -322,7 +329,9 @@ def test_stage2_degradation_preserves_successful_stage1_diagnostics(
     from src.data.imu_stage2_contracts import TestSampleDescriptor as SampleDescriptor
 
     descriptor = SampleDescriptor("SM_test_0001", tmp_path, Path("SM_test_0001"))
-    stage1_result = object()
+    stage1_result = SimpleNamespace(
+        relative_time_ns=np.asarray([0, 100_000_000], dtype=np.int64)
+    )
     monkeypatch.setattr(pipeline, "adapt_raw_imu_source", lambda _: object())
     monkeypatch.setattr(pipeline, "process_raw_imu_source", lambda _: stage1_result)
 
@@ -380,7 +389,13 @@ def test_stage2_invariant_failure_is_not_hidden_by_no_usable_degradation(
 
     descriptor = SampleDescriptor("SM_test_0001", tmp_path, Path("SM_test_0001"))
     monkeypatch.setattr(pipeline, "adapt_raw_imu_source", lambda _: object())
-    monkeypatch.setattr(pipeline, "process_raw_imu_source", lambda _: object())
+    monkeypatch.setattr(
+        pipeline,
+        "process_raw_imu_source",
+        lambda _: SimpleNamespace(
+            relative_time_ns=np.asarray([0, 100_000_000], dtype=np.int64)
+        ),
+    )
     result = _make_result()
     result.valid_mask[:] = False
     result.values[:] = np.nan
@@ -400,7 +415,13 @@ def test_stage2_sample_identity_mismatch_is_a_global_contract_failure(
 
     descriptor = SampleDescriptor("SM_test_0001", tmp_path, Path("SM_test_0001"))
     monkeypatch.setattr(pipeline, "adapt_raw_imu_source", lambda _: object())
-    monkeypatch.setattr(pipeline, "process_raw_imu_source", lambda _: object())
+    monkeypatch.setattr(
+        pipeline,
+        "process_raw_imu_source",
+        lambda _: SimpleNamespace(
+            relative_time_ns=np.asarray([0, 100_000_000], dtype=np.int64)
+        ),
+    )
     monkeypatch.setattr(
         pipeline,
         "process_stage2_action",
@@ -409,6 +430,70 @@ def test_stage2_sample_identity_mismatch_is_a_global_contract_failure(
 
     with pytest.raises(ValueError, match="sample ID"):
         pipeline.preprocess_inference_sample(descriptor)
+
+
+def test_inference_plan_is_lightweight_and_materialized_length_must_match(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.inference import imu_stage2_pipeline as pipeline
+    from src.data.imu_stage2_contracts import TestSampleDescriptor as SampleDescriptor
+
+    descriptor = SampleDescriptor("SM_test_0001", tmp_path, Path("SM_test_0001"))
+    stage1_result = SimpleNamespace(
+        relative_time_ns=np.asarray([0], dtype=np.int64)
+    )
+    calls: list[str] = []
+    monkeypatch.setattr(pipeline, "adapt_raw_imu_source", lambda _: object())
+    monkeypatch.setattr(pipeline, "process_raw_imu_source", lambda _: stage1_result)
+
+    def materialize(*_args: object, **_kwargs: object) -> Stage2ActionResult:
+        calls.append("stage2")
+        return _make_result()
+
+    monkeypatch.setattr(pipeline, "process_stage2_action", materialize)
+
+    plan = pipeline.plan_inference_sample(descriptor)
+
+    assert plan.planned_t == 1
+    assert plan.stage1_result is stage1_result
+    assert calls == []
+    with pytest.raises(ValueError, match="length disagrees"):
+        pipeline.materialize_inference_plan(plan)
+    assert calls == ["stage2"]
+
+
+def test_inference_plan_applies_hard_limit_before_stage2_materialization(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.inference import imu_stage2_pipeline as pipeline
+    from src.data.imu_stage2_contracts import TestSampleDescriptor as SampleDescriptor
+
+    descriptor = SampleDescriptor("SM_test_0001", tmp_path, Path("SM_test_0001"))
+    stage1_result = SimpleNamespace(
+        relative_time_ns=np.asarray([0, 200_000_000], dtype=np.int64)
+    )
+    monkeypatch.setattr(pipeline, "adapt_raw_imu_source", lambda _: object())
+    monkeypatch.setattr(pipeline, "process_raw_imu_source", lambda _: stage1_result)
+
+    def forbidden_stage2(*_args: object, **_kwargs: object) -> NoReturn:
+        raise AssertionError("Stage 2 tensor materialization must not run")
+
+    monkeypatch.setattr(pipeline, "process_stage2_action", forbidden_stage2)
+
+    plan = pipeline.plan_inference_sample(descriptor, hard_safety_limit_t=2)
+    diagnostics = pipeline.materialize_inference_plan(
+        plan,
+        hard_safety_limit_t=2,
+    )
+
+    assert plan.planned_t == 0
+    assert isinstance(plan.degradation_error, SequenceLengthSafetyError)
+    assert diagnostics.stage1_status == "success"
+    assert diagnostics.stage2_status == "degraded"
+    assert isinstance(diagnostics.degradation_error, SequenceLengthSafetyError)
+    assert diagnostics.stage2_result is None
 
 
 def test_inference_collate_uses_nonpersistent_zero_length_placeholder() -> None:

@@ -1210,6 +1210,54 @@ key rejection, and stronger stale-checkpoint cross-binding tests.
 
 ---
 
+### Post-Task12 Transaction Finalization Repair
+
+This append-only repair closes the final transaction and residency review
+without renumbering or beginning Task 13. It is limited to the Task 12
+CLI/pipeline, their tests, and the existing design/plan.
+
+- [ ] **Step 1: RED the logical commit point**
+
+Through the real CLI `main()`, inject successful overwrite and success-audit
+installation followed by backup cleanup failure. Final success-audit publication
+is the logical commit point. Failures before it restore the old output and expose
+no success audit. Cleanup failure after it retains code 0 and the success audit,
+emits a warning, and may preserve only the transaction-owned backup residue.
+
+- [ ] **Step 2: RED planning before Stage 2 materialization**
+
+Record plan, materialization, forward, and release events for a candidate whose
+prospective padded cost exceeds the remaining budget. The lightweight plan may
+retain Stage 1 and exact `planned_T`, but may not allocate complete values or mask
+tensors. Forward and release the pending batch before materializing the candidate.
+Require `planned_T == materialized_T` as a global invariant, preserve singleton
+over-budget behavior and `hard_safety_limit_t`, and do not expand the seven-error
+degradation allowlist.
+
+- [ ] **Step 3: RED final-batch reference lifetime**
+
+Use lifecycle evidence to prove each completed forward releases the group,
+normalized batch, model output, logits, and validated logits. The final batch
+must be released before intermediate finalization and publication; no explicit
+garbage collection or device-cache flush is required.
+
+- [ ] **Step 4: GREEN, synchronize, verify, and commit**
+
+Implement the minimum control-flow changes, synchronize this plan and the design,
+then run Task 11-12 focused tests, all Stage 2, Stage 1 regression, the full suite,
+changed-file `py_compile`, `git diff --check`, and strict `git fsck`. Create one
+append-only local commit named:
+
+```text
+fix(imu): finalize inference commit and batch residency
+```
+
+Do not push or begin Task 13. Deferred hardening remains complete
+symlink/junction/reparse containment, natural-key same-key tie-breaking,
+duplicate YAML-key rejection, and stronger stale-checkpoint cross-binding tests.
+
+---
+
 ### Task 13: Prove offline/online replay equivalence and end-to-end behavior
 
 **Files:**
