@@ -132,6 +132,33 @@ def test_decimal_seconds_to_ns_rejects_subnanosecond() -> None:
         decimal_seconds_to_ns("0.0000000001")
 
 
+def test_decimal_seconds_to_ns_accepts_arbitrary_length_integer_nanoseconds() -> None:
+    assert decimal_seconds_to_ns(
+        "0.0000000010000000000000000000000000000"
+    ) == np.int64(1)
+
+
+def test_decimal_seconds_to_ns_rejects_arbitrary_length_subnanosecond() -> None:
+    with pytest.raises(ValueError, match="represented exactly"):
+        decimal_seconds_to_ns("0.0000000010000000000000000000000000001")
+
+
+@pytest.mark.parametrize(
+    ("text", "error_type", "message"),
+    [
+        ("1e999999999999999999", OverflowError, "outside int64 range"),
+        ("1e-999999999999999999", ValueError, "represented exactly"),
+    ],
+)
+def test_decimal_seconds_to_ns_normalizes_extreme_exponent_failures(
+    text: str,
+    error_type: type[Exception],
+    message: str,
+) -> None:
+    with pytest.raises(error_type, match=message):
+        decimal_seconds_to_ns(text)
+
+
 def test_decimal_seconds_to_ns_rejects_int64_overflow() -> None:
     with pytest.raises(OverflowError, match="outside int64 range"):
         decimal_seconds_to_ns("9223372036.854775808")

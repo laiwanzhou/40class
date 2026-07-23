@@ -41,15 +41,35 @@ def decimal_seconds_to_ns(text: str) -> np.int64:
         raise ValueError("Invalid relative time") from error
     if not value.is_finite() or value < 0:
         raise ValueError("Invalid relative time")
-    nanoseconds = value * Decimal(1_000_000_000)
-    if nanoseconds != nanoseconds.to_integral_value():
-        raise ValueError(
-            "Relative time cannot be represented exactly in nanoseconds"
+    if value.is_zero():
+        return np.int64(0)
+    components = value.as_tuple()
+    digits = components.digits
+    nanosecond_exponent = int(components.exponent) + 9
+    if nanosecond_exponent < 0:
+        required_trailing_zeros = -nanosecond_exponent
+        if required_trailing_zeros > len(digits) or any(
+            digit != 0 for digit in digits[-required_trailing_zeros:]
+        ):
+            raise ValueError(
+                "Relative time cannot be represented exactly in nanoseconds"
+            )
+        integer_digits = digits[:-required_trailing_zeros]
+        significant = (
+            "".join(str(digit) for digit in integer_digits).lstrip("0") or "0"
         )
-    integer = int(nanoseconds)
-    if not 0 <= integer <= np.iinfo(np.int64).max:
+    else:
+        if len(digits) + nanosecond_exponent > 19:
+            raise OverflowError("Relative time is outside int64 range")
+        significant = "".join(str(digit) for digit in digits) + (
+            "0" * nanosecond_exponent
+        )
+    maximum = str(np.iinfo(np.int64).max)
+    if len(significant) > len(maximum) or (
+        len(significant) == len(maximum) and significant > maximum
+    ):
         raise OverflowError("Relative time is outside int64 range")
-    return np.int64(integer)
+    return np.int64(int(significant))
 
 
 def stage1_manifest_row_sha256(row: Mapping[str, str]) -> str:
