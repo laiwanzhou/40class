@@ -141,6 +141,51 @@ def _optional_int(text: str) -> int | None:
     return None if text == "" else int(text)
 
 
+def _artifact_int64(text: object, column: str) -> np.int64:
+    if not isinstance(text, str) or text == "":
+        raise ValueError(f"Stage 1 column {column} must contain int64 values")
+    try:
+        value = Decimal(text)
+    except (InvalidOperation, ValueError) as error:
+        raise ValueError(
+            f"Stage 1 column {column} must contain int64 values"
+        ) from error
+    if not value.is_finite():
+        raise ValueError(f"Stage 1 column {column} must contain int64 values")
+    if value.is_zero():
+        return np.int64(0)
+
+    components = value.as_tuple()
+    digits = components.digits
+    exponent = int(components.exponent)
+    if exponent < 0:
+        fractional_digits = -exponent
+        if fractional_digits > len(digits) or any(
+            digit != 0 for digit in digits[-fractional_digits:]
+        ):
+            raise ValueError(
+                f"Stage 1 column {column} must contain integer values"
+            )
+        integer_digits = digits[:-fractional_digits]
+    else:
+        if len(digits) + exponent > 19:
+            raise OverflowError(f"Stage 1 column {column} is outside int64 range")
+        integer_digits = (*digits, *((0,) * exponent))
+
+    significant = "".join(str(digit) for digit in integer_digits).lstrip("0") or "0"
+    limit = str(
+        abs(int(np.iinfo(np.int64).min))
+        if components.sign
+        else int(np.iinfo(np.int64).max)
+    )
+    if len(significant) > len(limit) or (
+        len(significant) == len(limit) and significant > limit
+    ):
+        raise OverflowError(f"Stage 1 column {column} is outside int64 range")
+    integer = int(significant)
+    return np.int64(-integer if components.sign else integer)
+
+
 def _sensor_mask(frame: pd.DataFrame) -> np.ndarray:
     unknown = set(frame["sensor_position"].astype(str)) - set(SENSOR_ORDER)
     if unknown:
@@ -188,13 +233,25 @@ def load_stage1_action(
 ) -> Stage1ActionData:
     frame = pd.read_csv(
         descriptor.output_csv_path,
-        dtype={"relative_time_s": "string"},
+        dtype={
+            "relative_time_s": "string",
+            "source_row_index": "string",
+        },
         encoding="utf-8-sig",
     )
     if "relative_time_s" not in frame.columns:
         raise ValueError("Stage 1 data is missing relative_time_s")
+    if "source_row_index" not in frame.columns:
+        raise ValueError("Stage 1 data is missing column: source_row_index")
     relative_time_ns = np.asarray(
         [decimal_seconds_to_ns(str(value)) for value in frame["relative_time_s"]],
+        dtype=np.int64,
+    )
+    frame["source_row_index"] = np.asarray(
+        [
+            _artifact_int64(value, "source_row_index")
+            for value in frame["source_row_index"]
+        ],
         dtype=np.int64,
     )
     qc_payload = json.loads(descriptor.qc_path.read_text(encoding="utf-8"))

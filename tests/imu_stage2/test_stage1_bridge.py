@@ -17,6 +17,7 @@ from src.data.imu_stage1_bridge import (
     stage1_manifest_row_sha256,
 )
 from src.data.imu_stage2_contracts import FEATURE_ORDER, ImuActionSource, sha256_file
+from src.data.imu_stage2_core import process_stage2_action
 
 
 def make_manifest_row(*, output_csv: str) -> dict[str, str]:
@@ -108,6 +109,23 @@ def write_raw_csv(path: Path, timestamp: str, device: str, base: float) -> None:
         index=False,
         encoding="utf-8-sig",
     )
+
+
+def merged_with_source_row_indices(values: list[str]) -> pd.DataFrame:
+    records: list[dict[str, object]] = []
+    for index, source_row_index in enumerate(values):
+        record: dict[str, object] = {
+            "relative_time_s": f"0.{index}",
+            "relative_time_ms": index * 100,
+            "sensor_position": "LL",
+            "source_file": "part2.csv",
+            "source_row_index": source_row_index,
+        }
+        record.update(
+            {feature: 10.0 + offset for offset, feature in enumerate(FEATURE_ORDER)}
+        )
+        records.append(record)
+    return pd.DataFrame(records, columns=stage1.OUTPUT_COLUMNS)
 
 
 @pytest.mark.parametrize(
@@ -251,6 +269,90 @@ def test_offline_loader_uses_exact_text_fixed_features_and_file_ranks(
     assert data.source_metadata["stage1_manifest_row_sha256"] == (
         descriptor.manifest_row_sha256
     )
+
+
+def test_artifact_integral_decimal_source_row_indices_reach_stage2(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "new_IMU"
+    root.mkdir()
+    write_artifact(
+        root,
+        merged=merged_with_source_row_indices(["3.0", "4.0"]),
+    )
+
+    action = load_stage1_action(discover_stage1_artifacts(root)[0])
+    result = process_stage2_action(action)
+
+    assert action.dataframe["source_row_index"].dtype == np.dtype(np.int64)
+    assert action.dataframe["source_row_index"].tolist() == [3, 4]
+    result.validate()
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("3", 3),
+        ("3.0", 3),
+        ("3.000", 3),
+        ("0.0", 0),
+        ("9223372036854775807", np.iinfo(np.int64).max),
+        ("9223372036854775807.0", np.iinfo(np.int64).max),
+        ("-9223372036854775808", np.iinfo(np.int64).min),
+        ("-9223372036854775808.0", np.iinfo(np.int64).min),
+    ],
+)
+def test_artifact_source_row_index_accepts_exact_int64_text(
+    tmp_path: Path,
+    text: str,
+    expected: int,
+) -> None:
+    root = tmp_path / "new_IMU"
+    root.mkdir()
+    write_artifact(
+        root,
+        merged=merged_with_source_row_indices([text, "4"]),
+    )
+
+    action = load_stage1_action(discover_stage1_artifacts(root)[0])
+    result = process_stage2_action(action)
+
+    assert action.dataframe["source_row_index"].dtype == np.dtype(np.int64)
+    assert action.dataframe["source_row_index"].tolist() == [expected, 4]
+    result.validate()
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "3.1",
+        "3.0000001",
+        "NaN",
+        "Infinity",
+        "-Infinity",
+        "True",
+        "False",
+        "",
+        "9223372036854775808",
+        "-9223372036854775809",
+    ],
+)
+def test_artifact_source_row_index_rejects_non_int64_text(
+    tmp_path: Path,
+    text: str,
+) -> None:
+    root = tmp_path / "new_IMU"
+    root.mkdir()
+    write_artifact(
+        root,
+        merged=merged_with_source_row_indices([text, "4"]),
+    )
+
+    with pytest.raises(
+        (ValueError, OverflowError),
+        match="source_row_index",
+    ):
+        load_stage1_action(discover_stage1_artifacts(root)[0])
 
 
 def test_raw_bridge_uses_exact_absolute_deltas_and_writes_nothing(
