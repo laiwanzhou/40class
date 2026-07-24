@@ -7,6 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -206,6 +207,55 @@ def test_manifest_sensor_mask_parser_rejects_noncanonical_encodings(
 
     with pytest.raises(ValueError, match=column):
         _parse_manifest_sensor_mask(value, column)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "[true,false,true,false,true]",
+        "[True, False, True, False, True]",
+        [True, False, True, False, True],
+        (True, False, True, False, True),
+    ],
+)
+def test_training_mask_parser_accepts_only_actual_boolean_elements(
+    value: object,
+) -> None:
+    from scripts.build_imu_training_index import _parse_mask
+
+    assert _parse_mask(value, "sensor_mask") == (
+        True,
+        False,
+        True,
+        False,
+        True,
+    )
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "[1,1,1,1,1]",
+        "[0,0,0,0,0]",
+        "[1,0,1,0,1]",
+        '["true","true","true","true","true"]',
+        '["false","false","false","false","false"]',
+        '["1","1","1","1","1"]',
+        '["0","0","0","0","0"]',
+        "[true,true,true,true,1]",
+        [np.bool_(True)] * 5,
+        [np.int64(1)] * 5,
+    ],
+)
+@pytest.mark.parametrize("column", ["sensor_mask", "usable_sensor_mask"])
+def test_training_mask_parser_rejects_non_boolean_elements(
+    value: object,
+    column: str,
+) -> None:
+    from scripts.build_imu_training_index import _parse_mask
+
+    with pytest.raises(ValueError, match=column):
+        _parse_mask(value, column)
 
 
 def test_training_index_rejects_overlapping_users_and_duplicate_samples() -> None:
@@ -408,6 +458,37 @@ def test_metadata_binds_manifest_split_class_order_and_behavior(tmp_path: Path) 
             expected_source_manifest_path="manifest.csv",
             expected_split_definition=_split(),
         )
+
+    for column, replacement in (
+        ("sensor_mask", "[1,1,1,1,1]"),
+        ("usable_sensor_mask", "[0,0,0,0,0]"),
+        ("sensor_mask", '["true","true","true","true","true"]'),
+    ):
+        non_boolean = index.copy()
+        non_boolean.loc[
+            non_boolean["sample_id"] == "s_train_a", column
+        ] = replacement
+        non_boolean_metadata = dict(metadata)
+        non_boolean_metadata["training_index_sha256"] = hash_training_index(
+            non_boolean
+        )
+        with pytest.raises(ValueError, match=column):
+            validate_training_index_metadata(
+                non_boolean_metadata,
+                non_boolean,
+                contract,
+                expected_source_manifest_sha256=hashlib.sha256(
+                    manifest_path.read_bytes()
+                ).hexdigest(),
+                expected_stage2_contract_sha256="a" * 64,
+                expected_split_definition_sha256=hashlib.sha256(
+                    split_path.read_bytes()
+                ).hexdigest(),
+                expected_fold=0,
+                expected_split_definition_path="fold.json",
+                expected_source_manifest_path="manifest.csv",
+                expected_split_definition=_split(),
+            )
 
 
 def test_generation_from_formal_manifest_publishes_strict_training_masks(

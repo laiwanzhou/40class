@@ -231,8 +231,9 @@ def _parse_mask(value: object, name: str) -> tuple[bool, ...]:
                 raise ValueError(f"{name} must be a five-element boolean list") from error
     if not isinstance(parsed, (list, tuple)) or len(parsed) != 5:
         raise ValueError(f"{name} must be a five-element boolean list")
-    result = tuple(_parse_bool(item, name) for item in parsed)
-    return result
+    if not all(type(item) is bool for item in parsed):
+        raise ValueError(f"{name} must contain only boolean elements")
+    return tuple(parsed)
 
 
 def _parse_manifest_sensor_mask(
