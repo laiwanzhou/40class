@@ -19,7 +19,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
 
-from src.data.imu_stage2_contracts import canonical_json_bytes, sha256_file
+from src.data.imu_stage2_contracts import SENSOR_ORDER, canonical_json_bytes, sha256_file
 from src.data.imu_stage2_io import load_stage2_schema, write_json_atomic
 
 
@@ -235,6 +235,27 @@ def _parse_mask(value: object, name: str) -> tuple[bool, ...]:
     return result
 
 
+def _parse_manifest_sensor_mask(
+    value: object,
+    name: str,
+) -> tuple[bool, ...]:
+    if not isinstance(value, str):
+        raise ValueError(f"{name} must be a canonical sensor-name list")
+    if value == "":
+        return tuple(False for _ in SENSOR_ORDER)
+    tokens = value.split(";")
+    if any(token == "" for token in tokens):
+        raise ValueError(f"{name} must be a canonical sensor-name list")
+    positions = {sensor: index for index, sensor in enumerate(SENSOR_ORDER)}
+    if any(token not in positions for token in tokens):
+        raise ValueError(f"{name} must be a canonical sensor-name list")
+    indices = [positions[token] for token in tokens]
+    if len(set(tokens)) != len(tokens) or indices != sorted(indices):
+        raise ValueError(f"{name} must be a canonical sensor-name list")
+    present = set(tokens)
+    return tuple(sensor in present for sensor in SENSOR_ORDER)
+
+
 def _split_users(split_definition: Mapping[str, object]) -> tuple[set[str], set[str]]:
     train_value = split_definition.get("train_users")
     val_value = split_definition.get("val_users")
@@ -290,8 +311,10 @@ def build_training_index(
         user_id = str(source["user_id"])
         status = str(source["status"])
         imu_usable = _parse_bool(source["imu_usable"], "imu_usable")
-        sensor_mask = _parse_mask(source["sensor_mask"], "sensor_mask")
-        usable_sensor_mask = _parse_mask(
+        sensor_mask = _parse_manifest_sensor_mask(
+            source["sensor_mask"], "sensor_mask"
+        )
+        usable_sensor_mask = _parse_manifest_sensor_mask(
             source["usable_sensor_mask"], "usable_sensor_mask"
         )
         stage2_npz_relpath = str(source["stage2_npz_relpath"]).strip()

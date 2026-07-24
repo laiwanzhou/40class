@@ -49,8 +49,8 @@ def _pipeline_contract_fixture(tmp_path: Path) -> dict[str, Path]:
                 "stage2_npz_relpath": "train/imu_stage2.npz",
                 "status": "success",
                 "imu_usable": "True",
-                "sensor_mask": "[True, True, True, True, True]",
-                "usable_sensor_mask": "[True, True, True, True, True]",
+                "sensor_mask": "LL;RL;LA;RA;C",
+                "usable_sensor_mask": "LL;RL;LA;RA;C",
             },
             {
                 "sample_id": "validation",
@@ -61,8 +61,8 @@ def _pipeline_contract_fixture(tmp_path: Path) -> dict[str, Path]:
                 "stage2_npz_relpath": "validation/imu_stage2.npz",
                 "status": "success",
                 "imu_usable": "True",
-                "sensor_mask": "[True, True, True, True, True]",
-                "usable_sensor_mask": "[True, True, True, True, True]",
+                "sensor_mask": "LL;RL;LA;RA;C",
+                "usable_sensor_mask": "LL;RL;LA;RA;C",
             },
         ]
     )

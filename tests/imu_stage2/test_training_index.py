@@ -23,8 +23,8 @@ def _manifest() -> pd.DataFrame:
                 "stage2_npz_relpath": "10/u_train/a1/imu_stage2.npz",
                 "status": "success",
                 "imu_usable": "True",
-                "sensor_mask": "[True, True, True, True, True]",
-                "usable_sensor_mask": "[True, True, True, True, True]",
+                "sensor_mask": "LL;RL;LA;RA;C",
+                "usable_sensor_mask": "LL;RL;LA;RA;C",
             },
             {
                 "sample_id": "s_val_b",
@@ -35,8 +35,8 @@ def _manifest() -> pd.DataFrame:
                 "stage2_npz_relpath": "30/u_val/a2/imu_stage2.npz",
                 "status": "success_with_warnings",
                 "imu_usable": "True",
-                "sensor_mask": "[True, True, True, True, True]",
-                "usable_sensor_mask": "[True, True, True, True, True]",
+                "sensor_mask": "LL;RL;LA;RA;C",
+                "usable_sensor_mask": "LL;RL;LA;RA;C",
             },
             {
                 "sample_id": "s_ineligible",
@@ -47,8 +47,8 @@ def _manifest() -> pd.DataFrame:
                 "stage2_npz_relpath": "10/u_train/a3/imu_stage2.npz",
                 "status": "incomplete_sensors",
                 "imu_usable": "True",
-                "sensor_mask": "[True, True, True, True, False]",
-                "usable_sensor_mask": "[True, True, True, True, False]",
+                "sensor_mask": "LL;RL;LA;RA",
+                "usable_sensor_mask": "LL;RL;LA;RA",
             },
             {
                 "sample_id": "s_unselected",
@@ -59,8 +59,8 @@ def _manifest() -> pd.DataFrame:
                 "stage2_npz_relpath": "30/u_other/a4/imu_stage2.npz",
                 "status": "success",
                 "imu_usable": "True",
-                "sensor_mask": "[True, True, True, True, True]",
-                "usable_sensor_mask": "[True, True, True, True, True]",
+                "sensor_mask": "LL;RL;LA;RA;C",
+                "usable_sensor_mask": "LL;RL;LA;RA;C",
             },
         ]
     )
@@ -153,8 +153,59 @@ def test_training_index_enforces_strict_eligibility_and_split_semantics() -> Non
     assert not bool(rows.loc["s_ineligible", "eligible_for_strict_training"])
     assert not bool(rows.loc["s_ineligible", "selected_for_run"])
     assert rows.loc["s_ineligible", "split"] == ""
+    assert rows.loc["s_ineligible", "sensor_mask"] == "[true,true,true,true,false]"
+    assert rows.loc["s_ineligible", "usable_sensor_mask"] == "[true,true,true,true,false]"
+    assert "missing_historical_sensor" in rows.loc["s_ineligible", "exclusion_reason"]
+    assert "unusable_sensor" in rows.loc["s_ineligible", "exclusion_reason"]
+    assert rows.loc["s_train_a", "sensor_mask"] == "[true,true,true,true,true]"
+    assert rows.loc["s_train_a", "usable_sensor_mask"] == "[true,true,true,true,true]"
     assert rows.loc["s_unselected", "split"] == ""
     assert (index["selected_for_run"] == index["split"].isin(["train", "validation"])).all()
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("", (False, False, False, False, False)),
+        ("LL", (True, False, False, False, False)),
+        ("LL;RL", (True, True, False, False, False)),
+        ("LA;RA;C", (False, False, True, True, True)),
+        ("LL;RL;LA;RA;C", (True, True, True, True, True)),
+    ],
+)
+def test_manifest_sensor_mask_parser_accepts_only_canonical_sensor_subsequences(
+    value: str,
+    expected: tuple[bool, ...],
+) -> None:
+    from scripts.build_imu_training_index import _parse_manifest_sensor_mask
+
+    assert _parse_manifest_sensor_mask(value, "sensor_mask") == expected
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "UNKNOWN",
+        "LL;UNKNOWN",
+        "LL;LL",
+        "RL;LL",
+        "LL;;RL",
+        ";LL",
+        "LL;",
+        "LL,RL",
+        "[true,true,true,true,true]",
+        "[True, True, True, True, True]",
+    ],
+)
+@pytest.mark.parametrize("column", ["sensor_mask", "usable_sensor_mask"])
+def test_manifest_sensor_mask_parser_rejects_noncanonical_encodings(
+    value: str,
+    column: str,
+) -> None:
+    from scripts.build_imu_training_index import _parse_manifest_sensor_mask
+
+    with pytest.raises(ValueError, match=column):
+        _parse_manifest_sensor_mask(value, column)
 
 
 def test_training_index_rejects_overlapping_users_and_duplicate_samples() -> None:
@@ -332,6 +383,94 @@ def test_metadata_binds_manifest_split_class_order_and_behavior(tmp_path: Path) 
             expected_split_definition=_split(),
         )
 
+    manifest_encoded = index.copy()
+    manifest_encoded.loc[
+        manifest_encoded["sample_id"] == "s_train_a", "sensor_mask"
+    ] = "LL;RL;LA;RA;C"
+    manifest_encoded_metadata = dict(metadata)
+    manifest_encoded_metadata["training_index_sha256"] = hash_training_index(
+        manifest_encoded
+    )
+    with pytest.raises(ValueError, match="sensor_mask"):
+        validate_training_index_metadata(
+            manifest_encoded_metadata,
+            manifest_encoded,
+            contract,
+            expected_source_manifest_sha256=hashlib.sha256(
+                manifest_path.read_bytes()
+            ).hexdigest(),
+            expected_stage2_contract_sha256="a" * 64,
+            expected_split_definition_sha256=hashlib.sha256(
+                split_path.read_bytes()
+            ).hexdigest(),
+            expected_fold=0,
+            expected_split_definition_path="fold.json",
+            expected_source_manifest_path="manifest.csv",
+            expected_split_definition=_split(),
+        )
+
+
+def test_generation_from_formal_manifest_publishes_strict_training_masks(
+    tmp_path: Path,
+) -> None:
+    from scripts.build_imu_training_index import (
+        _strict_json,
+        generate_training_index_artifacts,
+        load_class_order,
+        validate_training_index_metadata,
+    )
+    from src.data.imu_stage2_contracts import sha256_file
+    from src.data.imu_stage2_io import load_stage2_schema
+
+    manifest_path, split_path, repository_root = _generation_fixture(tmp_path)
+    output_dir = tmp_path / "index"
+
+    generate_training_index_artifacts(
+        manifest_path,
+        output_dir,
+        split_path,
+        repository_root=repository_root,
+    )
+
+    assert sorted(path.name for path in output_dir.iterdir()) == [
+        "class_order.json",
+        "training_index.csv",
+        "training_index.json",
+    ]
+    assert not list(output_dir.parent.glob(f".{output_dir.name}.staging-*"))
+    assert not list(output_dir.parent.glob(f".{output_dir.name}.backup-*"))
+    index = pd.read_csv(
+        output_dir / "training_index.csv",
+        encoding="utf-8-sig",
+        keep_default_na=False,
+    )
+    assert set(index["sensor_mask"]) == {
+        "[true,true,true,true,true]",
+        "[true,true,true,true,false]",
+    }
+    assert set(index["usable_sensor_mask"]) == {
+        "[true,true,true,true,true]",
+        "[true,true,true,true,false]",
+    }
+    assert not index["sensor_mask"].str.contains("LL", regex=False).any()
+    assert not index["usable_sensor_mask"].str.contains("LL", regex=False).any()
+    metadata = _strict_json(output_dir / "training_index.json")
+    class_order = load_class_order(output_dir / "class_order.json")
+    split_definition = _strict_json(split_path)
+    schema = load_stage2_schema(manifest_path.parent / "schema.json")
+    validate_training_index_metadata(
+        metadata,
+        index,
+        class_order,
+        expected_source_manifest_sha256=sha256_file(manifest_path),
+        expected_stage2_contract_sha256=str(schema["contract_sha256"]),
+        expected_split_definition_sha256=sha256_file(split_path),
+        expected_fold=0,
+        expected_split_definition_path="metadata/splits/fold_0.json",
+        expected_source_manifest_path="manifest.csv",
+        expected_split_definition=split_definition,
+    )
+
 
 def test_artifact_generation_rejects_a_missing_unselected_npz(tmp_path: Path) -> None:
     from scripts.build_imu_training_index import generate_training_index_artifacts
@@ -388,8 +527,8 @@ def test_cli_accepts_stage2_manifest_outside_repository(tmp_path: Path) -> None:
                 "stage2_npz_relpath": "10/user/a1/imu_stage2.npz",
                 "status": "success",
                 "imu_usable": "True",
-                "sensor_mask": "[True, True, True, True, True]",
-                "usable_sensor_mask": "[True, True, True, True, True]",
+                "sensor_mask": "LL;RL;LA;RA;C",
+                "usable_sensor_mask": "LL;RL;LA;RA;C",
             }
         ]
     )
