@@ -186,6 +186,41 @@ def _artifact_int64(text: object, column: str) -> np.int64:
     return np.int64(-integer if components.sign else integer)
 
 
+def _canonical_raw_source_row_indices(values: pd.Series) -> np.ndarray:
+    minimum = int(np.iinfo(np.int64).min)
+    maximum = int(np.iinfo(np.int64).max)
+    maximum_exact_float64_integer = 2**53
+    canonical: list[int] = []
+    for value in values.to_numpy(copy=False):
+        if isinstance(value, (bool, np.bool_)):
+            raise ValueError(
+                "Raw Stage 1 source_row_index must contain exact integers"
+            )
+        if isinstance(value, (int, np.integer)):
+            integer = int(value)
+        elif isinstance(value, (float, np.floating)):
+            numeric = float(value)
+            if (
+                not np.isfinite(numeric)
+                or not numeric.is_integer()
+                or abs(numeric) > maximum_exact_float64_integer
+            ):
+                raise ValueError(
+                    "Raw Stage 1 source_row_index must contain exact integers"
+                )
+            integer = int(numeric)
+        else:
+            raise ValueError(
+                "Raw Stage 1 source_row_index must contain exact integers"
+            )
+        if integer < minimum or integer > maximum:
+            raise OverflowError(
+                "Raw Stage 1 source_row_index is outside int64 range"
+            )
+        canonical.append(integer)
+    return np.asarray(canonical, dtype=np.int64)
+
+
 def _sensor_mask(frame: pd.DataFrame) -> np.ndarray:
     unknown = set(frame["sensor_position"].astype(str)) - set(SENSOR_ORDER)
     if unknown:
@@ -316,6 +351,9 @@ def process_raw_imu_source(source: ImuActionSource) -> Stage1ActionData:
         )
 
     frame = memory.exact_rows.copy()
+    frame["source_row_index"] = _canonical_raw_source_row_indices(
+        frame["source_row_index"]
+    )
     frame["_sensor_order"] = frame["sensor_position"].map(stage1.SENSOR_ORDER)
     frame = frame.sort_values(
         ["absolute_time", "_sensor_order", "source_file", "source_row_index"],

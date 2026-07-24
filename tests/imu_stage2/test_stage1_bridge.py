@@ -9,6 +9,7 @@ import pandas as pd
 import pytest
 
 import scripts.preprocess_imu_stage1 as stage1
+import src.data.imu_stage1_bridge as stage1_bridge
 from src.data.imu_stage1_bridge import (
     decimal_seconds_to_ns,
     discover_stage1_artifacts,
@@ -108,6 +109,30 @@ def write_raw_csv(path: Path, timestamp: str, device: str, base: float) -> None:
         path,
         index=False,
         encoding="utf-8-sig",
+    )
+
+
+def raw_source_with_empty_validated_file(tmp_path: Path) -> ImuActionSource:
+    input_directory = tmp_path / "SM_test_0001" / "IMU"
+    input_directory.mkdir(parents=True)
+    accepted = input_directory / "part2.csv"
+    empty_after_validation = input_directory / "part10.csv"
+    write_raw_csv(
+        accepted,
+        "2025-01-01 00:00:00.000000000",
+        "WTLL(device)",
+        10.0,
+    )
+    pd.DataFrame(columns=stage1.REQUIRED_SOURCE_COLUMNS).to_csv(
+        empty_after_validation,
+        index=False,
+        encoding="utf-8-sig",
+    )
+    return ImuActionSource(
+        sample_id="SM_test_0001",
+        input_directory=input_directory,
+        input_csv_files=(accepted, empty_after_validation),
+        source_relative_path=Path("SM_test_0001/IMU"),
     )
 
 
@@ -377,12 +402,93 @@ def test_raw_bridge_uses_exact_absolute_deltas_and_writes_nothing(
     after = sorted(path.relative_to(tmp_path) for path in tmp_path.rglob("*"))
     assert after == before
     assert data.relative_time_ns.tolist() == [0, 90_999_999]
+    assert data.relative_time_ns.dtype == np.dtype(np.int64)
     assert data.dataframe["sensor_position"].tolist() == ["LL", "C"]
+    assert data.dataframe["source_row_index"].dtype == np.dtype(np.int64)
+    assert data.dataframe["source_row_index"].tolist() == [1, 1]
+    assert data.dataframe["_source_file_rank"].dtype == np.dtype(np.int64)
     assert data.dataframe["_source_file_rank"].tolist() == [1, 0]
+    assert data.dataframe["_stage1_row_index"].dtype == np.dtype(np.int64)
     assert data.dataframe["_stage1_row_index"].tolist() == [0, 1]
     assert data.sensor_mask.tolist() == [True, False, False, False, True]
     assert data.class_id is None
     assert data.qc["status"] == "incomplete_sensors"
+
+
+def test_raw_bridge_reaches_stage2_after_empty_validated_file(
+    tmp_path: Path,
+) -> None:
+    source = raw_source_with_empty_validated_file(tmp_path)
+
+    raw = process_raw_imu_source(source)
+    result = process_stage2_action(raw)
+
+    result.validate()
+    assert raw.qc["total_input_rows"] == 1
+
+
+def test_raw_bridge_canonical_dtypes_after_empty_validated_file(
+    tmp_path: Path,
+) -> None:
+    raw = process_raw_imu_source(raw_source_with_empty_validated_file(tmp_path))
+
+    assert raw.dataframe["source_row_index"].dtype == np.dtype(np.int64)
+    assert raw.dataframe["source_row_index"].tolist() == [1]
+    assert raw.dataframe["_source_file_rank"].dtype == np.dtype(np.int64)
+    assert raw.dataframe["_source_file_rank"].tolist() == [0]
+    assert raw.dataframe["_stage1_row_index"].dtype == np.dtype(np.int64)
+    assert raw.dataframe["_stage1_row_index"].tolist() == [0]
+    assert raw.relative_time_ns.dtype == np.dtype(np.int64)
+    assert raw.relative_time_ns.tolist() == [0]
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (3, 3),
+        (np.int64(-3), -3),
+        (0.0, 0),
+        (3.0, 3),
+        (-3.0, -3),
+        (float(2**53), 2**53),
+    ],
+)
+def test_raw_source_row_index_normalization_accepts_exact_values(
+    value: object,
+    expected: int,
+) -> None:
+    actual = stage1_bridge._canonical_raw_source_row_indices(
+        pd.Series([value])
+    )
+
+    assert actual.dtype == np.dtype(np.int64)
+    assert actual.tolist() == [expected]
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        True,
+        False,
+        3.1,
+        -3.1,
+        np.nan,
+        np.inf,
+        -np.inf,
+        float(2**53 + 2),
+        float(-(2**53 + 2)),
+        int(np.iinfo(np.int64).max) + 1,
+        int(np.iinfo(np.int64).min) - 1,
+    ],
+)
+def test_raw_source_row_index_normalization_rejects_inexact_values(
+    value: object,
+) -> None:
+    with pytest.raises(
+        (ValueError, OverflowError),
+        match="source_row_index",
+    ):
+        stage1_bridge._canonical_raw_source_row_indices(pd.Series([value]))
 
 
 def test_offline_and_raw_bridges_produce_identical_numerical_inputs(
@@ -431,4 +537,6 @@ def test_offline_and_raw_bridges_produce_identical_numerical_inputs(
 
     assert np.array_equal(offline.relative_time_ns, raw.relative_time_ns)
     assert np.array_equal(offline.sensor_mask, raw.sensor_mask)
+    assert offline.dataframe["source_row_index"].dtype == np.dtype(np.int64)
+    assert raw.dataframe["source_row_index"].dtype == np.dtype(np.int64)
     pd.testing.assert_frame_equal(offline.dataframe, raw.dataframe)
