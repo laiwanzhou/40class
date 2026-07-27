@@ -153,6 +153,8 @@ def test_metrics_handle_zero_denominators_and_use_true_rows_predicted_columns() 
         np.array([[1, 1, 0], [0, 1, 0], [0, 0, 0]], dtype=np.int64),
     )
     assert result["accuracy"] == pytest.approx(2 / 3)
+    assert result["macro_precision"] == pytest.approx((1.0 + 0.5 + 0.0) / 3)
+    assert result["macro_recall"] == pytest.approx((0.5 + 1.0 + 0.0) / 3)
     assert result["per_class"][2] == {
         "precision": 0.0,
         "recall": 0.0,
@@ -170,10 +172,18 @@ def test_train_one_epoch_updates_parameters_and_reports_finite_values() -> None:
     model = build_imu_stage2_model(_model_config(), num_classes=3)
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3)
     before = [parameter.detach().clone() for parameter in model.parameters()]
+    batch = _batch()
+    model.train()
+    with torch.no_grad():
+        expected_accuracy = float(
+            (model(batch)["logits"].argmax(dim=1) == batch["labels"])
+            .to(torch.float32)
+            .mean()
+        )
 
     result = train_one_epoch(
         model,
-        [_batch()],
+        [batch],
         optimizer,
         device=torch.device("cpu"),
         label_smoothing=0.05,
@@ -183,6 +193,7 @@ def test_train_one_epoch_updates_parameters_and_reports_finite_values() -> None:
 
     assert np.isfinite(result["loss"])
     assert np.isfinite(result["gradient_norm"])
+    assert result["accuracy"] == pytest.approx(expected_accuracy)
     assert any(
         not torch.equal(previous, current)
         for previous, current in zip(before, model.parameters())

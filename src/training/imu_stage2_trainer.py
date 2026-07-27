@@ -152,6 +152,8 @@ def classification_metrics(
     confusion = np.zeros((num_classes, num_classes), dtype=np.int64)
     np.add.at(confusion, (labels, predictions), 1)
     per_class: list[dict[str, object]] = []
+    precision_values: list[float] = []
+    recall_values: list[float] = []
     f1_values: list[float] = []
     for index in range(num_classes):
         true_positive = int(confusion[index, index])
@@ -168,10 +170,14 @@ def classification_metrics(
                 "support": support,
             }
         )
+        precision_values.append(precision)
+        recall_values.append(recall)
         f1_values.append(f1)
     accuracy = float(np.trace(confusion) / labels.size) if labels.size else 0.0
     return {
         "accuracy": accuracy,
+        "macro_precision": float(np.mean(precision_values)),
+        "macro_recall": float(np.mean(recall_values)),
         "macro_f1": float(np.mean(f1_values)),
         "confusion_matrix": confusion,
         "per_class": per_class,
@@ -216,6 +222,7 @@ def train_one_epoch(
     model.train()
     total_loss = 0.0
     total_samples = 0
+    total_correct = 0
     last_gradient_norm = 0.0
     batches = 0
     for batch_index, original_batch in enumerate(loader):
@@ -252,12 +259,14 @@ def train_one_epoch(
         count = int(labels.numel())
         total_loss += float(loss.detach().cpu()) * count
         total_samples += count
+        total_correct += int((torch.argmax(logits.detach(), dim=1) == labels).sum().item())
         last_gradient_norm = float(torch.as_tensor(gradient_norm).detach().cpu())
         batches += 1
     if batches == 0 or total_samples == 0:
         raise ValueError("Training loader produced no samples")
     return {
         "loss": total_loss / total_samples,
+        "accuracy": total_correct / total_samples,
         "gradient_norm": last_gradient_norm,
         "batches": float(batches),
         "samples": float(total_samples),
