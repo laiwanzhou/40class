@@ -243,6 +243,36 @@ def test_train_one_epoch_updates_parameters_and_reports_finite_values() -> None:
     )
 
 
+def test_train_one_epoch_reports_maximum_pre_clipping_gradient_norm(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.models.imu_stage2_tcn import build_imu_stage2_model
+    from src.training.imu_stage2_trainer import train_one_epoch
+
+    model = build_imu_stage2_model(_model_config(), num_classes=3)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3)
+    original_clip = torch.nn.utils.clip_grad_norm_
+    reported_norms = iter((torch.tensor(3.0), torch.tensor(1.0)))
+
+    def clip_and_report(*args: object, **kwargs: object) -> torch.Tensor:
+        original_clip(*args, **kwargs)
+        return next(reported_norms)
+
+    monkeypatch.setattr(torch.nn.utils, "clip_grad_norm_", clip_and_report)
+
+    result = train_one_epoch(
+        model,
+        [_batch(), _batch()],
+        optimizer,
+        device=torch.device("cpu"),
+        label_smoothing=0.05,
+        gradient_clip_norm=1.0,
+        fail_fast_first_batch=True,
+    )
+
+    assert result["gradient_norm"] == pytest.approx(3.0)
+
+
 @pytest.mark.parametrize("bad_kind", ["input", "loss", "gradient"])
 def test_first_batch_non_finite_values_fail_fast(
     bad_kind: str,
@@ -340,6 +370,54 @@ def test_checkpoint_round_trip_validates_training_metadata(tmp_path: Path) -> No
     invalid["training_index_sha256"] = "f" * 64
     with pytest.raises(ValueError, match="metadata"):
         load_checkpoint(path, model=restored, expected_metadata=invalid)
+
+
+def test_save_checkpoint_rejects_wrong_training_metadata_version(tmp_path: Path) -> None:
+    from src.models.imu_stage2_tcn import build_imu_stage2_model
+    from src.training.imu_stage2_trainer import save_checkpoint
+
+    model = build_imu_stage2_model(_model_config(), num_classes=3)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=2)
+    invalid = _training_metadata()
+    invalid["checkpoint_metadata_version"] = "wrong-version"
+
+    with pytest.raises(ValueError, match="version"):
+        save_checkpoint(
+            tmp_path / "checkpoint.pt",
+            model=model,
+            optimizer=optimizer,
+            scheduler=scheduler,
+            epoch=1,
+            metrics={"macro_f1": 0.5},
+            metadata=invalid,
+            config={"seed": 7},
+        )
+
+
+def test_load_checkpoint_rejects_wrong_expected_metadata_version(tmp_path: Path) -> None:
+    from src.models.imu_stage2_tcn import build_imu_stage2_model
+    from src.training.imu_stage2_trainer import load_checkpoint, save_checkpoint
+
+    model = build_imu_stage2_model(_model_config(), num_classes=3)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=2)
+    path = tmp_path / "checkpoint.pt"
+    save_checkpoint(
+        path,
+        model=model,
+        optimizer=optimizer,
+        scheduler=scheduler,
+        epoch=1,
+        metrics={"macro_f1": 0.5},
+        metadata=_training_metadata(),
+        config={"seed": 7},
+    )
+    invalid = _training_metadata()
+    invalid["checkpoint_metadata_version"] = "wrong-version"
+
+    with pytest.raises(ValueError, match="version"):
+        load_checkpoint(path, model=model, expected_metadata=invalid)
 
 
 def test_validation_output_export_has_exact_arrays(tmp_path: Path) -> None:
@@ -471,6 +549,9 @@ def test_fit_model_publishes_best_last_metrics_and_validation_outputs(
     assert "optimizer_state_dict" not in best_checkpoint
     assert "scheduler_state_dict" not in best_checkpoint
     assert "optimizer_state_dict" in last_checkpoint
+    assert last_checkpoint["scheduler_state_dict"]["last_epoch"] == summary[
+        "epochs_completed"
+    ]
     with (output / "metrics.csv").open("r", encoding="utf-8", newline="") as handle:
         metrics = list(csv.DictReader(handle))
     assert 1 <= len(metrics) <= 2

@@ -238,7 +238,7 @@ def train_one_epoch(
     total_loss = 0.0
     total_samples = 0
     total_correct = 0
-    last_gradient_norm = 0.0
+    maximum_gradient_norm = 0.0
     batches = 0
     for batch_index, original_batch in enumerate(loader):
         batch = _move_batch(original_batch, device)
@@ -275,14 +275,17 @@ def train_one_epoch(
         total_loss += float(loss.detach().cpu()) * count
         total_samples += count
         total_correct += int((torch.argmax(logits.detach(), dim=1) == labels).sum().item())
-        last_gradient_norm = float(torch.as_tensor(gradient_norm).detach().cpu())
+        maximum_gradient_norm = max(
+            maximum_gradient_norm,
+            float(torch.as_tensor(gradient_norm).detach().cpu()),
+        )
         batches += 1
     if batches == 0 or total_samples == 0:
         raise ValueError("Training loader produced no samples")
     return {
         "loss": total_loss / total_samples,
         "accuracy": total_correct / total_samples,
-        "gradient_norm": last_gradient_norm,
+        "gradient_norm": maximum_gradient_norm,
         "batches": float(batches),
         "samples": float(total_samples),
     }
@@ -395,6 +398,8 @@ def _validate_training_metadata(metadata: Mapping[str, object]) -> dict[str, obj
     }
     if set(metadata) != expected_keys:
         raise ValueError("Training checkpoint metadata keys mismatch")
+    if metadata.get("checkpoint_metadata_version") != "imu-training-checkpoint-v1":
+        raise ValueError("Training checkpoint metadata version mismatch")
     return build_training_checkpoint_metadata(
         stage2_contract_sha256=metadata["stage2_contract_sha256"],  # type: ignore[arg-type]
         training_index_sha256=metadata["training_index_sha256"],  # type: ignore[arg-type]
@@ -825,6 +830,8 @@ def fit_model(
                 "is_best": improved,
             }
             history.append(epoch_record)
+            should_stop = stopper.observe(comparable)
+            scheduler.step()
             save_checkpoint(
                 staging / "last_model.pt",
                 model=model,
@@ -852,8 +859,6 @@ def fit_model(
                     provenance=provenance,
                     include_optimizer=False,
                 )
-            should_stop = stopper.observe(comparable)
-            scheduler.step()
             if should_stop:
                 break
         reloaded_model = build_imu_stage2_model(
