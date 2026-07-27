@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import copy
+import csv
+import hashlib
 import json
 import subprocess
 import sys
@@ -57,6 +59,13 @@ def _training_metadata() -> dict[str, object]:
     )
 
 
+def _class_order() -> list[dict[str, object]]:
+    return [
+        {"class_id": index + 10, "class_name": f"class_{index}", "label_index": index}
+        for index in range(3)
+    ]
+
+
 def test_training_metadata_is_strictly_separate_from_submission_metadata() -> None:
     from src.models.imu_stage2_tcn import (
         build_checkpoint_metadata,
@@ -99,8 +108,14 @@ def test_training_config_is_exact_and_rejects_unknown_or_changed_fixed_values(
 
     payload = json.loads(TRAINING_CONFIG.read_text(encoding="utf-8"))
     assert load_training_config(TRAINING_CONFIG) == payload
+    assert payload["fold"] == 0
 
-    for name, value in (("unknown", 1), ("num_classes", 39), ("optimizer", "Adam")):
+    for name, value in (
+        ("unknown", 1),
+        ("fold", 1),
+        ("num_classes", 39),
+        ("optimizer", "Adam"),
+    ):
         changed = dict(payload)
         changed[name] = value
         path = tmp_path / f"{name}.json"
@@ -116,17 +131,22 @@ def test_training_artifact_bindings_reject_cross_contract_or_class_order_mix() -
         "stage2_contract_sha256": "a" * 64,
         "class_order_sha256": "b" * 64,
         "num_classes": 40,
+        "fold": 0,
     }
     validate_training_artifact_bindings(
         metadata,
         stage2_contract_sha256="a" * 64,
         class_order_sha256="b" * 64,
         num_classes=40,
+        expected_fold=0,
+        normalization_fold=0,
+        split_definition_path="metadata/splits/fold_0.json",
     )
     for field, value in (
         ("stage2_contract_sha256", "c" * 64),
         ("class_order_sha256", "c" * 64),
         ("num_classes", 39),
+        ("fold", 1),
     ):
         changed = dict(metadata)
         changed[field] = value
@@ -136,7 +156,30 @@ def test_training_artifact_bindings_reject_cross_contract_or_class_order_mix() -
                 stage2_contract_sha256="a" * 64,
                 class_order_sha256="b" * 64,
                 num_classes=40,
+                expected_fold=0,
+                normalization_fold=0,
+                split_definition_path="metadata/splits/fold_0.json",
             )
+    with pytest.raises(ValueError, match="normalization.*fold"):
+        validate_training_artifact_bindings(
+            metadata,
+            stage2_contract_sha256="a" * 64,
+            class_order_sha256="b" * 64,
+            num_classes=40,
+            expected_fold=0,
+            normalization_fold=1,
+            split_definition_path="metadata/splits/fold_0.json",
+        )
+    with pytest.raises(ValueError, match="split_definition_path"):
+        validate_training_artifact_bindings(
+            metadata,
+            stage2_contract_sha256="a" * 64,
+            class_order_sha256="b" * 64,
+            num_classes=40,
+            expected_fold=0,
+            normalization_fold=0,
+            split_definition_path="metadata/splits/fold_1.json",
+        )
 
 
 def test_metrics_handle_zero_denominators_and_use_true_rows_predicted_columns() -> None:
@@ -300,23 +343,54 @@ def test_checkpoint_round_trip_validates_training_metadata(tmp_path: Path) -> No
 
 
 def test_validation_output_export_has_exact_arrays(tmp_path: Path) -> None:
-    from src.training.imu_stage2_trainer import write_validation_outputs
+    from src.training.imu_stage2_trainer import (
+        validate_validation_outputs,
+        write_validation_outputs,
+    )
 
     path = tmp_path / "validation_outputs.npz"
     write_validation_outputs(
         path,
-        sample_ids=["s0", "s1"],
-        labels=np.array([0, 1], dtype=np.int64),
-        logits=np.ones((2, 3), dtype=np.float32),
-        embeddings=np.ones((2, 128), dtype=np.float32),
+        sample_ids=["s1", "s0"],
+        labels=np.array([1, 0], dtype=np.int64),
+        logits=np.array([[0.0, 2.0, 1.0], [3.0, 1.0, 0.0]], dtype=np.float32),
+        embeddings=np.stack(
+            [np.full(128, 1.0, dtype=np.float32), np.zeros(128, dtype=np.float32)]
+        ),
+        class_order=_class_order(),
     )
 
     with np.load(path, allow_pickle=False) as archive:
-        assert set(archive.files) == {"sample_ids", "labels", "logits", "embeddings"}
+        assert set(archive.files) == {
+            "sample_ids",
+            "labels",
+            "predictions",
+            "logits",
+            "embeddings",
+            "class_order",
+        }
         assert archive["sample_ids"].tolist() == ["s0", "s1"]
+        assert archive["labels"].tolist() == [0, 1]
+        assert archive["predictions"].tolist() == [0, 1]
         assert archive["labels"].dtype == np.int64
         assert archive["logits"].shape == (2, 3)
         assert archive["embeddings"].shape == (2, 128)
+        assert archive["class_order"]["class_name"].tolist() == [
+            "class_0",
+            "class_1",
+            "class_2",
+        ]
+    validate_validation_outputs(path, expected_class_order=_class_order())
+
+    with pytest.raises(ValueError, match="unique"):
+        write_validation_outputs(
+            tmp_path / "duplicate.npz",
+            sample_ids=["same", "same"],
+            labels=np.array([0, 1], dtype=np.int64),
+            logits=np.ones((2, 3), dtype=np.float32),
+            embeddings=np.ones((2, 128), dtype=np.float32),
+            class_order=_class_order(),
+        )
 
 
 def test_output_transaction_publishes_once_and_cleans_failure(tmp_path: Path) -> None:
@@ -347,6 +421,7 @@ def test_fit_model_publishes_best_last_metrics_and_validation_outputs(
     model_config["embedding_dim"] = 128
     model = build_imu_stage2_model(model_config, num_classes=3)
     config = {
+        **model_config,
         "seed": 7,
         "maximum_epochs": 2,
         "early_stopping_patience": 2,
@@ -364,21 +439,90 @@ def test_fit_model_publishes_best_last_metrics_and_validation_outputs(
         output_dir=output,
         config=config,
         metadata=_training_metadata(),
+        class_order=_class_order(),
+        provenance={
+            "training_code_git_commit": "1" * 40,
+            "data_provenance_git_commit": "2" * 40,
+            "input_hashes": {"training_index_sha256": "b" * 64},
+        },
         device=torch.device("cpu"),
     )
 
     assert summary["status"] == "success"
     assert set(path.name for path in output.iterdir()) == {
-        "best.pt",
-        "last.pt",
-        "metrics.json",
+        "best_model.pt",
+        "last_model.pt",
+        "metrics.csv",
+        "validation_predictions.csv",
         "validation_outputs.npz",
+        "confusion_matrix.csv",
+        "per_class_metrics.csv",
+        "resolved_config.json",
+        "training_summary.json",
+        "run_manifest.json",
     }
-    metrics = json.loads((output / "metrics.json").read_text(encoding="utf-8"))
-    assert metrics["best_epoch"] in {1, 2}
+    best_checkpoint = torch.load(
+        output / "best_model.pt", map_location="cpu", weights_only=False
+    )
+    last_checkpoint = torch.load(
+        output / "last_model.pt", map_location="cpu", weights_only=False
+    )
+    assert best_checkpoint["class_order"] == _class_order()
+    assert "optimizer_state_dict" not in best_checkpoint
+    assert "scheduler_state_dict" not in best_checkpoint
+    assert "optimizer_state_dict" in last_checkpoint
+    with (output / "metrics.csv").open("r", encoding="utf-8", newline="") as handle:
+        metrics = list(csv.DictReader(handle))
+    assert 1 <= len(metrics) <= 2
+    assert set(metrics[0]) == {
+        "epoch",
+        "learning_rate",
+        "train_loss",
+        "train_accuracy",
+        "validation_loss",
+        "validation_accuracy",
+        "validation_macro_precision",
+        "validation_macro_recall",
+        "validation_macro_f1",
+        "gradient_norm",
+        "epoch_duration_seconds",
+        "is_best",
+    }
     with np.load(output / "validation_outputs.npz", allow_pickle=False) as archive:
         assert archive["logits"].shape == (4, 3)
         assert archive["embeddings"].shape == (4, 128)
+        assert archive["sample_ids"].tolist() == sorted(archive["sample_ids"].tolist())
+        np.testing.assert_array_equal(
+            archive["predictions"], np.argmax(archive["logits"], axis=1)
+        )
+    predictions = list(
+        csv.DictReader(
+            (output / "validation_predictions.csv").open(
+                "r", encoding="utf-8", newline=""
+            )
+        )
+    )
+    assert [row["sample_id"] for row in predictions] == ["s0", "s1", "s2", "s3"]
+    assert set(predictions[0]) == {
+        "sample_id",
+        "true_label_index",
+        "predicted_label_index",
+        "correct",
+    }
+    assert json.loads((output / "resolved_config.json").read_text(encoding="utf-8")) == config
+    training_summary = json.loads(
+        (output / "training_summary.json").read_text(encoding="utf-8")
+    )
+    assert training_summary["best_epoch"] in {1, 2}
+    assert training_summary["class_count"] == 3
+    manifest = json.loads((output / "run_manifest.json").read_text(encoding="utf-8"))
+    assert {record["relative_path"] for record in manifest["files"]} == {
+        path.name for path in output.iterdir() if path.name != "run_manifest.json"
+    }
+    for record in manifest["files"]:
+        artifact = output / record["relative_path"]
+        assert artifact.stat().st_size == record["size"]
+        assert hashlib.sha256(artifact.read_bytes()).hexdigest() == record["sha256"]
 
 
 def test_cli_help_works_outside_repository_and_preflight_creates_no_output(

@@ -1,5 +1,6 @@
 {
   "config_version": "imu-stage2-training-v1",
+  "fold": 0,
   "seed": 20260724,
   "maximum_epochs": 40,
   "early_stopping_patience": 8,
