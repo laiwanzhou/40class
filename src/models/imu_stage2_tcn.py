@@ -17,6 +17,7 @@ CHECKPOINT_HASH_FIELDS = (
     "class_order_sha256",
     "submission_contract_sha256",
 )
+TRAINING_CHECKPOINT_HASH_FIELDS = CHECKPOINT_HASH_FIELDS[:-1]
 
 
 class _MaskedTemporalBlock(nn.Module):
@@ -262,6 +263,36 @@ def build_checkpoint_metadata(
     }
     normalized: dict[str, object] = {"checkpoint_metadata_version": "imu-checkpoint-v1"}
     for field in CHECKPOINT_HASH_FIELDS:
+        value = bindings[field]
+        if not isinstance(value, str) or SHA256_PATTERN.fullmatch(value) is None:
+            raise ValueError(f"{field} must be a 64-character SHA-256")
+        normalized[field] = value.lower()
+    if isinstance(num_classes, bool) or not isinstance(num_classes, int) or num_classes < 1:
+        raise ValueError("num_classes must be a positive derived integer")
+    normalized["num_classes"] = num_classes
+    return normalized
+
+
+def build_training_checkpoint_metadata(
+    *,
+    stage2_contract_sha256: str,
+    training_index_sha256: str,
+    normalization_contract_sha256: str,
+    normalization_file_sha256: str,
+    class_order_sha256: str,
+    num_classes: int,
+) -> dict[str, object]:
+    bindings = {
+        "stage2_contract_sha256": stage2_contract_sha256,
+        "training_index_sha256": training_index_sha256,
+        "normalization_contract_sha256": normalization_contract_sha256,
+        "normalization_file_sha256": normalization_file_sha256,
+        "class_order_sha256": class_order_sha256,
+    }
+    normalized: dict[str, object] = {
+        "checkpoint_metadata_version": "imu-training-checkpoint-v1"
+    }
+    for field in TRAINING_CHECKPOINT_HASH_FIELDS:
         value = bindings[field]
         if not isinstance(value, str) or SHA256_PATTERN.fullmatch(value) is None:
             raise ValueError(f"{field} must be a 64-character SHA-256")
