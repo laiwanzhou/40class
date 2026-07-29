@@ -224,4 +224,3 @@ def test_failed_training_leaves_no_output_or_staging(tmp_path: Path) -> None:
         )
     assert not output.exists()
     assert not list(tmp_path.glob(".run.staging-*"))
-

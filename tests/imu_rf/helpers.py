@@ -80,4 +80,3 @@ def write_rf_config(path: Path) -> Path:
     }
     write_json(path, payload)
     return path
-

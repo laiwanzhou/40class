@@ -59,4 +59,3 @@ separately labelled `IMU_test` CE+SupCon candidate. Sample-level comparison
 uses the formal TCN validation output to report RF-only correct, TCN-only
 correct, both correct, both wrong, and ideal-selector accuracy. No automatic
 model replacement, fusion, submission, merge, or push follows from the screen.
-

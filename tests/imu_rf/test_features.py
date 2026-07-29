@@ -104,4 +104,3 @@ def test_summary_rejects_shape_contract_mismatches(
             np.zeros(mask_shape, dtype=bool),
             np.zeros(time_shape, dtype=np.int64),
         )
-
