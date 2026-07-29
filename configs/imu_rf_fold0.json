@@ -1,0 +1,18 @@
+{
+  "config_version": "imu-rf-screen-v1",
+  "fold": 0,
+  "num_classes": 40,
+  "feature_schema_version": "imu-rf-summary-v1",
+  "n_estimators": 300,
+  "max_features": "sqrt",
+  "max_depth": null,
+  "min_samples_leaf": 2,
+  "bootstrap": true,
+  "n_jobs": -1,
+  "variants": {
+    "plain": null,
+    "balanced": "balanced_subsample"
+  },
+  "random_states": [20260724, 20260725, 20260726]
+}
+
