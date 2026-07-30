@@ -16,6 +16,7 @@ from src.training.imu_rf_compact import (
     forest_structure_metrics,
     load_compact_config,
     measure_model_roundtrip,
+    probabilities_equivalent,
     run_compact_screen,
     select_compact_finalists,
     train_compact_candidate,
@@ -119,6 +120,16 @@ def test_lossless_compression_roundtrip_preserves_model_and_measures_exact_bytes
     assert result["load_seconds"] >= 0
     assert result["batch_inference_seconds"] >= 0
     assert result["single_inference_seconds"] >= 0
+
+
+def test_probability_equivalence_accepts_only_machine_roundoff() -> None:
+    baseline = np.asarray([[0.1, 0.2, 0.7]], dtype=np.float64)
+    machine_roundoff = baseline.copy()
+    machine_roundoff[0, 2] = np.nextafter(machine_roundoff[0, 2], np.inf)
+    material_change = baseline.copy()
+    material_change[0, 2] += 1e-12
+    assert probabilities_equivalent(baseline, machine_roundoff) is True
+    assert probabilities_equivalent(baseline, material_change) is False
 
 
 def test_structure_metrics_match_estimator_nodes_and_depths(tmp_path: Path) -> None:

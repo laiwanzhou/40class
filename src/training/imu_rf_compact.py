@@ -125,6 +125,17 @@ def _forest_digest(model: RandomForestClassifier) -> str:
     return digest.hexdigest()
 
 
+def probabilities_equivalent(first: np.ndarray, second: np.ndarray) -> bool:
+    return bool(
+        first.dtype == np.float64
+        and second.dtype == np.float64
+        and first.shape == second.shape
+        and np.isfinite(first).all()
+        and np.isfinite(second).all()
+        and np.allclose(first, second, rtol=0.0, atol=1e-15)
+    )
+
+
 def measure_model_roundtrip(
     *,
     source_path: Path,
@@ -172,7 +183,9 @@ def measure_model_roundtrip(
         "batch_inference_seconds": batch_seconds,
         "single_inference_seconds": single_seconds,
         "prediction_equal": bool(np.array_equal(source_predictions, loaded_predictions)),
-        "probability_equal": bool(np.array_equal(source_probabilities, loaded_probabilities)),
+        "probability_equal": probabilities_equivalent(
+            source_probabilities, loaded_probabilities
+        ),
         "metadata_equal": source_metadata == loaded_metadata,
         "structure_equal": source_digest == _forest_digest(loaded_model),
     }
