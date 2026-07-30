@@ -1,0 +1,83 @@
+{
+  "report_version": "imu-rf-finalization-results-v1",
+  "status": "success",
+  "imu_modality_status": "finalized",
+  "branch": "IMU_rf_final",
+  "base_commit": "6d493d1fa3a183e2bfa6bd602352c9541a0e73bc",
+  "reproducibility": {
+    "status": "exact_match",
+    "source_run_canonical_sha256": "ca3ef446914f27140c5342d36e9358f35a1128d334b10e87e6bb10c5b538f9fd",
+    "fresh_run_canonical_sha256": "b80ab90dddc5cc6ae70877eadc01e84e31ea4418bd43f4ed6c4bc131c5b7533f",
+    "source_model_sha256": "1f4fd6efbaaa33915b5aa335acabec4a1c1ae51cfaca4ffd026aaa3adb22c9ef",
+    "fresh_model_sha256": "1f4fd6efbaaa33915b5aa335acabec4a1c1ae51cfaca4ffd026aaa3adb22c9ef",
+    "prediction_mismatch_count": 0,
+    "probability_maximum_absolute_difference": 1.1102230246251565e-16,
+    "tree_state_sha256": "bb7e8f9af7f818f20eaf7d4d5bcc4fca91c3352c5bb80e7bee64a2dfc5d16cfc",
+    "validation_metrics": {
+      "accuracy": 0.42408376963350786,
+      "macro_precision": 0.3868249057118226,
+      "macro_recall": 0.3620987015267768,
+      "macro_f1": 0.34443043997355904,
+      "weighted_f1": 0.4033194077541546
+    },
+    "zero_f1_classes": [8, 13, 18, 24, 25, 26, 27, 35]
+  },
+  "production": {
+    "sample_count": 2757,
+    "train_count": 2184,
+    "validation_count": 573,
+    "overlap_count": 0,
+    "excluded_samples": 106,
+    "selected_sample_id_sha256": "a9bfc8bdea778b5dbc289cf1048477b235475086cc0bfbfca51eb6c1c08d66a0",
+    "label_vector_sha256": "8d773cf3b6ffde05dc5aeaffde6442960339519674582e95357ce0a0bc34a58f",
+    "feature_schema_version": "imu-rf-summary-v1",
+    "feature_count": 2310,
+    "imputer_sha256": "cbdbb67094aa066ed29dfc701e258b7def766acbde8de9b54652b956a57c30f4",
+    "model_sha256": "9e47a3606ae5048a665e81599a0b47eb7da1429fd51e81d962ff88fbffa1336f",
+    "package_canonical_sha256": "b969fbe0e67acb650e1065da3c164adbdcac86bd944dd41eb16204d7d1cc1ced",
+    "package_directory_canonical_sha256": "48a43f3f5ee764b895129e5be7d1e979529af3f1c9a065e2ed8184a31d6f050a",
+    "package_file_count": 9,
+    "package_total_bytes": 8031457,
+    "package_total_mib": 7.659394264221,
+    "training_duration_seconds": 0.6744856000004802,
+    "class_counts": [42, 45, 52, 37, 69, 54, 113, 144, 91, 122, 112, 102, 57, 52, 34, 48, 21, 78, 32, 37, 89, 66, 56, 67, 45, 12, 38, 41, 36, 75, 43, 84, 78, 31, 141, 25, 307, 65, 62, 54],
+    "resubstitution_diagnostics": {
+      "diagnostic_only": true,
+      "not_generalization_metric": true,
+      "not_for_model_selection": true,
+      "accuracy": 0.9822270583968081,
+      "macro_f1": 0.9865085781008242
+    }
+  },
+  "inference": {
+    "fold0_validation_sample_count": 573,
+    "fold0_sample_ids_equal": true,
+    "fold0_predictions_equal": true,
+    "fold0_class_order_equal": true,
+    "fold0_probability_maximum_absolute_difference": 1.1102230246251565e-16,
+    "fold0_probabilities_within_1e_15": true,
+    "production_smoke_sample_count": 10,
+    "independent_reload_probabilities_bit_exact": true,
+    "probability_contract_passed": true,
+    "submission_generated": false
+  },
+  "fusion_reference": {
+    "sample_count": 573,
+    "file_count": 5,
+    "total_bytes": 275169,
+    "canonical_sha256": "08e821e0a398e7cf88a28e402b1b90a403bb128902571fe57156a8a48a261820"
+  },
+  "verification": {
+    "rf_tests": "70 passed",
+    "stage2_tests": "412 passed",
+    "stage1_tests": "68 passed, 1 skipped",
+    "full_repository_tests": "550 passed, 1 skipped",
+    "all_tracked_python_py_compile": "passed",
+    "external_cwd_cli_help": "3 passed",
+    "git_diff_check": "passed",
+    "git_fsck": "passed with pre-existing dangling blobs only",
+    "staging_or_backup_residue_count": 0,
+    "protected_directories_unchanged": true,
+    "largest_tracked_blob_bytes": 782978
+  }
+}
