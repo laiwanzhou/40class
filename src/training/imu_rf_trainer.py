@@ -359,6 +359,8 @@ def _write_run(
     resolved: Mapping[str, object],
     probabilities: np.ndarray,
     duration_seconds: float,
+    model_compression: int | tuple[str, int] = 0,
+    summary_fields: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
     validation = artifacts["validation"]
     sample_ids = validation["sample_ids"]
@@ -370,7 +372,11 @@ def _write_run(
     per_class = metrics["per_class"]
     weighted_f1 = _weighted_f1(per_class)
     zero_f1_count = sum(float(record["f1"]) == 0.0 for record in per_class)
-    joblib.dump({"model": model, "metadata": dict(metadata)}, staging / "model.joblib")
+    joblib.dump(
+        {"model": model, "metadata": dict(metadata)},
+        staging / "model.joblib",
+        compress=model_compression,
+    )
     shutil.copyfile(artifacts["root"] / "feature_schema.json", staging / "feature_schema.json")
     feature_names = artifacts["schema"]["feature_names"]
     importances = [
@@ -457,6 +463,11 @@ def _write_run(
         "n_estimators": len(model.estimators_),
         "mean_tree_depth": float(np.mean(depths)),
     }
+    if summary_fields:
+        overlap = set(summary).intersection(summary_fields)
+        if overlap:
+            raise ValueError(f"RF summary field collision: {sorted(overlap)}")
+        summary.update(summary_fields)
     _write_json(staging / "training_summary.json", summary)
     members = [
         {"relative_path": path.name, "size": path.stat().st_size, "sha256": sha256_file(path)}
