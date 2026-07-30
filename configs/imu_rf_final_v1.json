@@ -1,0 +1,29 @@
+{
+  "config_version": "imu-rf-finalization-v1",
+  "candidate_id": "trees_150_leaf4",
+  "fold": 0,
+  "num_classes": 40,
+  "feature_schema_version": "imu-rf-summary-v1",
+  "feature_count": 2310,
+  "random_state": 20260725,
+  "estimator_params": {
+    "n_estimators": 150,
+    "criterion": "gini",
+    "max_depth": null,
+    "min_samples_split": 2,
+    "min_samples_leaf": 4,
+    "max_features": "sqrt",
+    "max_leaf_nodes": null,
+    "bootstrap": true,
+    "max_samples": null,
+    "class_weight": "balanced_subsample",
+    "n_jobs": -1,
+    "random_state": 20260725
+  },
+  "model_compression": {
+    "method": "lzma",
+    "level": 3
+  },
+  "production_package_version": "imu-rf-final-v1",
+  "max_package_mib": 8
+}
