@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import json
 import subprocess
 import sys
@@ -380,10 +381,31 @@ def test_fresh_compact_screen_publishes_all_phases_and_preserves_inputs(
         "compact_rf_pareto.json",
         "per_class_compact_summary.csv",
         "per_user_compact_summary.csv",
+        "paired_sample_compact_summary.csv",
         "compact_rf_summary.json",
         "input_snapshot.json",
     ):
         assert (output / name).is_file()
+    with (output / "paired_sample_compact_summary.csv").open(
+        "r", encoding="utf-8", newline=""
+    ) as handle:
+        paired_rows = list(csv.DictReader(handle))
+    assert len(paired_rows) == 3 * 9
+    assert set(paired_rows[0]) == {
+        "candidate_id",
+        "random_state",
+        "sample_id",
+        "user_id",
+        "label",
+        "baseline_prediction",
+        "compact_prediction",
+        "baseline_correct",
+        "compact_correct",
+        "outcome",
+    }
+    assert {row["outcome"] for row in paired_rows}.issubset(
+        {"both_correct", "compact_only_correct", "baseline_only_correct", "both_wrong"}
+    )
     after = {
         path.relative_to(tmp_path).as_posix(): path.read_bytes()
         for root in (features, baseline_root)

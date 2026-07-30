@@ -8,6 +8,7 @@ import time
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 import joblib
 import numpy as np
@@ -518,6 +519,19 @@ def _write_csv(path: Path, rows: Sequence[Mapping[str, object]]) -> None:
         os.fsync(handle.fileno())
 
 
+def _write_csv_atomic(path: Path, rows: Sequence[Mapping[str, object]]) -> None:
+    path = Path(path)
+    if path.exists():
+        raise FileExistsError(path)
+    temporary = path.parent / f".{path.name}.staging-{uuid4().hex}"
+    try:
+        _write_csv(temporary, rows)
+        os.replace(temporary, path)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+
+
 def _directory_snapshot(root: Path) -> dict[str, object]:
     root = Path(root).resolve(strict=True)
     records = [
@@ -649,6 +663,79 @@ def _aggregate_rows(
         )
         output.append(record)
     return output
+
+
+def write_paired_sample_summary(
+    *,
+    experiment_root: Path,
+    baseline_root: Path,
+    selected: Sequence[str],
+    random_states: Sequence[int],
+    output_path: Path | None = None,
+) -> dict[str, int]:
+    experiment_root = Path(experiment_root).resolve(strict=True)
+    baseline_root = Path(baseline_root).resolve(strict=True)
+    destination = (
+        Path(output_path)
+        if output_path is not None
+        else experiment_root / "paired_sample_compact_summary.csv"
+    )
+    rows: list[dict[str, object]] = []
+    counts = {
+        "both_correct": 0,
+        "compact_only_correct": 0,
+        "baseline_only_correct": 0,
+        "both_wrong": 0,
+    }
+    for candidate_id in selected:
+        for seed in random_states:
+            compact_path = (
+                experiment_root
+                / "multiseed_confirmation"
+                / candidate_id
+                / f"seed{seed}"
+                / "validation_predictions.csv"
+            )
+            baseline_path = _baseline_run(baseline_root, int(seed)) / "validation_predictions.csv"
+            with compact_path.open("r", encoding="utf-8", newline="") as handle:
+                compact_rows = list(csv.DictReader(handle))
+            with baseline_path.open("r", encoding="utf-8", newline="") as handle:
+                baseline_rows = list(csv.DictReader(handle))
+            if len(compact_rows) != len(baseline_rows):
+                raise ValueError("Compact and baseline validation row counts differ")
+            for compact, baseline in zip(compact_rows, baseline_rows, strict=True):
+                identities = ("sample_id", "user_id", "label")
+                if any(compact[field] != baseline[field] for field in identities):
+                    raise ValueError("Compact and baseline validation identities are misaligned")
+                compact_correct = int(compact["correct"])
+                baseline_correct = int(baseline["correct"])
+                if compact_correct and baseline_correct:
+                    outcome = "both_correct"
+                elif compact_correct:
+                    outcome = "compact_only_correct"
+                elif baseline_correct:
+                    outcome = "baseline_only_correct"
+                else:
+                    outcome = "both_wrong"
+                counts[outcome] += 1
+                rows.append(
+                    {
+                        "candidate_id": candidate_id,
+                        "random_state": int(seed),
+                        "sample_id": compact["sample_id"],
+                        "user_id": compact["user_id"],
+                        "label": int(compact["label"]),
+                        "baseline_prediction": int(baseline["prediction"]),
+                        "compact_prediction": int(compact["prediction"]),
+                        "baseline_correct": baseline_correct,
+                        "compact_correct": compact_correct,
+                        "outcome": outcome,
+                    }
+                )
+    if not rows:
+        rows = [{"status": "no_qualified_finalist"}]
+    _write_csv_atomic(destination, rows)
+    return counts
 
 
 def run_compact_screen(
@@ -839,6 +926,12 @@ def run_compact_screen(
                 staging / "per_user_compact_summary.csv",
                 [{"status": "no_qualified_finalist"}],
             )
+        paired_counts = write_paired_sample_summary(
+            experiment_root=staging,
+            baseline_root=baseline_root,
+            selected=selected,
+            random_states=[int(value) for value in config["random_states"]],
+        )
         after = {
             "feature_root": _directory_snapshot(feature_root),
             "baseline_root": _directory_snapshot(baseline_root),
@@ -856,6 +949,7 @@ def run_compact_screen(
             "phase_c_runs": len(multiseed_records),
             "finalists": finalists,
             "budget_winners": pareto["budget_winners"],
+            "paired_sample_outcomes": paired_counts,
             "input_snapshot_identical": True,
         }
         _write_json(staging / "compact_rf_summary.json", result)
