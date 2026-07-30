@@ -12,7 +12,7 @@ import pandas as pd
 
 from src.data.imu_stage2_contracts import DataStatus, sha256_file
 from src.data.imu_stage2_io import load_and_validate_npz
-from src.features.imu_rf_features import extract_summary_features
+from src.features.imu_rf_features import apply_median_imputer, extract_summary_features
 from src.training.imu_rf_finalization import _staged_directory, directory_snapshot
 from src.training.imu_rf_production import (
     apply_production_imputer,
@@ -53,7 +53,11 @@ def predict_stage2_records(
         rows.append(extract_summary_features(result.values, result.valid_mask, result.timestamps_ms))
     raw = np.stack(rows).astype(np.float64, copy=False) if rows else np.empty((0, 2310))
     names = package["schema"]["feature_names"]
-    features = apply_production_imputer(raw, package["imputer"], names)
+    imputer = package["imputer"]
+    if imputer.get("imputer_version") == "imu-rf-median-imputer-v1":
+        features = apply_median_imputer(raw, imputer)
+    else:
+        features = apply_production_imputer(raw, imputer, names)
     model = package["model"]
     partial = model.predict_proba(features)
     probabilities = np.zeros((len(records), 40), dtype=np.float64)

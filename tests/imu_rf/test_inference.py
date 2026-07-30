@@ -13,6 +13,7 @@ import pytest
 from src.features.imu_rf_features import build_feature_schema
 from src.inference.imu_rf_inference import (
     load_imu_rf_package,
+    predict_stage2_records,
     run_imu_rf_inference,
 )
 from src.training.imu_rf_production import (
@@ -167,6 +168,42 @@ def test_package_loader_rejects_member_tampering(tmp_path: Path) -> None:
     (package / "imputer.json").write_text("{}", encoding="utf-8")
     with pytest.raises(ValueError, match="hash"):
         load_imu_rf_package(package)
+
+
+def test_prediction_interface_accepts_validated_fold0_train_only_imputer(
+    tmp_path: Path,
+) -> None:
+    package_dir = _production_package(tmp_path)
+    package = load_imu_rf_package(package_dir)
+    production_imputer = package["imputer"]
+    package["imputer"] = {
+        "imputer_version": "imu-rf-median-imputer-v1",
+        "fit_split": "train",
+        "fit_sample_count": 80,
+        "fit_sample_id_sha256": "a" * 64,
+        "feature_schema_version": "imu-rf-summary-v1",
+        "feature_count": 2310,
+        "all_missing_features": production_imputer["all_missing_features"],
+        "medians": production_imputer["medians"],
+    }
+    stage2 = tmp_path / "stage2-reference"
+    _write_stage2(stage2 / "a" / "imu_stage2.npz", 1.0)
+    records = __import__("pandas").DataFrame(
+        [
+            {
+                "sample_id": "sample-a",
+                "stage2_npz_relpath": "a/imu_stage2.npz",
+                "status": "success",
+            }
+        ]
+    )
+
+    arrays = predict_stage2_records(
+        package=package, records=records, stage2_root=stage2
+    )
+
+    assert arrays["class_probabilities"].shape == (1, 40)
+    assert np.isfinite(arrays["class_probabilities"]).all()
 
 
 def test_inference_cli_help_runs_outside_repository(tmp_path: Path) -> None:
