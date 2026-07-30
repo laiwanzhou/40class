@@ -55,4 +55,3 @@ def test_production_split_rejects_test_unlabeled_or_wrong_counts() -> None:
     frame = _formal_rows().iloc[:-1].copy()
     with pytest.raises(ValueError, match="count"):
         validate_production_split(frame, selected_ids=set(frame["sample_id"]))
-

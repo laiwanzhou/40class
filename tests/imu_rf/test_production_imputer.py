@@ -37,4 +37,3 @@ def test_production_imputer_uses_zero_only_for_all_missing_feature() -> None:
     imputer = fit_production_imputer(raw, ["a", "b"], ["missing", "observed"])
     assert imputer["medians"] == [0.0, 3.0]
     assert imputer["all_missing_features"] == ["missing"]
-

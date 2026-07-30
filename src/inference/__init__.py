@@ -17,3 +17,14 @@ __all__ = [
     "load_inference_bundle",
     "preprocess_inference_sample",
 ]
+from src.inference.imu_rf_inference import (
+    load_imu_rf_package,
+    predict_stage2_records,
+    run_imu_rf_inference,
+)
+
+__all__ = [
+    "load_imu_rf_package",
+    "predict_stage2_records",
+    "run_imu_rf_inference",
+]
