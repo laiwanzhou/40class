@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 
 import numpy as np
@@ -14,6 +15,7 @@ from src.training.imu_rf_finalization import (
     canonical_tree_state_sha256,
     compare_forest_structures,
     compare_reproduction_runs,
+    publish_validation_reference,
     select_formal_source_run,
     validate_frozen_estimator,
     validate_sklearn_compatibility,
@@ -252,3 +254,61 @@ def test_reproduction_comparison_rejects_probability_change_over_1e15(
     assert comparison["reproducibility_status"] == "failed"
     assert comparison["probability_maximum_absolute_difference"] > 1e-15
     assert "probabilities" in comparison["failed_gates"]
+
+
+def test_fusion_reference_contains_only_fresh_validation_outputs(
+    tmp_path: Path,
+) -> None:
+    source, fresh = _tiny_reproducible_runs(tmp_path)
+    finalization = tmp_path / "finalization"
+    finalization.mkdir()
+    installed = finalization / "reproducibility_seed20260725"
+    shutil.copytree(fresh, installed)
+    comparison = compare_reproduction_runs(source, installed)
+    comparison["source_run"] = str(source.resolve())
+    _write_json(finalization / "reproducibility_comparison.json", comparison)
+    output = tmp_path / "fusion-reference"
+    result = publish_validation_reference(
+        finalization_root=finalization,
+        feature_root=tmp_path / "features",
+        output_root=output,
+    )
+    assert result["sample_count"] == 9
+    assert {path.name for path in output.iterdir()} == {
+        "validation_outputs.npz",
+        "validation_predictions.csv",
+        "per_class_metrics.csv",
+        "reference_metadata.json",
+        "reference_manifest.json",
+    }
+    with np.load(output / "validation_outputs.npz", allow_pickle=False) as archive:
+        assert set(archive.files) == {
+            "sample_ids",
+            "user_ids",
+            "labels",
+            "predictions",
+            "class_probabilities",
+            "class_order",
+        }
+        assert archive["user_ids"].shape == (9,)
+        np.testing.assert_array_equal(
+            archive["predictions"], np.argmax(archive["class_probabilities"], axis=1)
+        )
+    metadata = json.loads((output / "reference_metadata.json").read_text(encoding="utf-8"))
+    assert metadata["model_role"] == "imu_validation_reference"
+    assert metadata["source_kind"] == "fresh_fold0_reproduction"
+
+
+def test_fusion_reference_rejects_failed_reproduction(tmp_path: Path) -> None:
+    finalization = tmp_path / "finalization"
+    finalization.mkdir()
+    _write_json(
+        finalization / "reproducibility_comparison.json",
+        {"reproducibility_status": "failed"},
+    )
+    with pytest.raises(ValueError, match="exact reproduction"):
+        publish_validation_reference(
+            finalization_root=finalization,
+            feature_root=tmp_path / "features",
+            output_root=tmp_path / "reference",
+        )

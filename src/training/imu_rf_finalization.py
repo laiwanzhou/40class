@@ -566,3 +566,109 @@ def run_finalization(
         _write_finalization_manifest(staging)
     result = _strict_json(output_root / "reproducibility_comparison.json")
     return {"status": result["reproducibility_status"], **result}
+
+
+def publish_validation_reference(
+    *, finalization_root: Path, feature_root: Path, output_root: Path
+) -> dict[str, object]:
+    finalization_root = Path(finalization_root).resolve(strict=True)
+    comparison = _strict_json(finalization_root / "reproducibility_comparison.json")
+    if comparison.get("reproducibility_status") != "exact_match":
+        raise ValueError("Fusion reference requires an exact reproduction")
+    feature_root = Path(feature_root).resolve(strict=True)
+    fresh_run = finalization_root / "reproducibility_seed20260725"
+    arrays = validate_rf_run(fresh_run)
+    predictions = pd.read_csv(fresh_run / "validation_predictions.csv", keep_default_na=False)
+    sample_ids = arrays["sample_ids"].astype(np.str_)
+    if predictions["sample_id"].astype(str).tolist() != sample_ids.tolist():
+        raise ValueError("Fusion reference user IDs are misaligned")
+    user_ids = predictions["user_id"].astype(str).to_numpy(dtype=np.str_)
+    source_run_value = comparison.get("source_run")
+    if not isinstance(source_run_value, str):
+        raise ValueError("Fusion reference source run is missing")
+    source_run = Path(source_run_value).resolve(strict=True)
+    source_snapshot = directory_snapshot(source_run)
+    fresh_snapshot = directory_snapshot(fresh_run)
+    metadata = {
+        "reference_version": "imu-rf-validation-reference-v1",
+        "estimator": "RandomForestClassifier",
+        "model_role": "imu_validation_reference",
+        "source_kind": "fresh_fold0_reproduction",
+        "candidate_id": "trees_150_leaf4",
+        "random_state": 20260725,
+        "fold": 0,
+        "sample_count": len(sample_ids),
+        "class_count": len(arrays["class_order"]),
+        "source_compact_run_canonical_sha256": source_snapshot["canonical_sha256"],
+        "fresh_reproduction_run_canonical_sha256": fresh_snapshot["canonical_sha256"],
+        "source_fresh_probability_comparison": {
+            "rtol": 0.0,
+            "atol": 1e-15,
+            "maximum_absolute_difference": comparison[
+                "probability_maximum_absolute_difference"
+            ],
+            "nonzero_difference_count": comparison[
+                "probability_nonzero_difference_count"
+            ],
+        },
+        "feature_schema_sha256": sha256_file(feature_root / "feature_schema.json"),
+        "imputer_sha256": sha256_file(feature_root / "imputer.json"),
+        "class_order_sha256": joblib.load(fresh_run / "model.joblib")["metadata"][
+            "class_order_sha256"
+        ],
+        "config_sha256": sha256_file(fresh_run / "resolved_config.json"),
+        "deployment_package_version": "imu-rf-final-v1",
+        "usage": "fusion_development_only_not_final_test_inference",
+    }
+    with _staged_directory(output_root) as staging:
+        np.savez(
+            staging / "validation_outputs.npz",
+            sample_ids=sample_ids,
+            user_ids=user_ids,
+            labels=arrays["labels"],
+            predictions=arrays["predictions"],
+            class_probabilities=arrays["class_probabilities"],
+            class_order=arrays["class_order"],
+        )
+        shutil.copyfile(
+            fresh_run / "validation_predictions.csv",
+            staging / "validation_predictions.csv",
+        )
+        shutil.copyfile(
+            fresh_run / "per_class_metrics.csv", staging / "per_class_metrics.csv"
+        )
+        _write_json(staging / "reference_metadata.json", metadata)
+        members = [
+            {
+                "relative_path": path.name,
+                "size": path.stat().st_size,
+                "sha256": sha256_file(path),
+            }
+            for path in sorted(staging.iterdir(), key=lambda value: value.name)
+            if path.is_file()
+        ]
+        _write_json(
+            staging / "reference_manifest.json",
+            {"manifest_version": "imu-rf-validation-reference-manifest-v1", "files": members},
+        )
+        with np.load(staging / "validation_outputs.npz", allow_pickle=False) as archive:
+            if set(archive.files) != {
+                "sample_ids",
+                "user_ids",
+                "labels",
+                "predictions",
+                "class_probabilities",
+                "class_order",
+            }:
+                raise ValueError("Fusion reference NPZ field set mismatch")
+            probabilities = archive["class_probabilities"]
+            if (
+                probabilities.dtype != np.float64
+                or probabilities.shape != (len(sample_ids), len(arrays["class_order"]))
+                or not np.isfinite(probabilities).all()
+                or not np.allclose(probabilities.sum(axis=1), 1.0, rtol=0.0, atol=1e-12)
+                or not np.array_equal(archive["predictions"], np.argmax(probabilities, axis=1))
+            ):
+                raise ValueError("Fusion reference probability contract mismatch")
+    snapshot = directory_snapshot(output_root)
+    return {"status": "success", "sample_count": len(sample_ids), **snapshot}
