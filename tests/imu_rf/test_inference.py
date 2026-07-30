@@ -206,6 +206,37 @@ def test_prediction_interface_accepts_validated_fold0_train_only_imputer(
     assert np.isfinite(arrays["class_probabilities"]).all()
 
 
+def test_prediction_uses_deterministic_single_thread_reduction_and_restores_model(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    package = load_imu_rf_package(_production_package(tmp_path))
+    model = package["model"]
+    original = model.predict_proba
+    observed_n_jobs: list[int] = []
+
+    def predict_proba(features: np.ndarray) -> np.ndarray:
+        observed_n_jobs.append(model.n_jobs)
+        return original(features)
+
+    monkeypatch.setattr(model, "predict_proba", predict_proba)
+    stage2 = tmp_path / "stage2-deterministic"
+    _write_stage2(stage2 / "a" / "imu_stage2.npz", 1.0)
+    records = __import__("pandas").DataFrame(
+        [
+            {
+                "sample_id": "sample-a",
+                "stage2_npz_relpath": "a/imu_stage2.npz",
+                "status": "success",
+            }
+        ]
+    )
+
+    predict_stage2_records(package=package, records=records, stage2_root=stage2)
+
+    assert observed_n_jobs == [1]
+    assert model.n_jobs == -1
+
+
 def test_inference_cli_help_runs_outside_repository(tmp_path: Path) -> None:
     environment = os.environ.copy()
     environment.pop("PYTHONPATH", None)

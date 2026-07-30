@@ -59,7 +59,12 @@ def predict_stage2_records(
     else:
         features = apply_production_imputer(raw, imputer, names)
     model = package["model"]
-    partial = model.predict_proba(features)
+    original_n_jobs = model.n_jobs
+    try:
+        model.n_jobs = 1
+        partial = model.predict_proba(features)
+    finally:
+        model.n_jobs = original_n_jobs
     probabilities = np.zeros((len(records), 40), dtype=np.float64)
     probabilities[:, model.classes_.astype(np.int64)] = partial
     predictions = np.argmax(probabilities, axis=1).astype(np.int64)
