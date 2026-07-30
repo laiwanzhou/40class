@@ -10,6 +10,7 @@ import numpy as np
 import pytest
 from sklearn.ensemble import RandomForestClassifier
 
+import src.training.imu_rf_compact as compact_module
 from imu_rf.helpers import write_feature_root, write_rf_config
 from src.training.imu_rf_compact import (
     compact_pareto_frontier,
@@ -193,6 +194,37 @@ def test_compact_candidate_is_reproducible_and_publishes_existing_ten_file_contr
     assert first_summary["model_compression"] == {"method": "zlib", "level": 3}
     assert first_summary["compressed_model_bytes"] == (first / "model.joblib").stat().st_size
     assert first_summary["total_nodes"] > 0
+
+
+def test_candidate_roundtrip_accepts_parallel_probability_roundoff(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    features = write_feature_root(tmp_path / "features")
+    config = _config(tmp_path / "compact.json")
+    original_probabilities = compact_module._probabilities
+    validation_calls = 0
+
+    def probabilities_with_one_ulp_roundoff(model, values, num_classes):
+        nonlocal validation_calls
+        result = original_probabilities(model, values, num_classes)
+        if len(values) > 1:
+            validation_calls += 1
+            if validation_calls == 2:
+                result = result.copy()
+                result[0, 0] = np.nextafter(result[0, 0], np.inf)
+        return result
+
+    monkeypatch.setattr(compact_module, "_probabilities", probabilities_with_one_ulp_roundoff)
+    summary = train_compact_candidate(
+        feature_root=features,
+        config_path=config,
+        candidate_id="compact",
+        random_state=20260724,
+        output_dir=tmp_path / "run",
+        preflight_only=False,
+    )
+    assert summary["status"] == "success"
+    assert validation_calls == 2
 
 
 def test_finalist_selection_uses_predeclared_gates_not_unqualified_best_score() -> None:

@@ -399,7 +399,9 @@ def train_compact_candidate(
         started = time.perf_counter()
         _probabilities(loaded_model, validation["features"][:1], int(config["num_classes"]))
         single_inference_seconds = time.perf_counter() - started
-        if loaded_metadata != metadata or not np.array_equal(reopened_probabilities, probabilities):
+        if loaded_metadata != metadata or not probabilities_equivalent(
+            reopened_probabilities, probabilities
+        ):
             raise ValueError("Compact RF serialized model changed metadata or probabilities")
         summary["uncompressed_model_bytes"] = uncompressed_bytes
         summary["compressed_model_bytes"] = (staging / "model.joblib").stat().st_size
