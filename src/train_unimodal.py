@@ -416,7 +416,10 @@ def run_experiment(config: dict[str, Any]) -> dict[str, Any]:
         if attention.shape != (len(predictions["sample_ids"]), int(config["num_frames"]), 6):
             raise ValueError(f"Unexpected patch attention shape: {attention.shape}")
         mean_attention = attention.mean(axis=1)
-        entropy = -(mean_attention * np.log(np.clip(mean_attention, 1e-12, 1.0))).sum(axis=1)
+        frame_entropy = -(
+            attention * np.log(np.clip(attention, 1e-12, 1.0))
+        ).sum(axis=2)
+        entropy = frame_entropy.mean(axis=1)
         attention_frame = pd.DataFrame(
             {
                 "sample_id": predictions["sample_ids"],

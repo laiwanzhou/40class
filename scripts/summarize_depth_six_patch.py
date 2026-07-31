@@ -53,6 +53,8 @@ def main() -> None:
     history = pd.read_csv(run_dir / "history.csv", encoding="utf-8-sig")
     per_class = pd.read_csv(run_dir / "per_class_metrics.csv", encoding="utf-8-sig")
     attention = pd.read_csv(run_dir / "patch_attention_summary.csv", encoding="utf-8-sig")
+    with np.load(run_dir / "fold_0_val_predictions.npz") as predictions:
+        frame_attention = predictions["patch_attention"].astype(np.float64)
     probe = json.loads(
         (PROJECT_ROOT / "outputs/depth_six_patch_fold0_14train_4val/memory_probe.json").read_text(
             encoding="utf-8"
@@ -75,8 +77,14 @@ def main() -> None:
     patch_means = attention[patch_columns].mean()
     mean_entropy = float(attention["attention_entropy"].mean())
     max_entropy = math.log(6.0)
+    frame_argmax_rates = np.bincount(
+        frame_attention.argmax(axis=2).ravel(), minlength=6
+    ) / frame_attention.shape[0] / frame_attention.shape[1]
+    mean_frame_max_weight = float(frame_attention.max(axis=2).mean())
     total_seconds = float(history["epoch_time_seconds"].sum())
     mean_epoch_seconds = float(history["epoch_time_seconds"].mean())
+    min_epoch_seconds = float(history["epoch_time_seconds"].min())
+    max_epoch_seconds = float(history["epoch_time_seconds"].max())
     best_epoch = int(metrics["best_epoch"])
     best_history = history.loc[history["epoch"] == best_epoch].iloc[0]
     baseline_metrics_path = (
@@ -118,7 +126,14 @@ def main() -> None:
         **{f"patch_{index}_mean_weight": patch_means.iloc[index - 1] for index in range(1, 7)},
         "mean_attention_entropy": mean_entropy,
         "max_uniform_entropy": max_entropy,
+        "mean_frame_max_weight": mean_frame_max_weight,
+        **{
+            f"patch_{index}_frame_argmax_rate": frame_argmax_rates[index - 1]
+            for index in range(1, 7)
+        },
         "mean_epoch_seconds": mean_epoch_seconds,
+        "min_epoch_seconds": min_epoch_seconds,
+        "max_epoch_seconds": max_epoch_seconds,
         "total_epoch_seconds": total_seconds,
         "same_fold_baseline_available": False,
         "accuracy_delta_vs_same_fold_baseline": np.nan,
@@ -131,6 +146,14 @@ def main() -> None:
         for entry in hard.sort_values("class_id").itertuples()
     ]
     patch_text = " / ".join(f"P{i} {patch_means.iloc[i-1]:.6f}" for i in range(1, 7))
+    argmax_text = " / ".join(
+        f"P{i} {frame_argmax_rates[i-1]:.2%}" for i in range(1, 7)
+    )
+    timing_lines = [
+        f"| {int(entry.epoch)} | {entry.train_time_seconds:.2f} | "
+        f"{entry.val_time_seconds:.2f} | {entry.epoch_time_seconds:.2f} |"
+        for entry in history.itertuples()
+    ]
     lines = [
         "# Depth_Color global + six fixed overlapping patches (fold_0 14/4)",
         "",
@@ -147,16 +170,24 @@ def main() -> None:
         f"- Actual batch size: {metrics['batch_size']} (no CUDA OOM; no gradient accumulation used).",
         f"- Real optimizer-step probe peak: {probe['gpu_peak_allocated_mb']:.2f} MB allocated / {probe['gpu_peak_reserved_mb']:.2f} MB reserved.",
         f"- Formal run peak: {metrics['gpu_memory_peak_mb']:.2f} MB allocated / {metrics['gpu_memory_peak_reserved_mb']:.2f} MB reserved.",
-        f"- Mean epoch time: {mean_epoch_seconds:.2f}s; epoch-loop total: {duration(total_seconds)}.",
+        f"- Mean epoch time: {mean_epoch_seconds:.2f}s (range {min_epoch_seconds:.2f}-{max_epoch_seconds:.2f}s); epoch-loop total: {duration(total_seconds)}.",
+        "",
+        "### Per-epoch timing",
+        "",
+        "| Epoch | Train s | Validation s | Total s |",
+        "| ---: | ---: | ---: | ---: |",
+        *timing_lines,
         "",
         "## Patch attention",
         "",
         f"- Validation mean weights: {patch_text}.",
-        f"- Mean entropy: {mean_entropy:.6f}; uniform maximum ln(6): {max_entropy:.6f}; ratio: {uniformity:.2%}.",
+        f"- Mean per-frame entropy: {mean_entropy:.6f}; uniform maximum ln(6): {max_entropy:.6f}; ratio: {uniformity:.2%}; mean winning-patch weight: {mean_frame_max_weight:.6f}.",
+        f"- Per-frame argmax rates: {argmax_text}.",
         f"- Highest mean is patch {dominant_patch}, only {dominance_gap:+.6f} above uniform 1/6. "
         "This does not indicate a persistent single-patch collapse." if dominance_gap < 0.05 else
         f"- Patch {dominant_patch} is {dominance_gap:+.6f} above uniform 1/6, indicating a persistent spatial preference that should be inspected for background bias.",
         "- Fixed layout: P1/P2/P3 are top left/center/right; P4/P5/P6 are bottom left/center/right.",
+        "- The distribution does not collapse to one fixed patch, but P6/P2 are selected most often and the entropy is well below uniform. Because these fixed regions mix person and background, this is a spatial-bias warning rather than proof of useful body-part selection.",
         "",
         "## Hard-10",
         "",
