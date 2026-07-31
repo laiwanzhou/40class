@@ -19,10 +19,17 @@ import yaml
 from torch import nn
 from torch.utils.data import DataLoader, Dataset, Subset
 
-from src.data import IMUDataset, RadarDataset, SkeletonDataset, VisualSequenceDataset, load_modality_frames
+from src.data import (
+    IMUDataset,
+    RadarDataset,
+    SkeletonDataset,
+    VisualSequenceDataset,
+    VisualSixPatchDataset,
+    load_modality_frames,
+)
 from src.data.common import compute_sequence_normalization
 from src.engine import collect_predictions, run_epoch
-from src.models import TemporalClassifier, VisualBaseline
+from src.models import TemporalClassifier, VisualBaseline, VisualSixPatch
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -129,9 +136,14 @@ def build_datasets(config: dict[str, Any]) -> tuple[Dataset[dict[str, object]], 
     )
     modality = str(config["modality"])
     if modality in VISUAL_MODALITIES:
+        dataset_class = (
+            VisualSixPatchDataset
+            if str(config["model_name"]) == "mobilenet_v3_small_six_patch"
+            else VisualSequenceDataset
+        )
         return (
-            VisualSequenceDataset(train_frame, modality, int(config["num_frames"]), int(config["image_size"])),
-            VisualSequenceDataset(val_frame, modality, int(config["num_frames"]), int(config["image_size"])),
+            dataset_class(train_frame, modality, int(config["num_frames"]), int(config["image_size"])),
+            dataset_class(val_frame, modality, int(config["num_frames"]), int(config["image_size"])),
         )
     if modality == "IMU":
         return IMUDataset(train_frame, int(config["sequence_length"])), IMUDataset(val_frame, int(config["sequence_length"]))
@@ -167,6 +179,11 @@ def configure_normalization(
 def build_model(config: dict[str, Any], sample: dict[str, object]) -> nn.Module:
     embedding_dim = int(config.get("embedding_dim", 128))
     if str(config["modality"]) in VISUAL_MODALITIES:
+        if str(config["model_name"]) == "mobilenet_v3_small_six_patch":
+            return VisualSixPatch(
+                embedding_dim=embedding_dim,
+                dropout=float(config.get("dropout", 0.2)),
+            )
         return VisualBaseline(embedding_dim=embedding_dim, dropout=float(config.get("dropout", 0.2)))
     input_tensor = sample["input"]
     if not isinstance(input_tensor, torch.Tensor) or input_tensor.ndim != 2:
@@ -364,6 +381,11 @@ def run_experiment(config: dict[str, Any]) -> dict[str, Any]:
         logits=predictions["logits"],
         embeddings=predictions["embeddings"],
         class_order=np.arange(40, dtype=np.int64),
+        **(
+            {"patch_attention": predictions["patch_attention"]}
+            if "patch_attention" in predictions
+            else {}
+        ),
     )
     with np.load(prediction_path) as reloaded:
         count = len(reloaded["sample_ids"])
@@ -375,6 +397,41 @@ def run_experiment(config: dict[str, Any]) -> dict[str, Any]:
             raise ValueError("Saved class_order is not 0-39.")
 
     metrics = predictions["metrics"]
+    class_names = (
+        pd.read_csv(Path(config["manifest"]), encoding="utf-8-sig")
+        .loc[:, ["class_id", "action_name"]]
+        .drop_duplicates()
+        .sort_values("class_id")
+    )
+    if class_names["class_id"].tolist() != list(range(40)):
+        raise ValueError("Manifest action names do not define exactly class IDs 0-39.")
+    per_class = class_names.copy()
+    per_class["precision"] = metrics["per_class_precision"]
+    per_class["recall"] = metrics["per_class_recall"]
+    per_class["f1"] = metrics["per_class_f1"]
+    per_class["support"] = metrics["per_class_support"]
+    per_class.to_csv(run_dir / "per_class_metrics.csv", index=False, encoding="utf-8-sig")
+    if "patch_attention" in predictions:
+        attention = np.asarray(predictions["patch_attention"], dtype=np.float64)
+        if attention.shape != (len(predictions["sample_ids"]), int(config["num_frames"]), 6):
+            raise ValueError(f"Unexpected patch attention shape: {attention.shape}")
+        mean_attention = attention.mean(axis=1)
+        entropy = -(mean_attention * np.log(np.clip(mean_attention, 1e-12, 1.0))).sum(axis=1)
+        attention_frame = pd.DataFrame(
+            {
+                "sample_id": predictions["sample_ids"],
+                "true_label": predictions["labels"],
+                "predicted_label": np.asarray(predictions["logits"]).argmax(axis=1),
+                **{
+                    f"patch_{index + 1}_mean_weight": mean_attention[:, index]
+                    for index in range(6)
+                },
+                "attention_entropy": entropy,
+            }
+        )
+        attention_frame.to_csv(
+            run_dir / "patch_attention_summary.csv", index=False, encoding="utf-8-sig"
+        )
     save_confusion_matrix(metrics["confusion_matrix"], run_dir / "confusion_matrix.png")  # type: ignore[arg-type]
     pd.DataFrame(history).to_csv(run_dir / "history.csv", index=False, encoding="utf-8-sig")
     parameter_count = sum(parameter.numel() for parameter in model.parameters())
@@ -390,8 +447,10 @@ def run_experiment(config: dict[str, Any]) -> dict[str, Any]:
         "best_epoch": best_epoch,
         "val_accuracy": metrics["accuracy"],
         "val_macro_f1": metrics["macro_f1"],
+        "val_weighted_f1": metrics["weighted_f1"],
         "val_loss": metrics["loss"],
         "per_class_recall": metrics["per_class_recall"],
+        "per_class_f1": metrics["per_class_f1"],
         "parameter_count": parameter_count,
         "checkpoint_size_mb": checkpoint_size_mb,
         "inference_ms_per_sample": measure_inference_ms(model, sample, device, amp_enabled),
@@ -402,6 +461,11 @@ def run_experiment(config: dict[str, Any]) -> dict[str, Any]:
         "input_shape": list(first_inputs.shape),
         "logits_shape": list(first_output["logits"].shape),
         "embedding_shape": list(first_output["embedding"].shape),
+        "patch_attention_shape": (
+            list(first_output["patch_attention"].shape)
+            if "patch_attention" in first_output
+            else None
+        ),
         "loss": float(history[-1]["train_loss"]),
         "config_path": config["config_path"],
         "output_dir": str(run_dir),

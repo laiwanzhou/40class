@@ -89,6 +89,7 @@ def collect_predictions(
     labels_all: list[torch.Tensor] = []
     logits_all: list[torch.Tensor] = []
     embeddings_all: list[torch.Tensor] = []
+    patch_attention_all: list[torch.Tensor] = []
     device_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
     device_finite = torch.ones((), device=device, dtype=torch.bool)
     sample_count = 0
@@ -107,6 +108,8 @@ def collect_predictions(
             labels_all.append(labels.detach())
             logits_all.append(output["logits"].detach())
             embeddings_all.append(output["embedding"].detach())
+            if "patch_attention" in output:
+                patch_attention_all.append(output["patch_attention"].detach())
     if sample_count == 0:
         raise ValueError("DataLoader produced no prediction batches.")
     if not bool(device_finite.item()):
@@ -117,10 +120,13 @@ def collect_predictions(
     predictions = logits_np.argmax(axis=1)
     metrics = classification_metrics(labels_np, predictions)
     metrics["loss"] = (device_loss_sum / sample_count).item()
-    return {
+    result: dict[str, object] = {
         "sample_ids": np.asarray(sample_ids, dtype=str),
         "labels": labels_np,
         "logits": logits_np,
         "embeddings": embeddings_np,
         "metrics": metrics,
     }
+    if patch_attention_all:
+        result["patch_attention"] = torch.cat(patch_attention_all).float().cpu().numpy()
+    return result
