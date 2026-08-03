@@ -19,10 +19,10 @@ import yaml
 from torch import nn
 from torch.utils.data import DataLoader, Dataset, Subset
 
-from src.data import IMUDataset, RadarDataset, SkeletonDataset, VisualSequenceDataset, load_modality_frames
+from src.data import IMUDataset, PoseROIDataset, RadarDataset, SkeletonDataset, VisualSequenceDataset, load_modality_frames
 from src.data.common import compute_sequence_normalization
 from src.engine import collect_predictions, run_epoch
-from src.models import TemporalClassifier, VisualBaseline
+from src.models import PoseROIExpert, TemporalClassifier, VisualBaseline
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -77,6 +77,8 @@ def load_config(config_path: Path, args: argparse.Namespace) -> dict[str, Any]:
     config["manifest"] = str(project_path(args.manifest or config.get("manifest", "metadata/manifest.csv")))
     config["fold"] = str(project_path(args.fold or config.get("fold", "metadata/splits/fold_0.json")))
     config["output_root"] = str(project_path(args.output_root or config.get("output_root", "outputs/task03")))
+    if config.get("pose_cache"):
+        config["pose_cache"] = str(project_path(config["pose_cache"]))
     if args.device is not None:
         config["device"] = args.device
     if args.seed is not None:
@@ -128,6 +130,18 @@ def build_datasets(config: dict[str, Any]) -> tuple[Dataset[dict[str, object]], 
         str(config["path_column"]),
     )
     modality = str(config["modality"])
+    if str(config["model_name"]) in {"hard_global_expert", "pose_roi_expert"}:
+        common = {
+            "hard_actions": list(config["hard_actions"]),
+            "num_frames": int(config["num_frames"]),
+            "image_size": int(config["image_size"]),
+            "use_pose_roi": str(config["model_name"]) == "pose_roi_expert",
+            "pose_cache_path": Path(config["pose_cache"]) if config.get("pose_cache") else None,
+        }
+        return (
+            PoseROIDataset(train_frame, training=True, **common),
+            PoseROIDataset(val_frame, training=False, **common),
+        )
     if modality in VISUAL_MODALITIES:
         return (
             VisualSequenceDataset(train_frame, modality, int(config["num_frames"]), int(config["image_size"])),
@@ -166,6 +180,15 @@ def configure_normalization(
 
 def build_model(config: dict[str, Any], sample: dict[str, object]) -> nn.Module:
     embedding_dim = int(config.get("embedding_dim", 128))
+    if str(config["model_name"]) in {"hard_global_expert", "pose_roi_expert"}:
+        return PoseROIExpert(
+            num_classes=int(config["num_classes"]),
+            expected_views=4 if str(config["model_name"]) == "pose_roi_expert" else 1,
+            embedding_dim=embedding_dim,
+            frame_feature_dim=int(config.get("frame_feature_dim", 128)),
+            dropout=float(config.get("dropout", 0.2)),
+            pretrained=bool(config.get("pretrained", True)),
+        )
     if str(config["modality"]) in VISUAL_MODALITIES:
         return VisualBaseline(embedding_dim=embedding_dim, dropout=float(config.get("dropout", 0.2)))
     input_tensor = sample["input"]
@@ -266,8 +289,9 @@ def run_experiment(config: dict[str, Any]) -> dict[str, Any]:
     sample = train_dataset[0]
     if not isinstance(sample["input"], torch.Tensor):
         raise TypeError("Dataset input is not a Tensor.")
-    if not 0 <= int(sample["label"]) < 40:
-        raise ValueError("Dataset label is outside 0-39.")
+    num_classes = int(config.get("num_classes", 40))
+    if not 0 <= int(sample["label"]) < num_classes:
+        raise ValueError(f"Dataset label is outside 0-{num_classes - 1}.")
 
     model = build_model(config, sample).to(device)
     train_loader = loader_for(train_dataset, config, training=True)
@@ -278,7 +302,7 @@ def run_experiment(config: dict[str, Any]) -> dict[str, Any]:
     with torch.no_grad(), torch.autocast(device_type=device.type, dtype=torch.float16, enabled=amp_enabled):
         first_output = model(first_inputs, temporal_mask=first_mask)
     expected_batch = int(first_inputs.shape[0])
-    if tuple(first_output["logits"].shape) != (expected_batch, 40):
+    if tuple(first_output["logits"].shape) != (expected_batch, num_classes):
         raise ValueError(f"Unexpected logits shape: {tuple(first_output['logits'].shape)}")
     if tuple(first_output["embedding"].shape) != (expected_batch, int(config["embedding_dim"])):
         raise ValueError(f"Unexpected embedding shape: {tuple(first_output['embedding'].shape)}")
@@ -356,6 +380,9 @@ def run_experiment(config: dict[str, Any]) -> dict[str, Any]:
         raise RuntimeError(f"Checkpoint is {checkpoint_size_mb:.2f} MB, exceeding the 95 MB safety threshold.")
 
     predictions = collect_predictions(model, val_loader, criterion, device, amp_enabled)
+    class_order = np.arange(num_classes, dtype=np.int64)
+    original_class_ids = np.asarray(getattr(val_dataset, "original_class_ids", class_order), dtype=np.int64)
+    action_names = np.asarray(getattr(val_dataset, "class_names", [str(value) for value in class_order]))
     prediction_path = run_dir / "fold_0_val_predictions.npz"
     np.savez_compressed(
         prediction_path,
@@ -363,18 +390,53 @@ def run_experiment(config: dict[str, Any]) -> dict[str, Any]:
         labels=predictions["labels"],
         logits=predictions["logits"],
         embeddings=predictions["embeddings"],
-        class_order=np.arange(40, dtype=np.int64),
+        temporal_mask=predictions["temporal_mask"],
+        class_order=class_order,
+        original_class_ids=original_class_ids,
+        action_names=action_names,
+        **({"roi_attention": predictions["roi_attention"]} if "roi_attention" in predictions else {}),
     )
     with np.load(prediction_path) as reloaded:
         count = len(reloaded["sample_ids"])
-        if reloaded["labels"].shape != (count,) or reloaded["logits"].shape != (count, 40):
+        if reloaded["labels"].shape != (count,) or reloaded["logits"].shape != (count, num_classes):
             raise ValueError("Saved validation prediction shapes are inconsistent.")
         if reloaded["embeddings"].shape != (count, int(config["embedding_dim"])):
             raise ValueError("Saved validation embedding shape is inconsistent.")
-        if not np.array_equal(reloaded["class_order"], np.arange(40)):
-            raise ValueError("Saved class_order is not 0-39.")
+        if not np.array_equal(reloaded["class_order"], class_order):
+            raise ValueError("Saved class_order is inconsistent.")
 
     metrics = predictions["metrics"]
+    per_class = pd.DataFrame(
+        {
+            "expert_label": class_order,
+            "original_class_id": original_class_ids,
+            "action_name": action_names,
+            "precision": metrics["per_class_precision"],
+            "recall": metrics["per_class_recall"],
+            "f1": metrics["per_class_f1"],
+            "support": metrics["per_class_support"],
+        }
+    )
+    per_class.to_csv(run_dir / "per_class_metrics.csv", index=False, encoding="utf-8-sig")
+    if "roi_attention" in predictions and np.asarray(predictions["roi_attention"]).shape[-1] > 0:
+        attention = np.asarray(predictions["roi_attention"], dtype=np.float64)
+        masks = np.asarray(predictions["temporal_mask"], dtype=bool)
+        weights = masks[..., None]
+        mean_attention = (attention * weights).sum(axis=1) / weights.sum(axis=1).clip(min=1)
+        frame_entropy = -(attention * np.log(np.clip(attention, 1e-12, 1.0))).sum(axis=2)
+        entropy = (frame_entropy * masks).sum(axis=1) / masks.sum(axis=1).clip(min=1)
+        attention_frame = pd.DataFrame(
+            {
+                "sample_id": predictions["sample_ids"],
+                "true_label": predictions["labels"],
+                "predicted_label": np.asarray(predictions["logits"]).argmax(axis=1),
+                "upper_body_mean_weight": mean_attention[:, 0],
+                "left_hand_mean_weight": mean_attention[:, 1],
+                "right_hand_mean_weight": mean_attention[:, 2],
+                "attention_entropy": entropy,
+            }
+        )
+        attention_frame.to_csv(run_dir / "roi_attention_summary.csv", index=False, encoding="utf-8-sig")
     save_confusion_matrix(metrics["confusion_matrix"], run_dir / "confusion_matrix.png")  # type: ignore[arg-type]
     pd.DataFrame(history).to_csv(run_dir / "history.csv", index=False, encoding="utf-8-sig")
     parameter_count = sum(parameter.numel() for parameter in model.parameters())
@@ -390,8 +452,10 @@ def run_experiment(config: dict[str, Any]) -> dict[str, Any]:
         "best_epoch": best_epoch,
         "val_accuracy": metrics["accuracy"],
         "val_macro_f1": metrics["macro_f1"],
+        "val_weighted_f1": metrics["weighted_f1"],
         "val_loss": metrics["loss"],
         "per_class_recall": metrics["per_class_recall"],
+        "per_class_f1": metrics["per_class_f1"],
         "parameter_count": parameter_count,
         "checkpoint_size_mb": checkpoint_size_mb,
         "inference_ms_per_sample": measure_inference_ms(model, sample, device, amp_enabled),
@@ -402,6 +466,7 @@ def run_experiment(config: dict[str, Any]) -> dict[str, Any]:
         "input_shape": list(first_inputs.shape),
         "logits_shape": list(first_output["logits"].shape),
         "embedding_shape": list(first_output["embedding"].shape),
+        "roi_attention_shape": list(first_output["roi_attention"].shape) if "roi_attention" in first_output else None,
         "loss": float(history[-1]["train_loss"]),
         "config_path": config["config_path"],
         "output_dir": str(run_dir),

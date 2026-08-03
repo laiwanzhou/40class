@@ -1,0 +1,37 @@
+modality: Depth_Color
+path_column: depth_color_path
+model_name: pose_roi_expert
+data_root: D:\work\2026.7.14_kaggle\datasets\Small-Model-Track\train
+manifest: metadata/manifest.csv
+fold: metadata/splits/fold_0.json
+pose_cache: outputs/depth_pose_roi_probe/pose_tracks.npz
+output_root: outputs/depth_pose_roi_expert_fold0
+device: cuda
+seed: 20260715
+hard_actions:
+  - Take_medicine
+  - Eat_food
+  - Drink_water
+  - Make_a_phone_call
+  - Take_a_selfie
+  - Take_body_temperature
+  - Watch_TV
+  - Play_games
+  - Turn_pages
+  - Stir_drinks
+  - Wipe_bowls
+num_classes: 11
+num_frames: 24
+image_size: 192
+frame_feature_dim: 128
+embedding_dim: 192
+pretrained: true
+batch_size: 4
+epochs: 30
+learning_rate: 0.0003
+weight_decay: 0.0001
+dropout: 0.2
+early_stopping_patience: 6
+gradient_clip: 1.0
+amp: true
+num_workers: 4

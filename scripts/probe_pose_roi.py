@@ -14,7 +14,7 @@ from PIL import Image, ImageDraw
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.roi import PoseDetection, UltralyticsPoseLocator
+from src.roi.pose_locator import PoseDetection, UltralyticsPoseLocator
 
 
 DATA_ROOT = Path(r"D:\work\2026.7.14_kaggle\datasets\Small-Model-Track\train")

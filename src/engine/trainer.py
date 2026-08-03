@@ -36,6 +36,7 @@ def run_epoch(
     predictions_all: list[torch.Tensor] = []
     sample_count = 0
     batches = 0
+    num_classes: int | None = None
     context = torch.enable_grad if training else torch.no_grad
     with context():
         for batch_index, batch in enumerate(loader):
@@ -47,6 +48,10 @@ def run_epoch(
             with torch.autocast(device_type=device.type, dtype=torch.float16, enabled=amp_enabled):
                 output = model(inputs, temporal_mask=temporal_mask)
                 loss = criterion(output["logits"], labels)
+            current_classes = int(output["logits"].shape[1])
+            if num_classes is not None and current_classes != num_classes:
+                raise ValueError("Model output class count changed within an epoch.")
+            num_classes = current_classes
             device_finite.logical_and_(torch.isfinite(loss.detach()))
             if training:
                 assert scaler is not None
@@ -69,7 +74,8 @@ def run_epoch(
         raise FloatingPointError("Non-finite loss encountered during epoch.")
     labels_np = torch.cat(labels_all).cpu().numpy()
     predictions_np = torch.cat(predictions_all).cpu().numpy()
-    metrics = classification_metrics(labels_np, predictions_np)
+    assert num_classes is not None
+    metrics = classification_metrics(labels_np, predictions_np, num_classes)
     return {
         "loss": (device_loss_sum / sample_count).item(),
         "accuracy": (device_correct.to(torch.float64) / sample_count).item(),
@@ -89,6 +95,8 @@ def collect_predictions(
     labels_all: list[torch.Tensor] = []
     logits_all: list[torch.Tensor] = []
     embeddings_all: list[torch.Tensor] = []
+    masks_all: list[torch.Tensor] = []
+    roi_attention_all: list[torch.Tensor] = []
     device_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
     device_finite = torch.ones((), device=device, dtype=torch.bool)
     sample_count = 0
@@ -107,6 +115,9 @@ def collect_predictions(
             labels_all.append(labels.detach())
             logits_all.append(output["logits"].detach())
             embeddings_all.append(output["embedding"].detach())
+            masks_all.append(temporal_mask.detach())
+            if "roi_attention" in output:
+                roi_attention_all.append(output["roi_attention"].detach())
     if sample_count == 0:
         raise ValueError("DataLoader produced no prediction batches.")
     if not bool(device_finite.item()):
@@ -115,12 +126,16 @@ def collect_predictions(
     logits_np = torch.cat(logits_all).float().cpu().numpy()
     embeddings_np = torch.cat(embeddings_all).float().cpu().numpy()
     predictions = logits_np.argmax(axis=1)
-    metrics = classification_metrics(labels_np, predictions)
+    metrics = classification_metrics(labels_np, predictions, logits_np.shape[1])
     metrics["loss"] = (device_loss_sum / sample_count).item()
-    return {
+    result: dict[str, object] = {
         "sample_ids": np.asarray(sample_ids, dtype=str),
         "labels": labels_np,
         "logits": logits_np,
         "embeddings": embeddings_np,
+        "temporal_mask": torch.cat(masks_all).cpu().numpy(),
         "metrics": metrics,
     }
+    if roi_attention_all:
+        result["roi_attention"] = torch.cat(roi_attention_all).float().cpu().numpy()
+    return result
