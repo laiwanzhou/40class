@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 import time
 
 import numpy as np
@@ -15,10 +16,39 @@ from src.roi.roi_builder import PoseROIBuilder
 from .common import sorted_files
 
 
+FRAME_PATTERN = re.compile(
+    r"^(?P<modality>Depth|IR)_(?P<timestamp>\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.\d{3})_"
+    r"(?P<frame_id>\d+)(?:_Color)?$"
+)
+
+
 def depth_frame_key(path: Path) -> str:
     if not path.stem.startswith("Depth_"):
         raise ValueError(f"Unexpected Depth filename: {path.name}")
     return path.stem[len("Depth_") :].removesuffix("_Color")
+
+
+def paired_frame_key(path: Path, modality: str) -> tuple[str, int]:
+    match = FRAME_PATTERN.fullmatch(path.stem)
+    if match is None or match.group("modality") != modality:
+        raise ValueError(f"Unparseable {modality} frame name: {path.name}")
+    return match.group("timestamp"), int(match.group("frame_id"))
+
+
+def paired_frame_paths(depth_path: Path, ir_path: Path) -> tuple[tuple[Path, ...], tuple[Path, ...]]:
+    depth_files = sorted_files(depth_path, {".png", ".jpg", ".jpeg"})
+    ir_files = sorted_files(ir_path, {".png", ".jpg", ".jpeg"})
+    depth = {paired_frame_key(path, "Depth"): path for path in depth_files}
+    ir = {paired_frame_key(path, "IR"): path for path in ir_files}
+    if len(depth) != len(depth_files) or len(ir) != len(ir_files):
+        raise ValueError(f"Duplicate parsed frame key in {depth_path} or {ir_path}")
+    if not depth or depth.keys() != ir.keys():
+        raise ValueError(
+            f"Depth/IR pairing mismatch for {depth_path}: "
+            f"depth_only={len(depth.keys() - ir.keys())}, ir_only={len(ir.keys() - depth.keys())}"
+        )
+    keys = sorted(depth)
+    return tuple(depth[key] for key in keys), tuple(ir[key] for key in keys)
 
 
 class PoseTrackCache:
@@ -55,11 +85,16 @@ class PoseROIDataset(Dataset[dict[str, object]]):
         training: bool,
         use_pose_roi: bool,
         pose_cache_path: Path | None = None,
+        use_ir_input: bool = False,
+        data_root: Path | None = None,
     ) -> None:
         self.num_frames = num_frames
         self.image_size = image_size
         self.training = training
         self.use_pose_roi = use_pose_roi
+        self.use_ir_input = use_ir_input
+        self.ir_mode = "normal"
+        self.ir_permutation = np.arange(len(frame), dtype=np.int64)
         present = frame[frame["action_name"].isin(hard_actions)].copy()
         found = set(present["action_name"])
         missing = set(hard_actions) - found
@@ -77,7 +112,14 @@ class PoseROIDataset(Dataset[dict[str, object]]):
         roi_builder = PoseROIBuilder()
         for row in present.reset_index(drop=True).to_dict(orient="records"):
             trial_path = Path(row["trial_path"])
-            paths = sorted_files(trial_path, {".png", ".jpg", ".jpeg"})
+            if use_ir_input:
+                if data_root is None or not str(row.get("ir_path", "")).strip():
+                    raise ValueError("Dual-input dataset requires data_root and manifest ir_path.")
+                ir_trial_path = data_root.joinpath(*Path(str(row["ir_path"]).replace("\\", "/")).parts)
+                paths, ir_paths = paired_frame_paths(trial_path, ir_trial_path)
+            else:
+                paths = tuple(sorted_files(trial_path, {".png", ".jpg", ".jpeg"}))
+                ir_paths = ()
             if not paths:
                 raise FileNotFoundError(f"No Depth frames for {row['sample_id']}: {trial_path}")
             sample: dict[str, object] = {
@@ -85,6 +127,7 @@ class PoseROIDataset(Dataset[dict[str, object]]):
                 "label": class_map[int(row["class_id"])],
                 "original_class_id": int(row["class_id"]),
                 "paths": tuple(paths),
+                "ir_paths": tuple(ir_paths),
                 "length": len(paths),
             }
             if use_pose_roi:
@@ -97,9 +140,10 @@ class PoseROIDataset(Dataset[dict[str, object]]):
                 sample["roi_boxes"] = roi.boxes
                 sample["roi_sources"] = roi.sources
             self.samples.append(sample)
+        self.ir_permutation = np.arange(len(self.samples), dtype=np.int64)
         print(
             f"PoseROIDataset indexed {len(self.samples)} samples (training={training}, "
-            f"pose_roi={use_pose_roi}) in {time.perf_counter() - started:.2f}s"
+            f"pose_roi={use_pose_roi}, ir={use_ir_input}) in {time.perf_counter() - started:.2f}s"
         )
 
     def __len__(self) -> int:
@@ -122,8 +166,17 @@ class PoseROIDataset(Dataset[dict[str, object]]):
         if not isinstance(paths, tuple):
             raise TypeError("Invalid path index")
         indices, mask = self._window(len(paths))
-        frames: list[torch.Tensor] = []
+        depth_frames: list[torch.Tensor] = []
+        ir_frames: list[torch.Tensor] = []
         roi_boxes = sample.get("roi_boxes")
+        ir_sample = self.samples[int(self.ir_permutation[index])]
+        ir_paths = ir_sample.get("ir_paths")
+        if self.use_ir_input and not isinstance(ir_paths, tuple):
+            raise TypeError("Invalid IR path index")
+        if self.use_ir_input and self.ir_mode == "shuffled":
+            ir_indices, _ = self._window(len(ir_paths))
+        else:
+            ir_indices = indices
         for frame_index in indices:
             with Image.open(paths[int(frame_index)]) as opened:
                 image = opened.convert("RGB")
@@ -135,14 +188,61 @@ class PoseROIDataset(Dataset[dict[str, object]]):
                 for view in views:
                     resized = TF.resize(view, [self.image_size, self.image_size], antialias=True)
                     tensors.append((TF.to_tensor(resized) - 0.5) / 0.5)
-                frames.append(torch.stack(tensors) if self.use_pose_roi else tensors[0])
+                depth_frames.append(torch.stack(tensors) if self.use_pose_roi else tensors[0])
+        if self.use_ir_input:
+            assert isinstance(ir_paths, tuple)
+            for output_index, frame_index in enumerate(ir_indices):
+                with Image.open(ir_paths[int(frame_index)]) as opened:
+                    image = opened.convert("L")
+                    views = [image]
+                    if self.use_pose_roi:
+                        assert isinstance(roi_boxes, np.ndarray)
+                        depth_index = int(indices[output_index])
+                        views.extend(image.crop(tuple(float(value) for value in box)) for box in roi_boxes[depth_index])
+                    tensors = []
+                    for view in views:
+                        resized = TF.resize(view, [self.image_size, self.image_size], antialias=True)
+                        tensor = (TF.to_tensor(resized) - 0.5) / 0.5
+                        tensors.append(torch.zeros_like(tensor) if self.ir_mode == "masked" else tensor)
+                    ir_frames.append(torch.stack(tensors) if self.use_pose_roi else tensors[0])
+        depth_input = torch.stack(depth_frames)
+        input_value: torch.Tensor | dict[str, torch.Tensor]
+        input_value = (
+            {"depth_input": depth_input, "ir_input": torch.stack(ir_frames)}
+            if self.use_ir_input
+            else depth_input
+        )
+        roi_valid = torch.ones((self.num_frames, 4), dtype=torch.bool)
+        if isinstance(sample.get("roi_sources"), np.ndarray):
+            sources = sample["roi_sources"][indices]
+            roi_valid[:, 1:] = torch.from_numpy(sources != "central")
         return {
-            "input": torch.stack(frames),
+            "input": input_value,
+            "depth_input": depth_input,
+            **({"ir_input": torch.stack(ir_frames)} if self.use_ir_input else {}),
             "temporal_mask": mask,
+            "roi_valid_mask": roi_valid,
             "label": int(sample["label"]),
             "sample_id": str(sample["sample_id"]),
             "length": int(sample["length"]),
         }
+
+    def set_ir_mode(self, mode: str, seed: int = 0) -> None:
+        if not self.use_ir_input:
+            raise ValueError("IR modes require a dual-input dataset.")
+        if mode not in {"normal", "masked", "shuffled"}:
+            raise ValueError(f"Unsupported IR mode: {mode}")
+        self.ir_mode = mode
+        self.ir_permutation = np.arange(len(self.samples), dtype=np.int64)
+        if mode == "shuffled":
+            rng = np.random.default_rng(seed)
+            for _ in range(1000):
+                candidate = rng.permutation(len(self.samples))
+                if np.all(candidate != np.arange(len(self.samples))):
+                    self.ir_permutation = candidate
+                    break
+            else:
+                raise RuntimeError("Could not construct a fixed-point-free IR permutation.")
 
     def roi_source_counts(self) -> pd.DataFrame:
         rows: list[dict[str, object]] = []
