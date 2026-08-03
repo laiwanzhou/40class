@@ -117,6 +117,15 @@ class PoseROIDataset(Dataset[dict[str, object]]):
                     raise ValueError("Dual-input dataset requires data_root and manifest ir_path.")
                 ir_trial_path = data_root.joinpath(*Path(str(row["ir_path"]).replace("\\", "/")).parts)
                 paths, ir_paths = paired_frame_paths(trial_path, ir_trial_path)
+                expected_size: tuple[int, int] | None = None
+                for depth_path, ir_path in zip(paths, ir_paths, strict=True):
+                    with Image.open(depth_path) as depth_image, Image.open(ir_path) as ir_image:
+                        if depth_image.size != ir_image.size:
+                            raise ValueError(f"Native Depth/IR size mismatch: {depth_path} / {ir_path}")
+                        if expected_size is None:
+                            expected_size = depth_image.size
+                        elif depth_image.size != expected_size:
+                            raise ValueError(f"Native frame size changed within sample: {depth_path}")
             else:
                 paths = tuple(sorted_files(trial_path, {".png", ".jpg", ".jpeg"}))
                 ir_paths = ()
@@ -135,8 +144,22 @@ class PoseROIDataset(Dataset[dict[str, object]]):
                 with Image.open(paths[0]) as image:
                     width, height = image.size
                 keys = [depth_frame_key(path) for path in paths]
+                missing_cache = [key for key in keys if (str(row["sample_id"]), key) not in cache.lookup]
+                if missing_cache:
+                    raise KeyError(f"Pose cache misses {len(missing_cache)} frames for {row['sample_id']}")
                 person_boxes, keypoints, confidence = cache.trial_arrays(str(row["sample_id"]), keys)
                 roi = roi_builder.build(person_boxes, keypoints, confidence, width, height)
+                boxes = roi.boxes
+                if (
+                    not np.isfinite(boxes).all()
+                    or (boxes[..., 0] < 0).any()
+                    or (boxes[..., 1] < 0).any()
+                    or (boxes[..., 2] > width).any()
+                    or (boxes[..., 3] > height).any()
+                    or (boxes[..., 2] <= boxes[..., 0]).any()
+                    or (boxes[..., 3] <= boxes[..., 1]).any()
+                ):
+                    raise ValueError(f"Out-of-bounds pose ROI for {row['sample_id']}")
                 sample["roi_boxes"] = roi.boxes
                 sample["roi_sources"] = roi.sources
             self.samples.append(sample)

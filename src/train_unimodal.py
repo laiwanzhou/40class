@@ -480,7 +480,7 @@ def run_experiment(config: dict[str, Any]) -> dict[str, Any]:
                 "true_label": predictions["labels"],
                 "predicted_label": np.asarray(predictions["logits"]).argmax(axis=1),
                 "global_depth_gate": mean_gate[:, 0],
-                "upper_body_depth_gate": mean_gate[:, 1],
+                "upper_depth_gate": mean_gate[:, 1],
                 "left_hand_depth_gate": mean_gate[:, 2],
                 "right_hand_depth_gate": mean_gate[:, 3],
                 "mean_depth_gate": mean_gate.mean(axis=1),

@@ -60,6 +60,8 @@ def main() -> None:
             "initial_gate_mean": float(output["modality_gate"].mean().detach()),
         }
     )
+    optimizer = torch.optim.AdamW(model.parameters(), lr=float(config["learning_rate"]))
+    optimizer.zero_grad(set_to_none=True)
     loss = nn.CrossEntropyLoss()(output["logits"], labels)
     loss.backward()
     gradient_groups = {
@@ -77,6 +79,8 @@ def main() -> None:
         for name, module in gradient_groups.items()
     }
     checks["all_required_gradients_nonzero"] = all(value > 0 for value in checks["gradient_norms"].values())
+    optimizer.step()
+    checks["optimizer_step_completed"] = True
     checks["peak_gpu_memory_mb"] = torch.cuda.max_memory_allocated() / 1024**2
     checks["parameter_count"] = sum(parameter.numel() for parameter in model.parameters())
     boolean_checks = [value for value in checks.values() if isinstance(value, bool)]
