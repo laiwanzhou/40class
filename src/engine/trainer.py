@@ -9,8 +9,18 @@ from torch import nn
 from .metrics import classification_metrics
 
 
-def _move_batch(batch: dict[str, object], device: torch.device) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    inputs = batch["input"].to(device, non_blocking=True)  # type: ignore[union-attr]
+def _move_input(value: object, device: torch.device) -> torch.Tensor | dict[str, torch.Tensor]:
+    if isinstance(value, torch.Tensor):
+        return value.to(device, non_blocking=True)
+    if isinstance(value, dict) and all(isinstance(item, torch.Tensor) for item in value.values()):
+        return {str(key): item.to(device, non_blocking=True) for key, item in value.items()}
+    raise TypeError(f"Unsupported model input type: {type(value)}")
+
+
+def _move_batch(
+    batch: dict[str, object], device: torch.device
+) -> tuple[torch.Tensor | dict[str, torch.Tensor], torch.Tensor, torch.Tensor]:
+    inputs = _move_input(batch["input"], device)
     labels = batch["label"].to(device, non_blocking=True)  # type: ignore[union-attr]
     temporal_mask = batch["temporal_mask"].to(device, non_blocking=True)  # type: ignore[union-attr]
     return inputs, labels, temporal_mask
@@ -97,6 +107,7 @@ def collect_predictions(
     embeddings_all: list[torch.Tensor] = []
     masks_all: list[torch.Tensor] = []
     roi_attention_all: list[torch.Tensor] = []
+    modality_gate_all: list[torch.Tensor] = []
     device_loss_sum = torch.zeros((), device=device, dtype=torch.float64)
     device_finite = torch.ones((), device=device, dtype=torch.bool)
     sample_count = 0
@@ -118,6 +129,8 @@ def collect_predictions(
             masks_all.append(temporal_mask.detach())
             if "roi_attention" in output:
                 roi_attention_all.append(output["roi_attention"].detach())
+            if "modality_gate" in output:
+                modality_gate_all.append(output["modality_gate"].detach())
     if sample_count == 0:
         raise ValueError("DataLoader produced no prediction batches.")
     if not bool(device_finite.item()):
@@ -138,4 +151,6 @@ def collect_predictions(
     }
     if roi_attention_all:
         result["roi_attention"] = torch.cat(roi_attention_all).float().cpu().numpy()
+    if modality_gate_all:
+        result["modality_gate"] = torch.cat(modality_gate_all).float().cpu().numpy()
     return result

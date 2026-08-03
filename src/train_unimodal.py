@@ -22,12 +22,12 @@ from torch.utils.data import DataLoader, Dataset, Subset
 from src.data import IMUDataset, PoseROIDataset, RadarDataset, SkeletonDataset, VisualSequenceDataset, load_modality_frames
 from src.data.common import compute_sequence_normalization
 from src.engine import collect_predictions, run_epoch
-from src.models import PoseROIExpert, TemporalClassifier, VisualBaseline
+from src.models import DepthIRPoseROIExpert, PoseROIExpert, TemporalClassifier, VisualBaseline
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DATA_ROOT = Path(r"D:\work\2026.7.14_kaggle\datasets\Small-Model-Track\train")
-VISUAL_MODALITIES = {"Depth_Color", "IR", "Thermal"}
+VISUAL_MODALITIES = {"Depth_Color", "Depth_IR", "IR", "Thermal"}
 
 
 def seed_worker(worker_id: int) -> None:
@@ -129,14 +129,21 @@ def build_datasets(config: dict[str, Any]) -> tuple[Dataset[dict[str, object]], 
         Path(config["data_root"]),
         str(config["path_column"]),
     )
+    exclusions = set(str(value) for value in config.get("excluded_sample_ids", []))
+    if exclusions:
+        train_frame = train_frame[~train_frame["sample_id"].isin(exclusions)].reset_index(drop=True)
+        val_frame = val_frame[~val_frame["sample_id"].isin(exclusions)].reset_index(drop=True)
     modality = str(config["modality"])
-    if str(config["model_name"]) in {"hard_global_expert", "pose_roi_expert"}:
+    if str(config["model_name"]) in {"hard_global_expert", "pose_roi_expert", "depth_ir_pose_roi_expert"}:
+        dual_input = str(config["model_name"]) == "depth_ir_pose_roi_expert"
         common = {
             "hard_actions": list(config["hard_actions"]),
             "num_frames": int(config["num_frames"]),
             "image_size": int(config["image_size"]),
-            "use_pose_roi": str(config["model_name"]) == "pose_roi_expert",
+            "use_pose_roi": str(config["model_name"]) in {"pose_roi_expert", "depth_ir_pose_roi_expert"},
             "pose_cache_path": Path(config["pose_cache"]) if config.get("pose_cache") else None,
+            "use_ir_input": dual_input,
+            "data_root": Path(config["data_root"]) if dual_input else None,
         }
         return (
             PoseROIDataset(train_frame, training=True, **common),
@@ -180,6 +187,15 @@ def configure_normalization(
 
 def build_model(config: dict[str, Any], sample: dict[str, object]) -> nn.Module:
     embedding_dim = int(config.get("embedding_dim", 128))
+    if str(config["model_name"]) == "depth_ir_pose_roi_expert":
+        return DepthIRPoseROIExpert(
+            num_classes=int(config["num_classes"]),
+            expected_views=4,
+            embedding_dim=embedding_dim,
+            frame_feature_dim=int(config.get("frame_feature_dim", 128)),
+            dropout=float(config.get("dropout", 0.2)),
+            pretrained=bool(config.get("pretrained", True)),
+        )
     if str(config["model_name"]) in {"hard_global_expert", "pose_roi_expert"}:
         return PoseROIExpert(
             num_classes=int(config["num_classes"]),
@@ -253,7 +269,13 @@ def save_confusion_matrix(matrix: list[list[int]], path: Path) -> None:
 
 
 def measure_inference_ms(model: nn.Module, sample: dict[str, object], device: torch.device, amp_enabled: bool) -> float:
-    inputs = sample["input"].unsqueeze(0).to(device)  # type: ignore[union-attr]
+    raw_inputs = sample["input"]
+    if isinstance(raw_inputs, torch.Tensor):
+        inputs: torch.Tensor | dict[str, torch.Tensor] = raw_inputs.unsqueeze(0).to(device)
+    elif isinstance(raw_inputs, dict):
+        inputs = {str(key): value.unsqueeze(0).to(device) for key, value in raw_inputs.items()}
+    else:
+        raise TypeError(f"Unsupported inference input: {type(raw_inputs)}")
     mask = sample["temporal_mask"].unsqueeze(0).to(device)  # type: ignore[union-attr]
     model.eval()
     with torch.no_grad():
@@ -287,8 +309,8 @@ def run_experiment(config: dict[str, Any]) -> dict[str, Any]:
     train_dataset, val_dataset = build_datasets(config)
     configure_normalization(config, train_dataset, val_dataset, run_dir)
     sample = train_dataset[0]
-    if not isinstance(sample["input"], torch.Tensor):
-        raise TypeError("Dataset input is not a Tensor.")
+    if not isinstance(sample["input"], (torch.Tensor, dict)):
+        raise TypeError("Dataset input is neither a Tensor nor a tensor mapping.")
     num_classes = int(config.get("num_classes", 40))
     if not 0 <= int(sample["label"]) < num_classes:
         raise ValueError(f"Dataset label is outside 0-{num_classes - 1}.")
@@ -297,11 +319,20 @@ def run_experiment(config: dict[str, Any]) -> dict[str, Any]:
     train_loader = loader_for(train_dataset, config, training=True)
     val_loader = loader_for(val_dataset, config, training=False)
     first_batch = next(iter(train_loader))
-    first_inputs = first_batch["input"].to(device)  # type: ignore[union-attr]
+    raw_first_inputs = first_batch["input"]
+    if isinstance(raw_first_inputs, torch.Tensor):
+        first_inputs: torch.Tensor | dict[str, torch.Tensor] = raw_first_inputs.to(device)
+        expected_batch = int(first_inputs.shape[0])
+        input_shape: object = list(first_inputs.shape)
+    elif isinstance(raw_first_inputs, dict):
+        first_inputs = {str(key): value.to(device) for key, value in raw_first_inputs.items()}
+        expected_batch = int(next(iter(first_inputs.values())).shape[0])
+        input_shape = {key: list(value.shape) for key, value in first_inputs.items()}
+    else:
+        raise TypeError(f"Unsupported training input: {type(raw_first_inputs)}")
     first_mask = first_batch["temporal_mask"].to(device)  # type: ignore[union-attr]
     with torch.no_grad(), torch.autocast(device_type=device.type, dtype=torch.float16, enabled=amp_enabled):
         first_output = model(first_inputs, temporal_mask=first_mask)
-    expected_batch = int(first_inputs.shape[0])
     if tuple(first_output["logits"].shape) != (expected_batch, num_classes):
         raise ValueError(f"Unexpected logits shape: {tuple(first_output['logits'].shape)}")
     if tuple(first_output["embedding"].shape) != (expected_batch, int(config["embedding_dim"])):
@@ -395,6 +426,7 @@ def run_experiment(config: dict[str, Any]) -> dict[str, Any]:
         original_class_ids=original_class_ids,
         action_names=action_names,
         **({"roi_attention": predictions["roi_attention"]} if "roi_attention" in predictions else {}),
+        **({"modality_gate": predictions["modality_gate"]} if "modality_gate" in predictions else {}),
     )
     with np.load(prediction_path) as reloaded:
         count = len(reloaded["sample_ids"])
@@ -437,6 +469,34 @@ def run_experiment(config: dict[str, Any]) -> dict[str, Any]:
             }
         )
         attention_frame.to_csv(run_dir / "roi_attention_summary.csv", index=False, encoding="utf-8-sig")
+    if "modality_gate" in predictions:
+        gate = np.asarray(predictions["modality_gate"], dtype=np.float64)
+        masks = np.asarray(predictions["temporal_mask"], dtype=bool)
+        weights = masks[..., None]
+        mean_gate = (gate * weights).sum(axis=1) / weights.sum(axis=1).clip(min=1)
+        gate_frame = pd.DataFrame(
+            {
+                "sample_id": predictions["sample_ids"],
+                "true_label": predictions["labels"],
+                "predicted_label": np.asarray(predictions["logits"]).argmax(axis=1),
+                "global_depth_gate": mean_gate[:, 0],
+                "upper_body_depth_gate": mean_gate[:, 1],
+                "left_hand_depth_gate": mean_gate[:, 2],
+                "right_hand_depth_gate": mean_gate[:, 3],
+                "mean_depth_gate": mean_gate.mean(axis=1),
+                "mean_abs_distance_from_half": (np.abs(gate - 0.5) * weights).sum(axis=(1, 2)) / (weights.sum(axis=(1, 2)).clip(min=1) * gate.shape[2]),
+            }
+        )
+        gate_frame.to_csv(run_dir / "depth_ir_modality_gate_summary.csv", index=False, encoding="utf-8-sig")
+        by_class = gate_frame.groupby("true_label", as_index=False).mean(numeric_only=True)
+        by_class.to_csv(run_dir / "modality_gate_by_class.csv", index=False, encoding="utf-8-sig")
+        time_rows = []
+        for frame_index in range(gate.shape[1]):
+            valid = masks[:, frame_index]
+            if valid.any():
+                values = gate[valid, frame_index]
+                time_rows.append({"frame": frame_index, **{f"view_{view}_depth_gate": values[:, view].mean() for view in range(gate.shape[2])}})
+        pd.DataFrame(time_rows).to_csv(run_dir / "modality_gate_by_time.csv", index=False, encoding="utf-8-sig")
     save_confusion_matrix(metrics["confusion_matrix"], run_dir / "confusion_matrix.png")  # type: ignore[arg-type]
     pd.DataFrame(history).to_csv(run_dir / "history.csv", index=False, encoding="utf-8-sig")
     parameter_count = sum(parameter.numel() for parameter in model.parameters())
@@ -463,10 +523,11 @@ def run_experiment(config: dict[str, Any]) -> dict[str, Any]:
         "gpu_memory_peak_reserved_mb": peak_reserved_mb,
         "num_workers": int(config.get("num_workers", 0)),
         "batch_size": int(config["batch_size"]),
-        "input_shape": list(first_inputs.shape),
+        "input_shape": input_shape,
         "logits_shape": list(first_output["logits"].shape),
         "embedding_shape": list(first_output["embedding"].shape),
         "roi_attention_shape": list(first_output["roi_attention"].shape) if "roi_attention" in first_output else None,
+        "modality_gate_shape": list(first_output["modality_gate"].shape) if "modality_gate" in first_output else None,
         "loss": float(history[-1]["train_loss"]),
         "config_path": config["config_path"],
         "output_dir": str(run_dir),
