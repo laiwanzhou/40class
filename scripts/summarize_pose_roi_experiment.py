@@ -64,6 +64,16 @@ def confusion_rate(details: dict[str, object], source: str, target: str) -> tupl
     return count, total, count / total if total else 0.0
 
 
+def prediction_distribution(details: dict[str, object], source: str) -> str:
+    names = np.asarray(details["action_names"])
+    source_label = int(np.flatnonzero(names == source)[0])
+    labels = np.asarray(details["labels"])
+    predicted = np.asarray(details["predicted"])
+    values, counts = np.unique(predicted[labels == source_label], return_counts=True)
+    ordered = sorted(zip(values, counts, strict=True), key=lambda item: int(item[1]), reverse=True)
+    return "; ".join(f"{names[int(label)]} {int(count)}" for label, count in ordered)
+
+
 def main() -> None:
     loaded = {name: load_run(name, path) for name, path in RUNS.items()}
     rows: list[dict[str, object]] = []
@@ -122,9 +132,11 @@ def main() -> None:
     ]
     confusion_lines = []
     for source, target in TARGET_PAIRS:
-        e0_count, total, e0_rate = confusion_rate(e0_details, source, target)
-        e1_count, _, e1_rate = confusion_rate(e1_details, source, target)
-        confusion_lines.append(f"| {source} -> {target} | {e0_count}/{total} ({e0_rate:.2%}) | {e1_count}/{total} ({e1_rate:.2%}) | {e1_rate - e0_rate:+.2%} |")
+        for actual, predicted in ((source, target), (target, source)):
+            e0_count, total, e0_rate = confusion_rate(e0_details, actual, predicted)
+            e1_count, _, e1_rate = confusion_rate(e1_details, actual, predicted)
+            confusion_lines.append(f"| {actual} -> {predicted} | {e0_count}/{total} ({e0_rate:.2%}) | {e1_count}/{total} ({e1_rate:.2%}) | {e1_rate - e0_rate:+.2%} |")
+    f1 = class_comparison.set_index("action_name")
     lines = [
         "# Pose-guided ROI hard action visual expert",
         "",
@@ -160,12 +172,22 @@ def main() -> None:
         "| --- | ---: | ---: | ---: |",
         *confusion_lines,
         "",
+        "## Required-group interpretation",
+        "",
+        f"- Medicine/eating/drinking: `Eat_food` improves {f1.loc['Eat_food', 'f1_delta']:+.6f} and `Drink_water` {f1.loc['Drink_water', 'f1_delta']:+.6f}, but `Take_medicine` declines {f1.loc['Take_medicine', 'f1_delta']:+.6f}. E1 medicine predictions are: {prediction_distribution(e1_details, 'Take_medicine')}. The key medicine ambiguity is not resolved.",
+        f"- TV/gaming: both remain F1=0. E1 `Watch_TV` predictions are: {prediction_distribution(e1_details, 'Watch_TV')}; E1 `Play_games` predictions are: {prediction_distribution(e1_details, 'Play_games')}.",
+        f"- Phone/selfie: `Make_a_phone_call` changes {f1.loc['Make_a_phone_call', 'f1_delta']:+.6f} and `Take_a_selfie` {f1.loc['Take_a_selfie', 'f1_delta']:+.6f}; phone remains weak and one phone sample is newly confused with selfie.",
+        f"- Temperature/phone: `Take_body_temperature` changes {f1.loc['Take_body_temperature', 'f1_delta']:+.6f}, but temperature-to-phone errors rise to {confusion_rate(e1_details, 'Take_body_temperature', 'Make_a_phone_call')[2]:.2%}.",
+        f"- Stir/wipe: `Stir_drinks` improves {f1.loc['Stir_drinks', 'f1_delta']:+.6f}, whereas `Wipe_bowls` declines {f1.loc['Wipe_bowls', 'f1_delta']:+.6f}; this pair is not jointly improved.",
+        f"- Page turning: `Turn_pages` improves {f1.loc['Turn_pages', 'f1_delta']:+.6f}, from F1 {f1.loc['Turn_pages', 'e0_f1']:.6f} to {f1.loc['Turn_pages', 'e1_f1']:.6f}.",
+        "",
         "## ROI quality and gating",
         "",
         f"- Full hard-subset IR cache: person {cache_summary['person_success']:.2%}, left wrist {cache_summary['left_wrist_success']:.2%}, right wrist {cache_summary['right_wrist_success']:.2%}, at least one wrist {cache_summary['at_least_one_wrist_success']:.2%}.",
-        f"- Upper-body fallback rate: {upper_fallback:.2%}; combined hand fallback rate: {hand_fallback:.2%}.",
+        f"- Validation upper-body fallback rate: {upper_fallback:.2%}; combined hand fallback rate: {hand_fallback:.2%}.",
         f"- Mean ROI area ratios: upper {area_means['upper_body']:.2%}, left hand {area_means['left_hand']:.2%}, right hand {area_means['right_hand']:.2%}.",
         f"- Validation ROI gate means: upper {attention_means['upper_body_mean_weight']:.6f}, left hand {attention_means['left_hand_mean_weight']:.6f}, right hand {attention_means['right_hand_mean_weight']:.6f}; entropy {attention_entropy:.6f} versus uniform ln(3)={math.log(3):.6f}.",
+        "- Attention does not collapse to one ROI. It has a moderate upper-body preference while both hand regions retain substantial weight; the entropy is below uniform, so the gate is selective rather than permanently fixed.",
         "",
         "## Inference weights",
         "",
@@ -175,7 +197,7 @@ def main() -> None:
         "",
         "## Decision",
         "",
-        ("The route meets the predefined value criteria and is a candidate for guarded integration into the existing fusion system." if valuable else "The route does not meet all predefined value criteria. Do not integrate it into the existing fusion system without a new, separately justified experiment."),
+        ("The route meets the predefined value criteria and is a candidate for guarded integration into the existing fusion system." if valuable else "The route improves aggregate Accuracy and Macro-F1, but it does not meet all predefined value criteria: zero-F1 classes do not decrease, TV/gaming remain unresolved, and medicine/wipe-bowls regress. Do not integrate it into the existing fusion system without a new, separately justified experiment."),
     ])
     REPORT_PATH.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(SUMMARY_PATH)
