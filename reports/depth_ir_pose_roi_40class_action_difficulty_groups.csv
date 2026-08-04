@@ -1,0 +1,41 @@
+﻿class_id,action_name,primary_group,checkpoint_sensitive,f1_best_accuracy,f1_best_macro,recall_best_accuracy,recall_best_macro,predicted_count_best_accuracy,predicted_count_best_macro,true_rank_mean_best_accuracy,true_rank_mean_best_macro,diagnostic_note
+2,Comb_hair,difficult,True,0.0,0.3,0.0,0.3333333333333333,6,11,6.0,2.6666666666666665,Macro-F1 checkpoint is substantially better.
+6,Drink_water,usable,True,0.0,0.4117647058823529,0.0,0.5384615384615384,3,21,9.307692307692308,4.538461538461538,Macro-F1 checkpoint is substantially better.
+8,Take_and_use_tableware,unrecognized,True,0.0,0.0,0.0,0.0,7,14,10.928571428571429,6.857142857142857,Both checkpoints have zero F1.
+14,Wipe_bowls,difficult,True,0.0,0.16666666666666666,0.0,0.16666666666666666,7,6,6.666666666666667,6.666666666666667,Macro-F1 checkpoint is substantially better.
+18,Write,unrecognized,False,0.0,0.0,0.0,0.0,1,0,3.909090909090909,7.181818181818182,Both checkpoints have zero F1.
+19,Make_a_phone_call,unrecognized,False,0.0,0.0,0.0,0.0,0,0,11.25,13.25,Both checkpoints have zero F1.
+25,Watch_TV,unrecognized,False,0.0,0.0,0.0,0.0,0,0,16.166666666666668,13.833333333333334,Both checkpoints have zero F1.
+35,Do_lunges,unrecognized,False,0.0,0.0,0.0,0.0,0,1,18.0,15.2,Both checkpoints have zero F1.
+37,Take_medicine,difficult,False,0.07407407407407407,0.06896551724137931,0.058823529411764705,0.058823529411764705,10,12,12.0,6.176470588235294,F1 is low and mean true-class rank is relatively late.
+39,Take_body_temperature,difficult,True,0.07692307692307693,0.1935483870967742,0.06666666666666667,0.2,11,16,4.933333333333334,3.2666666666666666,F1 is low and mean true-class rank is relatively late.
+24,Use_a_mobile_phone,difficult,False,0.08,0.08333333333333333,0.0625,0.0625,9,8,7.4375,5.75,F1 is low and mean true-class rank is relatively late.
+38,Massage_oneself,difficult,True,0.13333333333333333,0.2608695652173913,0.16666666666666666,0.25,18,11,6.666666666666667,9.333333333333334,F1 is low and mean true-class rank is relatively late.
+3,Take_off_clothes,difficult,True,0.15384615384615385,0.1,0.2727272727272727,0.09090909090909091,28,9,3.909090909090909,5.818181818181818,F1 is low and mean true-class rank is relatively late.
+20,Check_the_time,difficult,True,0.18181818181818182,0.1111111111111111,0.3333333333333333,0.16666666666666666,32,24,3.4166666666666665,5.5,F1 is low and mean true-class rank is relatively late.
+22,Turn_pages,difficult,True,0.18181818181818182,0.3157894736842105,0.1111111111111111,0.3333333333333333,2,10,2.6666666666666665,6.333333333333333,F1 is low while mean true-class rank remains near the top.
+10,Stir_drinks,difficult,True,0.21052631578947367,0.24242424242424243,0.125,0.25,3,17,6.0625,4.25,F1 is low and mean true-class rank is relatively late.
+13,Mop_the_floor,difficult,True,0.2222222222222222,0.3333333333333333,0.16666666666666666,0.5,3,12,9.0,8.833333333333334,F1 is low and mean true-class rank is relatively late.
+16,Fold_clothes,difficult,True,0.2222222222222222,0.2,0.2222222222222222,0.1111111111111111,9,1,5.222222222222222,8.11111111111111,F1 is low and mean true-class rank is relatively late.
+5,Put_on_clothes,difficult,True,0.2702702702702703,0.3333333333333333,0.3333333333333333,0.3333333333333333,22,15,2.3333333333333335,4.866666666666666,F1 is low while mean true-class rank remains near the top.
+27,Take_a_selfie,difficult,False,0.3125,0.29411764705882354,0.35714285714285715,0.35714285714285715,18,20,8.142857142857142,8.285714285714286,F1 is low and mean true-class rank is relatively late.
+26,Play_games,difficult,False,0.3333333333333333,0.2608695652173913,0.3333333333333333,0.25,12,11,9.666666666666666,8.166666666666666,F1 is low and mean true-class rank is relatively late.
+7,Eat_food,usable,True,0.35,0.41509433962264153,0.21875,0.34375,8,21,9.125,5.09375,Both checkpoints are similar or moderately checkpoint-sensitive.
+11,Peel_fruits,difficult,True,0.375,0.22641509433962265,0.5,0.3333333333333333,30,35,4.777777777777778,4.944444444444445,F1 is low and mean true-class rank is relatively late.
+31,Do_stretching_exercises,usable,True,0.375,0.42857142857142855,0.3333333333333333,0.5,14,24,5.555555555555555,6.277777777777778,Both checkpoints are similar or moderately checkpoint-sensitive.
+12,Sweep_the_floor,usable,True,0.4,0.15384615384615385,0.4444444444444444,0.1111111111111111,11,4,6.666666666666667,4.888888888888889,Accuracy checkpoint is substantially better.
+21,Read_documents,usable,True,0.4,0.3333333333333333,0.5333333333333333,0.2,25,3,3.6666666666666665,8.4,Both checkpoints are similar or moderately checkpoint-sensitive.
+23,Listen_to_music_with_headphones,usable,True,0.42105263157894735,0.23076923076923078,0.47058823529411764,0.17647058823529413,21,9,5.176470588235294,8.235294117647058,Accuracy checkpoint is substantially better.
+15,Wipe_windows_and_tables,usable,True,0.42857142857142855,0.36363636363636365,0.3333333333333333,0.6666666666666666,5,24,4.888888888888889,6.555555555555555,Both checkpoints are similar or moderately checkpoint-sensitive.
+1,Brush_teeth,usable,True,0.4444444444444444,0.5714285714285714,0.3333333333333333,0.5,6,9,5.916666666666667,2.3333333333333335,Both checkpoints are similar or moderately checkpoint-sensitive.
+9,Pour_drinks,usable,False,0.5454545454545454,0.47058823529411764,0.5625,0.5,17,18,3.4375,2.875,Both checkpoints are similar or moderately checkpoint-sensitive.
+17,Tap_the_keyboard,usable,True,0.5454545454545454,0.47368421052631576,0.7058823529411765,0.5294117647058824,27,21,3.5294117647058822,5.294117647058823,Both checkpoints are similar or moderately checkpoint-sensitive.
+4,Wipe_hands,usable,False,0.5517241379310345,0.5517241379310345,0.5333333333333333,0.5333333333333333,14,14,2.1333333333333333,2.4,Both checkpoints are similar or moderately checkpoint-sensitive.
+29,Do_squats,usable,False,0.6086956521739131,0.56,0.4666666666666667,0.4666666666666667,8,10,5.8,4.533333333333333,Both checkpoints are similar or moderately checkpoint-sensitive.
+28,Jog_in_place,stable_easy,True,0.6666666666666666,0.6428571428571429,0.5454545454545454,0.8181818181818182,7,17,3.0,1.2727272727272727,Both checkpoints are similar or moderately checkpoint-sensitive.
+30,Do_jumping_jacks,stable_easy,True,0.6666666666666666,0.6666666666666666,1.0,0.8333333333333334,12,9,1.0,1.1666666666666667,Both checkpoints are similar or moderately checkpoint-sensitive.
+33,Lie_down,usable,False,0.6666666666666666,0.5454545454545454,0.5,0.5,3,5,6.833333333333333,4.5,Both checkpoints are similar or moderately checkpoint-sensitive.
+34,Sit_down,stable_easy,True,0.725,0.7619047619047619,0.9354838709677419,0.7741935483870968,49,32,1.064516129032258,1.3225806451612903,Both checkpoints are similar or moderately checkpoint-sensitive.
+32,Stand_up,stable_easy,True,0.8135593220338984,0.7111111111111111,1.0,0.6666666666666666,35,21,1.0,1.7083333333333333,Both checkpoints are similar or moderately checkpoint-sensitive.
+0,Wash_face,stable_easy,False,0.8461538461538461,0.8571428571428571,0.9166666666666666,1.0,14,16,1.1666666666666667,1.0,Both checkpoints are similar or moderately checkpoint-sensitive.
+36,Walk,stable_easy,False,0.9090909090909091,0.9333333333333333,0.9859154929577465,0.9859154929577465,83,79,1.0140845070422535,1.0140845070422535,Both checkpoints are similar or moderately checkpoint-sensitive.
