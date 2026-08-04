@@ -415,7 +415,14 @@ def probe_gradients(
         "cuda", enabled=device.type == "cuda" and bool(config["amp"]),
         init_scale=float(config.get("amp_initial_scale", 1024.0)),
     )
-    batch = next(iter(loader))
+    batch = None
+    for candidate in loader:
+        candidate_labels = candidate["label"].to(device)
+        if (local_map[candidate_labels] >= 0).any():
+            batch = candidate
+            break
+    if batch is None:
+        raise RuntimeError("Gradient probe could not find a Target16 training sample")
     inputs, views, temporal, base, labels = to_device(batch, device)
     architecture_probe = model.architecture_probe(inputs) if hasattr(model, "architecture_probe") else None
     model.set_stage("warmup")
