@@ -79,6 +79,8 @@ def load_config(config_path: Path, args: argparse.Namespace) -> dict[str, Any]:
     config["output_root"] = str(project_path(args.output_root or config.get("output_root", "outputs/task03")))
     if config.get("pose_cache"):
         config["pose_cache"] = str(project_path(config["pose_cache"]))
+    if config.get("pairing_audit"):
+        config["pairing_audit"] = str(project_path(config["pairing_audit"]))
     if args.device is not None:
         config["device"] = args.device
     if args.seed is not None:
@@ -133,11 +135,21 @@ def build_datasets(config: dict[str, Any]) -> tuple[Dataset[dict[str, object]], 
     if exclusions:
         train_frame = train_frame[~train_frame["sample_id"].isin(exclusions)].reset_index(drop=True)
         val_frame = val_frame[~val_frame["sample_id"].isin(exclusions)].reset_index(drop=True)
+    if config.get("pairing_audit"):
+        audit = pd.read_csv(Path(config["pairing_audit"]), encoding="utf-8-sig")
+        valid_ids = set(audit.loc[audit["complete_pairing"], "sample_id"].astype(str))
+        train_frame = train_frame[train_frame["sample_id"].isin(valid_ids)].reset_index(drop=True)
+        val_frame = val_frame[val_frame["sample_id"].isin(valid_ids)].reset_index(drop=True)
     modality = str(config["modality"])
     if str(config["model_name"]) in {"hard_global_expert", "pose_roi_expert", "depth_ir_pose_roi_expert"}:
         dual_input = str(config["model_name"]) == "depth_ir_pose_roi_expert"
+        actions = (
+            list(config["hard_actions"])
+            if config.get("hard_actions")
+            else train_frame[["class_id", "action_name"]].drop_duplicates().sort_values("class_id")["action_name"].tolist()
+        )
         common = {
-            "hard_actions": list(config["hard_actions"]),
+            "hard_actions": actions,
             "num_frames": int(config["num_frames"]),
             "image_size": int(config["image_size"]),
             "use_pose_roi": str(config["model_name"]) in {"pose_roi_expert", "depth_ir_pose_roi_expert"},

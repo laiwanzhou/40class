@@ -59,10 +59,45 @@ class PoseTrackCache:
             boxes = data["bbox_xyxy"].astype(np.float32)
             keypoints = data["keypoints_xy"].astype(np.float32)
             confidence = data["keypoints_confidence"].astype(np.float32)
+            has_metadata = all(name in data for name in ("timestamps", "frame_ids", "original_width", "original_height"))
+            metadata = (
+                list(zip(
+                    data["timestamps"].astype(str),
+                    data["frame_ids"].astype(np.int64),
+                    data["original_width"].astype(np.int32),
+                    data["original_height"].astype(np.int32),
+                    strict=True,
+                ))
+                if has_metadata
+                else []
+            )
         self.lookup = {
             (sample_id, frame_key): (boxes[index], keypoints[index], confidence[index])
             for index, (sample_id, frame_key) in enumerate(zip(sample_ids, frame_keys, strict=True))
         }
+        self.metadata_lookup = (
+            {
+                (sample_id, frame_key): metadata[index]
+                for index, (sample_id, frame_key) in enumerate(zip(sample_ids, frame_keys, strict=True))
+            }
+            if has_metadata
+            else {}
+        )
+
+    def validate_frame(self, sample_id: str, path: Path, width: int, height: int) -> None:
+        frame_key = depth_frame_key(path)
+        metadata = self.metadata_lookup.get((sample_id, frame_key))
+        if metadata is None:
+            return
+        timestamp, frame_id = paired_frame_key(path, "Depth")
+        cached_timestamp, cached_frame_id, cached_width, cached_height = metadata
+        if (timestamp, frame_id, width, height) != (
+            cached_timestamp,
+            int(cached_frame_id),
+            int(cached_width),
+            int(cached_height),
+        ):
+            raise ValueError(f"Pose cache metadata mismatch for {sample_id} / {path.name}")
 
     def trial_arrays(self, sample_id: str, frame_keys: list[str]) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         boxes = np.full((len(frame_keys), 4), np.nan, dtype=np.float32)
@@ -147,6 +182,8 @@ class PoseROIDataset(Dataset[dict[str, object]]):
                 missing_cache = [key for key in keys if (str(row["sample_id"]), key) not in cache.lookup]
                 if missing_cache:
                     raise KeyError(f"Pose cache misses {len(missing_cache)} frames for {row['sample_id']}")
+                for path in paths:
+                    cache.validate_frame(str(row["sample_id"]), path, width, height)
                 person_boxes, keypoints, confidence = cache.trial_arrays(str(row["sample_id"]), keys)
                 roi = roi_builder.build(person_boxes, keypoints, confidence, width, height)
                 boxes = roi.boxes
