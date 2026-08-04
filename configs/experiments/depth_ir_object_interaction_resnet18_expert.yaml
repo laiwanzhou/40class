@@ -1,0 +1,79 @@
+data_root: D:\work\2026.7.14_kaggle\datasets\Small-Model-Track\train
+manifest: metadata/manifest.csv
+fold: metadata/splits/fold_0.json
+pairing_audit: reports/depth_ir_pose_roi_40class_pairing.csv
+class_map: reports/depth_ir_pose_roi_40class_class_map.csv
+pose_cache: outputs/depth_ir_pose_roi_40class_probe/pose_tracks.npz
+base_checkpoint: outputs/depth_ir_pose_roi_40class_fold0/depth_ir_pose_roi_40class_fold0_14train_4val/best_macro_f1.pt
+base_predictions: outputs/depth_ir_pose_roi_40class_fold0/depth_ir_pose_roi_40class_fold0_14train_4val/val_predictions_best_macro_f1.npz
+base_logits_cache: outputs/depth_ir_object_interaction_tcn_expert_fold0/base_logits_center24.npz
+mobilenet_run_dir: outputs/depth_ir_object_interaction_tcn_expert_fold0/depth_ir_object_interaction_tcn_expert_14train_4val
+output_root: outputs/depth_ir_object_interaction_resnet18_expert_fold0
+run_id: depth_ir_object_interaction_resnet18_expert_14train_4val
+device: cuda
+seed: 20260715
+image_size: 192
+base_num_frames: 24
+expert_num_frames: 48
+num_classes: 40
+batch_size: 1
+gradient_accumulation_steps: 4
+encoder_chunk_size: 32
+num_workers: 4
+amp: true
+amp_initial_scale: 1024.0
+gradient_clip: 1.0
+weight_decay: 0.0001
+dropout: 0.2
+warmup_epochs: 3
+finetune_max_epochs: 18
+finetune_min_epochs: 6
+early_stopping_patience: 5
+warmup_learning_rate: 0.0003
+expert_last_backbone_learning_rate: 0.00003
+expert_new_modules_learning_rate: 0.0003
+frame_feature_dim: 256
+tcn_channels: 256
+tcn_kernel_size: 3
+tcn_dilations: [1, 2, 4, 8, 16]
+expert_embedding_dim: 256
+loss_target_coefficient: 0.5
+loss_non_target_coefficient: 0.05
+loss_residual_coefficient: 0.001
+pose_keypoint_confidence_threshold: 0.25
+projection_alpha: 0.4
+long_axis_scale: 0.7
+short_axis_scale: 0.45
+wrist_fallback_person_width: 0.35
+minimum_pixel_side: 48.0
+merge_iou_threshold: 0.30
+merge_projected_distance: 0.60
+merge_wrist_distance: 0.70
+merge_elbow_distance: 0.80
+merge_wide_wrist_distance: 1.20
+two_hand_horizontal_padding: 0.25
+two_hand_top_padding: 0.10
+two_hand_bottom_padding: 0.35
+hand_head_distance: 0.90
+target_actions:
+  - Take_and_use_tableware
+  - Write
+  - Make_a_phone_call
+  - Watch_TV
+  - Take_medicine
+  - Use_a_mobile_phone
+  - Wipe_bowls
+  - Take_body_temperature
+  - Peel_fruits
+  - Stir_drinks
+  - Play_games
+  - Take_a_selfie
+  - Turn_pages
+  - Read_documents
+  - Drink_water
+  - Eat_food
+hand_head_actions: [Make_a_phone_call, Take_medicine, Use_a_mobile_phone, Take_body_temperature, Take_a_selfie, Drink_water, Eat_food]
+table_actions: [Take_and_use_tableware, Write, Wipe_bowls, Peel_fruits, Stir_drinks, Turn_pages, Read_documents]
+screen_actions: [Watch_TV, Play_games]
+control_actions: [Pour_drinks, Tap_the_keyboard, Brush_teeth, Comb_hair, Check_the_time, Listen_to_music_with_headphones, Wipe_hands, Massage_oneself, Wash_face, Wipe_windows_and_tables]
+hard_negative_actions: [Put_on_clothes, Take_off_clothes, Sweep_the_floor, Mop_the_floor]

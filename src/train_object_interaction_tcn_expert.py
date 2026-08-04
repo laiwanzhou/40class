@@ -230,12 +230,21 @@ def metric_bundle(labels: np.ndarray, logits: np.ndarray, targets: np.ndarray) -
     )
     weighted = float(np.average(f1, weights=support))
     ranks = 1 + (logits > logits[np.arange(len(labels)), labels, None]).sum(axis=1)
+    probabilities = torch.from_numpy(logits).softmax(dim=1).numpy()
+    confidences = probabilities.max(axis=1)
+    correct = predictions == labels
+    ece = 0.0
+    for lower, upper in zip(np.linspace(0.0, 1.0, 16)[:-1], np.linspace(0.0, 1.0, 16)[1:]):
+        selected = (confidences > lower) & (confidences <= upper)
+        if selected.any():
+            ece += float(selected.mean()) * abs(float(correct[selected].mean()) - float(confidences[selected].mean()))
     return {
         "accuracy": float((predictions == labels).mean()), "macro_f1": float(f1.mean()),
         "weighted_f1": weighted, "target16_macro_f1": float(f1[targets].mean()),
         "zero_f1_count": int((f1 == 0).sum()), "target16_zero_f1_count": int((f1[targets] == 0).sum()),
         "per_class_precision": precision, "per_class_recall": recall, "per_class_f1": f1,
         "support": support, "predictions": predictions, "true_rank": ranks,
+        "expected_calibration_error": ece,
     }
 
 
@@ -320,6 +329,7 @@ def evaluate(
     model: ObjectInteractionTCNExpert, loader: DataLoader[dict[str, object]], device: torch.device,
     config: dict[str, Any], targets: np.ndarray,
 ) -> dict[str, Any]:
+    validation_started = time.perf_counter()
     model.eval()
     collected: dict[str, list[Any]] = {name: [] for name in (
         "sample_ids", "labels", "logits", "base_logits", "embeddings", "delta", "view_weights",
@@ -357,9 +367,17 @@ def evaluate(
         if name not in {"sample_ids", "patterns"}
     }
     metrics = metric_bundle(arrays["labels"].astype(np.int64), arrays["logits"], targets)
+    base_predictions = arrays["base_logits"].argmax(axis=1)
+    final_predictions = arrays["logits"].argmax(axis=1)
+    correct_base = base_predictions == arrays["labels"]
+    correct_final = final_predictions == arrays["labels"]
+    metrics["rescued_count"] = int((~correct_base & correct_final).sum())
+    metrics["harmed_count"] = int((correct_base & ~correct_final).sum())
+    metrics["net_rescue"] = metrics["rescued_count"] - metrics["harmed_count"]
     return {
         **arrays, "sample_ids": np.asarray(collected["sample_ids"]), "patterns": np.asarray(collected["patterns"]),
         "metrics": metrics, "val_loss": loss_total / max(count_total, 1),
+        "validation_seconds": time.perf_counter() - validation_started,
     }
 
 
@@ -378,6 +396,7 @@ def save_checkpoint(
         {
             "epoch": epoch, "stage": stage, "model_state_dict": model.state_dict(),
             "metrics": serial_metrics(evaluation["metrics"]), "val_loss": evaluation["val_loss"],
+            "validation_seconds": evaluation.get("validation_seconds"),
             "target_actions": config["target_actions"], "target_class_ids": list(model.target_class_ids),
             "target_class_weights": weights.tolist(), "config": config,
         }, path,
@@ -398,6 +417,10 @@ def probe_gradients(
     )
     batch = next(iter(loader))
     inputs, views, temporal, base, labels = to_device(batch, device)
+    architecture_probe = model.architecture_probe(inputs) if hasattr(model, "architecture_probe") else None
+    model.set_stage("warmup")
+    model.train()
+    model.enforce_frozen_encoder_eval()
     if device.type == "cuda":
         torch.cuda.reset_peak_memory_stats(device)
     with torch.autocast(device.type, enabled=device.type == "cuda" and bool(config["amp"])):
@@ -408,6 +431,10 @@ def probe_gradients(
     scaler.step(optimizer)
     scaler.update()
     optimizer.zero_grad(set_to_none=True)
+    if hasattr(model, "layer4"):
+        model.set_stage("finetune")
+        model.train()
+        model.enforce_frozen_encoder_eval()
     with torch.autocast(device.type, enabled=device.type == "cuda" and bool(config["amp"])):
         second = model(inputs, views, temporal, base)
         second_loss, _ = compute_loss(second, labels, model.target_index, local_map, weights, config)
@@ -416,6 +443,9 @@ def probe_gradients(
         "view_gate": model.view_gate, "tcn": model.tcn_blocks, "attention_pool": model.attention_pool,
         "residual_head": model.residual_head,
     }
+    if hasattr(model, "layer4"):
+        modules["resnet_layer4"] = model.layer4
+        modules["modality_gate"] = model.modality_gate
     gradient_norms = {
         name: float(sum((parameter.grad.float().norm() for parameter in module.parameters() if parameter.grad is not None), torch.tensor(0.0, device=device)))
         for name, module in modules.items()
@@ -433,12 +463,17 @@ def probe_gradients(
         "peak_allocated_mb": float(torch.cuda.max_memory_allocated(device) / 1024**2) if device.type == "cuda" else 0.0,
         "peak_reserved_mb": float(torch.cuda.max_memory_reserved(device) / 1024**2) if device.type == "cuda" else 0.0,
     }
+    if architecture_probe is not None:
+        result["architecture_probe"] = architecture_probe
     if initial_difference >= 1e-6 or invalid_weight != 0 or attention_padding != 0 or any(value <= 0 for value in gradient_norms.values()):
         raise RuntimeError(f"Probe failed: {result}")
     return result
 
 
-def run(args: argparse.Namespace) -> None:
+def run(
+    args: argparse.Namespace,
+    model_factory: Any | None = None,
+) -> None:
     config = resolve_config(args)
     set_seed(int(config["seed"]))
     device = torch.device(config["device"])
@@ -473,11 +508,16 @@ def run(args: argparse.Namespace) -> None:
     train_dataset.roi_audit_rows().to_csv(run_dir / "roi_audit_train_samples.csv", index=False, encoding="utf-8-sig")
     val_dataset.roi_audit_rows().to_csv(run_dir / "roi_audit_val_samples.csv", index=False, encoding="utf-8-sig")
     val_dataset.temporal_diagnostic_rows().to_csv(run_dir / "temporal_diagnostics_base.csv", index=False, encoding="utf-8-sig")
-    model = ObjectInteractionTCNExpert(
-        targets, frame_feature_dim=int(config["frame_feature_dim"]), tcn_channels=int(config["tcn_channels"]),
-        embedding_dim=int(config["expert_embedding_dim"]), kernel_size=int(config["tcn_kernel_size"]),
-        dilations=tuple(int(value) for value in config["tcn_dilations"]), dropout=float(config["dropout"]),
-    )
+    def build_model() -> ObjectInteractionTCNExpert:
+        if model_factory is not None:
+            return model_factory(config, targets)
+        return ObjectInteractionTCNExpert(
+            targets, frame_feature_dim=int(config["frame_feature_dim"]), tcn_channels=int(config["tcn_channels"]),
+            embedding_dim=int(config["expert_embedding_dim"]), kernel_size=int(config["tcn_kernel_size"]),
+            dilations=tuple(int(value) for value in config["tcn_dilations"]), dropout=float(config["dropout"]),
+        )
+
+    model = build_model()
     checkpoint = torch.load(config["base_checkpoint"], map_location="cpu", weights_only=True)
     model.initialize_encoder(checkpoint["model_state_dict"])
     model.to(device)
@@ -494,11 +534,7 @@ def run(args: argparse.Namespace) -> None:
         print(f"RESULT_JSON={json.dumps({'status': 'passed', 'probe': probe, 'reproduction': reproduction})}")
         return
     # Restore exact zero-residual initialization after the destructive gradient probe.
-    model = ObjectInteractionTCNExpert(
-        targets, frame_feature_dim=int(config["frame_feature_dim"]), tcn_channels=int(config["tcn_channels"]),
-        embedding_dim=int(config["expert_embedding_dim"]), kernel_size=int(config["tcn_kernel_size"]),
-        dilations=tuple(int(value) for value in config["tcn_dilations"]), dropout=float(config["dropout"]),
-    )
+    model = build_model()
     model.initialize_encoder(checkpoint["model_state_dict"])
     model.to(device)
     lookup = dict(zip(class_map["action_name"], class_map["class_id"], strict=True))
@@ -542,6 +578,8 @@ def run(args: argparse.Namespace) -> None:
                 "screen2_macro_f1": group_f1(metrics, config["screen_actions"], lookup),
                 "control10_macro_f1": group_f1(metrics, config["control_actions"], lookup),
                 "other14_macro_f1": float(np.asarray(metrics["per_class_f1"])[[i for i in range(40) if i not in targets and i not in [lookup[n] for n in config["control_actions"]]]].mean()),
+                "expected_calibration_error": metrics["expected_calibration_error"],
+                "validation_seconds": validation["validation_seconds"],
                 "epoch_seconds": time.perf_counter() - epoch_started,
                 "gpu_peak_allocated_mb": float(torch.cuda.max_memory_allocated(device) / 1024**2) if device.type == "cuda" else 0.0,
                 "gpu_peak_reserved_mb": float(torch.cuda.max_memory_reserved(device) / 1024**2) if device.type == "cuda" else 0.0,
@@ -603,6 +641,8 @@ def run(args: argparse.Namespace) -> None:
         "peak_allocated_mb": max(row["gpu_peak_allocated_mb"] for row in history),
         "peak_reserved_mb": max(row["gpu_peak_reserved_mb"] for row in history),
     }
+    if hasattr(model, "experiment_metadata"):
+        summary["expert_metadata"] = model.experiment_metadata()
     (run_dir / "run_summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     print(f"RESULT_JSON={json.dumps(summary)}", flush=True)
 
