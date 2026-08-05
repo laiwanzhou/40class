@@ -1,0 +1,5 @@
+﻿component,bytes
+frozen_base,5125116
+resnet18_expert,54472048
+yolo11n_pose,6255593
+actual_inference_bundle,68994661
