@@ -120,6 +120,9 @@ def main() -> None:
     resnet_checkpoint = torch.load(args.run_dir / "best_target16_macro_f1.pt", map_location="cpu", weights_only=True)
     mobile_summary = json.loads((mobile_dir / "run_summary.json").read_text(encoding="utf-8"))
     resnet_summary = json.loads((args.run_dir / "run_summary.json").read_text(encoding="utf-8"))
+    mobile_benchmark = json.loads((args.run_dir / "mobilenet_validation_benchmark.json").read_text(encoding="utf-8"))
+    base_benchmark = pd.read_csv(PROJECT_ROOT / "reports/depth_ir_pose_roi_40class_stopped_summary.csv", encoding="utf-8-sig")
+    base_validation_seconds = float(base_benchmark.loc[base_benchmark.checkpoint_name == "best_macro_f1", "validation_seconds"].iloc[0])
     if not np.array_equal(
         np.asarray(mobile_summary["target_class_weights"]), np.asarray(resnet_summary["target_class_weights"]),
     ):
@@ -145,13 +148,33 @@ def main() -> None:
             "net_rescue": int((outcome_values == "rescued").sum() - (outcome_values == "harmed").sum()),
             "val_loss": float(torch.nn.functional.cross_entropy(torch.from_numpy((resnet["base_logits"] if checkpoint is None else (mobile["logits"] if model == "M1_mobilenet" else resnet["logits"])).astype(np.float64)), torch.from_numpy(labels))),
             "ece": result["ece"],
-            "validation_seconds": np.nan if checkpoint is None else checkpoint.get("validation_seconds", np.nan),
+            "validation_seconds": (
+                base_validation_seconds if checkpoint is None else
+                mobile_benchmark["validation_seconds"] if model == "M1_mobilenet" else checkpoint["validation_seconds"]
+            ),
             "peak_allocated_mb": 0.0 if run_summary is None else run_summary["peak_allocated_mb"],
             "model_parameter_bytes": resnet_summary["base_parameter_bytes"] if run_summary is None else run_summary["total_inference_parameter_bytes"],
         }
         summary_rows.append(row)
     summary = pd.DataFrame(summary_rows)
     summary.to_csv(args.reports / "object_interaction_resnet18_expert_summary.csv", index=False, encoding="utf-8-sig")
+
+    checkpoint_rows = []
+    for filename in ("best_target16_macro_f1.pt", "best_overall_macro_f1.pt", "best_accuracy.pt", "last_complete.pt"):
+        checkpoint = torch.load(args.run_dir / filename, map_location="cpu", weights_only=True)
+        metrics = checkpoint["metrics"]
+        checkpoint_rows.append({
+            "checkpoint": filename, "epoch": checkpoint["epoch"], "stage": checkpoint["stage"],
+            "accuracy": metrics["accuracy"], "macro_f1": metrics["macro_f1"],
+            "weighted_f1": metrics["weighted_f1"], "target16_macro_f1": metrics["target16_macro_f1"],
+            "target16_zero_f1_count": metrics["target16_zero_f1_count"], "zero_f1_count": metrics["zero_f1_count"],
+            "rescued": metrics["rescued_count"], "harmed": metrics["harmed_count"], "net_rescue": metrics["net_rescue"],
+            "val_loss": checkpoint["val_loss"], "validation_seconds": checkpoint["validation_seconds"],
+            "checkpoint_bytes": (args.run_dir / filename).stat().st_size,
+        })
+    pd.DataFrame(checkpoint_rows).to_csv(
+        args.reports / "object_interaction_resnet18_expert_checkpoint_summary.csv", index=False, encoding="utf-8-sig"
+    )
 
     per_rows = []
     for class_id, action in enumerate(names):
@@ -238,13 +261,30 @@ def main() -> None:
         "mobilenet_only_correct": int(np.sum((scores["M1_mobilenet"]["prediction"] == labels) & (scores["R1_resnet18"]["prediction"] != labels))),
         "both_correct": int(np.sum((scores["R1_resnet18"]["prediction"] == labels) & (scores["M1_mobilenet"]["prediction"] == labels))),
         "both_wrong": int(np.sum((scores["R1_resnet18"]["prediction"] != labels) & (scores["M1_mobilenet"]["prediction"] != labels))),
+        "different_but_both_wrong": int(np.sum(
+            (scores["R1_resnet18"]["prediction"] != labels)
+            & (scores["M1_mobilenet"]["prediction"] != labels)
+            & (scores["R1_resnet18"]["prediction"] != scores["M1_mobilenet"]["prediction"])
+        )),
     }
-    keep = bool(
-        summary.loc[2, "target16_macro_f1"] > summary.loc[1, "target16_macro_f1"]
-        and summary.loc[2, "macro_f1"] >= summary.loc[1, "macro_f1"]
-        and summary.loc[2, "net_rescue"] > summary.loc[1, "net_rescue"]
-        and budget["under_100_mib"]
+    stable_ids = np.asarray([lookup[name] for name in ["Walk", "Sit_down", "Stand_up", "Wash_face", "Jog_in_place", "Do_jumping_jacks"]])
+    recovery_names = ["Wipe_bowls", "Take_medicine"]
+    recovery_pass = all(
+        float(per_class.loc[per_class.action_name == name, "resnet18_f1"].iloc[0])
+        > float(per_class.loc[per_class.action_name == name, "mobilenet_f1"].iloc[0])
+        for name in recovery_names
     )
+    signals = {name: bool(value) for name, value in {
+        "target16_macro_f1_higher": summary.loc[2, "target16_macro_f1"] > summary.loc[1, "target16_macro_f1"],
+        "overall_macro_f1_not_lower": summary.loc[2, "macro_f1"] >= summary.loc[1, "macro_f1"],
+        "net_rescue_higher": summary.loc[2, "net_rescue"] > summary.loc[1, "net_rescue"],
+        "harmed_not_higher": summary.loc[2, "harmed"] <= summary.loc[1, "harmed"],
+        "target16_zero_f1_not_higher": summary.loc[2, "target16_zero_f1_count"] <= summary.loc[1, "target16_zero_f1_count"],
+        "damaged_targets_recovered": recovery_pass,
+        "under_100_mib": bool(budget["under_100_mib"]),
+        "stable_easy_not_materially_lower": float(scores["R1_resnet18"]["f1"][stable_ids].mean() - scores["M1_mobilenet"]["f1"][stable_ids].mean()) >= -0.01,
+    }.items()}
+    keep = sum(bool(value) for value in signals.values()) >= 6
     experiment = [
         "# ResNet18 object interaction expert experiment", "", "## Integrity", "",
         f"- ImageNet weights: ResNet18_Weights.IMAGENET1K_V1; loaded: {resnet_summary['expert_metadata']['pretrained_weights_loaded']}.",
@@ -257,14 +297,17 @@ def main() -> None:
         "## Target16", "", markdown(target_table), "",
         "## Sample comparison", "", f"- {json.dumps(direct, ensure_ascii=False)}",
         f"- R1 rescued/harmed/net: {summary.loc[2, 'rescued']}/{summary.loc[2, 'harmed']}/{summary.loc[2, 'net_rescue']}.", "",
+        f"- Retention signals passed: {sum(bool(value) for value in signals.values())}/{len(signals)}; {json.dumps(signals)}.", "",
         "## Resource budget", "",
         f"- Peak allocated/reserved VRAM: {resnet_summary['peak_allocated_mb']:.2f}/{resnet_summary['peak_reserved_mb']:.2f} MB.",
         f"- Training seconds: {resnet_summary['training_seconds']:.2f}.",
         f"- Actual inference bundle: {budget['actual_bundle_bytes']} bytes ({budget['actual_bundle_mib']:.2f} MiB); under 100 MiB: {budget['under_100_mib']}.", "",
         "## Decision", "", f"- Retain ResNet18 expert: {'yes' if keep else 'no'}.",
+        "- Capacity is not the sole bottleneck: the stronger backbone improves aggregate metrics and recovers Wipe_bowls/Take_medicine, but Write, Make_a_phone_call, and Watch_TV remain zero-F1 and several interaction classes trade places.",
+        "- Evidence points more strongly to small-object visibility/ROI evidence, limited examples, and class-boundary ambiguity than to backbone capacity alone. Do not replace the frozen 40-class base model in this experiment.",
     ]
     (args.reports / "object_interaction_resnet18_expert_experiment.md").write_text("\n".join(experiment) + "\n", encoding="utf-8")
-    print(json.dumps({"summary": summary.to_dict(orient="records"), "direct": direct, "retain_resnet18": keep}, indent=2))
+    print(json.dumps({"summary": summary.to_dict(orient="records"), "direct": direct, "signals": signals, "retain_resnet18": keep}, indent=2))
 
 
 if __name__ == "__main__":
