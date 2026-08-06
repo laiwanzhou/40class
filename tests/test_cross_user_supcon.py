@@ -3,7 +3,7 @@ from __future__ import annotations
 import torch
 
 from src.data.cross_user_batch_sampler import CrossUserActionBatchSampler
-from src.models.cross_user_supcon import cross_user_supcon_loss
+from src.models.cross_user_supcon import CrossUserPrototypeBank, cross_user_supcon_loss
 
 
 class FakeDataset:
@@ -57,3 +57,43 @@ def test_cross_user_supcon_rejects_missing_cross_user_positive() -> None:
         assert "cross-user positive" in str(error)
     else:
         raise AssertionError("Expected missing cross-user positives to fail")
+
+
+def test_prototype_bank_bootstraps_then_supplies_cross_user_positives() -> None:
+    bank = CrossUserPrototypeBank(
+        num_classes=3, num_users=3, projection_dim=8, momentum=0.9,
+    )
+    projection = torch.nn.functional.normalize(torch.randn(4, 8), dim=1)
+    labels = torch.tensor([0, 0, 1, 1])
+    users = torch.tensor([0, 1, 0, 1])
+    empty_loss, empty_eligible = bank.loss(
+        projection, labels, users, temperature=0.1, same_user_negative_weight=2.0,
+    )
+    assert empty_eligible == 0
+    assert empty_loss.item() == 0.0
+    bank.update(projection, labels, users)
+    assert bank.prototype_count == 4
+
+    queries = torch.nn.functional.normalize(torch.randn(4, 8), dim=1).requires_grad_()
+    loss, eligible = bank.loss(
+        queries, labels, users, temperature=0.1, same_user_negative_weight=2.0,
+    )
+    assert eligible == 4
+    assert torch.isfinite(loss)
+    loss.backward()
+    assert queries.grad is not None
+
+
+def test_prototype_bank_updates_existing_key_with_ema() -> None:
+    bank = CrossUserPrototypeBank(
+        num_classes=2, num_users=2, projection_dim=2, momentum=0.5,
+    )
+    first = torch.tensor([[1.0, 0.0]])
+    second = torch.tensor([[0.0, 1.0]])
+    labels = torch.tensor([0])
+    users = torch.tensor([1])
+    bank.update(first, labels, users)
+    bank.update(second, labels, users)
+    expected = torch.nn.functional.normalize(torch.tensor([0.5, 0.5]), dim=0)
+    assert torch.allclose(bank.prototypes[0, 1], expected)
+    assert bank.update_counts[0, 1].item() == 2

@@ -129,6 +129,11 @@ def ensure_supcon_archives(
         num_classes=int(config["num_classes"]), embedding_dim=int(config["embedding_dim"]),
         frame_feature_dim=int(config["frame_feature_dim"]), projection_dim=int(config["projection_dim"]),
         dropout=float(config["dropout"]), pretrained=False,
+        prototype_num_users=(
+            len(getattr(train_dataset, "user_ids"))
+            if str(config.get("contrastive_mode", "in_batch")) == "prototype_bank" else None
+        ),
+        prototype_momentum=float(config.get("prototype_momentum", 0.9)),
     ).to(device)
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=True)
     model.load_state_dict(checkpoint["model_state_dict"], strict=True)

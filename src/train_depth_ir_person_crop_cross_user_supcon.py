@@ -85,6 +85,8 @@ def train_epoch(
     labels_all: list[torch.Tensor] = []
     predictions_all: list[torch.Tensor] = []
     samples = 0
+    eligible_anchors = 0
+    contrastive_mode = str(config.get("contrastive_mode", "in_batch"))
     limit = config.get("max_train_batches")
     for step, batch in enumerate(loader, start=1):
         inputs, temporal_mask, labels, users = move_batch(batch, device)
@@ -92,17 +94,32 @@ def train_epoch(
         with torch.autocast(device.type, enabled=device.type == "cuda" and bool(config["amp"])):
             output = model(inputs, temporal_mask=temporal_mask)
             ce_loss = nn.functional.cross_entropy(output["logits"], labels)
-            supcon_loss = cross_user_supcon_loss(
-                output["projection"], labels, users,
-                temperature=float(config["supcon_temperature"]),
-                same_user_negative_weight=float(config["same_user_negative_weight"]),
-            )
+            if contrastive_mode == "prototype_bank":
+                if model.prototype_bank is None:
+                    raise RuntimeError("Prototype-bank mode requires a prototype bank")
+                supcon_loss, batch_eligible = model.prototype_bank.loss(
+                    output["projection"], labels, users,
+                    temperature=float(config["supcon_temperature"]),
+                    same_user_negative_weight=float(config["same_user_negative_weight"]),
+                )
+            elif contrastive_mode == "in_batch":
+                supcon_loss = cross_user_supcon_loss(
+                    output["projection"], labels, users,
+                    temperature=float(config["supcon_temperature"]),
+                    same_user_negative_weight=float(config["same_user_negative_weight"]),
+                )
+                batch_eligible = len(labels)
+            else:
+                raise ValueError(f"Unknown contrastive mode: {contrastive_mode}")
             loss = ce_loss + float(config["supcon_lambda"]) * supcon_loss
         scaler.scale(loss).backward()
         scaler.unscale_(optimizer)
         nn.utils.clip_grad_norm_(model.parameters(), float(config["gradient_clip"]))
         scaler.step(optimizer)
         scaler.update()
+        if contrastive_mode == "prototype_bank":
+            assert model.prototype_bank is not None
+            model.prototype_bank.update(output["projection"], labels, users)
         count = len(labels)
         totals["loss"] += float(loss.detach()) * count
         totals["ce_loss"] += float(ce_loss.detach()) * count
@@ -110,6 +127,7 @@ def train_epoch(
         labels_all.append(labels.detach().cpu())
         predictions_all.append(output["logits"].detach().argmax(1).cpu())
         samples += count
+        eligible_anchors += batch_eligible
         if limit and step >= int(limit):
             break
     labels_np = torch.cat(labels_all).numpy()
@@ -121,6 +139,8 @@ def train_epoch(
         **{name: value / samples for name, value in totals.items()},
         "accuracy": float(np.mean(labels_np == predictions_np)),
         "macro_f1": float(f1.mean()),
+        "supcon_eligible_anchor_rate": eligible_anchors / samples,
+        "prototype_count": float(model.prototype_bank.prototype_count) if model.prototype_bank is not None else 0.0,
     }
 
 
@@ -163,12 +183,36 @@ def run(args: argparse.Namespace) -> None:
         raise ValueError(f"Unexpected split sizes: {len(train_dataset)}/{len(val_dataset)}")
     if set(getattr(train_dataset, "user_ids")) & set(getattr(val_dataset, "user_ids")):
         raise ValueError("Train and validation users overlap")
-    train_loader, batch_sampler = train_loader_for(train_dataset, config)
+    contrastive_mode = str(config.get("contrastive_mode", "in_batch"))
+    if contrastive_mode == "prototype_bank":
+        train_loader = loader_for(train_dataset, config, training=True)
+        batch_sampler = None
+        samples = getattr(train_dataset, "samples")
+        class_user_pairs = {
+            (int(sample["label"]), str(sample["user_id"])) for sample in samples
+        }
+        users_per_class = {
+            label: len({user for current_label, user in class_user_pairs if current_label == label})
+            for label in range(int(config["num_classes"]))
+        }
+        sampler_audit = {
+            "sampler": "b2_random_shuffle",
+            "samples_per_epoch": len(train_dataset),
+            "unique_sample_rate": 1.0,
+            "class_exposure": "original_dataset_distribution",
+            "target_prototype_count": len(class_user_pairs),
+            "train_users_per_class_min": min(users_per_class.values()),
+            "train_users_per_class_max": max(users_per_class.values()),
+        }
+    elif contrastive_mode == "in_batch":
+        train_loader, batch_sampler = train_loader_for(train_dataset, config)
+        sampler_audit = batch_sampler.audit(epochs=3)
+        if sampler_audit["cross_user_positive_anchor_rate"] != 1.0 or sampler_audit["same_user_negative_anchor_rate"] != 1.0:
+            raise RuntimeError(f"Sampler audit failed: {sampler_audit}")
+    else:
+        raise ValueError(f"Unknown contrastive mode: {contrastive_mode}")
     val_loader = loader_for(val_dataset, config, training=False)
-    sampler_audit = batch_sampler.audit(epochs=3)
     (run_dir / "batch_sampler_audit.json").write_text(json.dumps(sampler_audit, indent=2) + "\n", encoding="utf-8")
-    if sampler_audit["cross_user_positive_anchor_rate"] != 1.0 or sampler_audit["same_user_negative_anchor_rate"] != 1.0:
-        raise RuntimeError(f"Sampler audit failed: {sampler_audit}")
 
     model = CrossUserSupConModel(
         num_classes=int(config["num_classes"]),
@@ -177,6 +221,8 @@ def run(args: argparse.Namespace) -> None:
         projection_dim=int(config["projection_dim"]),
         dropout=float(config["dropout"]),
         pretrained=bool(config["pretrained"]),
+        prototype_num_users=(len(getattr(train_dataset, "user_ids")) if contrastive_mode == "prototype_bank" else None),
+        prototype_momentum=float(config.get("prototype_momentum", 0.9)),
     ).to(device)
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=float(config["learning_rate"]), weight_decay=float(config["weight_decay"]),
@@ -196,7 +242,8 @@ def run(args: argparse.Namespace) -> None:
     started = time.perf_counter()
     criterion = nn.CrossEntropyLoss()
     for epoch in range(1, epochs + 1):
-        batch_sampler.set_epoch(epoch - 1)
+        if batch_sampler is not None:
+            batch_sampler.set_epoch(epoch - 1)
         epoch_started = time.perf_counter()
         if device.type == "cuda":
             torch.cuda.reset_peak_memory_stats(device)
@@ -210,6 +257,8 @@ def run(args: argparse.Namespace) -> None:
             "train_loss": train_metrics["loss"],
             "train_ce_loss": train_metrics["ce_loss"],
             "train_supcon_loss": train_metrics["supcon_loss"],
+            "train_supcon_eligible_anchor_rate": train_metrics["supcon_eligible_anchor_rate"],
+            "prototype_count": int(train_metrics["prototype_count"]),
             "train_accuracy": train_metrics["accuracy"],
             "train_macro_f1": train_metrics["macro_f1"],
             "val_loss": metrics["loss"],
