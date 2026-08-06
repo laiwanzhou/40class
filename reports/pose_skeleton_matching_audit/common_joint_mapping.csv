@@ -1,0 +1,13 @@
+﻿yolo_joint_index,yolo_joint_name,skeleton_joint_index,skeleton_joint_name,mapping_status
+5,left_shoulder,11,left_shoulder,topology-established H36M-style semantic mapping
+6,right_shoulder,14,right_shoulder,topology-established H36M-style semantic mapping
+7,left_elbow,12,left_elbow,topology-established H36M-style semantic mapping
+8,right_elbow,15,right_elbow,topology-established H36M-style semantic mapping
+9,left_wrist,13,left_wrist,topology-established H36M-style semantic mapping
+10,right_wrist,16,right_wrist,topology-established H36M-style semantic mapping
+11,left_hip,4,left_hip,topology-established H36M-style semantic mapping
+12,right_hip,1,right_hip,topology-established H36M-style semantic mapping
+13,left_knee,5,left_knee,topology-established H36M-style semantic mapping
+14,right_knee,2,right_knee,topology-established H36M-style semantic mapping
+15,left_ankle,6,left_ankle,topology-established H36M-style semantic mapping
+16,right_ankle,3,right_ankle,topology-established H36M-style semantic mapping

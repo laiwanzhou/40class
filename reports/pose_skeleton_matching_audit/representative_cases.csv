@@ -1,0 +1,5 @@
+﻿"mode","case_type","sample_id","action_name","user_id","matching_score","pck","rank","image_path"
+"2d","failure","train__c12__user9__7-2-2","Sweep_the_floor","user9","0.175","","","D:\work\2026.7.14_kaggle\40class\outputs\pose_skeleton_matching_audit\visualizations\2d_failure_train__c12__user9__7-2-2.png"
+"2d","success","train__c28__user3__2-1-1","Jog_in_place","user3","0.9538176963981008","1.0","1.0","D:\work\2026.7.14_kaggle\40class\outputs\pose_skeleton_matching_audit\visualizations\2d_success_train__c28__user3__2-1-1.png"
+"25d","failure","train__c32__user2__4-3-3","Stand_up","user2","0.175","","","D:\work\2026.7.14_kaggle\40class\outputs\pose_skeleton_matching_audit\visualizations\25d_failure_train__c32__user2__4-3-3.png"
+"25d","success","train__c36__user19__2-3-1","Walk","user19","0.8363105381692867","0.95","3.0","D:\work\2026.7.14_kaggle\40class\outputs\pose_skeleton_matching_audit\visualizations\25d_success_train__c36__user19__2-3-1.png"

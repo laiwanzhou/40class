@@ -1,0 +1,17 @@
+data_root: D:\work\2026.7.14_kaggle\datasets\Small-Model-Track\train
+manifest: metadata/manifest.csv
+fold: metadata/splits/fold_0.json
+pairing_audit: reports/depth_ir_pose_roi_40class_pairing.csv
+pose_cache: outputs/depth_ir_pose_roi_40class_probe/pose_tracks.npz
+output_dir: outputs/pose_skeleton_matching_audit
+report_dir: reports/pose_skeleton_matching_audit
+confidence_threshold: 0.25
+depth_patch_radius: 2
+depth_min_saturation: 0.10
+time_shift_frames: 2
+retrieval_length: 32
+min_retrieval_joint_observations: 48
+pck_threshold: 0.20
+ridge: 0.001
+seed: 20260806
+visualization_cases_per_mode: 1
