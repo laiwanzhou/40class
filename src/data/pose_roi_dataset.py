@@ -138,6 +138,8 @@ class PoseROIDataset(Dataset[dict[str, object]]):
         class_rows = present[["class_id", "action_name"]].drop_duplicates().sort_values("class_id")
         self.class_names = class_rows["action_name"].tolist()
         self.original_class_ids = class_rows["class_id"].astype(int).tolist()
+        self.user_ids = sorted(present["user_id"].astype(str).unique().tolist())
+        user_map = {user_id: index for index, user_id in enumerate(self.user_ids)}
         class_map = {class_id: index for index, class_id in enumerate(self.original_class_ids)}
         cache = PoseTrackCache(pose_cache_path) if use_pose_roi and pose_cache_path is not None else None
         if use_pose_roi and cache is None:
@@ -168,6 +170,8 @@ class PoseROIDataset(Dataset[dict[str, object]]):
                 raise FileNotFoundError(f"No Depth frames for {row['sample_id']}: {trial_path}")
             sample: dict[str, object] = {
                 "sample_id": str(row["sample_id"]),
+                "user_id": str(row["user_id"]),
+                "user_index": user_map[str(row["user_id"])],
                 "label": class_map[int(row["class_id"])],
                 "original_class_id": int(row["class_id"]),
                 "paths": tuple(paths),
@@ -284,6 +288,8 @@ class PoseROIDataset(Dataset[dict[str, object]]):
             "roi_valid_mask": roi_valid,
             "label": int(sample["label"]),
             "sample_id": str(sample["sample_id"]),
+            "user_id": str(sample["user_id"]),
+            "user_index": int(sample["user_index"]),
             "length": int(sample["length"]),
         }
 

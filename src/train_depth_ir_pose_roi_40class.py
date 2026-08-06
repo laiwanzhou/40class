@@ -284,7 +284,11 @@ def run(args: argparse.Namespace) -> None:
         row = {
             "epoch": epoch,
             "train_loss": train_metrics["loss"],
+            "train_accuracy": train_metrics["accuracy"],
+            "train_macro_f1": train_metrics["macro_f1"],
             "val_loss": metrics["loss"],
+            "val_accuracy": metrics["accuracy"],
+            "val_macro_f1": metrics["macro_f1"],
             "accuracy": metrics["accuracy"],
             "macro_precision": metrics["macro_precision"],
             "macro_recall": metrics["macro_recall"],
@@ -316,6 +320,7 @@ def run(args: argparse.Namespace) -> None:
         scheduler.step()
         pd.DataFrame(history).to_csv(run_dir / "history.csv", index=False, encoding="utf-8-sig")
         pd.DataFrame(class_history).to_csv(run_dir / "epoch_per_class_diagnostics.csv", index=False, encoding="utf-8-sig")
+        save_checkpoint(run_dir / "last_complete.pt", model, epoch, metrics)
         print(json.dumps(row), flush=True)
     save_checkpoint(run_dir / "last_model.pt", model, epochs, metrics)
     history_frame = pd.DataFrame(history)

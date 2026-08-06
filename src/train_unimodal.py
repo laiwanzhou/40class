@@ -20,6 +20,7 @@ from torch import nn
 from torch.utils.data import DataLoader, Dataset, Subset
 
 from src.data import IMUDataset, PoseROIDataset, RadarDataset, SkeletonDataset, VisualSequenceDataset, load_modality_frames
+from src.data.person_crop_pose_roi_dataset import PersonCropPoseROIDataset
 from src.data.common import compute_sequence_normalization
 from src.engine import collect_predictions, run_epoch
 from src.models import DepthIRPoseROIExpert, PoseROIExpert, TemporalClassifier, VisualBaseline
@@ -141,6 +142,21 @@ def build_datasets(config: dict[str, Any]) -> tuple[Dataset[dict[str, object]], 
         train_frame = train_frame[train_frame["sample_id"].isin(valid_ids)].reset_index(drop=True)
         val_frame = val_frame[val_frame["sample_id"].isin(valid_ids)].reset_index(drop=True)
     modality = str(config["modality"])
+    if str(config["model_name"]) in {"depth_ir_person_crop_pose_roi", "depth_ir_person_crop_cross_user_supcon"}:
+        actions = train_frame[["class_id", "action_name"]].drop_duplicates().sort_values("class_id")["action_name"].tolist()
+        common = {
+            "hard_actions": actions,
+            "num_frames": int(config["num_frames"]),
+            "image_size": int(config["image_size"]),
+            "pose_cache_path": Path(config["pose_cache"]),
+            "data_root": Path(config["data_root"]),
+            "interaction_config": dict(config["interaction_roi"]),
+            "person_crop_config": dict(config["person_crop"]),
+        }
+        return (
+            PersonCropPoseROIDataset(train_frame, training=True, **common),
+            PersonCropPoseROIDataset(val_frame, training=False, **common),
+        )
     if str(config["model_name"]) in {"hard_global_expert", "pose_roi_expert", "depth_ir_pose_roi_expert"}:
         dual_input = str(config["model_name"]) == "depth_ir_pose_roi_expert"
         actions = (
@@ -199,7 +215,7 @@ def configure_normalization(
 
 def build_model(config: dict[str, Any], sample: dict[str, object]) -> nn.Module:
     embedding_dim = int(config.get("embedding_dim", 128))
-    if str(config["model_name"]) == "depth_ir_pose_roi_expert":
+    if str(config["model_name"]) in {"depth_ir_pose_roi_expert", "depth_ir_person_crop_pose_roi"}:
         return DepthIRPoseROIExpert(
             num_classes=int(config["num_classes"]),
             expected_views=4,
@@ -394,6 +410,7 @@ def run_experiment(config: dict[str, Any]) -> dict[str, Any]:
                 "epoch": epoch,
                 "train_loss": train_metrics["loss"],
                 "train_accuracy": train_metrics["accuracy"],
+                "train_macro_f1": train_metrics["macro_f1"],
                 "val_loss": val_metrics["loss"],
                 "val_accuracy": val_metrics["accuracy"],
                 "val_macro_f1": val_metrics["macro_f1"],
