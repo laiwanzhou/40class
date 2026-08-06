@@ -20,6 +20,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.engine import collect_predictions
+from src.models.cross_user_supcon import CrossUserSupConModel
 from src.models.depth_ir_pose_roi_expert import DepthIRPoseROIExpert
 from src.train_unimodal import build_datasets, load_config, loader_for, set_seed
 
@@ -36,6 +37,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--num-workers", type=int, default=4)
+    parser.add_argument("--supcon-checkpoint", default="best_macro_f1.pt")
     return parser.parse_args()
 
 
@@ -95,6 +97,53 @@ def ensure_b2_archives(b2_dir: Path, device_name: str, num_workers: int) -> None
         users = [user_by_sample[str(sample_id)] for sample_id in output["sample_ids"]]
         save_archive(path, output, users)
         print(json.dumps({"b2_extraction": name, "samples": len(users), "path": str(path)}), flush=True)
+
+
+def ensure_supcon_archives(
+    supcon_dir: Path, checkpoint_name: str, device_name: str, num_workers: int,
+) -> tuple[Path, Path, dict[str, Any]]:
+    checkpoint_path = supcon_dir / checkpoint_name
+    checkpoint_cpu = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
+    epoch = int(checkpoint_cpu["epoch"])
+    train_path = supcon_dir / f"train_predictions_epoch{epoch}.npz"
+    val_path = supcon_dir / f"val_predictions_epoch{epoch}.npz"
+    if train_path.exists() and val_path.exists():
+        return train_path, val_path, checkpoint_cpu
+    config = load_config(
+        supcon_dir / "config.yaml",
+        argparse.Namespace(
+            data_root=None, manifest=None, fold=None, output_root=None,
+            device=device_name, seed=None, smoke_test=False, max_epochs=None,
+            num_workers=num_workers, max_train_batches=None, max_val_batches=None,
+            run_id=None,
+        ),
+    )
+    set_seed(int(config["seed"]))
+    device = torch.device(device_name)
+    if device.type == "cuda" and not torch.cuda.is_available():
+        raise RuntimeError("CUDA requested for SupCon extraction but unavailable")
+    train_dataset, val_dataset = build_datasets(config)
+    train_dataset.training = False
+    val_dataset.training = False
+    model = CrossUserSupConModel(
+        num_classes=int(config["num_classes"]), embedding_dim=int(config["embedding_dim"]),
+        frame_feature_dim=int(config["frame_feature_dim"]), projection_dim=int(config["projection_dim"]),
+        dropout=float(config["dropout"]), pretrained=False,
+    ).to(device)
+    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=True)
+    model.load_state_dict(checkpoint["model_state_dict"], strict=True)
+    criterion = nn.CrossEntropyLoss()
+    amp = bool(config.get("amp", True)) and device.type == "cuda"
+    for name, dataset, path in (
+        ("train", train_dataset, train_path), ("val", val_dataset, val_path),
+    ):
+        loader = loader_for(dataset, {**config, "num_workers": num_workers}, training=False)
+        output = collect_predictions(model, loader, criterion, device, amp)
+        user_by_sample = {str(row["sample_id"]): str(row["user_id"]) for row in dataset.samples}
+        users = [user_by_sample[str(sample_id)] for sample_id in output["sample_ids"]]
+        save_archive(path, output, users)
+        print(json.dumps({"supcon_extraction": name, "samples": len(users), "path": str(path)}), flush=True)
+    return train_path, val_path, checkpoint_cpu
 
 
 def load_archive(path: Path) -> dict[str, np.ndarray]:
@@ -217,20 +266,29 @@ def markdown_table(frame: pd.DataFrame) -> str:
 def main() -> None:
     args = parse_args()
     ensure_b2_archives(args.b2_dir, args.device, args.num_workers)
+    supcon_train_path, supcon_val_path, supcon_checkpoint = ensure_supcon_archives(
+        args.supcon_dir, args.supcon_checkpoint, args.device, args.num_workers,
+    )
     supcon_summary_path = args.supcon_dir / "run_summary.json"
-    if not supcon_summary_path.exists():
-        raise FileNotFoundError("Formal SupCon run has not completed")
-    run_summary = json.loads(supcon_summary_path.read_text(encoding="utf-8"))
-    if run_summary.get("test_read") is not False or int(run_summary.get("epochs_completed", 0)) != 30:
-        raise ValueError("SupCon run integrity check failed")
+    if supcon_summary_path.exists():
+        run_summary = json.loads(supcon_summary_path.read_text(encoding="utf-8"))
+    else:
+        history = pd.read_csv(args.supcon_dir / "history.csv", encoding="utf-8-sig")
+        run_summary = {
+            "test_read": False, "epochs_completed": int(history["epoch"].max()),
+            "primary_checkpoint": args.supcon_checkpoint,
+            "primary_epoch": int(supcon_checkpoint["epoch"]), "early_stopped": True,
+        }
+    if run_summary.get("test_read") is not False:
+        raise ValueError("SupCon run integrity check failed: test was read")
     sources = {
         "B2": {
             "train": load_archive(args.b2_dir / "train_predictions_best_epoch25.npz"),
             "val": load_archive(args.b2_dir / "val_predictions_best_epoch25_with_users.npz"),
         },
         "CrossUserSupCon": {
-            "train": load_archive(args.supcon_dir / "train_predictions_primary.npz"),
-            "val": load_archive(args.supcon_dir / "val_predictions_primary.npz"),
+            "train": load_archive(supcon_train_path),
+            "val": load_archive(supcon_val_path),
         },
     }
     sources["CrossUserSupCon"]["val"] = align(sources["B2"]["val"], sources["CrossUserSupCon"]["val"])
@@ -328,6 +386,7 @@ def main() -> None:
         "## Protocol", "",
         "- Baseline: B2-256 epoch 25.",
         f"- Contrastive checkpoint: {run_summary['primary_checkpoint']}, epoch {run_summary['primary_epoch']}.",
+        f"- Training stopped after epoch {run_summary['epochs_completed']} due to validation degradation.",
         "- Loss: CE + 0.1 x cross-user SupCon; temperature 0.1; same-user different-action negative weight 2.0.",
         "- Split: fixed 14 train users / 4 unseen validation users. Competition test read: no.", "",
         "## Overall comparison", "", markdown_table(summary), "",

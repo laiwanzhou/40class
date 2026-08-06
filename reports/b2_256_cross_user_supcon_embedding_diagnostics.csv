@@ -1,0 +1,17 @@
+﻿system,split,diagnostic,value,std,pairs
+B2,train,user_id_probe_accuracy,0.2926724137931035,0.009284766908852592,
+B2,val,user_id_probe_accuracy,0.6203389830508474,0.0387983835330834,
+B2,train,same_action_cross_user_cosine_distance_mean,0.07934475832964788,,94610.0
+B2,train,same_action_cross_user_cosine_distance_median,0.051079906780851614,,94610.0
+B2,val,same_action_cross_user_cosine_distance_mean,0.3666178196396729,,4494.0
+B2,val,same_action_cross_user_cosine_distance_median,0.254982392593783,,4494.0
+B2,train_to_val,action_probe_accuracy,0.45084745762711864,,
+B2,train_to_val,action_probe_macro_f1,0.3810724986457492,,
+CrossUserSupCon,train,user_id_probe_accuracy,0.30129310344827587,0.02233074801204934,
+CrossUserSupCon,val,user_id_probe_accuracy,0.5525423728813559,0.014580212317021385,
+CrossUserSupCon,train,same_action_cross_user_cosine_distance_mean,0.09429499186721785,,94610.0
+CrossUserSupCon,train,same_action_cross_user_cosine_distance_median,0.06532353869343804,,94610.0
+CrossUserSupCon,val,same_action_cross_user_cosine_distance_mean,0.38878273630340393,,4494.0
+CrossUserSupCon,val,same_action_cross_user_cosine_distance_median,0.308341060795253,,4494.0
+CrossUserSupCon,train_to_val,action_probe_accuracy,0.40508474576271186,,
+CrossUserSupCon,train_to_val,action_probe_macro_f1,0.3330611781015122,,
