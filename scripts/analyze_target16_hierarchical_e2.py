@@ -44,6 +44,8 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument("--report-dir", type=Path, default=PROJECT_ROOT / "reports")
+    parser.add_argument("--report-prefix", default="target16_hierarchical_e2")
+    parser.add_argument("--experiment-label", default="Target16 conditional E2")
     return parser.parse_args()
 
 
@@ -74,6 +76,7 @@ def _gated_target_macro(labels: np.ndarray, predictions: np.ndarray, gate: np.nd
 def main() -> None:
     args = parse_args()
     args.report_dir.mkdir(parents=True, exist_ok=True)
+    prefix = str(args.report_prefix)
     b2 = np.load(args.b2_predictions, allow_pickle=False)
     e2_raw = np.load(args.e2_dir / "val_predictions_all40_best_macro_f1.npz", allow_pickle=False)
     e2 = _aligned_e2(b2, e2_raw)
@@ -157,10 +160,10 @@ def main() -> None:
             )
 
     summary = pd.DataFrame(summary_rows)
-    summary.to_csv(args.report_dir / "target16_hierarchical_e2_summary.csv", index=False, encoding="utf-8-sig")
+    summary.to_csv(args.report_dir / f"{prefix}_summary.csv", index=False, encoding="utf-8-sig")
     user_frame = pd.DataFrame(user_rows)
     user_frame.to_csv(
-        args.report_dir / "target16_hierarchical_e2_per_user.csv", index=False, encoding="utf-8-sig",
+        args.report_dir / f"{prefix}_per_user.csv", index=False, encoding="utf-8-sig",
     )
     class_rows = []
     for class_id, action_name in enumerate(action_names):
@@ -176,7 +179,7 @@ def main() -> None:
         class_rows.append(row)
     class_frame = pd.DataFrame(class_rows)
     class_frame.to_csv(
-        args.report_dir / "target16_hierarchical_e2_per_class.csv", index=False, encoding="utf-8-sig",
+        args.report_dir / f"{prefix}_per_class.csv", index=False, encoding="utf-8-sig",
     )
 
     outcome_rows = []
@@ -196,7 +199,7 @@ def main() -> None:
             row[f"correct_alpha_{alpha:.2f}"] = prediction == labels[index]
         outcome_rows.append(row)
     pd.DataFrame(outcome_rows).to_csv(
-        args.report_dir / "target16_hierarchical_e2_gated_outcomes.csv", index=False, encoding="utf-8-sig",
+        args.report_dir / f"{prefix}_gated_outcomes.csv", index=False, encoding="utf-8-sig",
     )
 
     best = summary.sort_values(["macro_f1", "accuracy"], ascending=False).iloc[0]
@@ -226,7 +229,7 @@ def main() -> None:
         for user in user_base.index
     ]
     report = [
-        "# Target16 conditional E2 hierarchical fusion",
+        f"# {args.experiment_label} hierarchical fusion",
         "",
         "## Integrity",
         "",
@@ -284,7 +287,7 @@ def main() -> None:
         "The result supports the conditional-expert mechanism, but alpha=1.0 remains a validation-selected "
         "diagnostic until confirmed on an independent fold or held-out calibration protocol.",
     ]
-    (args.report_dir / "target16_hierarchical_e2_experiment.md").write_text(
+    (args.report_dir / f"{prefix}_experiment.md").write_text(
         "\n".join(report) + "\n", encoding="utf-8",
     )
     print(summary.to_json(orient="records"), flush=True)

@@ -1,0 +1,27 @@
+device: cuda
+seed: 20260715
+output_root: outputs/depth_ir_target16_linear_residual_e2_fold0
+b2_archive_dir: outputs/depth_ir_person_crop_40class_256_fold0/depth_ir_person_crop_40class_256_14train_4val
+batch_size: 64
+epochs: 100
+early_stopping_patience: 15
+learning_rate: 0.0003
+weight_decay: 0.01
+residual_output_l2: 0.1
+target_actions:
+  - Take_and_use_tableware
+  - Write
+  - Make_a_phone_call
+  - Watch_TV
+  - Take_medicine
+  - Use_a_mobile_phone
+  - Wipe_bowls
+  - Take_body_temperature
+  - Peel_fruits
+  - Stir_drinks
+  - Play_games
+  - Take_a_selfie
+  - Turn_pages
+  - Read_documents
+  - Drink_water
+  - Eat_food
