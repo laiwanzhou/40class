@@ -143,7 +143,11 @@ def build_datasets(config: dict[str, Any]) -> tuple[Dataset[dict[str, object]], 
         val_frame = val_frame[val_frame["sample_id"].isin(valid_ids)].reset_index(drop=True)
     modality = str(config["modality"])
     if str(config["model_name"]) in {"depth_ir_person_crop_pose_roi", "depth_ir_person_crop_cross_user_supcon"}:
-        actions = train_frame[["class_id", "action_name"]].drop_duplicates().sort_values("class_id")["action_name"].tolist()
+        actions = (
+            list(config["target_actions"])
+            if config.get("target_actions")
+            else train_frame[["class_id", "action_name"]].drop_duplicates().sort_values("class_id")["action_name"].tolist()
+        )
         common = {
             "hard_actions": actions,
             "num_frames": int(config["num_frames"]),
