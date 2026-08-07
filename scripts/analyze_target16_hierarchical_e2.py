@@ -158,7 +158,8 @@ def main() -> None:
 
     summary = pd.DataFrame(summary_rows)
     summary.to_csv(args.report_dir / "target16_hierarchical_e2_summary.csv", index=False, encoding="utf-8-sig")
-    pd.DataFrame(user_rows).to_csv(
+    user_frame = pd.DataFrame(user_rows)
+    user_frame.to_csv(
         args.report_dir / "target16_hierarchical_e2_per_user.csv", index=False, encoding="utf-8-sig",
     )
     class_rows = []
@@ -173,7 +174,8 @@ def main() -> None:
         for alpha in ALPHAS:
             row[f"f1_alpha_{alpha:.2f}"] = per_class[alpha][class_id]
         class_rows.append(row)
-    pd.DataFrame(class_rows).to_csv(
+    class_frame = pd.DataFrame(class_rows)
+    class_frame.to_csv(
         args.report_dir / "target16_hierarchical_e2_per_class.csv", index=False, encoding="utf-8-sig",
     )
 
@@ -198,6 +200,31 @@ def main() -> None:
     )
 
     best = summary.sort_values(["macro_f1", "accuracy"], ascending=False).iloc[0]
+    baseline = summary.loc[summary["alpha"] == 0.0].iloc[0]
+    history = pd.read_csv(args.e2_dir / "history.csv")
+    best_e2 = history.loc[history["val_macro_f1"].idxmax()]
+    final_e2 = history.iloc[-1]
+    class_frame["delta_f1_alpha_1_minus_0"] = class_frame["f1_alpha_1.00"] - class_frame["f1_alpha_0.00"]
+    target_changes = class_frame[class_frame["is_target16"]].sort_values(
+        "delta_f1_alpha_1_minus_0", ascending=False,
+    )
+    gain_lines = [
+        f"- {row.action_name}: {row['f1_alpha_0.00']:.3f} -> {row['f1_alpha_1.00']:.3f} "
+        f"({row.delta_f1_alpha_1_minus_0:+.3f})."
+        for _, row in target_changes.head(6).iterrows()
+    ]
+    harm_lines = [
+        f"- {row.action_name}: {row['f1_alpha_0.00']:.3f} -> {row['f1_alpha_1.00']:.3f} "
+        f"({row.delta_f1_alpha_1_minus_0:+.3f})."
+        for _, row in target_changes.sort_values("delta_f1_alpha_1_minus_0").head(6).iterrows()
+    ]
+    user_base = user_frame[user_frame["alpha"] == 0.0].set_index("user_id")
+    user_best = user_frame[user_frame["alpha"] == float(best["alpha"])].set_index("user_id")
+    user_lines = [
+        f"- {user}: accuracy {user_base.loc[user, 'accuracy']:.3f} -> {user_best.loc[user, 'accuracy']:.3f}, "
+        f"correct-count delta {int(user_best.loc[user, 'correct_count'] - user_base.loc[user, 'correct_count']):+d}."
+        for user in user_base.index
+    ]
     report = [
         "# Target16 conditional E2 hierarchical fusion",
         "",
@@ -208,6 +235,20 @@ def main() -> None:
         "- Fusion evaluation: the same 590 validation samples, with no test access.",
         "- Gate audit: 56 correct target, 123 target-to-target errors, 43 target-to-external errors, 43 external-to-target errors.",
         "- Samples outside the B2 Target16 Top-1 gate are unchanged for every alpha.",
+        "- All 24 non-target class F1 scores are numerically invariant across the alpha sweep.",
+        "",
+        "## E2 closed-set training",
+        "",
+        f"- Best checkpoint: Epoch {int(best_e2['epoch'])}, Target16 validation Accuracy "
+        f"{best_e2['val_accuracy']:.6f}, Macro-F1 {best_e2['val_macro_f1']:.6f}.",
+        "- B2 Target16 closed-set baseline on all 222 target samples: Accuracy 0.324324, Macro-F1 0.315527.",
+        f"- E2 change over that baseline: Accuracy {best_e2['val_accuracy'] - 0.32432432432432434:+.6f}, "
+        f"Macro-F1 {best_e2['val_macro_f1'] - 0.3155272729465266:+.6f}.",
+        f"- At the selected epoch, train Accuracy was {best_e2['train_accuracy']:.6f}; the train-validation gap "
+        f"was {best_e2['generalization_gap']:.6f}.",
+        f"- By Epoch {int(final_e2['epoch'])}, validation Accuracy/Macro-F1 had fallen to "
+        f"{final_e2['val_accuracy']:.6f}/{final_e2['val_macro_f1']:.6f}, while validation loss reached "
+        f"{final_e2['val_loss']:.6f}. This is clear late-stage overfitting.",
         "",
         "## Fixed alpha sweep",
         "",
@@ -218,7 +259,30 @@ def main() -> None:
         f"The strongest validation Macro-F1 in the fixed sweep is alpha={best['alpha']:.2f}: "
         f"Accuracy {best['accuracy']:.6f}, Macro-F1 {best['macro_f1']:.6f}, "
         f"rescued {int(best['rescued'])}, harmed {int(best['harmed'])}, net {int(best['net_rescue'])}.",
+        f"Relative to B2, this is Accuracy {best['accuracy'] - baseline['accuracy']:+.6f}, "
+        f"Macro-F1 {best['macro_f1'] - baseline['macro_f1']:+.6f}, and "
+        f"Target16 Macro-F1 {best['target16_macro_f1'] - baseline['target16_macro_f1']:+.6f}.",
         "This is a validation diagnostic, not an independently tested deployment threshold.",
+        "",
+        "## Largest Target16 gains at alpha=1.0",
+        "",
+        *gain_lines,
+        "",
+        "## Largest Target16 harms at alpha=1.0",
+        "",
+        *harm_lines,
+        "",
+        "## Validation-user behavior",
+        "",
+        *user_lines,
+        "",
+        "## Assessment",
+        "",
+        "The hard hierarchy succeeds on this validation fold: both overall Accuracy and Macro-F1 improve, "
+        "and the non-target 24-class decision surface is preserved. The improvement is not uniform across "
+        "target actions or users, and the E2 training curve still shows severe user-level overfitting. "
+        "The result supports the conditional-expert mechanism, but alpha=1.0 remains a validation-selected "
+        "diagnostic until confirmed on an independent fold or held-out calibration protocol.",
     ]
     (args.report_dir / "target16_hierarchical_e2_experiment.md").write_text(
         "\n".join(report) + "\n", encoding="utf-8",
