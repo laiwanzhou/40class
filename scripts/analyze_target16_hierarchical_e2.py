@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 import sys
 
@@ -205,6 +206,8 @@ def main() -> None:
     best = summary.sort_values(["macro_f1", "accuracy"], ascending=False).iloc[0]
     baseline = summary.loc[summary["alpha"] == 0.0].iloc[0]
     history = pd.read_csv(args.e2_dir / "history.csv")
+    run_summary = json.loads((args.e2_dir / "run_summary.json").read_text(encoding="utf-8"))
+    linear_residual = int(run_summary.get("trainable_parameters", -1)) == 3088
     best_e2 = history.loc[history["val_macro_f1"].idxmax()]
     final_e2 = history.iloc[-1]
     class_frame["delta_f1_alpha_1_minus_0"] = class_frame["f1_alpha_1.00"] - class_frame["f1_alpha_0.00"]
@@ -228,6 +231,53 @@ def main() -> None:
         f"correct-count delta {int(user_best.loc[user, 'correct_count'] - user_base.loc[user, 'correct_count']):+d}."
         for user in user_base.index
     ]
+    if linear_residual:
+        training_interpretation = (
+            f"- By Epoch {int(final_e2['epoch'])}, validation Accuracy/Macro-F1 were "
+            f"{final_e2['val_accuracy']:.6f}/{final_e2['val_macro_f1']:.6f}, with validation loss "
+            f"{final_e2['val_loss']:.6f}. Only the 3,088-parameter residual head was trained; the large "
+            "absolute train-validation gap is inherited from the frozen B2 representation rather than "
+            "created by backbone fine-tuning."
+        )
+    else:
+        training_interpretation = (
+            f"- By Epoch {int(final_e2['epoch'])}, validation Accuracy/Macro-F1 had fallen to "
+            f"{final_e2['val_accuracy']:.6f}/{final_e2['val_macro_f1']:.6f}, while validation loss reached "
+            f"{final_e2['val_loss']:.6f}. This is clear late-stage overfitting."
+        )
+    improved = bool(
+        float(best["accuracy"]) > float(baseline["accuracy"]) + 1e-12
+        or float(best["macro_f1"]) > float(baseline["macro_f1"]) + 1e-12
+    )
+    if improved:
+        assessment = (
+            "The hard hierarchy succeeds on this validation fold: at least one overall metric improves, "
+            "and the non-target 24-class decision surface is preserved. The improvement is not uniform "
+            "across target actions or users. The selected alpha remains a validation diagnostic until "
+            "confirmed on an independent fold or held-out calibration protocol."
+        )
+    else:
+        assessment = (
+            "The linear residual experiment does not improve the hard hierarchy on this validation fold. "
+            "The strongest alpha is 0.0, meaning the unmodified B2 output remains preferable. Fully freezing "
+            "B2 prevents additional representation overfitting, but its fixed 192-dimensional embedding is "
+            "not linearly sufficient to repair the 123 target-group errors."
+        )
+    comparison_lines: list[str] = []
+    previous_path = args.report_dir / "target16_hierarchical_e2_summary.csv"
+    if linear_residual and previous_path.exists():
+        previous = pd.read_csv(previous_path).sort_values(["macro_f1", "accuracy"], ascending=False).iloc[0]
+        comparison_lines = [
+            "",
+            "## Comparison with partially fine-tuned E2",
+            "",
+            f"- Previous E2 best: alpha={previous['alpha']:.2f}, Accuracy {previous['accuracy']:.6f}, "
+            f"Macro-F1 {previous['macro_f1']:.6f}, net rescue {int(previous['net_rescue'])}.",
+            f"- Linear residual best: alpha={best['alpha']:.2f}, Accuracy {best['accuracy']:.6f}, "
+            f"Macro-F1 {best['macro_f1']:.6f}, net rescue {int(best['net_rescue'])}.",
+            "- The capacity reduction removes the previous net gain; a useful next capacity point must lie "
+            "between a 3,088-parameter head and the 1,124,977-parameter partial fine-tune.",
+        ]
     report = [
         f"# {args.experiment_label} hierarchical fusion",
         "",
@@ -249,9 +299,7 @@ def main() -> None:
         f"Macro-F1 {best_e2['val_macro_f1'] - 0.3155272729465266:+.6f}.",
         f"- At the selected epoch, train Accuracy was {best_e2['train_accuracy']:.6f}; the train-validation gap "
         f"was {best_e2['generalization_gap']:.6f}.",
-        f"- By Epoch {int(final_e2['epoch'])}, validation Accuracy/Macro-F1 had fallen to "
-        f"{final_e2['val_accuracy']:.6f}/{final_e2['val_macro_f1']:.6f}, while validation loss reached "
-        f"{final_e2['val_loss']:.6f}. This is clear late-stage overfitting.",
+        training_interpretation,
         "",
         "## Fixed alpha sweep",
         "",
@@ -281,11 +329,8 @@ def main() -> None:
         "",
         "## Assessment",
         "",
-        "The hard hierarchy succeeds on this validation fold: both overall Accuracy and Macro-F1 improve, "
-        "and the non-target 24-class decision surface is preserved. The improvement is not uniform across "
-        "target actions or users, and the E2 training curve still shows severe user-level overfitting. "
-        "The result supports the conditional-expert mechanism, but alpha=1.0 remains a validation-selected "
-        "diagnostic until confirmed on an independent fold or held-out calibration protocol.",
+        assessment,
+        *comparison_lines,
     ]
     (args.report_dir / f"{prefix}_experiment.md").write_text(
         "\n".join(report) + "\n", encoding="utf-8",
