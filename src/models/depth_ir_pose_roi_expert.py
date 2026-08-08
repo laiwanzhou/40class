@@ -65,12 +65,29 @@ class DepthIRPoseROIExpert(nn.Module):
         self,
         inputs: dict[str, torch.Tensor],
     ) -> dict[str, torch.Tensor]:
+        view_output = self.encode_view_features(inputs)
+        features = view_output["view_features"]
+        global_features = features[:, :, 0]
+        locals_ = features[:, :, 1:]
+        roi_attention = torch.softmax(self.local_scorer(locals_).squeeze(-1), dim=-1)
+        local_summary = (locals_ * roi_attention.unsqueeze(-1)).sum(dim=2)
+        frame_features = self.frame_projection(torch.cat((global_features, local_summary), dim=-1))
+        return {
+            "frame_features": frame_features,
+            "roi_attention": roi_attention,
+            "modality_gate": view_output["modality_gate"],
+        }
+
+    def encode_view_features(
+        self,
+        inputs: dict[str, torch.Tensor],
+    ) -> dict[str, torch.Tensor]:
         depth = inputs["depth_input"]
         ir = inputs["ir_input"]
-        if depth.ndim != 6 or depth.shape[2] != self.expected_views or depth.shape[3] != 3:
-            raise ValueError(f"Expected Depth [B,T,{self.expected_views},3,H,W], got {tuple(depth.shape)}")
+        if depth.ndim != 6 or depth.shape[3] != 3:
+            raise ValueError(f"Expected Depth [B,T,V,3,H,W], got {tuple(depth.shape)}")
         if ir.ndim != 6 or ir.shape[:3] != depth.shape[:3] or ir.shape[3] != 1 or ir.shape[-2:] != depth.shape[-2:]:
-            raise ValueError(f"Expected aligned IR [B,T,{self.expected_views},1,H,W], got {tuple(ir.shape)}")
+            raise ValueError(f"Expected aligned IR [B,T,V,1,H,W], got {tuple(ir.shape)}")
         batch, frames, views, _, height, width = depth.shape
         flattened = batch * frames * views
         depth_features = self.depth_stem(depth.reshape(flattened, 3, height, width))
@@ -80,14 +97,8 @@ class DepthIRPoseROIExpert(nn.Module):
         features = self.avgpool(self.shared_body(fused)).flatten(1)
         features = features.reshape(batch, frames, views, -1)
         gate_summary = gate.mean(dim=(1, 2, 3)).reshape(batch, frames, views)
-        global_features = features[:, :, 0]
-        locals_ = features[:, :, 1:]
-        roi_attention = torch.softmax(self.local_scorer(locals_).squeeze(-1), dim=-1)
-        local_summary = (locals_ * roi_attention.unsqueeze(-1)).sum(dim=2)
-        frame_features = self.frame_projection(torch.cat((global_features, local_summary), dim=-1))
         return {
-            "frame_features": frame_features,
-            "roi_attention": roi_attention,
+            "view_features": features,
             "modality_gate": gate_summary,
         }
 
