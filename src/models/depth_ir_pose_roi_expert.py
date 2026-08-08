@@ -61,10 +61,9 @@ class DepthIRPoseROIExpert(nn.Module):
         self.dropout = nn.Dropout(dropout)
         self.classifier = nn.Linear(embedding_dim, num_classes)
 
-    def forward(
+    def encode_frames(
         self,
         inputs: dict[str, torch.Tensor],
-        temporal_mask: torch.Tensor | None = None,
     ) -> dict[str, torch.Tensor]:
         depth = inputs["depth_input"]
         ir = inputs["ir_input"]
@@ -86,6 +85,19 @@ class DepthIRPoseROIExpert(nn.Module):
         roi_attention = torch.softmax(self.local_scorer(locals_).squeeze(-1), dim=-1)
         local_summary = (locals_ * roi_attention.unsqueeze(-1)).sum(dim=2)
         frame_features = self.frame_projection(torch.cat((global_features, local_summary), dim=-1))
+        return {
+            "frame_features": frame_features,
+            "roi_attention": roi_attention,
+            "modality_gate": gate_summary,
+        }
+
+    def forward(
+        self,
+        inputs: dict[str, torch.Tensor],
+        temporal_mask: torch.Tensor | None = None,
+    ) -> dict[str, torch.Tensor]:
+        frame_output = self.encode_frames(inputs)
+        frame_features = frame_output["frame_features"]
         if temporal_mask is None:
             _, hidden = self.temporal(frame_features)
         else:
@@ -96,6 +108,6 @@ class DepthIRPoseROIExpert(nn.Module):
         return {
             "embedding": embedding,
             "logits": self.classifier(self.dropout(embedding)),
-            "roi_attention": roi_attention,
-            "modality_gate": gate_summary,
+            "roi_attention": frame_output["roi_attention"],
+            "modality_gate": frame_output["modality_gate"],
         }

@@ -1,0 +1,59 @@
+modality: Depth_IR
+path_column: depth_color_path
+data_root: D:\work\2026.7.14_kaggle\datasets\Small-Model-Track\train
+manifest: metadata/manifest.csv
+fold: metadata/splits/fold_0.json
+pairing_audit: reports/depth_ir_pose_roi_40class_pairing.csv
+pose_cache: outputs/depth_ir_person_crop_40class_fold0/person_crop_pose_tracks.npz
+b2_checkpoint: outputs/depth_ir_person_crop_40class_256_fold0/depth_ir_person_crop_40class_256_14train_4val/best_accuracy.pt
+b2_val_predictions: outputs/depth_ir_person_crop_40class_256_fold0/depth_ir_person_crop_40class_256_14train_4val/val_predictions_best_epoch25_with_users.npz
+output_root: outputs/depth_ir_person_crop_full_sequence_tcn_fold0
+device: cuda
+seed: 20260715
+image_size: 256
+temporal_frames: 96
+frame_feature_dim: 128
+feature_chunk_frames: 8
+cache_shard_size: 16
+tcn_channels: 128
+embedding_dim: 256
+short_dilations: [1, 2, 4]
+long_dilations: [1, 2, 4, 8, 16, 32]
+dropout: 0.2
+batch_size: 64
+epochs: 40
+early_stopping_patience: 12
+learning_rate: 0.0003
+weight_decay: 0.0001
+gradient_clip: 1.0
+spatial_amp: true
+temporal_amp: false
+smoke_temporal_frames: 16
+smoke_train_samples: 8
+smoke_val_samples: 8
+smoke_epochs: 2
+person_crop:
+  keypoint_threshold: 0.25
+  padding_ratio: 0.08
+  minimum_width_ratio: 0.30
+  minimum_height_ratio: 0.45
+  maximum_width_ratio: 0.96
+  maximum_height_ratio: 0.96
+  smoothing_radius: 2
+  smoothing_ema_alpha: 0.45
+interaction_roi:
+  keypoint_threshold: 0.25
+  projection_alpha: 0.4
+  long_axis_scale: 0.7
+  short_axis_scale: 0.45
+  wrist_fallback_person_width: 0.35
+  minimum_pixel_side: 48.0
+  merge_iou_threshold: 0.30
+  merge_projected_distance: 0.60
+  merge_wrist_distance: 0.70
+  merge_elbow_distance: 0.80
+  merge_wide_wrist_distance: 1.20
+  two_hand_horizontal_padding: 0.25
+  two_hand_top_padding: 0.10
+  two_hand_bottom_padding: 0.35
+  hand_head_distance: 0.90
