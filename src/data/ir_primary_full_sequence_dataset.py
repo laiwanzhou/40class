@@ -1,161 +1,282 @@
 from __future__ import annotations
 
+from collections.abc import Iterator, Sequence
+import hashlib
+import json
+import math
 from pathlib import Path
+import random
 
+import cv2
 import numpy as np
 import pandas as pd
 import torch
-from PIL import Image, ImageOps
-from torchvision.transforms import functional as TF
-
-from src.data.pose_roi_dataset import PoseROIDataset, PoseTrackCache, depth_frame_key
-from src.roi.ir_primary_input_builder import IRPrimaryInputROIBuilder
+from torch.utils.data import Dataset, Sampler
 
 
-class IRPrimaryFullSequenceDataset(PoseROIDataset):
-    """Full-clip IR appearance views and lightweight Depth geometry views."""
+IR_VIEWS = ("ir_context", "ir_left", "ir_right", "ir_relation")
+DEPTH_VIEWS = ("depth_context", "depth_relation")
+VIEW_NAMES = (*IR_VIEWS, *DEPTH_VIEWS)
+DEPTH_REPRESENTATIONS = {"raw", "relative", "raw+relative"}
+QUALITY_NAMES = (
+    "temporal_valid_fraction",
+    *(f"{view}_effective_rate" for view in VIEW_NAMES),
+    *(f"{view}_reliability_mean" for view in VIEW_NAMES),
+    "depth_context_pixel_coverage_mean",
+    "depth_relation_pixel_coverage_mean",
+    "relative_stats_valid",
+)
+
+
+def class_map_hash(class_rows: pd.DataFrame) -> str:
+    canonical = [
+        {"class_id": int(row.class_id), "action_name": str(row.action_name)}
+        for row in class_rows.sort_values("class_id").itertuples(index=False)
+    ]
+    return hashlib.sha256(json.dumps(canonical, separators=(",", ":")).encode("utf-8")).hexdigest()
+
+
+def _read_gray(path: str | Path) -> np.ndarray:
+    image = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
+    if image is None:
+        raise ValueError(f"Could not read image: {path}")
+    return image
+
+
+class IRPrimaryFullSequenceDataset(Dataset[dict[str, object]]):
+    """One complete train/validation trial per item, with no offline or online sampling."""
 
     def __init__(
         self,
-        frame: pd.DataFrame,
-        hard_actions: list[str],
-        num_frames: int,
-        image_size: int,
-        training: bool,
-        pose_cache_path: Path,
-        data_root: Path,
-        roi_config: dict[str, object],
+        manifest: str | Path | pd.DataFrame,
+        *,
+        split: str,
+        depth_representation: str,
     ) -> None:
-        super().__init__(
-            frame=frame,
-            hard_actions=hard_actions,
-            num_frames=num_frames,
-            image_size=image_size,
-            training=training,
-            use_pose_roi=False,
-            use_ir_input=True,
-            data_root=data_root,
+        if split not in {"train", "val"}:
+            raise ValueError("Only train and val splits are allowed")
+        if depth_representation not in DEPTH_REPRESENTATIONS:
+            raise ValueError(f"Unknown Depth representation: {depth_representation}")
+        frame = (
+            manifest.copy()
+            if isinstance(manifest, pd.DataFrame)
+            else pd.read_csv(manifest, encoding="utf-8-sig")
         )
-        cache = PoseTrackCache(pose_cache_path)
-        builder = IRPrimaryInputROIBuilder(
-            keypoint_threshold=float(roi_config["keypoint_threshold"]),
-            context_padding=float(roi_config["context_padding"]),
-            context_quantile=float(roi_config["context_quantile"]),
-            minimum_context_side_ratio=float(roi_config["minimum_context_side_ratio"]),
-            local_padding=float(roi_config["local_padding"]),
-            duplicate_iou_threshold=float(roi_config["duplicate_iou_threshold"]),
-            interaction_config=dict(roi_config["interaction"]),
-        )
-        for sample in self.samples:
-            paths = sample["paths"]
-            if not isinstance(paths, tuple):
-                raise TypeError("Invalid Depth paths")
-            with Image.open(paths[0]) as image:
-                width, height = image.size
-            keys = [depth_frame_key(path) for path in paths]
-            person, keypoints, confidence = cache.trial_arrays(str(sample["sample_id"]), keys)
-            roi = builder.build(person, keypoints, confidence, width, height)
-            sample["input_roi"] = roi
-            sample["roi_confidence"] = self._view_confidence(roi, confidence)
-            sample["width"] = width
-            sample["height"] = height
+        if set(frame.split.astype(str)) - {"train", "val"}:
+            raise ValueError("Manifest contains a non-train/val split")
+        classes = frame[["class_id", "action_name"]].drop_duplicates()
+        if classes.class_id.nunique() != 40 or len(classes) != 40:
+            raise ValueError("Expected one class-map row for each of 40 classes")
+        self.class_rows = classes.sort_values("class_id").reset_index(drop=True)
+        self.class_map_hash = class_map_hash(self.class_rows)
+        self.class_names = self.class_rows.action_name.astype(str).tolist()
+        self.depth_representation = depth_representation
+        selected = frame[frame.split == split].copy()
+        self.user_ids = sorted(selected.user_id.astype(str).unique())
+        self.samples: list[pd.DataFrame] = []
+        self.lengths: list[int] = []
+        self.sample_ids: list[str] = []
+        for sample_id, group in selected.groupby("sample_id", sort=False):
+            ordered = group.sort_values("source_frame_index").reset_index(drop=True)
+            indices = ordered.source_frame_index.to_numpy(dtype=np.int64)
+            if not np.array_equal(indices, np.arange(len(ordered))):
+                raise ValueError(f"Non-contiguous frame order for {sample_id}")
+            if not ordered.temporal_valid.astype(bool).all():
+                raise ValueError(f"Offline temporal-invalid frame found for {sample_id}")
+            self.samples.append(ordered)
+            self.lengths.append(len(ordered))
+            self.sample_ids.append(str(sample_id))
+        if len(set(self.sample_ids)) != len(self.sample_ids):
+            raise ValueError("Duplicate sample IDs")
+
+    def __len__(self) -> int:
+        return len(self.samples)
 
     @staticmethod
-    def _view_confidence(roi: object, confidence: np.ndarray) -> np.ndarray:
-        output = np.zeros((len(confidence), 4), dtype=np.float32)
-        output[:, 0] = 1.0
-        for frame in range(len(confidence)):
-            for view, elbow, wrist in ((1, 7, 9), (2, 8, 10)):
-                source = str(roi.sources[frame, view])
-                if not roi.valid_mask[frame, view]:
-                    continue
-                output[frame, view] = (
-                    min(float(confidence[frame, elbow]), float(confidence[frame, wrist]))
-                    if source == "directional"
-                    else float(confidence[frame, wrist])
-                )
-            source = str(roi.sources[frame, 3])
-            if not roi.valid_mask[frame, 3]:
-                continue
-            left = output[frame, 1]
-            right = output[frame, 2]
-            if source in {"two_hand_table_context", "two_hand_relation"}:
-                output[frame, 3] = min(left, right) if left > 0 and right > 0 else max(left, right)
-            else:
-                output[frame, 3] = max(left, right)
-        return np.clip(output, 0.0, 1.0)
-
-    def _window(self, length: int) -> tuple[np.ndarray, torch.Tensor]:
-        if length <= 0:
-            raise ValueError("A visual sample must contain at least one frame")
-        if length > self.num_frames:
-            indices = np.rint(np.linspace(0, length - 1, self.num_frames)).astype(np.int64)
-            if len(np.unique(indices)) != self.num_frames:
-                raise RuntimeError("Full-sequence sampling produced duplicate indices")
-            mask = torch.ones(self.num_frames, dtype=torch.bool)
-        else:
-            indices = np.r_[np.arange(length), np.full(self.num_frames - length, length - 1)]
-            mask = torch.arange(self.num_frames) < length
-        return indices.astype(np.int64), mask
-
-    def _views(
-        self,
-        path: Path,
-        boxes: np.ndarray,
-        valid: np.ndarray,
-        indices: tuple[int, ...],
-        mode: str,
-    ) -> torch.Tensor:
-        channels = 1 if mode == "L" else 3
-        fill: int | tuple[int, int, int] = 0 if mode == "L" else (0, 0, 0)
-        tensors: list[torch.Tensor] = []
-        with Image.open(path) as opened:
-            image = opened.convert(mode)
-            for view in indices:
-                if not bool(valid[view]):
-                    tensors.append(torch.zeros((channels, self.image_size, self.image_size)))
-                    continue
-                crop = image.crop(tuple(float(value) for value in boxes[view]))
-                padded = ImageOps.pad(
-                    crop,
-                    (self.image_size, self.image_size),
-                    method=Image.Resampling.LANCZOS,
-                    color=fill,
-                )
-                tensors.append((TF.to_tensor(padded) - 0.5) / 0.5)
-        return torch.stack(tensors)
+    def _relative_values(context: np.ndarray, context_valid: np.ndarray) -> tuple[float, float, bool]:
+        valid_values = context[context_valid]
+        frames, height, width = context.shape
+        required = max(1024, math.ceil(0.01 * frames * height * width))
+        if len(valid_values) < required:
+            return 0.0, 1.0, False
+        median = float(np.median(valid_values))
+        q25, q75 = np.percentile(valid_values, [25, 75])
+        return median, max(float(q75 - q25), 8.0), True
 
     def __getitem__(self, index: int) -> dict[str, object]:
-        sample = self.samples[index]
-        paths = sample["paths"]
-        ir_paths = sample["ir_paths"]
-        if not isinstance(paths, tuple) or not isinstance(ir_paths, tuple):
-            raise TypeError("Invalid paired paths")
-        indices, temporal_mask = self._window(len(paths))
-        roi = sample["input_roi"]
-        confidence = sample["roi_confidence"]
-        ir_frames: list[torch.Tensor] = []
-        depth_frames: list[torch.Tensor] = []
-        ir_valid = []
-        depth_valid = []
-        view_confidence = []
-        for frame_value in indices:
-            frame = int(frame_value)
-            ir_frames.append(self._views(ir_paths[frame], roi.boxes[frame], roi.valid_mask[frame], (0, 1, 2, 3), "L"))
-            depth_frames.append(self._views(paths[frame], roi.boxes[frame], roi.valid_mask[frame], (0, 3), "RGB"))
-            ir_valid.append(torch.from_numpy(roi.valid_mask[frame].copy()))
-            depth_valid.append(torch.from_numpy(roi.valid_mask[frame, (0, 3)].copy()))
-            view_confidence.append(torch.from_numpy(confidence[frame].copy()))
+        frame = self.samples[index]
+        length = len(frame)
+        ir = np.zeros((length, 4, 1, 256, 256), dtype=np.float32)
+        depth_values = np.zeros((length, 2, 256, 256), dtype=np.uint8)
+        depth_pixel_valid = np.zeros((length, 2, 1, 256, 256), dtype=bool)
+        view_valid = np.zeros((length, 6), dtype=bool)
+        view_reliability = np.zeros((length, 6), dtype=np.float32)
+
+        for time, row in enumerate(frame.itertuples(index=False)):
+            for view_index, view in enumerate(IR_VIEWS):
+                valid = bool(getattr(row, f"{view}_effective_valid"))
+                image = _read_gray(getattr(row, f"{view}_path")).astype(np.float32) / 255.0
+                ir[time, view_index, 0] = (2.0 * image - 1.0) * valid
+                view_valid[time, view_index] = valid
+                view_reliability[time, view_index] = float(getattr(row, f"{view}_reliability")) * valid
+            for local_index, view in enumerate(DEPTH_VIEWS):
+                valid = bool(getattr(row, f"{view}_effective_valid"))
+                values = _read_gray(getattr(row, f"{view}_ordinal_path"))
+                pixel_valid = _read_gray(getattr(row, f"{view}_pixel_valid_path")) > 0
+                depth_values[time, local_index] = values
+                depth_pixel_valid[time, local_index, 0] = pixel_valid
+                output_index = 4 + local_index
+                view_valid[time, output_index] = valid
+                view_reliability[time, output_index] = float(getattr(row, f"{view}_reliability")) * valid
+
+        median, scale, stats_valid = self._relative_values(
+            depth_values[:, 0], depth_pixel_valid[:, 0, 0],
+        )
+        raw = depth_values.astype(np.float32) / 255.0
+        if stats_valid:
+            relative = np.clip((depth_values.astype(np.float32) - median) / scale, -4.0, 4.0)
+        else:
+            relative = 2.0 * raw - 1.0
+        pixel_valid_float = depth_pixel_valid[:, :, 0].astype(np.float32)
+        effective = view_valid[:, 4:].astype(np.float32)[..., None, None]
+        depth = np.zeros((length, 2, 3, 256, 256), dtype=np.float32)
+        if self.depth_representation in {"raw", "raw+relative"}:
+            depth[:, :, 0] = raw * pixel_valid_float * effective
+        if self.depth_representation in {"relative", "raw+relative"}:
+            depth[:, :, 1] = relative * pixel_valid_float * effective
+        depth[:, :, 2] = pixel_valid_float * effective
+
+        effective_rates = view_valid.mean(axis=0, dtype=np.float32)
+        reliability_means = view_reliability.mean(axis=0, dtype=np.float32)
+        pixel_coverage = depth_pixel_valid[:, :, 0].mean(axis=(0, 2, 3), dtype=np.float32)
+        quality = np.r_[
+            np.float32(1.0), effective_rates, reliability_means, pixel_coverage,
+            np.float32(stats_valid),
+        ].astype(np.float32)
+        if len(quality) != len(QUALITY_NAMES):
+            raise RuntimeError("Quality schema mismatch")
+        timestamps = np.cumsum(frame.inter_frame_delta_seconds.to_numpy(dtype=np.float32))
+        row0 = frame.iloc[0]
         return {
-            "ir_input": torch.stack(ir_frames),
-            "depth_input": torch.stack(depth_frames),
-            "ir_valid_mask": torch.stack(ir_valid),
-            "depth_valid_mask": torch.stack(depth_valid),
-            "view_confidence": torch.stack(view_confidence),
-            "temporal_mask": temporal_mask,
-            "frame_indices": torch.from_numpy(indices.copy()),
-            "label": int(sample["label"]),
-            "sample_id": str(sample["sample_id"]),
-            "user_id": str(sample["user_id"]),
-            "length": int(sample["length"]),
+            "ir": torch.from_numpy(ir),
+            "depth": torch.from_numpy(depth),
+            "depth_pixel_valid": torch.from_numpy(depth_pixel_valid),
+            "view_valid": torch.from_numpy(view_valid),
+            "view_reliability": torch.from_numpy(view_reliability),
+            "quality": torch.from_numpy(quality),
+            "quality_mask": torch.ones(len(QUALITY_NAMES), dtype=torch.bool),
+            "availability": torch.ones(1, dtype=torch.bool),
+            "timestamps": torch.from_numpy(timestamps),
+            "frame_indices": torch.arange(length, dtype=torch.long),
+            "label": int(row0.class_id),
+            "sample_id": str(row0.sample_id),
+            "user_id": str(row0.user_id),
+            "length": length,
+            "relative_median": median,
+            "relative_scale": scale,
+            "relative_stats_valid": stats_valid,
         }
+
+
+def collate_full_sequences(items: Sequence[dict[str, object]]) -> dict[str, object]:
+    if not items:
+        raise ValueError("Cannot collate an empty batch")
+    batch = len(items)
+    maximum = max(int(item["length"]) for item in items)
+
+    def padded(name: str, fill: float | bool = 0) -> torch.Tensor:
+        first = items[0][name]
+        if not isinstance(first, torch.Tensor):
+            raise TypeError(f"{name} is not a tensor")
+        output = torch.full((batch, maximum, *first.shape[1:]), fill, dtype=first.dtype)
+        for row, item in enumerate(items):
+            value = item[name]
+            assert isinstance(value, torch.Tensor)
+            output[row, : len(value)] = value
+        return output
+
+    lengths = torch.tensor([int(item["length"]) for item in items], dtype=torch.long)
+    temporal_mask = torch.arange(maximum).unsqueeze(0) < lengths.unsqueeze(1)
+    return {
+        "ir": padded("ir"),
+        "depth": padded("depth"),
+        "depth_pixel_valid": padded("depth_pixel_valid", False),
+        "view_valid": padded("view_valid", False),
+        "view_reliability": padded("view_reliability"),
+        "timestamps": padded("timestamps"),
+        "frame_indices": padded("frame_indices", -1),
+        "temporal_mask": temporal_mask,
+        "quality": torch.stack([item["quality"] for item in items]),
+        "quality_mask": torch.stack([item["quality_mask"] for item in items]),
+        "availability": torch.stack([item["availability"] for item in items]),
+        "labels": torch.tensor([int(item["label"]) for item in items], dtype=torch.long),
+        "lengths": lengths,
+        "sample_ids": tuple(str(item["sample_id"]) for item in items),
+        "user_ids": tuple(str(item["user_id"]) for item in items),
+        "relative_stats_valid": torch.tensor(
+            [bool(item["relative_stats_valid"]) for item in items], dtype=torch.bool,
+        ),
+    }
+
+
+class FrameBudgetBatchSampler(Sampler[list[int]]):
+    """Length-bucketed batches bounded by padded frames (max_length * batch_size)."""
+
+    def __init__(
+        self,
+        lengths: Sequence[int],
+        *,
+        max_frames: int,
+        max_samples: int,
+        shuffle: bool,
+        seed: int,
+        bucket_size: int = 128,
+    ) -> None:
+        if not lengths or min(lengths) <= 0:
+            raise ValueError("All sequence lengths must be positive")
+        if max_frames < max(lengths):
+            raise ValueError("max_frames is smaller than the longest sequence")
+        if max_samples <= 0 or bucket_size <= 0:
+            raise ValueError("max_samples and bucket_size must be positive")
+        self.lengths = tuple(int(value) for value in lengths)
+        self.max_frames = int(max_frames)
+        self.max_samples = int(max_samples)
+        self.shuffle = bool(shuffle)
+        self.seed = int(seed)
+        self.bucket_size = int(bucket_size)
+        self.epoch = 0
+
+    def set_epoch(self, epoch: int) -> None:
+        self.epoch = int(epoch)
+
+    def _batches(self) -> list[list[int]]:
+        ordered = sorted(range(len(self.lengths)), key=self.lengths.__getitem__)
+        buckets = [ordered[start : start + self.bucket_size] for start in range(0, len(ordered), self.bucket_size)]
+        if self.shuffle:
+            generator = random.Random(self.seed + self.epoch)
+            for bucket in buckets:
+                generator.shuffle(bucket)
+            generator.shuffle(buckets)
+        batches: list[list[int]] = []
+        current: list[int] = []
+        current_max = 0
+        for index in (value for bucket in buckets for value in bucket):
+            proposed_max = max(current_max, self.lengths[index])
+            if current and (
+                len(current) >= self.max_samples
+                or proposed_max * (len(current) + 1) > self.max_frames
+            ):
+                batches.append(current)
+                current = []
+                current_max = 0
+            current.append(index)
+            current_max = max(current_max, self.lengths[index])
+        if current:
+            batches.append(current)
+        return batches
+
+    def __iter__(self) -> Iterator[list[int]]:
+        yield from self._batches()
+
+    def __len__(self) -> int:
+        return len(self._batches())
