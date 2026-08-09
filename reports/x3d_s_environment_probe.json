@@ -1,0 +1,82 @@
+{
+  "generated_at_utc": "2026-08-09T16:25:01.526257+00:00",
+  "input_shape": [
+    1,
+    3,
+    13,
+    182,
+    182
+  ],
+  "model_name": "x3d_s",
+  "pretraining": "kinetics_400",
+  "source_revision": "pytorchvideo==0.1.5",
+  "source_url": "https://dl.fbaipublicfiles.com/pytorchvideo/model_zoo/kinetics/X3D_S.pyth",
+  "license": "Apache 2.0",
+  "internal_size_limit_bytes": 95000000,
+  "runtime": {
+    "python": "3.12.9 | packaged by Anaconda, Inc. | (main, Feb  6 2025, 18:49:16) [MSC v.1929 64 bit (AMD64)]",
+    "platform": "Windows-11-10.0.26100-SP0",
+    "pytorch": "2.7.0+cu128",
+    "torchvision": "0.22.0+cu128",
+    "pytorchvideo": "0.1.5",
+    "ultralytics": "8.3.165",
+    "cuda_available": true,
+    "cuda_runtime": "12.8",
+    "gpu": "NVIDIA GeForce RTX 5060 Laptop GPU"
+  },
+  "forward_requested": true,
+  "pip_install": {
+    "command": "D:\\Anaconda\\envs\\pyTorch2.7\\python.exe -m pip install -r requirements-x3d.txt",
+    "exit_code": 1,
+    "output": "Collecting pytorchvideo==0.1.5 (from -r requirements-x3d.txt (line 1))\r\n  Downloading pytorchvideo-0.1.5.tar.gz (132 kB)\r\n  Preparing metadata (setup.py): started\r\n  Preparing metadata (setup.py): finished with status 'done'\r\nCollecting fvcore (from pytorchvideo==0.1.5->-r requirements-x3d.txt (line 1))\r\n  Downloading fvcore-0.1.5.post20221221.tar.gz (50 kB)\r\n  Preparing metadata (setup.py): started\r\n  Preparing metadata (setup.py): finished with status 'done'\r\nCollecting av (from pytorchvideo==0.1.5->-r requirements-x3d.txt (line 1))\r\n  Downloading av-18.0.0-cp311-abi3-win_amd64.whl.metadata (4.7 kB)\r\nCollecting parameterized (from pytorchvideo==0.1.5->-r requirements-x3d.txt (line 1))\r\n  Downloading parameterized-0.9.0-py2.py3-none-any.whl.metadata (18 kB)\r\nCollecting iopath (from pytorchvideo==0.1.5->-r requirements-x3d.txt (line 1))\r\n  Downloading iopath-0.1.10.tar.gz (42 kB)\r\n  Preparing metadata (setup.py): started\r\n  Preparing metadata (setup.py): finished with status 'done'\r\nRequirement already satisfied: networkx in d:\\anaconda\\envs\\pytorch2.7\\lib\\site-packages (from pytorchvideo==0.1.5->-r requirements-x3d.txt (line 1)) (3.3)\r\nRequirement already satisfied: numpy in d:\\anaconda\\envs\\pytorch2.7\\lib\\site-packages (from fvcore->pytorchvideo==0.1.5->-r requirements-x3d.txt (line 1)) (1.26.4)\r\nCollecting yacs>=0.1.6 (from fvcore->pytorchvideo==0.1.5->-r requirements-x3d.txt (line 1))\r\n  Downloading yacs-0.1.8-py3-none-any.whl.metadata (639 bytes)\r\nRequirement already satisfied: pyyaml>=5.1 in d:\\anaconda\\envs\\pytorch2.7\\lib\\site-packages (from fvcore->pytorchvideo==0.1.5->-r requirements-x3d.txt (line 1)) (6.0.2)\r\nRequirement already satisfied: tqdm in d:\\anaconda\\envs\\pytorch2.7\\lib\\site-packages (from fvcore->pytorchvideo==0.1.5->-r requirements-x3d.txt (line 1)) (4.67.1)\r\nRequirement already satisfied: termcolor>=1.1 in d:\\anaconda\\envs\\pytorch2.7\\lib\\site-packages (from fvcore->pytorchvideo==0.1.5->-r requirements-x3d.txt (line 1)) (3.2.0)\r\nRequirement already satisfied: Pillow in d:\\anaconda\\envs\\pytorch2.7\\lib\\site-packages (from fvcore->pytorchvideo==0.1.5->-r requirements-x3d.txt (line 1)) (11.0.0)\r\nCollecting tabulate (from fvcore->pytorchvideo==0.1.5->-r requirements-x3d.txt (line 1))\r\n  Downloading tabulate-0.10.0-py3-none-any.whl.metadata (40 kB)\r\nRequirement already satisfied: typing_extensions in d:\\anaconda\\envs\\pytorch2.7\\lib\\site-packages (from iopath->pytorchvideo==0.1.5->-r requirements-x3d.txt (line 1)) (4.12.2)\r\nCollecting portalocker (from iopath->pytorchvideo==0.1.5->-r requirements-x3d.txt (line 1))\r\n  Downloading portalocker-4.1.0-py3-none-any.whl.metadata (11 kB)\r\nRequirement already satisfied: colorama in d:\\anaconda\\envs\\pytorch2.7\\lib\\site-packages (from tqdm->fvcore->pytorchvideo==0.1.5->-r requirements-x3d.txt (line 1)) (0.4.6)\r\nDownloading av-18.0.0-cp311-abi3-win_amd64.whl (27.6 MB)\r\n   ---------------------------------------- 27.6/27.6 MB 651.2 kB/s eta 0:00:00\r\nDownloading yacs-0.1.8-py3-none-any.whl (14 kB)\r\nDownloading parameterized-0.9.0-py2.py3-none-any.whl (20 kB)\r\nDownloading portalocker-4.1.0-py3-none-any.whl (65 kB)\r\nDownloading tabulate-0.10.0-py3-none-any.whl (39 kB)\r\nBuilding wheels for collected packages: pytorchvideo, fvcore, iopath\r\nD:\\Anaconda\\envs\\pyTorch2.7\\python.exe :   DEPRECATION: Building 'pytorchvideo' using the legacy setup.py bdist_wheel m\r\nechanism, which will be removed in a future version. pip 25.3 will enforce this behaviour change. A possible replacemen\r\nt is to use the standardized build interface by setting the `--use-pep517` option, (possibly combined with `--no-build-\r\nisolation`), or adding a `pyproject.toml` file to the source tree of 'pytorchvideo'. Discussion can be found at https:/\r\n/github.com/pypa/pip/issues/6334\r\nAt line:2 char:1\r\n+ D:\\Anaconda\\envs\\pyTorch2.7\\python.exe -m pip install -r requirements ...\r\n+ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\r\n    + CategoryInfo          : NotSpecified: (  DEPRECATION: ...pip/issues/6334:String) [], RemoteException\r\n    + FullyQualifiedErrorId : NativeCommandError\r\n \r\n  Building wheel for pytorchvideo (setup.py): started\r\n  Building wheel for pytorchvideo (setup.py): finished with status 'done'\r\n  Created wheel for pytorchvideo: filename=pytorchvideo-0.1.5-py3-none-any.whl size=188694 sha256=1a945e5489874561bdcc6cdb279ce3919ccf1bb500e0f3ca34e19a3bf6562942\r\n  Stored in directory: c:\\users\\laiwanzhou\\appdata\\local\\pip\\cache\\wheels\\b3\\49\\dc\\aab2dce83e38b59849db13a4f4ddd220e568e24b58332fb0f9\r\n  DEPRECATION: Building 'fvcore' using the legacy setup.py bdist_wheel mechanism, which will be removed in a future ver\r\nsion. pip 25.3 will enforce this behaviour change. A possible replacement is to use the standardized build interface by\r\n setting the `--use-pep517` option, (possibly combined with `--no-build-isolation`), or adding a `pyproject.toml` file \r\nto the source tree of 'fvcore'. Discussion can be found at https://github.com/pypa/pip/issues/6334\r\n  Building wheel for fvcore (setup.py): started\r\n  Building wheel for fvcore (setup.py): finished with status 'done'\r\n  Created wheel for fvcore: filename=fvcore-0.1.5.post20221221-py3-none-any.whl size=61405 sha256=53fce79a5868c799e1d9a6abafb05b8817e9baaae69b902ba1bdad32d79ca7db\r\n  Stored in directory: c:\\users\\laiwanzhou\\appdata\\local\\pip\\cache\\wheels\\ed\\9f\\a5\\e4f5b27454ccd4596bd8b62432c7d6b1ca9fa22aef9d70a16a\r\n  DEPRECATION: Building 'iopath' using the legacy setup.py bdist_wheel mechanism, which will be removed in a future ver\r\nsion. pip 25.3 will enforce this behaviour change. A possible replacement is to use the standardized build interface by\r\n setting the `--use-pep517` option, (possibly combined with `--no-build-isolation`), or adding a `pyproject.toml` file \r\nto the source tree of 'iopath'. Discussion can be found at https://github.com/pypa/pip/issues/6334\r\n  Building wheel for iopath (setup.py): started\r\n  Building wheel for iopath (setup.py): finished with status 'done'\r\n  Created wheel for iopath: filename=iopath-0.1.10-py3-none-any.whl size=31538 sha256=3fa6df7a36c357bbac2f90776a15ed35e56acb073117653b7ab450359394087c\r\n  Stored in directory: c:\\users\\laiwanzhou\\appdata\\local\\pip\\cache\\wheels\\7c\\96\\04\\4f5f31ff812f684f69f40cb1634357812220aac58d4698048c\r\nSuccessfully built pytorchvideo fvcore iopath\r\nInstalling collected packages: yacs, tabulate, portalocker, parameterized, av, iopath, fvcore, pytorchvideo\r\n  WARNING: The script tabulate.exe is installed in 'D:\\Anaconda\\envs\\pyTorch2.7\\Scripts' which is not on PATH.\r\n  Consider adding this directory to PATH or, if you prefer to suppress this warning, use --no-warn-script-location.\r\n  WARNING: The script pyav.exe is installed in 'D:\\Anaconda\\envs\\pyTorch2.7\\Scripts' which is not on PATH.\r\n  Consider adding this directory to PATH or, if you prefer to suppress this warning, use --no-warn-script-location.\r\n\r\nSuccessfully installed av-18.0.0 fvcore-0.1.5.post20221221 iopath-0.1.10 parameterized-0.9.0 portalocker-4.1.0 pytorchvideo-0.1.5 tabulate-0.10.0 yacs-0.1.8\r\n",
+    "installed_version": "0.1.5",
+    "installation_observed_successful": true
+  },
+  "device": "cuda",
+  "output_shape": [
+    1,
+    400
+  ],
+  "output_is_finite": true,
+  "peak_cuda_memory_bytes": 80395264,
+  "components": {
+    "x3d_s": {
+      "path": "C:\\Users\\LaiWanzhou\\.cache\\torch\\hub\\checkpoints\\X3D_S.pyth",
+      "parameter_count": 3794274,
+      "fp32_parameter_bytes": 15177096,
+      "serialized_bytes": 30779313,
+      "sha256": "26b95f1605d49650b54049db40ba3a56e023b86b58c3b3e0e10e0992a9c8682f",
+      "license": "Apache 2.0",
+      "pretraining_data": "Kinetics-400",
+      "checkpoint_url": "https://dl.fbaipublicfiles.com/pytorchvideo/model_zoo/kinetics/X3D_S.pyth",
+      "inference_state_dict_serialized_bytes": 15503513,
+      "inference_state_dict_sha256": "37eef7a6e800c3a01e141776fc79bbdffdaf49eefe284ab6ca76dc0dcc658030",
+      "source_checkpoint_includes_optimizer_state": true
+    },
+    "x3d_custom_head": {
+      "architecture": "Linear(2048,256)+LayerNorm+GELU+Dropout+Linear(256,40)",
+      "parameter_count": 535336,
+      "fp32_parameter_bytes": 2141344,
+      "serialized_bytes_estimate": 2144149,
+      "sha256_estimate": "02c4228cb8ffddeadb77f41e9028e980b95a375fb86579ac674bcead1d1bc1b5",
+      "embedded_in_final_x3d_checkpoint": true
+    },
+    "yolo11n_pose": {
+      "path": "D:\\work\\2026.7.14_kaggle\\40class\\yolo11n-pose.pt",
+      "parameter_count": 2874462,
+      "fp32_parameter_bytes": 11497848,
+      "serialized_bytes": 6255593,
+      "sha256": "869e83fcdffdc7371fa4e34cd8e51c838cc729571d1635e5141e3075e9319dc0",
+      "license": "AGPL-3.0",
+      "pretraining_data": "COCO pose",
+      "ultralytics_version": "8.3.165"
+    },
+    "videomae_s": {
+      "required_at_inference": false,
+      "status": "teacher_only_pending_written_confirmation"
+    }
+  },
+  "aggregate_inference_serialized_bytes": 39179055,
+  "size_gate_passed": true,
+  "size_accounting_note": "Conservative Phase 0 estimate uses the complete official X3D source checkpoint, estimated custom-head state, and YOLO file. The final deployment checkpoint must be remeasured without double counting."
+}
