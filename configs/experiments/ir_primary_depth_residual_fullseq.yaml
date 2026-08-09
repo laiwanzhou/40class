@@ -1,0 +1,68 @@
+modality: Depth_IR
+path_column: depth_color_path
+data_root: D:\work\2026.7.14_kaggle\datasets\Small-Model-Track\train
+manifest: metadata/manifest.csv
+fold: metadata/splits/fold_0.json
+pairing_audit: reports/depth_ir_pose_roi_40class_pairing.csv
+pose_cache: D:\work\2026.7.14_kaggle\40class\outputs\depth_ir_person_crop_40class_fold0\person_crop_pose_tracks.npz
+output_root: outputs/ir_primary_depth_residual_fullseq_fold0
+device: cuda
+seed: 20260715
+image_size: 256
+stage_a_frames: 24
+full_sequence_frames: 96
+frame_feature_dim: 128
+tcn_channels: 128
+embedding_dim: 256
+short_dilations: [1, 2, 4]
+long_dilations: [1, 2, 4, 8, 16, 32]
+dropout: 0.25
+pretrained_ir: true
+initial_depth_gate: 0.10
+route_loss_weight: 0.15
+small_object_class_ids: [1, 2, 4, 6, 7, 8, 9, 10, 11, 14, 15, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 37, 39]
+stage_a_batch_size: 2
+stage_a_gradient_accumulation: 2
+stage_a_epochs: 20
+stage_a_patience: 6
+stage_a_learning_rate: 0.0002
+stage_b_batch_size: 64
+stage_b_epochs: 30
+stage_b_patience: 8
+stage_b_learning_rate: 0.0001
+weight_decay: 0.0001
+gradient_clip: 1.0
+spatial_amp: true
+temporal_amp: false
+feature_chunk_frames: 8
+cache_shard_size: 16
+stop_file_name: STOP_AFTER_EPOCH
+smoke_stage_a_frames: 4
+smoke_full_sequence_frames: 8
+smoke_train_samples: 2
+smoke_val_samples: 2
+smoke_stage_a_epochs: 1
+smoke_stage_b_epochs: 1
+roi:
+  keypoint_threshold: 0.25
+  context_padding: 0.22
+  context_quantile: 0.95
+  minimum_context_side_ratio: 0.45
+  local_padding: 0.12
+  duplicate_iou_threshold: 0.70
+  interaction:
+    keypoint_threshold: 0.25
+    projection_alpha: 0.55
+    long_axis_scale: 0.65
+    short_axis_scale: 0.45
+    wrist_fallback_person_width: 0.35
+    minimum_pixel_side: 48.0
+    merge_iou_threshold: 0.30
+    merge_projected_distance: 0.60
+    merge_wrist_distance: 0.70
+    merge_elbow_distance: 0.80
+    merge_wide_wrist_distance: 1.20
+    two_hand_horizontal_padding: 0.30
+    two_hand_top_padding: 0.10
+    two_hand_bottom_padding: 0.45
+    hand_head_distance: 0.90

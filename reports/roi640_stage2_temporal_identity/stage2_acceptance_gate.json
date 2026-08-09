@@ -1,0 +1,47 @@
+{
+  "stage2_status": "passed",
+  "checks": {
+    "missing_files_zero": true,
+    "unreadable_files_zero": true,
+    "wrong_dimensions_zero": true,
+    "known_p0_still_effective_zero": true,
+    "source_depth_unreadable_zero": true,
+    "unexplained_non_jet_pixels_zero": true,
+    "global_all_local_invalid_le_5pct": true,
+    "small24_all_local_invalid_le_3pct": true,
+    "every_small_action_all_local_invalid_le_10pct": true,
+    "swap_global_upper_bound_le_1pct": true,
+    "swap_every_class_upper_bound_le_5pct": true,
+    "jump_global_upper_bound_le_1pct": true,
+    "jump_every_class_upper_bound_le_5pct": true
+  },
+  "values": {
+    "known_p0_still_effective": 0,
+    "source_depth_frames": 84906,
+    "source_depth_unreadable": 0,
+    "unexpected_non_jet_pixels": 0,
+    "jump_candidates": 473,
+    "jump_global_rate": 0.002108961525942902,
+    "jump_worst_class_rate": 0.023612750885478158,
+    "swap_candidates": 28,
+    "swap_global_rate": 0.0004443104460559514,
+    "swap_worst_class_rate": 0.004419889502762431,
+    "global_all_local_invalid_rate": 0.036228299531246316,
+    "small24_all_local_invalid_rate": 0.021371798645864,
+    "worst_small_action_rate": 0.09657320872274143,
+    "worst_small_action": "Take_a_selfie",
+    "local_valid_count_distribution": {
+      "0": 3076,
+      "1": 2,
+      "2": 8656,
+      "3": 73172
+    },
+    "relation_valid_given_right_invalid": 0.7223325510019859,
+    "relation_valid_given_left_invalid": 0.17572997589070452,
+    "relation_valid_given_both_invalid": 0.00032499187520311994
+  },
+  "test_read": false,
+  "training_run": false,
+  "pose_image_size": 640,
+  "pose_1280_tested": false
+}
