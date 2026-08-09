@@ -31,6 +31,8 @@ Compare exactly three Depth loader representations (`raw`, `relative`, `raw+rela
 - [x] **Stage 5 complete: real-data export smoke test and pixel audit.** A fixed 82-trial subset covers all 40 classes, one train and one validation trial per class, plus the two known Stage 2 Depth content-invalid trials. It exported all `3,562` selected original frames into `14,248` Depth PNGs (two ordinal views plus two independent masks), while reusing rather than copying the four IR views. Every stored value/mask was independently recomputed from native Depth_Color and ROI coordinates: value mismatches `0`, mask mismatches `0`, and nonzero values behind invalid masks `0`. Twelve neighboring-frame contact sheets were generated and inspected.
 - [x] **Stage 6 complete: full Depth-only ordinal export and integrity audit.** All `2,910` train/val trials and `84,906` original paired frames were exported without temporal sampling. The full asset contains `169,812` ordinal value PNGs and `169,812` independent pixel masks (`339,624` data PNGs, about `3.507 GiB`) while referencing the existing four IR views. A full native-source recomputation found `0` ordinal pixel mismatches, `0` mask mismatches, and `0` nonzero values behind invalid masks. All manifest, frame-order, timestamp/delta, shape/dtype, binary-mask, IR-reference, and retained-content checks passed.
 - [x] **Stage 7 complete: variable-length loader/model/trainer refactor plus expert-interface contract.** The obsolete Stage A/B/cache training path has been removed from the active trainer. Complete-trial loading, frame-budget batching, in-memory temporal padding, padding-safe multi-scale TCN processing, end-to-end single-stage training, and the reserved visual expert contract are implemented. Real-manifest read-only acceptance, `42` repository tests, implementation reporting, and independent review all passed.
+- [~] **Stage 8 in progress: fixed three-representation pilot and selection.** The one-epoch end-to-end smoke gate passed for `raw`, `relative`, and `raw+relative`. The preregistered pilot budget is eight complete epochs per representation with identical settings. Representations more than `0.02` absolute Accuracy below the best pilot are excluded; the remaining candidates are ordered by Macro-F1, small-action Macro-F1, smaller absolute generalization gap, worst-user Macro-F1, and Accuracy.
+- [ ] **Stage 9 not started: one selected-representation formal experiment.** After Stage 8 selection, run only the selected representation with the unchanged 30-epoch / patience-8 formal configuration. Do not add another modality or optimization variable.
 
 Completed Stage 7 implementation:
 
@@ -457,9 +459,8 @@ The active dataset, model, trainer, configuration, expert contract, and Stage 7 
 5. Complete normalized temporal and left/right swap audits; generate improved P1 review artifacts.
 6. Run the full Depth-only export and integrity audit without reading test.
 7. Refactor loader/model/trainer to true variable-length end-to-end full sequence, remove Stage A/B behavior, and expose the reserved visual `ExpertOutput`/`ExpertBatchResult` contract without reading or connecting Skeleton.
-8. Smoke test all three loader representations.
-9. Run the fixed three-variant pilot, write comparison reports, select one representation.
-10. Run one formal experiment with the selected representation, report, commit code/config/reports only, and stop.
+8. Smoke test all three loader representations, then run the fixed eight-epoch three-variant pilot, write comparison reports, and select one representation.
+9. Run one formal experiment with the selected representation, report, commit code/config/reports only, and stop.
 
 Explicitly out of scope for this route: YOLO pose `imgsz=1280`, pose-cache resolution comparisons, full pose-cache regeneration, new data augmentation, conditional fine-action heads, Router, expert routing, and additional sensor modalities.
 
