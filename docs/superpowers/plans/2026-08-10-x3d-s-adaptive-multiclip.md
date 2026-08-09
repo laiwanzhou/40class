@@ -97,7 +97,7 @@ Execute phases in order. A phase may start only after the previous phase's exit 
 
 | Phase | Scope | Entry condition | Exit gate | Status |
 |---|---|---|---|---|
-| Phase 0: Compliance and runtime | Task 1 | New branch/worktree ready | Rule record complete; official pretrained X3D forward passes; complete inference stack `<95,000,000` bytes | Pending |
+| Phase 0: Compliance and runtime | Task 1 | New branch/worktree ready | Rule record complete; official pretrained X3D forward passes; complete inference stack `<95,000,000` bytes | Completed (`c088db0`) |
 | Phase 1: Temporal data contract | Task 2 | Phase 0 passes | Adaptive window boundary tests, real duration audit, determinism, padding and leakage tests pass | Pending |
 | Phase 2: Expert and trainer | Tasks 3-4 | Phase 1 passes | Trial-level masked aggregation, gradients, archive schema and focused tests pass | Pending |
 | Phase 3: End-to-end verification | Task 5 | Phase 2 passes | Online/offline ROI parity, shortest/longest trial smoke, overfit test, size audit and full tests pass | Pending |
@@ -122,7 +122,7 @@ At each phase boundary, record the Git SHA, changed files, executed commands, pa
 - Consumes: the existing `pyTorch2.7` environment and CUDA device.
 - Produces: a dated compliance record, `load_pretrained_x3d_s() -> torch.nn.Module` import path decision, and a machine-readable environment probe.
 
-- [ ] **Step 1: Write the rule compliance record**
+- [x] **Step 1: Write the rule compliance record**
 
 Create `docs/x3d_s_rule_compliance.md` with:
 
@@ -140,7 +140,7 @@ Also include, but do not post automatically, a concise organizer clarification d
 
 Initialize `reports/x3d_s_phase_status.md` with the six phases above, all statuses set to `Pending`, plus empty fields for Git SHA, evidence commands, artifacts, risks, and next decision. Set Phase 0 to `In progress` only when implementation begins.
 
-- [ ] **Step 2: Write the failing environment contract test**
+- [x] **Step 2: Write the failing environment contract test**
 
 ```python
 def test_x3d_s_environment_probe_declares_fixed_input_and_source() -> None:
@@ -151,13 +151,13 @@ def test_x3d_s_environment_probe_declares_fixed_input_and_source() -> None:
     assert probe["source_revision"]
 ```
 
-- [ ] **Step 3: Run the test and verify that the probe module is absent**
+- [x] **Step 3: Run the test and verify that the probe module is absent**
 
 Run: `D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest tests/test_x3d_s_environment_contract.py -v`
 
 Expected: FAIL because `scripts.probe_x3d_s_environment` does not exist.
 
-- [ ] **Step 4: Pin the primary dependency**
+- [x] **Step 4: Pin the primary dependency**
 
 Write `requirements-x3d.txt` with:
 
@@ -167,7 +167,7 @@ pytorchvideo==0.1.5
 
 Do not install into a different Python environment. Attempt installation only in `D:\Anaconda\envs\pyTorch2.7` and preserve the full pip output in the probe report.
 
-- [ ] **Step 5: Implement the compatibility probe**
+- [x] **Step 5: Implement the compatibility probe**
 
 The probe must:
 
@@ -181,19 +181,19 @@ The probe must:
 
 If PyTorchVideo 0.1.5 is incompatible with PyTorch 2.7, use the official `facebookresearch/pytorchvideo` source revision that passes this same probe, record the exact commit SHA in `requirements-x3d.txt`, and do not copy an unverified third-party X3D implementation.
 
-- [ ] **Step 6: Run the environment probe**
+- [x] **Step 6: Run the environment probe**
 
 Run: `D:\Anaconda\envs\pyTorch2.7\python.exe -m scripts.probe_x3d_s_environment --output reports/x3d_s_environment_probe.json`
 
 Expected: exit 0, finite output, `x3d_s` source recorded, every inference component hashed, and aggregate serialized size below `95,000,000` bytes.
 
-- [ ] **Step 7: Run the contract test**
+- [x] **Step 7: Run the contract test**
 
 Run: `D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest tests/test_x3d_s_environment_contract.py -v`
 
 Expected: PASS.
 
-- [ ] **Step 8: Commit the compliance and dependency probe**
+- [x] **Step 8: Commit the compliance and dependency probe**
 
 ```bash
 git add requirements-x3d.txt docs/x3d_s_rule_compliance.md reports/x3d_s_phase_status.md scripts/probe_x3d_s_environment.py tests/test_x3d_s_environment_contract.py reports/x3d_s_environment_probe.json

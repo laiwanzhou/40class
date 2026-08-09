@@ -4,7 +4,7 @@ Updated: 2026-08-10 (Asia/Shanghai)
 
 | Phase | Status | Git SHA | Evidence | Risks | Next decision |
 |---|---|---|---|---|---|
-| Phase 0: Compliance and runtime | Verifying | `6ced0937c92c5f72a6e88844fa688a676a5caaee` | Official rules rechecked; official X3D forward, YOLO inventory and conservative size gate passed | X3D-S has no model-specific organizer approval; final trained checkpoint must be remeasured | Run final focused and regression tests, then close Phase 0 |
+| Phase 0: Compliance and runtime | Completed | `c088db0` | Official rules rechecked; official X3D forward, YOLO inventory, conservative size gate, dependency check and 15 focused/regression tests passed | X3D-S has no model-specific organizer approval; final trained checkpoint must be remeasured | Phase 1 may begin |
 | Phase 1: Temporal data contract | Pending | - | - | - | Wait for Phase 0 exit gate |
 | Phase 2: Expert and trainer | Pending | - | - | - | Wait for Phase 1 exit gate |
 | Phase 3: End-to-end verification | Pending | - | - | - | Wait for Phase 2 exit gate |
@@ -20,6 +20,9 @@ Updated: 2026-08-10 (Asia/Shanghai)
 - `D:\Anaconda\envs\pyTorch2.7\python.exe -m pip install -r requirements-x3d.txt`
 - `D:\Anaconda\envs\pyTorch2.7\python.exe -m scripts.probe_x3d_s_environment --output reports/x3d_s_environment_probe.json --pip-log <log> --pip-exit-code 1`
 - `D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest tests/test_x3d_s_environment_contract.py -v`
+- `D:\Anaconda\envs\pyTorch2.7\python.exe -m pip check`
+- `D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest tests/test_x3d_s_environment_contract.py tests/test_expert_contract.py tests/test_ir_primary_input_builder.py tests/test_ir_primary_variable_sequence_dataset.py -v`
+- `git diff --check`
 
 ### Artifacts
 
@@ -44,4 +47,4 @@ Updated: 2026-08-10 (Asia/Shanghai)
 
 ### Exit Gate
 
-Pending final verification only: rerun focused and existing expert/ROI regression tests, validate JSON fields and hashes, run `git diff --check`, then record the Phase 0 completion commit.
+Passed on 2026-08-10. PyTorchVideo imports cleanly, `pip check` reports no broken requirements, the official CUDA forward is finite with the fixed input shape, the conservative aggregate is below the internal limit, all 15 focused/regression tests pass, and implementation evidence is committed as `c088db0`.
