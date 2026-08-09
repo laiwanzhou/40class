@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- Work only in `D:\work\2026.7.14_kaggle\40class-ir-primary-interaction-wt`.
+- Work only in `D:\work\2026.7.14_kaggle\40class-x3d-adaptive-multiclip` on branch `x3d-s-adaptive-multiclip`.
 - Do not read competition test data and do not generate a submission.
 - Treat the official challenge page and the competition host's Kaggle clarification as the compliance basis: lightweight pretrained CNNs and knowledge distillation are allowed, while large pretrained foundation backbones are prohibited.
 - Record the official rule page, the host clarification URL, access date, and verbatim model-size statement in every compliance report.
@@ -98,7 +98,7 @@ Execute phases in order. A phase may start only after the previous phase's exit 
 | Phase | Scope | Entry condition | Exit gate | Status |
 |---|---|---|---|---|
 | Phase 0: Compliance and runtime | Task 1 | New branch/worktree ready | Rule record complete; official pretrained X3D forward passes; complete inference stack `<95,000,000` bytes | Completed (`c088db0`) |
-| Phase 1: Temporal data contract | Task 2 | Phase 0 passes | Adaptive window boundary tests, real duration audit, determinism, padding and leakage tests pass | Pending |
+| Phase 1: Temporal data contract | Task 2 | Phase 0 passes | Adaptive window boundary tests, real duration audit, determinism, padding and leakage tests pass | Completed (`481ccb4`) |
 | Phase 2: Expert and trainer | Tasks 3-4 | Phase 1 passes | Trial-level masked aggregation, gradients, archive schema and focused tests pass | Pending |
 | Phase 3: End-to-end verification | Task 5 | Phase 2 passes | Online/offline ROI parity, shortest/longest trial smoke, overfit test, size audit and full tests pass | Pending |
 | Phase 4: Matched scientific evaluation | Task 6 | Phase 3 passes | Pre-registered run completes; paired comparison and duration/user/class reports generated | Pending |
@@ -212,7 +212,7 @@ git commit -m "Add X3D-S compliance and runtime gate"
 - Consumes: `combined_frame_manifest.csv` columns `split`, `class_id`, `action_name`, `sample_id`, `user_id`, `source_frame_index`, `temporal_valid`, `ir_context_path`, `ir_context_effective_valid`, and `ir_context_reliability`.
 - Produces: `X3DClipDataset`, `X3DClipSample`, `adaptive_clip_count()`, `partition_trial_windows()`, `stratified_temporal_indices()`, and `collate_x3d_clips()`.
 
-- [ ] **Step 1: Write failing tests for grouping and leakage protection**
+- [x] **Step 1: Write failing tests for grouping and leakage protection**
 
 ```python
 def test_dataset_groups_complete_trials_and_preserves_frame_order(tmp_path: Path) -> None:
@@ -231,7 +231,7 @@ def test_dataset_rejects_sample_on_both_split_sides(tmp_path: Path) -> None:
         X3DClipDataset(frame, split="train", training=True)
 ```
 
-- [ ] **Step 2: Write failing tests for deterministic single-view validation**
+- [x] **Step 2: Write failing tests for deterministic single-view validation**
 
 ```python
 def test_validation_emits_one_deterministic_midpoint_view(tmp_path: Path) -> None:
@@ -247,23 +247,28 @@ def test_236_frame_trial_is_partitioned_into_eight_local_clips(tmp_path: Path) -
     item = dataset[0]
     assert item["clips"].shape == (8, 1, 3, 13, 182, 182)
     assert item["clip_mask"].sum().item() == 8
-    assert item["source_indices"].min().item() == 0
-    assert item["source_indices"].max().item() == 235
+    assert item["window_bounds"][0][0] == 0
+    assert item["window_bounds"][-1][1] == 236
+    assert all(
+        start <= index < end
+        for (start, end), indices in zip(item["window_bounds"], item["source_indices"][:, 0])
+        for index in indices.tolist()
+    )
 ```
 
-- [ ] **Step 3: Run the dataset tests and verify failure**
+- [x] **Step 3: Run the dataset tests and verify failure**
 
 Run: `D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest tests/test_x3d_clip_dataset.py -v`
 
 Expected: FAIL because `X3DClipDataset` is absent.
 
-- [ ] **Step 4: Implement strict manifest indexing**
+- [x] **Step 4: Implement strict manifest indexing**
 
 `X3DClipDataset` must validate all required columns, validate the global 40-class map, reject duplicated `(sample_id, source_frame_index)` rows, reject non-contiguous frame order, reject a `sample_id` appearing on both split sides, and verify every selected image exists.
 
 Build one sample per `sample_id`. Never treat individual frames or temporal views as independent labels.
 
-- [ ] **Step 5: Implement length-adaptive trial partitioning**
+- [x] **Step 5: Implement length-adaptive trial partitioning**
 
 For a trial with `L` ordered frames, compute:
 
@@ -275,7 +280,7 @@ Partition all `L` frames into `K` contiguous, non-empty, near-equal windows whos
 
 Return `window_bounds`, `num_frames`, `num_clips`, and `temporal_coverage_fraction`. Unit-test boundary lengths `1`, `13`, `32`, `33`, `64`, `65`, and `236`.
 
-- [ ] **Step 6: Implement temporal sampling inside each local window**
+- [x] **Step 6: Implement temporal sampling inside each local window**
 
 Use 13 temporal bins inside each local window:
 
@@ -286,7 +291,7 @@ Use 13 temporal bins inside each local window:
 
 Expose `dataset.set_epoch(epoch)` so training views change deterministically by epoch.
 
-- [ ] **Step 7: Implement temporally consistent transforms**
+- [x] **Step 7: Implement temporally consistent transforms**
 
 Load `ir_context_path` as grayscale, repeat it to three channels, and apply one spatial parameter set to all 13 frames:
 
@@ -296,11 +301,11 @@ Load `ir_context_path` as grayscale, repeat it to three channels, and apply one 
 
 Return clips as `[K, views, 3, 13, 182, 182]`. Spatial randomness may differ between local windows but must be identical across all 13 frames of one clip.
 
-- [ ] **Step 8: Pad variable clip counts without changing trial semantics**
+- [x] **Step 8: Pad variable clip counts without changing trial semantics**
 
 `collate_x3d_clips()` must pad only the `K` dimension and return `[B,K_max,views,3,13,182,182]`, `clip_mask=[B,K_max]`, and padded `source_indices=[B,K_max,views,13]`. Padded clips must never enter probability or embedding aggregation and should be skipped before X3D execution when practical.
 
-- [ ] **Step 9: Emit fusion-ready metadata**
+- [x] **Step 9: Emit fusion-ready metadata**
 
 Each item must include:
 
@@ -323,13 +328,13 @@ Each item must include:
 }
 ```
 
-- [ ] **Step 10: Run dataset and existing contract tests**
+- [x] **Step 10: Run dataset and existing contract tests**
 
 Run: `D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest tests/test_x3d_clip_dataset.py tests/test_expert_contract.py -v`
 
 Expected: PASS.
 
-- [ ] **Step 11: Commit the dataset**
+- [x] **Step 11: Commit the dataset**
 
 ```bash
 git add src/data/x3d_clip_dataset.py tests/test_x3d_clip_dataset.py

@@ -5,7 +5,7 @@ Updated: 2026-08-10 (Asia/Shanghai)
 | Phase | Status | Git SHA | Evidence | Risks | Next decision |
 |---|---|---|---|---|---|
 | Phase 0: Compliance and runtime | Completed | `c088db0` | Official rules rechecked; official X3D forward, YOLO inventory, conservative size gate, dependency check and 15 focused/regression tests passed | X3D-S has no model-specific organizer approval; final trained checkpoint must be remeasured | Phase 1 may begin |
-| Phase 1: Temporal data contract | Pending | - | - | - | Wait for Phase 0 exit gate |
+| Phase 1: Temporal data contract | Completed | `481ccb4` | 23 dataset tests, 30 focused/regression tests, and all 74 repository tests passed; real shortest/longest trial probe passed | Exported quality fields are constant in this manifest, so they are contract metadata rather than discriminative evidence in the first run | Phase 2 may begin after review |
 | Phase 2: Expert and trainer | Pending | - | - | - | Wait for Phase 1 exit gate |
 | Phase 3: End-to-end verification | Pending | - | - | - | Wait for Phase 2 exit gate |
 | Phase 4: Matched scientific evaluation | Pending | - | - | - | Wait for Phase 3 exit gate |
@@ -48,3 +48,37 @@ Updated: 2026-08-10 (Asia/Shanghai)
 ### Exit Gate
 
 Passed on 2026-08-10. PyTorchVideo imports cleanly, `pip check` reports no broken requirements, the official CUDA forward is finite with the fixed input shape, the conservative aggregate is below the internal limit, all 15 focused/regression tests pass, and implementation evidence is committed as `c088db0`.
+
+## Phase 1 Evidence Log
+
+### Read-Only Manifest Audit
+
+- Source: `D:\work\2026.7.14_kaggle\datasets\Small-Model-Track\roi640_depth_ordinal_256\combined_frame_manifest.csv`
+- 84,906 frame rows, 2,910 unique trials, and class IDs 0 through 39.
+- Train: 67,216 frames, 2,320 trials, 14 users. Validation: 17,690 frames, 590 trials, 4 users.
+- Train and validation have no user or `sample_id` overlap.
+- Required columns contain no nulls; `(sample_id, source_frame_index)` is unique.
+- Every trial begins at source index zero and has a complete contiguous index range.
+- Selected `ir_context_path` values are absolute and exist.
+- `temporal_valid`, `ir_context_effective_valid`, and `ir_context_reliability` are all 1 for every row.
+
+### Implementation and Verification
+
+- RED: `tests/test_x3d_clip_dataset.py` failed during collection because `src.data.x3d_clip_dataset` did not exist.
+- GREEN: all 23 adaptive dataset tests passed after implementing strict indexing, adaptive windowing, stratified sampling, temporally consistent transforms, variable-clip collation, and fusion metadata.
+- Real manifest construction produced 2,320 train trials and 590 validation trials, preserving 14/4 users.
+- The one-frame trial emitted `[1,1,3,13,182,182]`; the 236-frame trial emitted `[8,1,3,13,182,182]` with contiguous bounds `[[0,30], ..., [207,236]]`.
+- Repeated access to the longest validation trial produced identical clips and source indices.
+- `D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest tests/test_x3d_clip_dataset.py tests/test_expert_contract.py tests/test_ir_primary_variable_sequence_dataset.py -v`: 30 passed.
+- `D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest -q`: 74 passed.
+- `python -m compileall` and `git diff --check` passed.
+
+### Artifacts
+
+- `src/data/x3d_clip_dataset.py`
+- `tests/test_x3d_clip_dataset.py`
+- Implementation commit: `481ccb4 Add trial-safe adaptive X3D clip dataset`
+
+### Exit Gate
+
+Passed on 2026-08-10. Boundary lengths 1, 13, 32, 33, 64, 65, and 236 are covered; window union, deterministic validation, epoch-seeded training views, consistent spatial transforms, split leakage rejection, variable-`K` padding, metadata, and real shortest/longest trial behavior are verified. Stage 2 was not started.
