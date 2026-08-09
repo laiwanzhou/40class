@@ -30,7 +30,25 @@ Compare exactly three Depth loader representations (`raw`, `relative`, `raw+rela
 - [x] **Stage 4 complete: Depth-only ordinal/mask exporter and combined manifest implementation.** The exporter writes only two ordinal Depth value views and their separate binary masks, while referencing the existing four IR files without copying them. The combined manifest preserves source paths, frame order, timestamps/frame ids/deltas, pose/content/effective masks, pixel coverage, and deterministic reliability. Eleven focused tests pass, and a read-only join over all `84,906` train/val frames found `0` missing IR references or pairing/key mismatches.
 - [x] **Stage 5 complete: real-data export smoke test and pixel audit.** A fixed 82-trial subset covers all 40 classes, one train and one validation trial per class, plus the two known Stage 2 Depth content-invalid trials. It exported all `3,562` selected original frames into `14,248` Depth PNGs (two ordinal views plus two independent masks), while reusing rather than copying the four IR views. Every stored value/mask was independently recomputed from native Depth_Color and ROI coordinates: value mismatches `0`, mask mismatches `0`, and nonzero values behind invalid masks `0`. Twelve neighboring-frame contact sheets were generated and inspected.
 - [x] **Stage 6 complete: full Depth-only ordinal export and integrity audit.** All `2,910` train/val trials and `84,906` original paired frames were exported without temporal sampling. The full asset contains `169,812` ordinal value PNGs and `169,812` independent pixel masks (`339,624` data PNGs, about `3.507 GiB`) while referencing the existing four IR views. A full native-source recomputation found `0` ordinal pixel mismatches, `0` mask mismatches, and `0` nonzero values behind invalid masks. All manifest, frame-order, timestamp/delta, shape/dtype, binary-mask, IR-reference, and retained-content checks passed.
-- [ ] **Stage 7 not started: variable-length loader/model/trainer refactor plus expert-interface contract.** The obsolete Stage A/B code has not been refactored and must not be used for training yet. Stage 7 will expose stable visual expert outputs for future fusion, but it must not read, train, or connect Skeleton/IMU/Radar.
+- [x] **Stage 7 complete: variable-length loader/model/trainer refactor plus expert-interface contract.** The obsolete Stage A/B/cache training path has been removed from the active trainer. Complete-trial loading, frame-budget batching, in-memory temporal padding, padding-safe multi-scale TCN processing, end-to-end single-stage training, and the reserved visual expert contract are implemented. Real-manifest read-only acceptance, `42` repository tests, implementation reporting, and independent review all passed.
+
+Completed Stage 7 implementation:
+
+- `src/data/ir_primary_full_sequence_dataset.py`: complete variable-length trials, fixed `[raw, relative, pixel_valid]` Depth interface, clip-level relative statistics/fallback, deterministic quality schema, collate-time padding, and `FrameBudgetBatchSampler`.
+- `src/models/expert_contract.py`: `ExpertOutput`, `ExpertBatchResult`, strict `sample_id` alignment, class-map checks, and the predeclared calibrated probability-mixture primitive.
+- `src/models/full_sequence_multiscale_tcn.py`: temporal masks are reapplied inside residual blocks and normalization is per time step so padded positions do not affect valid-frame statistics.
+- `src/models/ir_primary_depth_residual_tcn.py`: valid-view-only spatial encoding, mask-aware Depth pooling, six-view reliability injection, full-sequence TCN, 40-class main output, and visual-only small-action gate.
+- `src/train_ir_primary_depth_residual_fullseq.py`: one end-to-end variable-length training stage; no spatial cache, Stage A, Stage B, 24-frame sampling, or 96-frame sampling.
+- New tests: `tests/test_ir_primary_variable_sequence_dataset.py`, `tests/test_expert_contract.py`, and `tests/test_variable_sequence_trainer_contract.py`, plus the updated model tests.
+
+Stage 7 boundaries remain intact: Skeleton/IMU/Radar were not read or connected; competition test was not read; no training ran; Stage 8 has not started.
+
+Stage 7 outputs:
+
+- `reports/depth_ordinal_stage7_variable_sequence_implementation.md`
+- `reports/depth_ordinal_stage7_independent_review.md`
+
+Stage 7 result: **passed with no P0/P1 findings**. The real manifest contains `84,906` frames and `2,320/590` train/validation trials with disjoint 14/4 users, 40 classes, and complete sequence lengths from 1 to 236 frames. Frame-budget batching had zero omissions, duplicates, or batches above the 256 padded-frame budget. The independent follow-up also confirmed checkpoint-on/off equality for all 43 BatchNorm states and both spatial-encoder gradients.
 
 Stage 6 outputs:
 
@@ -426,17 +444,9 @@ The completed Stage 2 audit measures `3.62%` global all-local-invalid, `2.14%` f
 
 For this experiment, keep the existing `imgsz=640` pose cache fixed. Do not test or regenerate an `imgsz=1280` pose cache: the user has decided not to introduce that variable in the current route. The normalized temporal/swap audit is for validating masks and identifying unreliable views under the fixed 640 input, not for opening a 640/1280 comparison.
 
-## Current code caveat
+## Current code status
 
-Untracked files currently include:
-
-- `src/data/ir_primary_full_sequence_dataset.py`
-- `src/models/ir_primary_depth_residual_tcn.py`
-- `src/train_ir_primary_depth_residual_fullseq.py`
-- `configs/experiments/ir_primary_depth_residual_fullseq.yaml`
-- ROI builders, exporters, audit scripts, reports, and tests.
-
-The ROI builder/export/audit work is useful. The dataset/model/training code still contains the obsolete Stage A/Stage B design and must be refactored before formal use. Do not start training from that entry point merely because its earlier smoke test passed.
+The active dataset, model, trainer, configuration, expert contract, and Stage 7 tests have been refactored to the variable-length design described above. The obsolete Stage A/Stage B cache path is no longer present in the active trainer. Formal training remains prohibited until the Stage 7 independent review passes and Stages 8-9 complete the preregistered representation smoke tests and pilots.
 
 ## Suggested implementation sequence
 
