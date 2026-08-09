@@ -12,6 +12,9 @@ def test_trainer_has_no_obsolete_fixed_frame_or_cache_stages() -> None:
     assert "FrameBudgetBatchSampler" in source
     assert "competition_test_read" in source
     assert '"skeleton_connected"] = False' in source
+    assert 'choices=("raw", "relative", "raw+relative")' in source
+    assert 'parser.add_argument("--epochs"' in source
+    assert 'parser.add_argument("--patience"' in source
 
 
 def test_history_row_keeps_shared_plot_columns() -> None:

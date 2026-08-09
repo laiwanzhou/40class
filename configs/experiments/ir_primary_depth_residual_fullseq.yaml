@@ -40,3 +40,7 @@ stop_file_name: STOP_AFTER_EPOCH
 smoke_train_samples: 2
 smoke_val_samples: 2
 smoke_epochs: 1
+
+pilot_epochs: 8
+pilot_patience: 8
+pilot_accuracy_tolerance: 0.02

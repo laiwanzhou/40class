@@ -38,6 +38,14 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--smoke-test", action="store_true")
     parser.add_argument("--run-id", default=RUN_ID)
+    parser.add_argument(
+        "--depth-representation",
+        choices=("raw", "relative", "raw+relative"),
+        default=None,
+        help="Override only the Depth input representation while keeping the shared config fixed.",
+    )
+    parser.add_argument("--epochs", type=int, default=None)
+    parser.add_argument("--patience", type=int, default=None)
     return parser.parse_args()
 
 
@@ -327,6 +335,16 @@ def stop_requested(run_dir: Path, config: dict[str, Any]) -> bool:
 
 def run(args: argparse.Namespace) -> None:
     config = yaml.safe_load(args.config.resolve().read_text(encoding="utf-8"))
+    if args.depth_representation is not None:
+        config["depth_representation"] = args.depth_representation
+    if args.epochs is not None:
+        if args.epochs <= 0:
+            raise ValueError("epochs must be positive")
+        config["epochs"] = args.epochs
+    if args.patience is not None:
+        if args.patience <= 0:
+            raise ValueError("patience must be positive")
+        config["patience"] = args.patience
     set_seed(int(config["seed"]))
     device = torch.device(str(config["device"]))
     if device.type == "cuda" and not torch.cuda.is_available():

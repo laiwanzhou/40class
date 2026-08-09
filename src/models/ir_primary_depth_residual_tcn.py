@@ -99,7 +99,6 @@ def _encode_valid(
 ) -> torch.Tensor:
     flat_inputs = inputs.flatten(0, 2)
     flat_valid = valid.flatten()
-    output = inputs.new_zeros((len(flat_inputs), output_dim))
     if flat_valid.any():
         selected = flat_inputs[flat_valid]
         selected_mask = None if pixel_valid is None else pixel_valid.flatten(0, 2)[flat_valid]
@@ -123,7 +122,10 @@ def _encode_valid(
                 encoded = encoder(images) if masks is None else encoder(images, masks)
             pieces.append(encoded)
         encoded = torch.cat(pieces)
+        output = encoded.new_zeros((len(flat_inputs), output_dim))
         output[flat_valid] = encoded
+    else:
+        output = inputs.new_zeros((len(flat_inputs), output_dim))
     return output.reshape(*inputs.shape[:3], output_dim)
 
 

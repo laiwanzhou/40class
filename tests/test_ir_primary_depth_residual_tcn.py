@@ -90,3 +90,11 @@ def test_activation_checkpointing_preserves_spatial_gradients() -> None:
     assert network.depth_encoder.features[0].weight.grad is not None
     assert int(network.ir_encoder[0][0][1].num_batches_tracked) == 1
     assert int(network.depth_encoder.features[1].num_batches_tracked) == 1
+
+
+def test_bfloat16_autocast_accepts_valid_view_scatter() -> None:
+    network = model().eval()
+    with torch.autocast("cpu", dtype=torch.bfloat16), torch.inference_mode():
+        output = network(*inputs(frames=2))
+    assert output.expert.main_logits.dtype == torch.bfloat16
+    assert torch.isfinite(output.expert.main_logits).all()
