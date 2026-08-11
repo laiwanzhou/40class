@@ -36,15 +36,30 @@ Model families may change after controlled train-14 experiments, but external ev
 
 ## 3. 40-action capability-map evidence hierarchy
 
-Maintain a `40 actions x 6 modalities` capability map throughout Phase 6. Each action/modality cell records `expected_strength`, `evidence_level`, `reason`, and `experimental_status`.
+Maintain a `40 actions x 6 modalities` capability map throughout Phase 6. Each action/modality cell must keep **native-potential priors separate from observed model performance**. Record at least:
+
+```text
+expected_native_potential
+observed_strength
+observed_model_or_representation
+evidence_level
+evaluation_scope
+reason
+experimental_status
+source_reference
+```
 
 Evidence levels are:
 
-- **A — internal CUHK-X/CUHK-S experiment:** canonical or clearly identified cross-user evidence from this repository. This is the highest-priority evidence for model decisions.
+- **A — internal CUHK-X/CUHK-S experiment:** direct evidence from this repository. `evaluation_scope` must state whether it is canonical train-14 OOF, another cross-user split, or a diagnostic subset.
 - **B — official CUHK-X evidence:** official dataset/benchmark/sensor documentation. It establishes that a modality contains useful signal but must not be treated as numerically comparable when the official split differs from our strict cross-subject protocol.
 - **C — sensor/research prior:** physical sensing properties and relevant external HAR research. This is a hypothesis to be tested, not a fusion weight.
 
-When evidence conflicts, A overrides C for this dataset. B/C may motivate a new experiment but may not erase an A-level failure. Every retained Phase 6 expert updates its column with new A-level per-class OOF evidence.
+Canonical train-14 A-level OOF evidence has the highest priority for selecting the **current model candidate**. Historical A-level evidence remains valuable but is tagged with its original split and cannot be numerically mixed with canonical OOF.
+
+A weak A-level result is evidence about the tested representation/model under its stated scope, not automatically proof that the physical modality has low native potential. For example, an underfitting 21-stat Radar TCN remains evidence that the 21-stat representation failed; it does not erase a C/B-level reason to test raw point-set Radar. Therefore do not collapse `observed_strength` and `expected_native_potential` into one value.
+
+Every retained Phase 6 expert updates its column with new canonical A-level per-class OOF evidence.
 
 The capability map is a **design and diagnosis artifact only**. It must never directly hard-code class-specific fusion weights, routing rules, or labels. Fusion weights are learned only from leakage-free OOF evidence.
 
@@ -95,17 +110,18 @@ These are scientific fusion semantics, not general-purpose production robustness
 
 ## 7. Fusion compatibility boundary
 
-The first fusion baseline is deliberately low-assumption:
+The first safe anchor is deliberately low-assumption:
 
 ```text
 per-expert logits/probabilities
 + availability
-+ label-free quality
         -> scalar calibration
         -> masked non-negative available-expert mixture (safe anchor)
 ```
 
-Phase 9 may add a tiny residual correction, but its first registered version should also consume calibrated/log-probability evidence, availability, modality ID, and label-free quality rather than depending on raw heterogeneous embeddings. An embedding/engineered-summary fusion study is a separate later ablation only after an explicit cross-fold representation-alignment analysis.
+Label-free native `quality` and normalized `fusion_quality_score` are carried in the common evidence interface from the start, but the first registered safe anchor does **not** need to use them to modulate its mixture weights. This keeps Phase 8 consistent with the frozen global-weight masked mixture. Quality becomes available to Phase 9's explicitly evaluated residual gate/model without changing the anchor definition.
+
+Phase 9 may add a tiny residual correction, but its first registered version should consume calibrated/log-probability evidence, availability, modality ID, and label-free quality rather than depending on raw heterogeneous embeddings. An embedding/engineered-summary fusion study is a separate later ablation only after an explicit cross-fold representation-alignment analysis.
 
 The safe anchor remains a complete model even if the residual mixer is rejected.
 
@@ -180,7 +196,8 @@ Program reviews answer the following questions:
 - Does each model direction preserve the information native to its sensor?
 - Are all reported generalization results genuinely user-held-out?
 - Are modality sample identities, class order, folds, and evidence roles compatible?
-- Is the capability-map evidence clearly separated into A/B/C rather than mixing priors with results?
+- Is the capability-map evidence clearly separated into A/B/C and evaluation scopes rather than mixing priors with results?
+- Does a weak model result remain correctly attributed to its tested representation rather than automatically declaring the entire sensor weak?
 - Can every retained expert enter the same sparse evidence registry without changing trial semantics?
 - Does fusion use leakage-free evidence and handle natural modality availability correctly?
 - Does the complete inference model satisfy the competition's aggregate model-size interpretation?
