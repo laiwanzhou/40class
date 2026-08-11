@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "role": "phase4_strict_v2_launch_addendum",
+  "status": "frozen_before_training",
+  "protocol_amendment_path": "reports/x3d_s_phase4_protocol_amendment.json",
+  "protocol_implementation_git_sha": "335f5e201e4276235cc56e91de22aa402100c414",
+  "launch_git_sha": "b0593dc7c8ac7e945a7b167be550ed47de53e167",
+  "failed_launch": {
+    "run_id": "x3d_s_ir_context_adaptive_oof_strict_v2_seed20260715",
+    "completed_epochs": 0,
+    "checkpoint_exists": false,
+    "prediction_archive_exists": false,
+    "outer_validation_accessed": false,
+    "reason": "PowerShell promoted the PyTorch CuBLAS determinism stderr warning to NativeCommandError before epoch 1.",
+    "preserve_and_never_resume_or_overwrite": true
+  },
+  "deterministic_cuda_environment": {
+    "CUBLAS_WORKSPACE_CONFIG": ":4096:8"
+  },
+  "replacement_run_id": "x3d_s_ir_context_adaptive_oof_strict_v2b_seed20260715",
+  "scientific_protocol_changed": false,
+  "results_inspected_before_addendum": false,
+  "heldout_labels_or_predictions_accessed": false
+}
