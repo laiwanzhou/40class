@@ -83,6 +83,21 @@ def test_dataset_groups_complete_trials_and_preserves_frame_order(tmp_path: Path
     assert item["class_map_hash"] == dataset.class_map_hash
 
 
+def test_dataset_normalizes_singleton_channel_grayscale_decode(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dataset = X3DClipDataset(
+        fixture_manifest(tmp_path), split="train", training=True, seed=17
+    )
+    decoded = np.zeros((256, 256, 1), dtype=np.uint8)
+    monkeypatch.setattr(cv2, "imread", lambda *_args, **_kwargs: decoded.copy())
+
+    item = dataset[0]
+
+    assert item["clips"].shape == (1, 1, 3, 13, 182, 182)
+
+
 def test_dataset_rejects_sample_on_both_split_sides(tmp_path: Path) -> None:
     frame = fixture_manifest(tmp_path)
     duplicate = frame.iloc[0].to_dict()
@@ -142,6 +157,23 @@ def test_training_sampling_is_epoch_deterministic(tmp_path: Path) -> None:
     dataset.set_epoch(4)
     changed = dataset[0]
     assert not torch.equal(first["source_indices"], changed["source_indices"])
+
+
+def test_training_can_disable_temporal_and_spatial_augmentation(tmp_path: Path) -> None:
+    dataset = X3DClipDataset(
+        fixture_manifest(tmp_path, primary_frames=64),
+        split="train",
+        training=True,
+        augmentation_enabled=False,
+        seed=29,
+    )
+    dataset.set_epoch(1)
+    first = dataset[0]
+    dataset.set_epoch(20)
+    last = dataset[0]
+
+    torch.testing.assert_close(first["clips"], last["clips"], atol=0.0, rtol=0.0)
+    torch.testing.assert_close(first["source_indices"], last["source_indices"])
 
 
 def test_spatial_transform_is_identical_for_all_frames_in_a_clip(tmp_path: Path) -> None:

@@ -190,6 +190,8 @@ def run_model_epoch(
     processed_clips = 0
     model_seconds = 0.0
     latency_buckets: dict[str, list[float]] = {}
+    backbone_received_finite_gradient = False
+    head_received_finite_gradient = False
 
     context = torch.enable_grad if training else torch.inference_mode
     with context():
@@ -227,6 +229,17 @@ def run_model_epoch(
                 end_of_window = (batch_index + 1) % gradient_accumulation == 0
                 end_of_epoch = batch_index + 1 == total_batches
                 if end_of_window or end_of_epoch:
+                    named_parameters = tuple(model.named_parameters())
+                    backbone_received_finite_gradient |= _received_finite_gradient(
+                        parameter
+                        for name, parameter in named_parameters
+                        if name.startswith("backbone.")
+                    )
+                    head_received_finite_gradient |= _received_finite_gradient(
+                        parameter
+                        for name, parameter in named_parameters
+                        if not name.startswith("backbone.")
+                    )
                     torch.nn.utils.clip_grad_norm_(model.parameters(), gradient_clip)
                     optimizer.step()
                     optimizer.zero_grad(set_to_none=True)
@@ -284,6 +297,8 @@ def run_model_epoch(
             "trial_latency_ms_by_length_bucket": {
                 bucket: float(np.mean(values)) for bucket, values in sorted(latency_buckets.items())
             },
+            "backbone_received_finite_gradient": backbone_received_finite_gradient,
+            "head_received_finite_gradient": head_received_finite_gradient,
         }
     )
     return EpochOutcome(metrics=metrics, predictions=prediction_result)
@@ -477,6 +492,14 @@ def train_partition(
         "max_valid_clips_per_batch": int(loader_config["max_valid_clips_per_batch"]),
         "mean_train_clips_per_trial": float(np.mean(getattr(train_dataset, "num_clips"))),
         "max_train_clips_per_trial": int(max(getattr(train_dataset, "num_clips"))),
+        "head_gradient_verified": any(
+            bool(row["train_head_received_finite_gradient"]) for row in history
+        ),
+        "backbone_gradient_verified_after_unfreeze": any(
+            int(row["epoch"]) > warmup_epochs
+            and bool(row["train_backbone_received_finite_gradient"])
+            for row in history
+        ),
         "processed_clips_per_second": history[-1]["train_processed_clips_per_second"],
         "trial_latency_ms_by_length_bucket": validation_outcome.metrics[
             "trial_latency_ms_by_length_bucket"
@@ -726,6 +749,22 @@ def prepare_run_directory(output_root: Path, run_id: str) -> Path:
     return run_directory
 
 
+def apply_runtime_overrides(
+    config: Mapping[str, Any],
+    args: argparse.Namespace,
+) -> tuple[dict[str, Any], int | None, int | None]:
+    resolved = copy.deepcopy(dict(config))
+    if args.epochs is not None:
+        resolved["training"]["epochs"] = int(args.epochs)
+    max_train_batches = args.max_train_batches
+    max_val_batches = args.max_val_batches
+    if args.smoke_test:
+        resolved["training"]["epochs"] = 3
+        max_train_batches = max_train_batches or 1
+        max_val_batches = max_val_batches or 1
+    return resolved, max_train_batches, max_val_batches
+
+
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Train adaptive multi-clip X3D-S IR expert")
     parser.add_argument("--config", type=Path, required=True)
@@ -755,6 +794,15 @@ def _tensor(batch: Mapping[str, object], key: str) -> torch.Tensor:
     return value
 
 
+def _received_finite_gradient(parameters: Iterator[torch.nn.Parameter]) -> bool:
+    gradients = [parameter.grad for parameter in parameters if parameter.grad is not None]
+    return (
+        bool(gradients)
+        and all(bool(torch.isfinite(gradient).all()) for gradient in gradients)
+        and any(bool(torch.count_nonzero(gradient).item()) for gradient in gradients)
+    )
+
+
 def _epoch_metrics(result: TrialPredictionResult, loss: float) -> dict[str, Any]:
     labels = result.labels.numpy()
     predictions = result.output.main_logits.argmax(dim=1).numpy()
@@ -780,8 +828,8 @@ def _epoch_metrics(result: TrialPredictionResult, loss: float) -> dict[str, Any]
 def _warmup_cosine_multiplier(epoch_index: int, epochs: int, warmup_epochs: int) -> float:
     if epoch_index < warmup_epochs:
         return (epoch_index + 1) / warmup_epochs
-    remaining = max(1, epochs - warmup_epochs)
-    progress = min(1.0, (epoch_index - warmup_epochs + 1) / remaining)
+    decay_intervals = max(1, epochs - warmup_epochs - 1)
+    progress = min(1.0, (epoch_index - warmup_epochs) / decay_intervals)
     return 0.5 * (1.0 + math.cos(math.pi * progress))
 
 
@@ -802,6 +850,10 @@ def _history_row(
         "train_class_coverage": train_metrics["class_coverage"],
         "train_zero_recall_class_count": train_metrics["zero_recall_class_count"],
         "train_worst_user_accuracy": train_metrics["worst_user_accuracy"],
+        "train_backbone_received_finite_gradient": train_metrics[
+            "backbone_received_finite_gradient"
+        ],
+        "train_head_received_finite_gradient": train_metrics["head_received_finite_gradient"],
         "val_loss": validation_metrics["loss"],
         "val_accuracy": validation_metrics["accuracy"],
         "val_macro_f1": validation_metrics["macro_f1"],
@@ -904,14 +956,7 @@ def run(args: argparse.Namespace) -> None:
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     if not isinstance(config, dict):
         raise ValueError("Config root must be a mapping")
-    if args.epochs is not None:
-        config = copy.deepcopy(config)
-        config["training"]["epochs"] = args.epochs
-    if args.smoke_test:
-        config = copy.deepcopy(config)
-        config["training"]["epochs"] = min(1, int(config["training"]["epochs"]))
-        args.max_train_batches = args.max_train_batches or 2
-        args.max_val_batches = args.max_val_batches or 2
+    config, max_train_batches, max_val_batches = apply_runtime_overrides(config, args)
     validate_config(config)
     _set_seed(int(config["seed"]))
     device = torch.device(str(config["device"]))
@@ -954,7 +999,7 @@ def run(args: argparse.Namespace) -> None:
             config=config,
             run_directory=run_directory,
             device=device,
-            max_train_batches=args.max_train_batches,
+            max_train_batches=max_train_batches,
         )
         summary["train_user_ids"] = sorted(official_train_users)
         (run_directory / "run_summary.json").write_text(
@@ -1022,8 +1067,8 @@ def run(args: argparse.Namespace) -> None:
             config=config,
             run_directory=partition_directory,
             device=device,
-            max_train_batches=args.max_train_batches,
-            max_val_batches=args.max_val_batches,
+            max_train_batches=max_train_batches,
+            max_val_batches=max_val_batches,
         )
         summary["fold"] = partition.fold
         summary["train_user_ids"] = list(partition.train_user_ids)

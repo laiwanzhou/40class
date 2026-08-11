@@ -4,8 +4,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
 
+import cv2
 import numpy as np
-from ultralytics import YOLO
 
 
 COCO_KEYPOINTS = (
@@ -48,17 +48,34 @@ class UltralyticsPoseLocator:
         self.weights = Path(weights).resolve()
         if not self.weights.is_file():
             raise FileNotFoundError(f"Pose weights not found: {self.weights}")
+        original_cv2_functions = {
+            name: getattr(cv2, name) for name in ("imread", "imwrite", "imshow")
+        }
+        try:
+            from ultralytics import YOLO
+        finally:
+            for name, function in original_cv2_functions.items():
+                setattr(cv2, name, function)
         self.model = YOLO(str(self.weights))
         self.device = device
         self.image_size = image_size
         self.detection_confidence = detection_confidence
 
-    def predict(self, images: Sequence[np.ndarray]) -> list[PoseDetection | None]:
+    def predict(
+        self,
+        images: Sequence[np.ndarray],
+        *,
+        detection_confidence: float | None = None,
+    ) -> list[PoseDetection | None]:
         results = self.model.predict(
             list(images),
             device=self.device,
             imgsz=self.image_size,
-            conf=self.detection_confidence,
+            conf=(
+                self.detection_confidence
+                if detection_confidence is None
+                else float(detection_confidence)
+            ),
             verbose=False,
         )
         detections: list[PoseDetection | None] = []

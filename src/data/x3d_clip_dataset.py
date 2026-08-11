@@ -131,6 +131,10 @@ def _read_gray_tensor(path: str | Path) -> torch.Tensor:
     image = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
     if image is None:
         raise ValueError(f"Could not read image: {path}")
+    if image.ndim == 3 and image.shape[2] == 1:
+        image = image[:, :, 0]
+    if image.ndim != 2:
+        raise ValueError(f"Expected grayscale image at {path}, got shape {image.shape}")
     return torch.from_numpy(image.copy()).unsqueeze(0).to(torch.float32).div_(255.0)
 
 
@@ -234,6 +238,7 @@ class X3DClipDataset(Dataset[X3DClipSample]):
         *,
         split: str,
         training: bool,
+        augmentation_enabled: bool = True,
         seed: int = 20260715,
     ) -> None:
         if split not in {"train", "val"}:
@@ -266,6 +271,7 @@ class X3DClipDataset(Dataset[X3DClipSample]):
         self.class_map_hash = class_map_hash(self.class_rows)
         self.class_names = self.class_rows["action_name"].astype(str).tolist()
         self.training = bool(training)
+        self.augmentation_enabled = bool(augmentation_enabled) and self.training
         self.seed = int(seed)
         self.epoch = 0
 
@@ -323,7 +329,7 @@ class X3DClipDataset(Dataset[X3DClipSample]):
             indices = stratified_temporal_indices(
                 start,
                 end,
-                training=self.training,
+                training=self.augmentation_enabled,
                 generator=generator,
             )
             selected_indices.append(indices)
@@ -337,7 +343,7 @@ class X3DClipDataset(Dataset[X3DClipSample]):
                 temporal_frames.append(image_cache[source_index])
             clip = _transform_clip_frames(
                 temporal_frames,
-                training=self.training,
+                training=self.augmentation_enabled,
                 generator=generator,
             )
             clips.append(clip.unsqueeze(0))

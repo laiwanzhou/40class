@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import json
 from pathlib import Path
 
@@ -11,11 +12,14 @@ from torch import nn
 from torch.utils.data import Dataset
 
 from src.models.expert_contract import ExpertOutput
+from src.data.ir_primary_full_sequence_dataset import class_map_hash
 from src.models.x3d_s_visual_expert import X3DSVisualExpert
+from scripts.audit_x3d_s_run import audit_smoke_run
 from src.train_x3d_s_visual_expert import (
     ClipBudgetBatchSampler,
     TrialPredictionResult,
     aggregate_clip_predictions,
+    apply_runtime_overrides,
     build_arg_parser,
     finalize_train14,
     prepare_finalize_manifest,
@@ -27,6 +31,7 @@ from src.train_x3d_s_visual_expert import (
     validate_config,
     validate_oof_assignment,
     validate_user_partition,
+    _warmup_cosine_multiplier,
 )
 
 
@@ -285,6 +290,28 @@ def test_cli_and_run_directory_reject_overwrite(tmp_path: Path) -> None:
         prepare_run_directory(tmp_path, "new-run")
 
 
+def test_smoke_runtime_reaches_backbone_unfreeze_with_one_microbatch() -> None:
+    config = fixed_config(Path("."))
+    args = argparse.Namespace(
+        epochs=None,
+        smoke_test=True,
+        max_train_batches=None,
+        max_val_batches=None,
+    )
+
+    resolved, max_train_batches, max_val_batches = apply_runtime_overrides(config, args)
+
+    assert resolved["training"]["epochs"] == 3
+    assert max_train_batches == 1
+    assert max_val_batches == 1
+
+
+def test_cosine_schedule_keeps_nonzero_lr_for_first_unfrozen_epoch() -> None:
+    assert _warmup_cosine_multiplier(0, epochs=3, warmup_epochs=2) == pytest.approx(0.5)
+    assert _warmup_cosine_multiplier(1, epochs=3, warmup_epochs=2) == pytest.approx(1.0)
+    assert _warmup_cosine_multiplier(2, epochs=3, warmup_epochs=2) == pytest.approx(1.0)
+
+
 def test_eval_epoch_emits_one_prediction_per_trial() -> None:
     model = tiny_trainer_model()
 
@@ -328,6 +355,8 @@ def test_train_epoch_updates_head_without_updating_bn_running_stats() -> None:
     )
 
     assert outcome.metrics["sample_count"] == 4
+    assert outcome.metrics["backbone_received_finite_gradient"] is True
+    assert outcome.metrics["head_received_finite_gradient"] is True
     assert not torch.equal(model.classifier.weight, classifier_before)
     torch.testing.assert_close(backbone.bn.running_mean, running_mean_before, atol=0.0, rtol=0.0)
 
@@ -371,6 +400,29 @@ def test_train_partition_writes_checkpoints_archives_and_summary(tmp_path: Path)
     assert summary["best_accuracy"]["epoch"] == 1
 
 
+def test_train_partition_records_backbone_gradient_after_epoch_three(tmp_path: Path) -> None:
+    config = fixed_config(tmp_path)
+    config["training"] = {"epochs": 3, "warmup_epochs": 2, "patience": 8}
+    config["amp"] = {"enabled": False, "dtype": "bfloat16"}
+    config["deployment_artifacts"] = {"yolo_checkpoint": None}
+    run_directory = tmp_path / "gradient-smoke"
+    run_directory.mkdir()
+
+    summary = train_partition(
+        model=tiny_trainer_model(),
+        train_dataset=TinyTrialDataset("train", 2),
+        validation_dataset=TinyTrialDataset("val", 2),
+        config=config,
+        run_directory=run_directory,
+        device=torch.device("cpu"),
+        max_train_batches=1,
+        max_val_batches=1,
+    )
+
+    assert summary["head_gradient_verified"] is True
+    assert summary["backbone_gradient_verified_after_unfreeze"] is True
+
+
 def test_finalize_train14_trains_fixed_epochs_without_validation(tmp_path: Path) -> None:
     config = fixed_config(tmp_path)
     config["training"] = {"epochs": 1, "warmup_epochs": 2, "patience": 8}
@@ -409,3 +461,66 @@ def test_finalize_manifest_requires_exactly_all_official_train_users() -> None:
     assert set(selected["split"]) == {"train"}
     with pytest.raises(ValueError, match="missing official train-14"):
         prepare_finalize_manifest(frame.iloc[:2], official_train_users={"u1", "u2", "u3"})
+
+
+def test_smoke_audit_counts_deployable_files_once_and_checks_fusion(tmp_path: Path) -> None:
+    class_rows = pd.DataFrame(
+        {"class_id": range(40), "action_name": [f"class-{index}" for index in range(40)]}
+    )
+    manifest = tmp_path / "manifest.csv"
+    class_rows.assign(
+        split="val",
+        sample_id=[f"sample-{index}" for index in range(40)],
+        user_id="u",
+        source_frame_index=0,
+    ).to_csv(manifest, index=False, encoding="utf-8-sig")
+    expected_hash = class_map_hash(class_rows)
+    smoke = tmp_path / "smoke"
+    smoke.mkdir()
+    torch.save(
+        {
+            "model_state_dict": {
+                "backbone.weight": torch.ones(3, 3),
+                "embedding_head.weight": torch.ones(4, 3),
+                "classifier.weight": torch.ones(40, 4),
+            }
+        },
+        smoke / "best_accuracy.pt",
+    )
+    sample_ids = np.asarray(["sample-0", "sample-1"])
+    logits = np.random.default_rng(7).normal(size=(2, 40)).astype(np.float32)
+    archive = {
+        "sample_ids": sample_ids,
+        "user_ids": np.asarray(["u", "u"]),
+        "labels": np.asarray([0, 1]),
+        "logits": logits,
+        "embeddings": np.ones((2, 256), dtype=np.float32),
+        "quality": np.ones((2, 6), dtype=np.float32),
+        "quality_mask": np.ones((2, 6), dtype=bool),
+        "availability": np.ones((2, 1), dtype=bool),
+        "class_map_hash": np.asarray(expected_hash),
+        "num_frames": np.asarray([13, 33]),
+        "num_clips": np.asarray([1, 2]),
+    }
+    for objective in ("best_accuracy", "best_macro_f1"):
+        np.savez_compressed(smoke / f"val_predictions_{objective}.npz", **archive)
+    (smoke / "run_summary.json").write_text(
+        json.dumps({"val_samples_evaluated_last_epoch": 2}), encoding="utf-8"
+    )
+    yolo = tmp_path / "yolo.pt"
+    yolo.write_bytes(b"pose-weights")
+    config = {
+        "input_manifest": str(manifest),
+        "deployment_artifacts": {"yolo_checkpoint": str(yolo)},
+        "size_gate": {"internal_limit_bytes": 95_000_000},
+    }
+
+    report = audit_smoke_run(config, smoke)
+
+    assert report["status"] == "passed"
+    assert report["deployable_file_count"] == 2
+    assert report["custom_head_counted_twice"] is False
+    assert report["validation_archive_complete"] is True
+    assert report["alignment_gate_passed"] is True
+    assert report["alpha_zero_gate_passed"] is True
+    assert report["class_map_hash"] == expected_hash

@@ -656,7 +656,7 @@ Use 16 training samples covering at least 8 classes and containing both one-clip
 
 The audit must sum the serialized weights of every component needed by the provisional IR route. This includes YOLO11n-pose, X3D-S, the embedding/classification head, and any learned IR preprocessing or calibration module. Count deployable files, not conceptual submodules: if the custom head is already inside the final X3D checkpoint, do not add it twice. Require this IR-route subtotal to remain below the conservative internal limit of `95,000,000` bytes; do not call it the complete submission package or report only X3D's parameter count.
 
-- [ ] **Step 6: Implement and verify raw-trial online inference parity**
+- [x] **Step 6: Implement and verify raw-trial online inference parity**
 
 Implement a single inference entry point that accepts an official raw IR trial and performs:
 
@@ -672,7 +672,7 @@ Using one fixed hashed X3D checkpoint, compare offline-export and online-generat
 
 The parity test uses training data only. Record end-to-end latency separately for YOLO/ROI preprocessing, each X3D clip, and complete trial inference in the `<=13`, `14-32`, `33-64`, and `>64` frame buckets so the report reflects the actual submission path.
 
-- [ ] **Step 7: Run the focused and full test suites**
+- [x] **Step 7: Run the focused and full test suites**
 
 Run:
 

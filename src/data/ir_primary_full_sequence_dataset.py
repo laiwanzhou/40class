@@ -40,6 +40,10 @@ def _read_gray(path: str | Path) -> np.ndarray:
     image = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
     if image is None:
         raise ValueError(f"Could not read image: {path}")
+    if image.ndim == 3 and image.shape[2] == 1:
+        image = image[:, :, 0]
+    if image.ndim != 2:
+        raise ValueError(f"Expected grayscale image at {path}, got shape {image.shape}")
     return image
 
 
