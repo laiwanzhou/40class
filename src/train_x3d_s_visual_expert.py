@@ -10,7 +10,7 @@ import math
 from pathlib import Path
 import random
 import time
-from typing import Any, Iterator, Mapping, Sequence
+from typing import Any, Callable, Iterator, Mapping, Sequence
 
 import numpy as np
 import pandas as pd
@@ -475,6 +475,8 @@ def train_partition(
     resource_manifest = _resource_manifest(model, config, device)
     summary: dict[str, Any] = {
         "status": "passed",
+        "seed": int(config["seed"]),
+        "resolved_config_sha256": resolved_config_sha256(config),
         "epochs_completed": history[-1]["epoch"],
         "runtime_seconds": time.perf_counter() - started,
         "train_samples_evaluated_last_epoch": history[-1]["train_sample_count"],
@@ -606,6 +608,7 @@ def finalize_train14(
         "role": "finalize_train14",
         "epochs_completed": epochs,
         "seed": seed,
+        "resolved_config_sha256": resolved_config_sha256(config),
         "runtime_seconds": time.perf_counter() - started,
         "train_sample_count": last_outcome.metrics["sample_count"],
         "final_checkpoint_bytes": (run_directory / "final_train14.pt").stat().st_size,
@@ -623,6 +626,125 @@ def finalize_train14(
         summary["ir_route_serialized_weight_subtotal"]
         < summary["internal_size_limit_bytes"]
     )
+    (run_directory / "run_summary.json").write_text(
+        json.dumps(summary, indent=2) + "\n", encoding="utf-8"
+    )
+    return summary
+
+
+def train_strict_oof_partition(
+    *,
+    model_factory: Callable[[], X3DSVisualExpert],
+    inner_fit_dataset: Dataset[Mapping[str, object]],
+    inner_validation_dataset: Dataset[Mapping[str, object]],
+    outer_train_dataset: Dataset[Mapping[str, object]],
+    outer_validation_dataset: Dataset[Mapping[str, object]],
+    config: Mapping[str, Any],
+    run_directory: Path,
+    device: torch.device,
+    fold_provenance: Mapping[str, Any],
+    max_train_batches: int | None,
+    max_val_batches: int | None,
+) -> dict[str, Any]:
+    selection_directory = run_directory / "epoch_selection"
+    selection_directory.mkdir(parents=False, exist_ok=False)
+    _set_seed(int(config["seed"]))
+    selection_summary = train_partition(
+        model=model_factory(),
+        train_dataset=inner_fit_dataset,
+        validation_dataset=inner_validation_dataset,
+        config=config,
+        run_directory=selection_directory,
+        device=device,
+        max_train_batches=max_train_batches,
+        max_val_batches=max_val_batches,
+    )
+    selected_epoch = int(selection_summary["best_accuracy"]["epoch"])
+
+    formal_config = copy.deepcopy(dict(config))
+    formal_config["training"] = {
+        **dict(_mapping(config, "training")),
+        "epochs": selected_epoch,
+        "patience": max(selected_epoch + 1, 1),
+    }
+    _set_seed(int(formal_config["seed"]))
+    formal_model = model_factory()
+    refit_summary = finalize_train14(
+        model=formal_model,
+        train_dataset=outer_train_dataset,
+        config=formal_config,
+        run_directory=run_directory,
+        device=device,
+        max_train_batches=max_train_batches,
+    )
+    temporary_checkpoint = run_directory / "final_train14.pt"
+    formal_checkpoint = run_directory / "formal_outer_refit.pt"
+    checkpoint = torch.load(temporary_checkpoint, map_location="cpu", weights_only=False)
+    checkpoint["strict_oof_provenance"] = {
+        **dict(fold_provenance),
+        "actual_seed": int(formal_config["seed"]),
+        "selected_epoch": selected_epoch,
+        "resolved_config_sha256": resolved_config_sha256(formal_config),
+        "outer_validation_labels_used_for_selection": False,
+    }
+    torch.save(checkpoint, formal_checkpoint)
+    temporary_checkpoint.unlink()
+
+    loader_config = _mapping(formal_config, "loader")
+    validation_sampler = ClipBudgetBatchSampler(
+        getattr(outer_validation_dataset, "num_clips"),
+        max_trials_per_batch=int(loader_config["max_trials_per_batch"]),
+        max_valid_clips_per_batch=int(loader_config["max_valid_clips_per_batch"]),
+        shuffle=False,
+        seed=int(formal_config["seed"]),
+    )
+    validation_loader = DataLoader(
+        outer_validation_dataset,
+        batch_sampler=validation_sampler,
+        collate_fn=collate_x3d_clips,
+        num_workers=int(loader_config["num_workers"]),
+        pin_memory=device.type == "cuda",
+    )
+    formal_outcome = run_model_epoch(
+        formal_model,
+        validation_loader,
+        device=device,
+        optimizer=None,
+        gradient_accumulation=1,
+        gradient_clip=float(_mapping(formal_config, "optimizer")["gradient_clip"]),
+        amp_enabled=bool(_mapping(formal_config, "amp")["enabled"]),
+        max_batches=max_val_batches,
+    )
+    save_prediction_archive(
+        run_directory / "formal_outer_predictions.npz",
+        formal_outcome.predictions,
+    )
+    _save_per_class_metrics(
+        run_directory / "formal_outer_per_class.csv",
+        formal_outcome.metrics,
+        list(getattr(outer_validation_dataset, "class_names", [str(i) for i in range(40)])),
+    )
+    summary = {
+        "status": "passed",
+        "role": "strict_checkpoint_selection_oof",
+        "seed": int(formal_config["seed"]),
+        "resolved_config_sha256": resolved_config_sha256(formal_config),
+        "selection_labels_from_outer_validation": False,
+        "selection_directory": "epoch_selection",
+        "selected_epoch": selected_epoch,
+        "formal_checkpoint": formal_checkpoint.name,
+        "formal_checkpoint_bytes": formal_checkpoint.stat().st_size,
+        "formal_checkpoint_sha256": _sha256_file(formal_checkpoint),
+        "formal_outer_accuracy": float(formal_outcome.metrics["accuracy"]),
+        "formal_outer_macro_f1": float(formal_outcome.metrics["macro_f1"]),
+        "formal_outer_worst_user_accuracy": float(
+            formal_outcome.metrics["worst_user_accuracy"]
+        ),
+        "formal_outer_sample_count": int(formal_outcome.metrics["sample_count"]),
+        "fold_provenance": dict(fold_provenance),
+        "epoch_selection_summary": selection_summary,
+        "outer_refit_summary": refit_summary,
+    }
     (run_directory / "run_summary.json").write_text(
         json.dumps(summary, indent=2) + "\n", encoding="utf-8"
     )
@@ -754,6 +876,8 @@ def apply_runtime_overrides(
     args: argparse.Namespace,
 ) -> tuple[dict[str, Any], int | None, int | None]:
     resolved = copy.deepcopy(dict(config))
+    if getattr(args, "seed", None) is not None:
+        resolved["seed"] = int(args.seed)
     if args.epochs is not None:
         resolved["training"]["epochs"] = int(args.epochs)
     max_train_batches = args.max_train_batches
@@ -771,6 +895,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--smoke-test", action="store_true")
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--epochs", type=int)
+    parser.add_argument("--seed", type=int)
     parser.add_argument("--max-train-batches", type=int)
     parser.add_argument("--max-val-batches", type=int)
     parser.add_argument("--train-user-ids", nargs="+")
@@ -778,6 +903,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--oof-fold-assignment", type=Path)
     parser.add_argument("--oof-role", choices=("train14", "finalize_train14"))
     return parser
+
+
+def resolved_config_sha256(config: Mapping[str, Any]) -> str:
+    serialized = yaml.safe_dump(dict(config), sort_keys=True).encode("utf-8")
+    return hashlib.sha256(serialized).hexdigest()
 
 
 def _mapping(config: Mapping[str, Any], key: str) -> Mapping[str, Any]:
@@ -1008,10 +1138,13 @@ def run(args: argparse.Namespace) -> None:
         return
 
     partitions: list[UserFold]
+    assignment: Mapping[str, Any] | None = None
+    assignment_sha256: str | None = None
     if args.oof_fold_assignment is not None:
         if args.oof_role != "train14":
             raise ValueError("OOF assignment requires --oof-role train14")
         assignment = json.loads(args.oof_fold_assignment.read_text(encoding="utf-8"))
+        assignment_sha256 = _sha256_file(args.oof_fold_assignment)
         partitions = list(validate_oof_assignment(assignment, allowed_users=official_train_users))
     elif args.train_user_ids is not None or args.validation_user_ids is not None:
         if args.train_user_ids is None or args.validation_user_ids is None:
@@ -1055,21 +1188,70 @@ def run(args: argparse.Namespace) -> None:
             train_user_ids=partition.train_user_ids,
             validation_user_ids=partition.validation_user_ids,
         )
-        train_dataset = X3DClipDataset(partition_manifest, split="train", training=True, seed=int(config["seed"]))
+        train_dataset = X3DClipDataset(
+            partition_manifest, split="train", training=True, seed=int(config["seed"])
+        )
         validation_dataset = X3DClipDataset(
             partition_manifest, split="val", training=False, seed=int(config["seed"])
         )
-        model = _build_model(config)
-        summary = train_partition(
-            model=model,
-            train_dataset=train_dataset,
-            validation_dataset=validation_dataset,
-            config=config,
-            run_directory=partition_directory,
-            device=device,
-            max_train_batches=max_train_batches,
-            max_val_batches=max_val_batches,
-        )
+        if assignment is not None:
+            raw_fold = assignment["folds"][partition.fold]
+            epoch_selection = raw_fold.get("epoch_selection")
+            if not isinstance(epoch_selection, Mapping):
+                raise ValueError(f"OOF fold {partition.fold} has no frozen epoch_selection")
+            inner_fit_users = tuple(str(user) for user in epoch_selection["fit_user_ids"])
+            inner_validation_users = tuple(
+                str(user) for user in epoch_selection["validation_user_ids"]
+            )
+            if (
+                set(inner_fit_users) & set(inner_validation_users)
+                or set(inner_fit_users) | set(inner_validation_users)
+                != set(partition.train_user_ids)
+            ):
+                raise ValueError("Frozen epoch-selection users must partition outer-train")
+            inner_manifest = prepare_partition_manifest(
+                manifest,
+                train_user_ids=inner_fit_users,
+                validation_user_ids=inner_validation_users,
+            )
+            inner_fit_dataset = X3DClipDataset(
+                inner_manifest, split="train", training=True, seed=int(config["seed"])
+            )
+            inner_validation_dataset = X3DClipDataset(
+                inner_manifest, split="val", training=False, seed=int(config["seed"])
+            )
+            summary = train_strict_oof_partition(
+                model_factory=lambda: _build_model(config),
+                inner_fit_dataset=inner_fit_dataset,
+                inner_validation_dataset=inner_validation_dataset,
+                outer_train_dataset=train_dataset,
+                outer_validation_dataset=validation_dataset,
+                config=config,
+                run_directory=partition_directory,
+                device=device,
+                fold_provenance={
+                    "outer_fold": partition.fold,
+                    "inner_fit_user_ids": list(inner_fit_users),
+                    "inner_validation_user_ids": list(inner_validation_users),
+                    "outer_train_user_ids": list(partition.train_user_ids),
+                    "outer_validation_user_ids": list(partition.validation_user_ids),
+                    "assignment_sha256": assignment_sha256,
+                },
+                max_train_batches=max_train_batches,
+                max_val_batches=max_val_batches,
+            )
+        else:
+            model = _build_model(config)
+            summary = train_partition(
+                model=model,
+                train_dataset=train_dataset,
+                validation_dataset=validation_dataset,
+                config=config,
+                run_directory=partition_directory,
+                device=device,
+                max_train_batches=max_train_batches,
+                max_val_batches=max_val_batches,
+            )
         summary["fold"] = partition.fold
         summary["train_user_ids"] = list(partition.train_user_ids)
         summary["validation_user_ids"] = list(partition.validation_user_ids)

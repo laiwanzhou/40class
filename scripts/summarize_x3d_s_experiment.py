@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -14,7 +15,7 @@ from sklearn.model_selection import StratifiedGroupKFold
 import yaml
 
 from src.data.ir_primary_full_sequence_dataset import class_map_hash
-from src.train_x3d_s_visual_expert import validate_oof_assignment
+from src.train_x3d_s_visual_expert import resolved_config_sha256, validate_oof_assignment
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -52,9 +53,69 @@ def _trial_rows(frame: pd.DataFrame, *, allowed_users: set[str]) -> pd.DataFrame
     return (
         selected[["sample_id", "user_id", "class_id", "action_name"]]
         .drop_duplicates("sample_id")
-        .sort_values("sample_id")
         .reset_index(drop=True)
     )
+
+
+def _epoch_selection_split(
+    trials: pd.DataFrame,
+    *,
+    outer_train_users: set[str],
+    outer_fold: int,
+) -> dict[str, Any]:
+    outer_train = trials[trials["user_id"].astype(str).isin(outer_train_users)].reset_index(
+        drop=True
+    )
+    splitter = StratifiedGroupKFold(
+        n_splits=3,
+        shuffle=True,
+        random_state=PHASE4_SEEDS[0] + outer_fold,
+    )
+    candidates = []
+    for candidate_index, (fit_indices, validation_indices) in enumerate(
+        splitter.split(
+            outer_train,
+            outer_train["class_id"],
+            groups=outer_train["user_id"],
+        )
+    ):
+        fit = outer_train.iloc[fit_indices]
+        validation = outer_train.iloc[validation_indices]
+        fit_class_count = int(fit["class_id"].nunique())
+        if fit_class_count != 40:
+            continue
+        validation_classes = sorted(validation["class_id"].astype(int).unique().tolist())
+        candidates.append(
+            {
+                "candidate_index": candidate_index,
+                "fit_user_ids": sorted(fit["user_id"].astype(str).unique().tolist()),
+                "validation_user_ids": sorted(
+                    validation["user_id"].astype(str).unique().tolist()
+                ),
+                "fit_trial_count": int(len(fit)),
+                "validation_trial_count": int(len(validation)),
+                "fit_class_count": fit_class_count,
+                "validation_class_count": len(validation_classes),
+                "validation_missing_class_ids": sorted(set(range(40)) - set(validation_classes)),
+            }
+        )
+    if not candidates:
+        raise ValueError(f"Outer fold {outer_fold} has no inner split with 40-class fit coverage")
+    selected = max(
+        candidates,
+        key=lambda candidate: (
+            int(candidate["validation_class_count"]),
+            -int(candidate["candidate_index"]),
+        ),
+    )
+    return {
+        "method": "StratifiedGroupKFold_candidate_selection",
+        "n_splits": 3,
+        "shuffle": True,
+        "random_state": PHASE4_SEEDS[0] + outer_fold,
+        "selection_rule": "fit_class_count_40_then_max_validation_coverage_then_lower_index",
+        **selected,
+    }
 
 
 def generate_train14_oof_assignment(
@@ -80,11 +141,11 @@ def generate_train14_oof_assignment(
         validation_users = sorted(validation["user_id"].astype(str).unique().tolist())
         train_class_count = int(train["class_id"].nunique())
         validation_class_count = int(validation["class_id"].nunique())
-        if train_class_count != 40 or validation_class_count != 40:
+        if train_class_count != 40:
             raise ValueError(
-                f"Fold {fold_index} lacks complete 40-class coverage: "
-                f"train={train_class_count}, validation={validation_class_count}"
+                f"Fold {fold_index} outer-train lacks complete 40-class coverage"
             )
+        validation_classes = set(validation["class_id"].astype(int).unique().tolist())
         validation_occurrences.extend(validation_users)
         folds.append(
             {
@@ -95,10 +156,19 @@ def generate_train14_oof_assignment(
                 "validation_trial_count": int(len(validation)),
                 "train_class_count": train_class_count,
                 "validation_class_count": validation_class_count,
+                "validation_missing_class_ids": sorted(set(range(40)) - validation_classes),
+                "epoch_selection": _epoch_selection_split(
+                    trials,
+                    outer_train_users=set(train_users),
+                    outer_fold=fold_index,
+                ),
             }
         )
     if sorted(validation_occurrences) != sorted(allowed_users):
         raise ValueError("Each train-14 user must be validation exactly once")
+    combined_validation_class_count = int(trials["class_id"].nunique())
+    if combined_validation_class_count != 40:
+        raise ValueError("Combined outer-validation population lacks 40-class coverage")
     assignment = {
         "schema_version": 1,
         "method": "StratifiedGroupKFold",
@@ -107,10 +177,11 @@ def generate_train14_oof_assignment(
         "random_state": int(random_state),
         "group_field": "user_id",
         "label_field": "class_id",
-        "population": "official_train14_usable_ir",
+        "population": "official_train14_canonical_union",
         "trial_count": int(len(trials)),
         "user_count": len(allowed_users),
         "class_count": int(trials["class_id"].nunique()),
+        "combined_validation_class_count": combined_validation_class_count,
         "folds": folds,
         "immutable_policy": "write_once_and_verify_sha256",
     }
@@ -174,12 +245,28 @@ def freeze_phase4_inputs(
 
     input_manifest_path = Path(str(config["input_manifest"])).resolve()
     train14_frame = _load_train14_manifest(input_manifest_path, train_users)
-    trials = _trial_rows(train14_frame, allowed_users=train_users)
+    ir_trials = _trial_rows(train14_frame, allowed_users=train_users)
+    canonical_manifest_path = (PROJECT_ROOT / "metadata/manifest.csv").resolve()
+    canonical_frame = pd.read_csv(canonical_manifest_path, encoding="utf-8-sig")
+    canonical_trials = _trial_rows(canonical_frame, allowed_users=train_users)
     assignment = generate_train14_oof_assignment(
-        trials,
+        canonical_trials,
         allowed_users=train_users,
         random_state=PHASE4_SEEDS[0],
     )
+    for fold in assignment["folds"]:
+        validation_users = set(fold["validation_user_ids"])
+        train_fold_users = set(fold["train_user_ids"])
+        ir_validation = ir_trials[ir_trials["user_id"].astype(str).isin(validation_users)]
+        ir_train = ir_trials[ir_trials["user_id"].astype(str).isin(train_fold_users)]
+        ir_validation_classes = set(ir_validation["class_id"].astype(int).unique().tolist())
+        fold["ir_train_trial_count"] = int(len(ir_train))
+        fold["ir_validation_trial_count"] = int(len(ir_validation))
+        fold["ir_train_class_count"] = int(ir_train["class_id"].nunique())
+        fold["ir_validation_class_count"] = len(ir_validation_classes)
+        fold["ir_validation_missing_class_ids"] = sorted(
+            set(range(40)) - ir_validation_classes
+        )
     assignment_sha256 = create_frozen_oof_assignment(assignment_path, assignment)
 
     environment_probe_path = (
@@ -221,10 +308,15 @@ def freeze_phase4_inputs(
             "path": str(input_manifest_path),
             "sha256": sha256_file(input_manifest_path),
             "train14_frame_rows": int(len(train14_frame)),
-            "train14_trials": int(len(trials)),
+            "train14_trials": int(len(ir_trials)),
+        },
+        "canonical_union_manifest": {
+            "path": str(canonical_manifest_path),
+            "sha256": sha256_file(canonical_manifest_path),
+            "train14_trials": int(len(canonical_trials)),
         },
         "class_map_hash": class_map_hash(
-            trials[["class_id", "action_name"]].drop_duplicates()
+            canonical_trials[["class_id", "action_name"]].drop_duplicates()
         ),
         "outer_split": {
             "path": str(split_path),
@@ -238,7 +330,17 @@ def freeze_phase4_inputs(
             "sha256": assignment_sha256,
             "folds": assignment["folds"],
         },
-        "seeds": list(PHASE4_SEEDS),
+        "seeds": [
+            {
+                "seed": seed,
+                "role": "canonical_phase5_evidence" if seed == PHASE4_SEEDS[0] else "stability_only",
+                "resolved_config_sha256": resolved_config_sha256(
+                    {**copy.deepcopy(dict(config)), "seed": seed}
+                ),
+            }
+            for seed in PHASE4_SEEDS
+        ],
+        "canonical_oof_evidence_seed": PHASE4_SEEDS[0],
         "pretrained_weights": {
             "x3d_s": {"path": str(x3d_path), "sha256": sha256_file(x3d_path)},
             "yolo11n_pose": {"path": str(yolo_path), "sha256": sha256_file(yolo_path)},

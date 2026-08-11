@@ -50,9 +50,16 @@ def test_phase4_assignment_is_user_disjoint_complete_and_deterministic() -> None
         assert train.isdisjoint(validation)
         assert train | validation == allowed_users
         assert fold["train_class_count"] == 40
-        assert fold["validation_class_count"] == 40
+        assert set(fold["epoch_selection"]["fit_user_ids"]).isdisjoint(
+            fold["epoch_selection"]["validation_user_ids"]
+        )
+        assert set(fold["epoch_selection"]["fit_user_ids"]) | set(
+            fold["epoch_selection"]["validation_user_ids"]
+        ) == train
+        assert fold["epoch_selection"]["fit_class_count"] == 40
         validation_users.extend(fold["validation_user_ids"])
     assert sorted(validation_users) == sorted(allowed_users)
+    assert first["combined_validation_class_count"] == 40
 
 
 def test_frozen_assignment_refuses_overwrite(tmp_path: Path) -> None:

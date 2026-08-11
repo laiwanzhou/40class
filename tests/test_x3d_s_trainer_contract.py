@@ -25,9 +25,11 @@ from src.train_x3d_s_visual_expert import (
     prepare_finalize_manifest,
     is_better_checkpoint,
     prepare_run_directory,
+    resolved_config_sha256,
     run_model_epoch,
     save_prediction_archive,
     train_partition,
+    train_strict_oof_partition,
     validate_config,
     validate_oof_assignment,
     validate_user_partition,
@@ -278,6 +280,7 @@ def test_cli_and_run_directory_reject_overwrite(tmp_path: Path) -> None:
         "smoke_test",
         "run_id",
         "epochs",
+        "seed",
         "max_train_batches",
         "max_val_batches",
         "train_user_ids",
@@ -297,6 +300,7 @@ def test_smoke_runtime_reaches_backbone_unfreeze_with_one_microbatch() -> None:
         smoke_test=True,
         max_train_batches=None,
         max_val_batches=None,
+        seed=None,
     )
 
     resolved, max_train_batches, max_val_batches = apply_runtime_overrides(config, args)
@@ -304,6 +308,25 @@ def test_smoke_runtime_reaches_backbone_unfreeze_with_one_microbatch() -> None:
     assert resolved["training"]["epochs"] == 3
     assert max_train_batches == 1
     assert max_val_batches == 1
+
+
+def test_cli_seed_overrides_yaml_and_changes_resolved_provenance_hash() -> None:
+    config = fixed_config(Path("."))
+    first_args = argparse.Namespace(
+        epochs=None,
+        smoke_test=False,
+        max_train_batches=None,
+        max_val_batches=None,
+        seed=20260716,
+    )
+    second_args = argparse.Namespace(**{**vars(first_args), "seed": 20260717})
+
+    first, _, _ = apply_runtime_overrides(config, first_args)
+    second, _, _ = apply_runtime_overrides(config, second_args)
+
+    assert first["seed"] == 20260716
+    assert second["seed"] == 20260717
+    assert resolved_config_sha256(first) != resolved_config_sha256(second)
 
 
 def test_cosine_schedule_keeps_nonzero_lr_for_first_unfrozen_epoch() -> None:
@@ -421,6 +444,46 @@ def test_train_partition_records_backbone_gradient_after_epoch_three(tmp_path: P
 
     assert summary["head_gradient_verified"] is True
     assert summary["backbone_gradient_verified_after_unfreeze"] is True
+
+
+def test_strict_oof_freezes_refit_checkpoint_before_outer_validation(tmp_path: Path) -> None:
+    config = fixed_config(tmp_path)
+    config["training"] = {"epochs": 2, "warmup_epochs": 2, "patience": 8}
+    config["amp"] = {"enabled": False, "dtype": "bfloat16"}
+    config["deployment_artifacts"] = {"yolo_checkpoint": None}
+    run_directory = tmp_path / "strict-oof"
+    run_directory.mkdir()
+
+    class GuardedOuterValidation(TinyTrialDataset):
+        def __getitem__(self, index: int) -> dict[str, object]:
+            assert (run_directory / "formal_outer_refit.pt").is_file()
+            return super().__getitem__(index)
+
+    summary = train_strict_oof_partition(
+        model_factory=tiny_trainer_model,
+        inner_fit_dataset=TinyTrialDataset("inner-fit", 2),
+        inner_validation_dataset=TinyTrialDataset("inner-validation", 2),
+        outer_train_dataset=TinyTrialDataset("outer-train", 2),
+        outer_validation_dataset=GuardedOuterValidation("outer-validation", 2),
+        config=config,
+        run_directory=run_directory,
+        device=torch.device("cpu"),
+        fold_provenance={
+            "outer_fold": 0,
+            "inner_fit_user_ids": ["u1"],
+            "inner_validation_user_ids": ["u2"],
+            "outer_train_user_ids": ["u1", "u2"],
+            "outer_validation_user_ids": ["u3"],
+            "assignment_sha256": "a" * 64,
+        },
+        max_train_batches=1,
+        max_val_batches=1,
+    )
+
+    assert summary["selection_labels_from_outer_validation"] is False
+    assert summary["formal_checkpoint"] == "formal_outer_refit.pt"
+    assert summary["selected_epoch"] in {1, 2}
+    assert (run_directory / "formal_outer_predictions.npz").is_file()
 
 
 def test_finalize_train14_trains_fixed_epochs_without_validation(tmp_path: Path) -> None:
