@@ -133,7 +133,7 @@ Execute phases in order. A phase may start only after the previous phase's exit 
 |---|---|---|---|---|
 | Phase 0: Compliance and runtime | Task 1 | New branch/worktree ready | Rule record complete; official pretrained X3D forward passes; provisional IR-route deployment subtotal `<95,000,000` bytes | Completed (`c088db0`) |
 | Phase 1: Temporal data contract | Task 2 | Phase 0 passes | Adaptive window boundary tests, real duration audit, determinism, padding and leakage tests pass | Completed (`481ccb4`) |
-| Phase 2: Expert and trainer | Tasks 3-4 | Phase 1 passes | Trial-level masked aggregation, gradients, archive schema and focused tests pass | In progress (Task 3 `cc5bc26`; Task 4 pending) |
+| Phase 2: Expert and trainer | Tasks 3-4 | Phase 1 passes | Trial-level masked aggregation, gradients, archive schema and focused tests pass | Completed (Task 3 `cc5bc26`; Task 4 `1601a31`) |
 | Phase 3: End-to-end verification | Task 5 | Phase 2 passes | Online/offline ROI parity, shortest/longest trial smoke, overfit test, size audit and full tests pass | Pending |
 | Phase 4: Train-14 OOF scientific evaluation | Task 6 | Phase 3 passes | Pre-registered grouped-OOF comparison, duration/user/class reports, and frozen X3D decision are complete without held-out access | Pending |
 | Phase 5: Register IR sparse evidence | Task 7 | Phase 4 retains pure X3D as a primary or complementary IR expert | Verified train-user OOF archive plus one quarantined held-out IR archive, provenance, evidence contract and size record pass | Pending |
@@ -482,7 +482,7 @@ git commit -m "Add fusion-compatible X3D-S visual expert"
 - Consumes: `X3DClipDataset`, `X3DSVisualExpert`, the fixed YAML configuration, and an explicit train-14 user partition or persisted OOF-fold assignment.
 - Produces: checkpoints, `history.csv`, per-class metrics, trial-level prediction archives, `run_summary.json`, and fusion-ready `ExpertBatchResult` data.
 
-- [ ] **Step 1: Write failing trainer contract tests**
+- [x] **Step 1: Write failing trainer contract tests**
 
 ```python
 def test_validation_aggregates_valid_clips_with_one_view() -> None:
@@ -502,13 +502,13 @@ def test_prediction_archive_contains_fusion_contract_fields(tmp_path: Path) -> N
         assert {"sample_ids", "user_ids", "labels", "logits", "embeddings", "quality", "quality_mask", "availability", "class_map_hash", "num_frames", "num_clips"} <= set(data.files)
 ```
 
-- [ ] **Step 2: Run the trainer tests and verify failure**
+- [x] **Step 2: Run the trainer tests and verify failure**
 
 Run: `D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest tests/test_x3d_s_trainer_contract.py -v`
 
 Expected: FAIL because the trainer helpers are absent.
 
-- [ ] **Step 3: Implement configuration and CLI validation**
+- [x] **Step 3: Implement configuration and CLI validation**
 
 Support:
 
@@ -545,7 +545,7 @@ backbone_bn:
   train_affine_after_unfreeze: true
 ```
 
-- [ ] **Step 4: Implement training**
+- [x] **Step 4: Implement training**
 
 Use AdamW parameter groups from the model, two-epoch linear warmup, cosine decay over 30 epochs, BF16 autocast, gradient accumulation 4, gradient clipping 1.0, and deterministic seeding. Train the head only for epochs 1-2 and unfreeze the backbone at epoch 3.
 
@@ -553,13 +553,13 @@ Call `train_dataset.set_epoch(epoch)` before every training epoch.
 
 Flatten only valid `[B,K]` clips through X3D, restore the trial structure, aggregate clip probabilities, and compute NLL from the aggregated trial log-probabilities. Do not treat clips as independent labeled samples and do not add a per-clip auxiliary loss in the first run. Use a deterministic batch sampler that admits at most two trials and eight valid clips per microbatch; an eight-clip trial forms a batch by itself, and no window or trial is dropped.
 
-- [ ] **Step 5: Implement trial-level validation**
+- [x] **Step 5: Implement trial-level validation**
 
 For the first run, `V` is fixed to 1. Flatten only valid entries from `[B,K,1,C,T,H,W]` to `[num_valid_clips,C,T,H,W]`, run X3D, and restore clip logits to `[B,K,40]`. Convert each valid clip to probability, masked-average over `K`, and take `log(clamp_min(1e-8))` as the stored trial logits. Average embeddings over valid clips and L2-normalize the final 256-dimensional trial embedding. Do not generate or average additional validation views in this phase.
 
 Compute metrics only after this aggregation. Assert that every `sample_id` contributes exactly one trial prediction regardless of `K`.
 
-- [ ] **Step 6: Save both checkpoint objectives**
+- [x] **Step 6: Save both checkpoint objectives**
 
 Save:
 
@@ -572,19 +572,19 @@ Each NPZ must contain exactly one row per validation `sample_id`. Validate uniqu
 
 For every Phase 4 fold, `best_accuracy.pt` is the sole checkpoint used for the primary scientific OOF prediction. Break equal-Accuracy ties by higher Macro-F1, then earlier epoch. `best_macro_f1.pt` and its predictions are diagnostic only and may not be substituted after results are visible or mixed across folds.
 
-- [ ] **Step 7: Record scientific and resource metrics**
+- [x] **Step 7: Record scientific and resource metrics**
 
 `history.csv` and `run_summary.json` must include train/val Accuracy, Macro-F1, weighted F1, loss, class coverage, zero-recall classes, worst-user Accuracy, learning rates, epoch duration, peak CUDA memory, parameter count, state-dict bytes, checkpoint file sizes, mean/max clips per trial, processed clips per second, and trial-level latency by length bucket.
 
 `run_summary.json` must also embed the compliance manifest: X3D weight hash and bytes, YOLO weight hash and bytes, custom-head bytes, IR-route serialized weight subtotal, the `95,000,000`-byte internal limit, pretrained source, and an explicit `ir_route_provisional_size_gate_passed` boolean. This flag covers only the raw-IR-to-X3D route, not the six-modal submission package. A run that fails this provisional route gate may be used for diagnosis but must not be marked deployment-eligible.
 
-- [ ] **Step 8: Run trainer contract tests**
+- [x] **Step 8: Run trainer contract tests**
 
 Run: `D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest tests/test_x3d_s_trainer_contract.py -v`
 
 Expected: PASS.
 
-- [ ] **Step 9: Commit the trainer**
+- [x] **Step 9: Commit the trainer**
 
 ```bash
 git add src/train_x3d_s_visual_expert.py configs/experiments/x3d_s_ir_context_fold0.yaml configs/experiments/x3d_s_ir_context_oof.yaml tests/test_x3d_s_trainer_contract.py

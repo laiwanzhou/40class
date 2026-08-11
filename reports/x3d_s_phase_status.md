@@ -6,8 +6,8 @@ Updated: 2026-08-11 (Asia/Shanghai)
 |---|---|---|---|---|---|
 | Phase 0: Compliance and runtime | Completed | `c088db0` | Official rules rechecked; official X3D forward, provisional IR-route subtotal, dependency check and 15 focused/regression tests passed | X3D-S has no model-specific organizer approval; final trained checkpoint must be remeasured | Phase 1 may begin |
 | Phase 1: Temporal data contract | Completed | `481ccb4` | 23 dataset tests, 30 focused/regression tests, and all 74 repository tests passed; real shortest/longest trial probe passed | Exported quality fields are constant in this manifest, so they are contract metadata rather than discriminative evidence in the first run | Phase 2 may begin after review |
-| Phase 2: Expert and trainer | In progress | `cc5bc26` | Task 3 wrapper, aggregation, optimizer groups and BN policy implemented; 10 focused and 80 full-suite tests passed | Trainer/archive contract remains unimplemented | Begin Task 4 with RED trainer tests |
-| Phase 3: End-to-end verification | Pending | - | - | - | Wait for Phase 2 exit gate |
+| Phase 2: Expert and trainer | Completed | `1601a31` | Trial-level trainer, dual checkpoint archives, fixed BN policy, train-14 finalization, resource audit and held-out rejection implemented; 24 focused and 94 full-suite tests passed | Real CUDA/data smoke is intentionally deferred to Phase 3 | Begin Phase 3 Task 5 |
+| Phase 3: End-to-end verification | Pending | - | - | - | Run online/offline parity, shortest/longest smoke, overfit and measured size audit |
 | Phase 4: Train-14 OOF scientific evaluation | Pending | - | Pure X3D has primary and complementary retention paths | Held-out labels must remain sealed | Wait for Phase 3 exit gate |
 | Phase 5: Register IR sparse evidence | Pending | - | Pure candidate registers as `ir_x3d_s_k400_pure` | Held-out archive is evaluation-only until Phase 10 | Wait for Phase 4 primary/complementary retain decision |
 | Phase 6: Freeze expert portfolio | Pending | - | Every retained expert must emit global OOF plus label-free held-out evidence | Historical metrics use mixed folds; outer four users are unavailable for selection | Execute later on a dedicated branch after Phase 5 review |
@@ -122,4 +122,16 @@ Passed on 2026-08-10. Boundary lengths 1, 13, 32, 33, 64, 65, and 236 are covere
 - Verification: 6 wrapper tests passed; wrapper plus expert-contract tests passed 10/10; full repository suite passed 80/80; compileall and `git diff --check` passed.
 - Implementation commit: `cc5bc26 Add fusion-compatible X3D-S visual expert`.
 
-Task 4 is pending, so Phase 2 remains in progress.
+### Task 4: Training and Evaluation Entry Point
+
+- RED confirmed for the absent trainer module, batch epoch runner, partition trainer, and fixed-epoch train-14 finalizer before each implementation layer.
+- Implemented deterministic clip-budget batching with at most two trials/eight valid clips, trial-level NLL, BF16 autocast, accumulation four, clipping, warmup/cosine scheduling, and head-only epochs 1-2.
+- Validation emits exactly one row per trial and saves independent best-Accuracy and best-Macro-F1 checkpoints, archives, and per-class reports; primary OOF selection is fixed to best Accuracy.
+- CLI rejects held-out users and output overwrite, consumes frozen three-fold assignments, and exposes a separate `finalize_train14` path requiring explicit epochs, all train-14 users, and no validation labels.
+- Run summaries record scientific metrics, throughput, length-bucket latency, peak CUDA allocation, parameter/state bytes and hashes, source provenance, YOLO/X3D weight evidence, and the provisional IR-route size gate.
+- Verification: 14 trainer tests and 24 trainer/wrapper/expert-contract tests passed; full repository suite passed 94/94; both YAML configurations validated; CLI help, compileall, and `git diff --check` passed.
+- Implementation commit: `1601a31 Add adaptive multi-clip X3D-S training pipeline`.
+
+### Exit Gate
+
+Passed on 2026-08-11. Task 3 and Task 4 jointly satisfy the Phase 2 masked aggregation, gradient, archive, partition, BN, resource-recording, and focused-test contracts. Real CUDA/data behavior remains the explicit Phase 3 gate.
