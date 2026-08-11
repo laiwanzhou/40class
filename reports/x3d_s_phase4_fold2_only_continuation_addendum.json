@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "role": "phase4_fold2_only_continuation_addendum",
+  "status": "frozen_before_fold2_restart",
+  "canonical_seed": 20260715,
+  "selected_outer_fold": 2,
+  "source_run_id": "x3d_s_ir_context_adaptive_oof_strict_v3_seed20260715",
+  "continuation_run_id": "x3d_s_ir_context_adaptive_oof_strict_v3_seed20260715_fold2_only",
+  "frozen_assignment_path": "metadata/splits/train14_oof_3fold.json",
+  "frozen_assignment_sha256": "2a0dde67ced6f40cf3a163f63d545f1e3cde3545b6ee0eb0291cf1c52c38ea76",
+  "fold2_outer_train_user_ids": [
+    "user1",
+    "user16",
+    "user18",
+    "user2",
+    "user20",
+    "user21",
+    "user3",
+    "user8",
+    "user9"
+  ],
+  "fold2_outer_validation_user_ids": [
+    "user19",
+    "user22",
+    "user5",
+    "user6",
+    "user7"
+  ],
+  "fold2_inner_fit_user_ids": [
+    "user1",
+    "user16",
+    "user20",
+    "user21",
+    "user3",
+    "user8"
+  ],
+  "fold2_inner_validation_user_ids": [
+    "user18",
+    "user2",
+    "user9"
+  ],
+  "known_state_before_restart": {
+    "fold0_formal_outer_completed": true,
+    "fold0_user_reported_accuracy": 0.57125,
+    "fold0_user_reported_macro_f1": 0.48692,
+    "fold1_formal_outer_completed": true,
+    "fold1_user_reported_accuracy": 0.56535,
+    "fold1_user_reported_macro_f1": 0.49137,
+    "fold2_completed_epochs": 0,
+    "fold2_outer_validation_accessed": false,
+    "fold2_checkpoint_or_prediction_exists": false,
+    "seed_20260716_started": false,
+    "seed_20260717_started": false,
+    "note": "Fold0/1 metric values are user-reported pause state and are not re-derived by this addendum."
+  },
+  "continuation_policy": {
+    "protocol_change": false,
+    "hyperparameter_change": false,
+    "fold_assignment_change": false,
+    "seed_change": false,
+    "scheduler_change": false,
+    "equal_trial_accumulation_change": false,
+    "fold0_or_fold1_rerun_permitted": false,
+    "fold0_or_fold1_overwrite_permitted": false,
+    "new_output_directory_required": true,
+    "fold2_runs_complete_30_epoch_inner_search": true,
+    "fold2_selected_epoch_rule": "accuracy_then_macro_f1_then_earlier_epoch",
+    "fold2_formal_refit_rule": "fresh_pretrained_model_refit_on_all_outer_train_for_selected_epoch_with_scheduler_horizon_30",
+    "fold2_outer_validation_access": "only_after_formal_outer_refit_checkpoint_is_frozen"
+  },
+  "entry_point": "python -m scripts.run_x3d_s_fold2_only",
+  "scientific_rationale": "train_strict_oof_partition resets the canonical seed at the start of epoch selection and again before formal refit, so fold 2 can be launched in a separate process without depending on RNG state left by folds 0/1. The continuation changes only orchestration and preserves the frozen strict-v3 scientific protocol."
+}
