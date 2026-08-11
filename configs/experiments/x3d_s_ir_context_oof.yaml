@@ -1,0 +1,55 @@
+input_manifest: D:\work\2026.7.14_kaggle\datasets\Small-Model-Track\roi640_depth_ordinal_256\combined_frame_manifest.csv
+split_path: metadata/splits/fold_0.json
+output_root: outputs/x3d_s_ir_context_oof
+input_view: ir_context_path
+num_classes: 40
+embedding_dim: 256
+dropout: 0.25
+seed: 20260715
+device: cuda
+pretrained: true
+
+# Ignored when --oof-fold-assignment is supplied; retained for safe smoke runs.
+development_partition:
+  train_user_ids: [user1, user2, user3, user5, user6, user7, user8, user9, user16, user18, user19, user20]
+  validation_user_ids: [user21, user22]
+
+temporal:
+  local_frames: 13
+  target_window_frames: 32
+  max_clips: 8
+  train_views_per_window: 1
+  val_views_per_window: 1
+  aggregation: mean_probability
+
+loader:
+  max_trials_per_batch: 2
+  max_valid_clips_per_batch: 8
+  num_workers: 0
+
+backbone_bn:
+  update_running_stats: false
+  train_affine_after_unfreeze: true
+
+optimizer:
+  backbone_lr: 0.00003
+  head_lr: 0.0003
+  weight_decay: 0.05
+  gradient_accumulation: 4
+  gradient_clip: 1.0
+
+training:
+  epochs: 30
+  warmup_epochs: 2
+  patience: 8
+
+amp:
+  enabled: true
+  dtype: bfloat16
+
+size_gate:
+  internal_limit_bytes: 95000000
+
+deployment_artifacts:
+  yolo_checkpoint: D:\work\2026.7.14_kaggle\40class\yolo11n-pose.pt
+  phase0_probe: reports/x3d_s_environment_probe.json
