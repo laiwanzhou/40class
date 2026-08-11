@@ -708,27 +708,32 @@ git commit -m "Verify compliant X3D-S inference end to end"
 
 - [ ] **Step 1: Freeze and hash the experiment inputs**
 
-Record the configuration hash, manifest hash, class-map hash, X3D and YOLO pretrained-weight hashes, compliance-document hash, rule-source URLs and access date, Git SHA, environment probe, provisional IR-route deployment subtotal, outer train/held-out users, inner OOF fold users, trial counts, and seed before looking at OOF results. The experiment may start only if `ir_route_provisional_size_gate_passed=true` and the command cannot load the held-out archive.
+Record the configuration hash, manifest hash, class-map hash, X3D and YOLO pretrained-weight hashes, compliance-document hash, rule-source URLs and access date, Git SHA, environment probe, provisional IR-route deployment subtotal, outer train/held-out users, formal outer OOF fold users, outer-train-only epoch-selection users, trial counts, and all three actual runtime seeds before looking at OOF results. Freeze `20260715` as the canonical Phase 5 OOF evidence seed; `20260716` and `20260717` are training-stability confirmation only and may not replace it based on results. The experiment may start only if `ir_route_provisional_size_gate_passed=true` and the command cannot load the held-out archive.
 
 - [ ] **Step 2: Run the fixed three-fold user-grouped OOF experiment**
 
 Run:
 
-Generate `metadata/splits/train14_oof_3fold.json` exactly once from canonical train-14 labels/users using `StratifiedGroupKFold(n_splits=3, shuffle=True, random_state=20260715)`. Validate disjoint users and 40-class coverage, record its SHA-256 in the Phase 4 experiment manifest, and make the file immutable for later phases. The formal three-seed confirmation uses seeds `20260715`, `20260716`, and `20260717` on these same folds, then runs each declared fold through the Phase 2 trainer:
+Generate `metadata/splits/train14_oof_3fold.json` exactly once from canonical train-14 labels/users using `StratifiedGroupKFold(n_splits=3, shuffle=True, random_state=20260715)`. Validate disjoint users, complete 40-class coverage in every outer-train partition, complete 40-class coverage after concatenating the three outer-validation partitions, and exactly-once outer-validation ownership for every train-14 user. Report per-fold outer-validation class coverage rather than requiring 40 classes in every individual fold: class 25 occurs for only `user1` and `user7` in train-14, so three validation folds with class 25 are mathematically impossible. Keep the metric label set fixed at all 40 classes. Record the assignment SHA-256 in the Phase 4 experiment manifest and make the file immutable for later phases.
+
+For each outer fold, also freeze one epoch-selection split entirely inside the outer-train users before model results. Generate three candidate inner splits with `StratifiedGroupKFold(n_splits=3, shuffle=True, random_state=20260715 + outer_fold)`, discard any candidate whose inner-fit side lacks any of the 40 classes, then choose the remaining candidate with maximum inner-validation class coverage and lower candidate index as the tie break. All three training seeds reuse these exact outer and inner user assignments.
+
+The formal three-seed confirmation uses actual runtime seeds `20260715`, `20260716`, and `20260717`. The CLI must expose `--seed`; it overrides the YAML seed and the resolved config, run summary, Phase 4 experiment manifest, and config/provenance hash must all record the actual seed. Merely changing `run-id` is not a seed change. Run each seed with:
 
 ```powershell
 D:\Anaconda\envs\pyTorch2.7\python.exe -m src.train_x3d_s_visual_expert `
   --config configs/experiments/x3d_s_ir_context_oof.yaml `
   --oof-fold-assignment metadata/splits/train14_oof_3fold.json `
   --oof-role train14 `
+  --seed 20260715 `
   --run-id x3d_s_ir_context_adaptive_oof_seed20260715
 ```
 
-For each inner fold, fit on the other train-14 users, select `best_accuracy.pt` only on that fold's validation users using the pre-registered tie rule, and emit exactly one formal cross-fitted prediction per usable IR trial in the fold. Keep `best_macro_f1.pt` diagnostic only. Do not change ROI views, local frame count, `target_window_frames=32`, `max_clips=8`, crop size, aggregation method, loss, or `val_views_per_window=1` during this run.
+For each outer fold and seed, first train only on the frozen inner-fit users and select the epoch using `best_accuracy.pt` on the frozen inner-validation users with the pre-registered tie rule. Keep `best_macro_f1.pt` diagnostic only. Then discard that selection model for formal prediction, initialize a fresh model from the same pretrained source, train on every outer-train user for exactly the selected epoch with no labeled validation or early stopping, freeze `formal_outer_refit.pt`, and evaluate the untouched outer-validation users exactly once. Outer-validation labels may compute final metrics only after the formal checkpoint is frozen; they may never select an epoch, stop training, or choose a checkpoint. Emit exactly one formal cross-fitted prediction per usable IR trial in the outer fold. Do not change ROI views, local frame count, `target_window_frames=32`, `max_clips=8`, crop size, aggregation method, loss, or `val_views_per_window=1` during this run.
 
 - [ ] **Step 3: Re-evaluate the selected fold checkpoints**
 
-Reload every selected inner-fold checkpoint, regenerate that fold's predictions, and require exact prediction and metric agreement with the saved values within `1e-6`. Concatenate only after verifying that each train-14 usable IR `sample_id` occurs exactly once and was predicted by a model that never trained on its user.
+Reload every `formal_outer_refit.pt`, regenerate that outer fold's predictions, and require exact prediction and metric agreement with the saved formal values within `1e-6`. Verify the checkpoint records the actual runtime seed, frozen inner epoch-selection users, selected epoch, full outer-train refit users, outer-validation users, resolved-config hash, and assignment hash. Concatenate only after verifying that each train-14 usable IR `sample_id` occurs exactly once and its labels participated in neither weight training nor epoch/checkpoint selection.
 
 - [ ] **Step 4: Generate the report**
 
@@ -746,7 +751,7 @@ For the matched IR-context comparison, align cross-fitted predictions by `sample
 
 - [ ] **Step 5: Apply the pre-registered decision rule**
 
-- **Primary IR expert:** Train-14 cross-fitted pure X3D-S has positive Accuracy and Macro-F1 deltas over the matched IR-context baseline, the paired 95% confidence interval for the Accuracy delta excludes zero, Macro-F1 improves, and worst-user Accuracy does not regress. Run three OOF seeds before registration and report mean, standard deviation, and per-seed deltas.
+- **Primary IR expert:** Train-14 cross-fitted pure X3D-S has positive Accuracy and Macro-F1 deltas over the matched IR-context baseline, the paired 95% confidence interval for the Accuracy delta excludes zero, Macro-F1 improves, and worst-user Accuracy does not regress. Run three OOF seeds before registration and report mean, standard deviation, and per-seed deltas. `20260715` remains the canonical Phase 5 evidence seed even when another seed has higher metrics.
 - **Complementary IR expert:** Standalone Accuracy/Macro-F1 does not satisfy the primary rule, but its worst-user Accuracy delta relative to the matched IR-context baseline is at least `-0.02` (no more than two absolute percentage points of regression) and X3D supplies reproducible additional evidence. This `-0.02` threshold is frozen before Phase 4 OOF results are inspected. Require unique-correct counts in both directions, oracle-pair Accuracy and its paired confidence interval, class-wise rescues, and error disagreement; retention requires a positive oracle-pair gain whose 95% interval excludes zero plus class-wise rescue that persists across the three OOF seeds. Register it as complementary rather than primary.
 - **Promising but unconfirmed:** point metrics or complementarity are positive but their paired intervals include zero, or results vary materially by user, seed, class, or duration bucket. Preserve the predictions for diagnosis, but do not register the candidate until the pre-registered three-seed confirmation passes one of the two retention paths.
 - **Temporal follow-up only:** the train-14 OOF `>64` bucket trails the matched baseline while shorter buckets improve. Keep the visual input fixed and test only `target_window_frames=24` versus 32 using the same inner folds; do not mix this with three-view TTA or inspect held-out results.
@@ -814,11 +819,11 @@ This Phase 5 registration is immutable. A future teacher-assisted candidate must
 
 - [ ] **Step 4: Load and verify the frozen Phase 4 OOF assignment**
 
-Load the exact `metadata/splits/train14_oof_3fold.json` created in Phase 4. Require disjoint train/OOF users, complete 40-class coverage in every fold, and an SHA-256 equal to the Phase 4 experiment manifest. Fail if the file is missing or differs; Phase 5 must never regenerate or repair it. All later modalities and fusion folds must reuse this same assignment.
+Load the exact `metadata/splits/train14_oof_3fold.json` created in Phase 4. Require disjoint train/OOF users, 40-class coverage in every outer-train partition and in the concatenated outer-validation population, exactly-once validation ownership, frozen inner epoch-selection users contained entirely inside outer-train, and an SHA-256 equal to the Phase 4 experiment manifest. Individual outer-validation folds may have fewer than 40 classes because class 25 exists for only two train-14 users; preserve a fixed 40-class metric label set and report missing classes. Fail if the file is missing or differs; Phase 5 must never regenerate or repair it. All later modalities and fusion folds must reuse this same assignment.
 
 - [ ] **Step 5: Generate sparse IR OOF evidence**
 
-Reuse the complete Phase 4 OOF archive when its config, manifest, fold assignment, model, and code hashes match; otherwise regenerate it deterministically. For each OOF fold, fit/train the complete IR preprocessing and X3D expert without that fold's users, then predict only usable IR rows belonging to the OOF users. Concatenate folds and require exactly one prediction for every usable IR trial in the 14-user union, no prediction for unavailable IR, and no user predicted by a model trained on that user.
+Reuse only the canonical-seed `20260715` complete Phase 4 OOF archive when its config, manifest, fold assignment, model, actual seed, strict outer-refit protocol, and code hashes match; otherwise regenerate that seed deterministically under the same strict protocol. Seeds `20260716` and `20260717` remain stability evidence and cannot replace the canonical archive post hoc. For each OOF fold, select the epoch only inside outer-train, refit the complete IR preprocessing and X3D expert on all outer-train users for that fixed epoch, then predict only usable IR rows belonging to the untouched OOF users. Concatenate folds and require exactly one prediction for every usable IR trial in the 14-user union, no prediction for unavailable IR, and no user whose label influenced weight training, epoch selection, or checkpoint selection for its prediction.
 
 Save `oof_evidence.npz`, `oof_provenance.json`, fold checkpoints, per-fold metrics, hashes, frame/clip diagnostics, and deployed-byte totals. Do not copy neutral rows into the sparse expert archive; outer alignment belongs to Phase 7.
 

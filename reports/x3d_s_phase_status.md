@@ -37,6 +37,8 @@ Updated: 2026-08-11 (Asia/Shanghai)
 - Unbiased Phase 8/9 evaluation requires outer-fold-local base evidence: inner OOF on outer-train users and base experts finalized on outer-train only for outer-validation prediction.
 - Missing-pattern support for `g(A,Q)` is computed from each outer-train package; complete train-14 support is used only for final refit.
 - Phase 4 complementary retention freezes worst-user Accuracy delta at `>= -0.02` relative to the matched baseline. Any seed or aggregate below `-0.02` triggers a mandatory human-review stop with all checkpoints, predictions, logs, histories, manifests, and audit artifacts preserved; no automatic deletion, rejection, registration, or Phase 5 continuation is allowed.
+- Phase 4 formal evidence uses strict checkpoint-selection OOF: epoch selection occurs only inside outer-train, a fresh model refits all outer-train users for the selected epoch, and untouched outer-validation is evaluated once. CLI `--seed` must propagate into resolved config, summaries, manifests, and hashes. Seed `20260715` is the immutable Phase 5 canonical OOF archive; `20260716/17` are stability-only.
+- Per-fold validation 40-class coverage is impossible because train-14 class 25 occurs only for `user1` and `user7`. The frozen fold gate therefore requires every outer-train partition and the concatenated OOF population to cover all 40 classes, reports each fold's missing classes, and always computes metrics with the fixed 40-class label set.
 
 ## Phase 0 Evidence Log
 
