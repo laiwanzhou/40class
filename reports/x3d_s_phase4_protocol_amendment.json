@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "role": "phase4_strict_oof_protocol_amendment",
+  "status": "frozen_before_replacement_run",
+  "results_inspected_before_amendment": false,
+  "heldout_labels_or_predictions_accessed": false,
+  "superseded_preregistration": {
+    "path": "outputs/x3d_s_ir_context_oof/phase4_experiment_manifest.json",
+    "sha256": "a600de6e6d037de8633fb9fae81eab3e38d2336336775292bf285e21595eb8e9",
+    "preserve": true
+  },
+  "implementation": {
+    "git_sha": "335f5e201e4276235cc56e91de22aa402100c414",
+    "config_path": "configs/experiments/x3d_s_ir_context_oof.yaml",
+    "config_file_sha256": "6d8628ee3a421ececde63c189da271051ecc230eb25069920766684a95447c7e",
+    "scheduler_horizon_epochs": 30,
+    "inner_search_epochs": 30,
+    "inner_early_stopping_enabled": false,
+    "duration_buckets": ["<=13", "14-32", "33-64", ">64"]
+  },
+  "resolved_config_sha256_by_seed": {
+    "20260715": "8bda408830027817c477e54555d28c9ed7528805d50f44a95e9663e265020eef",
+    "20260716": "52bda9c46022be58b634f07691d0ce59d5bc8f8c1e4e7c97997370e59d81f341",
+    "20260717": "4fec4b839c99f8de1247af8f801f6f38897f762e911caba7ae5301ba697de041"
+  },
+  "canonical_oof_evidence_seed": 20260715,
+  "stability_only_seeds": [20260716, 20260717],
+  "frozen_assignment": {
+    "path": "metadata/splits/train14_oof_3fold.json",
+    "sha256": "2a0dde67ced6f40cf3a163f63d545f1e3cde3545b6ee0eb0291cf1c52c38ea76",
+    "modified_by_amendment": false
+  },
+  "usable_ir_inner_coverage_audit": {
+    "path": "metadata/splits/train14_oof_3fold_ir_coverage_audit.json",
+    "sha256": "3cfbc0717948d914e0c5f98682d3fee362bc3458f7d7bcb2f568387f41788105",
+    "all_inner_fit_partitions_cover_40_classes": true
+  },
+  "aborted_run": {
+    "run_id": "x3d_s_ir_context_adaptive_oof_seed20260715",
+    "stage": "fold_0_inner_epoch_selection",
+    "last_completed_epoch": 4,
+    "history_sha256": "7b1ea0d0de47307b1ead5f8542c180cd404f882e11a332bc9f74f65634f139b5",
+    "formal_outer_refit_exists": false,
+    "formal_outer_predictions_exist": false,
+    "outer_validation_accessed": false,
+    "preserve_and_never_resume_or_overwrite": true
+  },
+  "replacement_run_id": "x3d_s_ir_context_adaptive_oof_strict_v2_seed20260715",
+  "verification": {
+    "focused_tests_passed": 34,
+    "full_suite_tests_passed": 123,
+    "full_suite_seconds": 58.01,
+    "compileall_passed": true,
+    "git_diff_check_passed": true
+  }
+}
