@@ -133,7 +133,7 @@ Execute phases in order. A phase may start only after the previous phase's exit 
 |---|---|---|---|---|
 | Phase 0: Compliance and runtime | Task 1 | New branch/worktree ready | Rule record complete; official pretrained X3D forward passes; provisional IR-route deployment subtotal `<95,000,000` bytes | Completed (`c088db0`) |
 | Phase 1: Temporal data contract | Task 2 | Phase 0 passes | Adaptive window boundary tests, real duration audit, determinism, padding and leakage tests pass | Completed (`481ccb4`) |
-| Phase 2: Expert and trainer | Tasks 3-4 | Phase 1 passes | Trial-level masked aggregation, gradients, archive schema and focused tests pass | Pending |
+| Phase 2: Expert and trainer | Tasks 3-4 | Phase 1 passes | Trial-level masked aggregation, gradients, archive schema and focused tests pass | In progress (Task 3 `cc5bc26`; Task 4 pending) |
 | Phase 3: End-to-end verification | Task 5 | Phase 2 passes | Online/offline ROI parity, shortest/longest trial smoke, overfit test, size audit and full tests pass | Pending |
 | Phase 4: Train-14 OOF scientific evaluation | Task 6 | Phase 3 passes | Pre-registered grouped-OOF comparison, duration/user/class reports, and frozen X3D decision are complete without held-out access | Pending |
 | Phase 5: Register IR sparse evidence | Task 7 | Phase 4 retains pure X3D as a primary or complementary IR expert | Verified train-user OOF archive plus one quarantined held-out IR archive, provenance, evidence contract and size record pass | Pending |
@@ -393,7 +393,7 @@ git commit -m "Add trial-safe adaptive X3D clip dataset"
 - Consumes: `[B,K,3,13,182,182]` local clips, `clip_mask=[B,K]`, and fixed trial-quality tensors.
 - Produces: `ExpertOutput(main_logits=[B,40], embedding=[B,256], quality, quality_mask, availability)`.
 
-- [ ] **Step 1: Write the failing model contract test**
+- [x] **Step 1: Write the failing model contract test**
 
 ```python
 def test_x3d_visual_expert_emits_standard_expert_output() -> None:
@@ -410,13 +410,13 @@ def test_x3d_visual_expert_emits_standard_expert_output() -> None:
     assert torch.isfinite(output.main_logits).all()
 ```
 
-- [ ] **Step 2: Run the test and verify failure**
+- [x] **Step 2: Run the test and verify failure**
 
 Run: `D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest tests/test_x3d_s_visual_expert.py -v`
 
 Expected: FAIL because the wrapper is absent.
 
-- [ ] **Step 3: Implement the wrapper without forking the expert contract**
+- [x] **Step 3: Implement the wrapper without forking the expert contract**
 
 Load the verified official X3D-S backbone, remove only its Kinetics classification projection, preserve pretrained spatiotemporal blocks, globally pool each valid local clip to one feature vector, and add:
 
@@ -441,7 +441,7 @@ trial_embedding = normalize(masked_mean(clip_embeddings, clip_mask, dim=1))
 
 Return the existing `src.models.expert_contract.ExpertOutput`; do not create an X3D-specific output type. Reject trials with zero valid clips and prove by test that changing padded clip values cannot change the output.
 
-- [ ] **Step 4: Implement optimizer parameter groups**
+- [x] **Step 4: Implement optimizer parameter groups**
 
 Expose:
 
@@ -451,19 +451,19 @@ def parameter_groups(self, backbone_lr: float, head_lr: float, weight_decay: flo
 
 The pretrained backbone uses `3e-5`; embedding and classifier heads use `3e-4`. Bias and normalization parameters use zero weight decay; other parameters use `0.05`.
 
-- [ ] **Step 5: Add a frozen-backbone warmup switch**
+- [x] **Step 5: Add a frozen-backbone warmup switch**
 
 Expose `set_backbone_trainable(enabled: bool)`. Epochs 1-2 train only the new embedding and classifier heads; epoch 3 onward trains the full model. BatchNorm layers in a frozen backbone must remain in evaluation mode.
 
 Expose an explicit `update_backbone_bn_running_stats` policy, fixed to `False` for the first run. Calling `model.train()` must keep every backbone BatchNorm module in evaluation mode so Kinetics-400 running mean/variance remain frozen, including after epoch 3. After backbone unfreeze, BatchNorm affine parameters (`weight`, `bias`) remain trainable with the other backbone parameters. A later running-stat adaptation experiment is a separate pre-registered ablation.
 
-- [ ] **Step 6: Run model and expert-contract tests**
+- [x] **Step 6: Run model and expert-contract tests**
 
 Run: `D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest tests/test_x3d_s_visual_expert.py tests/test_expert_contract.py -v`
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit the model wrapper**
+- [x] **Step 7: Commit the model wrapper**
 
 ```bash
 git add src/models/x3d_s_visual_expert.py src/models/__init__.py tests/test_x3d_s_visual_expert.py

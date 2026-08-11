@@ -6,7 +6,7 @@ Updated: 2026-08-11 (Asia/Shanghai)
 |---|---|---|---|---|---|
 | Phase 0: Compliance and runtime | Completed | `c088db0` | Official rules rechecked; official X3D forward, provisional IR-route subtotal, dependency check and 15 focused/regression tests passed | X3D-S has no model-specific organizer approval; final trained checkpoint must be remeasured | Phase 1 may begin |
 | Phase 1: Temporal data contract | Completed | `481ccb4` | 23 dataset tests, 30 focused/regression tests, and all 74 repository tests passed; real shortest/longest trial probe passed | Exported quality fields are constant in this manifest, so they are contract metadata rather than discriminative evidence in the first run | Phase 2 may begin after review |
-| Phase 2: Expert and trainer | Pending | - | Phase 1 exit gate passed; first-run BN policy frozen | K400 running stats stay frozen; BN affine trains after backbone unfreeze | Task 3 may begin |
+| Phase 2: Expert and trainer | In progress | `cc5bc26` | Task 3 wrapper, aggregation, optimizer groups and BN policy implemented; 10 focused and 80 full-suite tests passed | Trainer/archive contract remains unimplemented | Begin Task 4 with RED trainer tests |
 | Phase 3: End-to-end verification | Pending | - | - | - | Wait for Phase 2 exit gate |
 | Phase 4: Train-14 OOF scientific evaluation | Pending | - | Pure X3D has primary and complementary retention paths | Held-out labels must remain sealed | Wait for Phase 3 exit gate |
 | Phase 5: Register IR sparse evidence | Pending | - | Pure candidate registers as `ir_x3d_s_k400_pure` | Held-out archive is evaluation-only until Phase 10 | Wait for Phase 4 primary/complementary retain decision |
@@ -108,3 +108,18 @@ Passed on 2026-08-10. PyTorchVideo imports cleanly, `pip check` reports no broke
 ### Exit Gate
 
 Passed on 2026-08-10. Boundary lengths 1, 13, 32, 33, 64, 65, and 236 are covered; window union, deterministic validation, epoch-seeded training views, consistent spatial transforms, split leakage rejection, variable-`K` padding, metadata, and real shortest/longest trial behavior are verified. Stage 2 was not started.
+
+## Phase 2 Evidence Log
+
+### Task 3: X3D-S Visual Expert Wrapper
+
+- RED confirmed: `tests/test_x3d_s_visual_expert.py` failed because `src.models.x3d_s_visual_expert` did not exist.
+- Implemented official PyTorchVideo X3D-S feature construction by removing the Kinetics projection while retaining the 2,048-dimensional pooled feature path.
+- Implemented valid-clip-only forwarding, masked mean probability aggregation, log trial probabilities, masked mean plus L2-normalized embeddings, and the existing `ExpertOutput` contract.
+- Padded clip values are never forwarded and cannot alter outputs; trials with zero valid clips fail explicitly.
+- Implemented backbone/head learning-rate groups with zero decay for bias and normalization parameters.
+- First-run BN policy is explicit: K400 running statistics remain frozen after `model.train()` and backbone unfreeze, while BN affine parameters become trainable with the backbone.
+- Verification: 6 wrapper tests passed; wrapper plus expert-contract tests passed 10/10; full repository suite passed 80/80; compileall and `git diff --check` passed.
+- Implementation commit: `cc5bc26 Add fusion-compatible X3D-S visual expert`.
+
+Task 4 is pending, so Phase 2 remains in progress.
