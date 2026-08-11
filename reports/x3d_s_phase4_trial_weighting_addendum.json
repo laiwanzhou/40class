@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "role": "phase4_equal_trial_gradient_accumulation_addendum",
+  "status": "frozen_before_training",
+  "implementation_git_sha": "b95e18f170b4e7014e3163527f5773abd94cec97",
+  "results_inspected_before_addendum": false,
+  "heldout_labels_or_predictions_accessed": false,
+  "root_cause": "The previous loop averaged each microbatch loss and then divided by the number of microbatches. Variable microbatch row counts therefore gave singleton batches twice the per-trial gradient weight of two-trial batches.",
+  "invalidated_run": {
+    "run_id": "x3d_s_ir_context_adaptive_oof_strict_v2b_seed20260715",
+    "stage": "fold_0_inner_epoch_selection",
+    "last_completed_epoch": 6,
+    "history_sha256": "58cb064dbca9dc674bcf4662e2b215bc50b7a6ee363eb72b2c1f3a650a1740b5",
+    "formal_outer_refit_exists": false,
+    "formal_outer_predictions_exist": false,
+    "outer_validation_accessed": false,
+    "preserve_and_never_resume_or_overwrite": true
+  },
+  "corrected_objective": {
+    "microbatch_loss_reduction": "sum_over_trials",
+    "optimizer_window_gradient_divisor": "actual_trial_count",
+    "gradient_division_occurs_before_clipping": true,
+    "reported_epoch_loss": "sum_trial_nll_divided_by_total_trials",
+    "clip_count_or_microbatch_count_weighting": false
+  },
+  "regression_test": {
+    "name": "test_gradient_accumulation_weights_trials_equally_across_variable_microbatches",
+    "microbatch_trial_counts": [1, 2, 2, 2],
+    "reference_full_batch_trials": 7,
+    "parameter_update_absolute_tolerance": 1e-7,
+    "focused_tests_passed": 35,
+    "full_suite_tests_passed": 124,
+    "full_suite_seconds": 58.30,
+    "compileall_passed": true,
+    "git_diff_check_passed": true
+  },
+  "frozen_assignment_sha256": "2a0dde67ced6f40cf3a163f63d545f1e3cde3545b6ee0eb0291cf1c52c38ea76",
+  "usable_ir_inner_coverage_audit_sha256": "3cfbc0717948d914e0c5f98682d3fee362bc3458f7d7bcb2f568387f41788105",
+  "canonical_oof_evidence_seed": 20260715,
+  "replacement_run_id": "x3d_s_ir_context_adaptive_oof_strict_v3_seed20260715"
+}
