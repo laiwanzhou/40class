@@ -606,7 +606,7 @@ git commit -m "Add adaptive multi-clip X3D-S training pipeline"
 - Consumes: the real combined manifest and a smoke-run directory.
 - Produces: a pass/fail audit covering split membership, shapes, pretrained loading, gradients, provisional IR-route deployment subtotal, online ROI parity, latency, and fusion contract.
 
-- [ ] **Step 1: Write the real-manifest read-only contract test**
+- [x] **Step 1: Write the real-manifest read-only contract test**
 
 The test must assert:
 
@@ -619,13 +619,13 @@ The test must assert:
 - validation access is deterministic;
 - no path contains a competition-test directory.
 
-- [ ] **Step 2: Run the real-manifest test**
+- [x] **Step 2: Run the real-manifest test**
 
 Run: `D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest tests/test_x3d_s_real_manifest_contract.py -v`
 
 Expected: PASS without writing new data assets.
 
-- [ ] **Step 3: Run a two-sample forward/backward smoke test**
+- [x] **Step 3: Run a two-sample forward/backward smoke test**
 
 Run:
 
@@ -638,11 +638,11 @@ D:\Anaconda\envs\pyTorch2.7\python.exe -m src.train_x3d_s_visual_expert `
 
 Expected: train and validation complete, both backbone and head receive finite gradients after unfreezing, checkpoints reload, and prediction archives pass validation.
 
-- [ ] **Step 4: Run a small-subset overfit test**
+- [x] **Step 4: Run a small-subset overfit test**
 
 Use 16 training samples covering at least 8 classes and containing both one-clip and multi-clip trials for 20 epochs with augmentation disabled. Require aggregated trial loss to fall and training Accuracy to exceed 80%. This is an implementation test only; do not report its validation metrics as scientific evidence.
 
-- [ ] **Step 5: Audit model size and fusion contract**
+- [x] **Step 5: Audit model size and fusion contract**
 
 `scripts/audit_x3d_s_run.py` must verify:
 
@@ -666,7 +666,9 @@ raw IR frames -> existing UltralyticsPoseLocator -> IRPrimaryInputROIBuilder
               -> shared X3D-S -> masked trial aggregation -> trial logits
 ```
 
-Reuse the existing YOLO pose locator and ROI builder rather than duplicating box-selection logic. On a deterministic representative sample set covering one-, two-, four-, and eight-clip trials, low/high pose reliability, and recovered context cases, compare online boxes and crops with the existing exported `ir_context` assets. Require identical window bounds, sampled frame indices, box coordinates, and either byte-identical crops or a documented pixel tolerance caused only by the image codec. Fail on missing weights, silent full-frame fallback, ordering changes, clip-count drift, or normalization drift.
+Reuse the existing YOLO pose locator and ROI builder rather than duplicating box-selection logic. On a deterministic representative sample set covering one-, two-, four-, and eight-clip trials, low/high pose reliability, recovered context cases, and both available eight-clip trials, compare online boxes and crops with the existing exported `ir_context` assets. Require identical trial frame ordering, clip counts, window bounds, sampled frame indices, person-selection/recovery path, and X3D normalization. Fresh YOLO detections need not reproduce historical floating-point boxes exactly. Require maximum absolute ROI-box drift <= 1 pixel, crop MAE <= 1/255, P99 absolute pixel error <= 8/255, PSNR >= 40 dB, and worst-frame crop MAE <= 2/255. Differences caused by subpixel detector drift interacting with floating-point crop boundaries and resampling are admissible when all geometric and image-level gates pass. Silent full-frame fallback remains forbidden. Fail on missing weights, ordering changes, clip-count drift, person-selection/recovery drift, or normalization drift.
+
+Using one fixed hashed X3D checkpoint, compare offline-export and online-generated inputs at the model level by trial-embedding cosine similarity, probability L1 distance, Jensen-Shannon divergence, maximum class-probability delta, and top-1 agreement. These are sensitivity diagnostics supporting the input-parity audit; top-1 disagreement alone does not invalidate otherwise passing preprocessing parity. Record the checkpoint SHA-256 and report the observed values without selecting post-hoc sensitivity thresholds from these representative trials.
 
 The parity test uses training data only. Record end-to-end latency separately for YOLO/ROI preprocessing, each X3D clip, and complete trial inference in the `<=13`, `14-32`, `33-64`, and `>64` frame buckets so the report reflects the actual submission path.
 
