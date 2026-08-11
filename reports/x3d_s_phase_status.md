@@ -4,13 +4,13 @@ Updated: 2026-08-11 (Asia/Shanghai)
 
 | Phase | Status | Git SHA | Evidence | Risks | Next decision |
 |---|---|---|---|---|---|
-| Phase 0: Compliance and runtime | Completed | `c088db0` | Official rules rechecked; official X3D forward, YOLO inventory, conservative size gate, dependency check and 15 focused/regression tests passed | X3D-S has no model-specific organizer approval; final trained checkpoint must be remeasured | Phase 1 may begin |
+| Phase 0: Compliance and runtime | Completed | `c088db0` | Official rules rechecked; official X3D forward, provisional IR-route subtotal, dependency check and 15 focused/regression tests passed | X3D-S has no model-specific organizer approval; final trained checkpoint must be remeasured | Phase 1 may begin |
 | Phase 1: Temporal data contract | Completed | `481ccb4` | 23 dataset tests, 30 focused/regression tests, and all 74 repository tests passed; real shortest/longest trial probe passed | Exported quality fields are constant in this manifest, so they are contract metadata rather than discriminative evidence in the first run | Phase 2 may begin after review |
 | Phase 2: Expert and trainer | Pending | - | Phase 1 exit gate passed | - | Phase 2 may begin after plan review |
 | Phase 3: End-to-end verification | Pending | - | - | - | Wait for Phase 2 exit gate |
 | Phase 4: Train-14 OOF scientific evaluation | Pending | - | Pure X3D has primary and complementary retention paths | Held-out labels must remain sealed | Wait for Phase 3 exit gate |
 | Phase 5: Register IR sparse evidence | Pending | - | Pure candidate registers as `ir_x3d_s_k400_pure` | Held-out archive is evaluation-only until Phase 10 | Wait for Phase 4 primary/complementary retain decision |
-| Phase 6: Freeze expert portfolio | Pending | - | Program-level roadmap only | Historical metrics use mixed folds and require canonical reruns | Execute later on a dedicated branch after Phase 5 review |
+| Phase 6: Freeze expert portfolio | Pending | - | Program-level roadmap; all candidates reuse the exact Phase 4 OOF assignment/hash | Historical metrics use mixed folds; outer four users are unavailable for selection | Execute later on a dedicated branch after Phase 5 review |
 | Phase 7: Build sparse evidence registry | Pending | - | Program-level roadmap only | Natural missingness and unusable-present rows must remain explicit | Wait for Phase 6 |
 | Phase 8: Fit safe anchor | Pending | - | Program-level roadmap only | Calibration must use train-14 OOF evidence only | Wait for Phase 7 |
 | Phase 9: Test residual correction | Pending | - | Program-level roadmap only | Rare modality combinations must not dominate training | Wait for Phase 8 |
@@ -29,6 +29,10 @@ Updated: 2026-08-11 (Asia/Shanghai)
 - Skeleton/YOLO diagnostics support sequence-level evidence fusion, not frame-level or joint-level hard fusion.
 - Historical expert scores use mixed folds and are context only until regenerated on the canonical split and common train-14 OOF assignment.
 - Teacher-assisted X3D is an optional separately pre-registered candidate, never an automatic Phase 4B. It must use distinct evidence identity and may not overwrite the pure-X3D archive.
+- `train14_oof_3fold.json` is generated and hashed once in Phase 4. Phases 5-9 may verify and reuse it but may never regenerate it.
+- Held-out/test `ExpertEvidence` and registries are structurally label-free. Phase 10 joins predictions to a separate sealed held-out label source.
+- Phase 8 reports cross-fitted A; Phase 9 cross-fits A and D on identical outer user folds with residual selection inside outer-train users only.
+- Every expert exposes native quality plus a pre-registered label-free scalar `fusion_quality_score` in `[0,1]`; fusion never directly averages heterogeneous native quality coordinates.
 
 ## Phase 0 Evidence Log
 
@@ -61,7 +65,7 @@ Updated: 2026-08-11 (Asia/Shanghai)
 - X3D-S source checkpoint: 3,794,274 parameters, 30,779,313 bytes, SHA-256 `26b95f1605d49650b54049db40ba3a56e023b86b58c3b3e0e10e0992a9c8682f`.
 - YOLO11n-pose: 2,874,462 parameters, 6,255,593 bytes, SHA-256 `869e83fcdffdc7371fa4e34cd8e51c838cc729571d1635e5141e3075e9319dc0`.
 - Estimated custom head: 535,336 parameters and 2,144,149 serialized bytes.
-- Conservative aggregate: 39,179,055 bytes of the 95,000,000-byte internal limit; size gate passed.
+- Provisional IR-route deployment subtotal: 39,179,055 bytes of the 95,000,000-byte internal limit; route gate passed. This is not the complete six-modal package.
 - Peak CUDA memory during the one-sample X3D probe: 80,395,264 bytes.
 
 ### Exit Gate

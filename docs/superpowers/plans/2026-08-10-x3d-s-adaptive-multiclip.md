@@ -37,7 +37,7 @@
 - Apply identical spatial augmentation to every frame in a clip.
 - Train with one stochastic temporal view per local window; validate the first experiment with one deterministic midpoint view per local window. Aggregate clips before computing trial-level metrics.
 - Keep three-view temporal test-time augmentation out of the first experiment so adaptive coverage and view augmentation remain separate variables.
-- Store trial-level logits, embeddings, labels, users, qualities, `sample_ids`, and `class_map_hash`.
+- Store trial-level logits, embeddings, users, qualities, `sample_ids`, and `class_map_hash`. Store labels only for explicitly labeled training/OOF roles; held-out and competition-test evidence files must not contain labels.
 - Do not choose expert checkpoints, temporal settings, architectures, fusion temperatures, weights, support rules, or residual behavior on the four held-out users.
 - Count every inference-time weight file in one aggregate: X3D-S, classification head, YOLO pose, sensor experts, fusion modules, and any learned preprocessing model.
 - Use `95,000,000` serialized bytes as the internal acceptance ceiling, leaving headroom below the published `100 MB` limit and avoiding MB/MiB ambiguity.
@@ -131,13 +131,13 @@ Execute phases in order. A phase may start only after the previous phase's exit 
 
 | Phase | Scope | Entry condition | Exit gate | Status |
 |---|---|---|---|---|
-| Phase 0: Compliance and runtime | Task 1 | New branch/worktree ready | Rule record complete; official pretrained X3D forward passes; complete inference stack `<95,000,000` bytes | Completed (`c088db0`) |
+| Phase 0: Compliance and runtime | Task 1 | New branch/worktree ready | Rule record complete; official pretrained X3D forward passes; provisional IR-route deployment subtotal `<95,000,000` bytes | Completed (`c088db0`) |
 | Phase 1: Temporal data contract | Task 2 | Phase 0 passes | Adaptive window boundary tests, real duration audit, determinism, padding and leakage tests pass | Completed (`481ccb4`) |
 | Phase 2: Expert and trainer | Tasks 3-4 | Phase 1 passes | Trial-level masked aggregation, gradients, archive schema and focused tests pass | Pending |
 | Phase 3: End-to-end verification | Task 5 | Phase 2 passes | Online/offline ROI parity, shortest/longest trial smoke, overfit test, size audit and full tests pass | Pending |
 | Phase 4: Train-14 OOF scientific evaluation | Task 6 | Phase 3 passes | Pre-registered grouped-OOF comparison, duration/user/class reports, and frozen X3D decision are complete without held-out access | Pending |
 | Phase 5: Register IR sparse evidence | Task 7 | Phase 4 retains pure X3D as a primary or complementary IR expert | Verified train-user OOF archive plus one quarantined held-out IR archive, provenance, evidence contract and size record pass | Pending |
-| Phase 6: Freeze expert portfolio | Tasks 8-9 | Phase 5 passes | Six expert candidates use the canonical split, report complementarity, and fit the provisional byte budget | Pending |
+| Phase 6: Freeze expert portfolio | Tasks 8-9 | Phase 5 passes | Six expert candidates use only the canonical train-14 population and frozen shared OOF folds, report complementarity, and fit the provisional complete-package byte budget | Pending |
 | Phase 7: Build sparse evidence registry | Task 10 | Phase 6 passes | Six leakage-free OOF archives outer-align to the canonical union with audited missingness | Pending |
 | Phase 8: Fit safe anchor | Task 11 | Phase 7 passes | Calibrated masked probability mixture passes singleton, missing-pattern, user and budget gates | Pending |
 | Phase 9: Test residual correction | Task 12 | Phase 8 passes | D-versus-A user-grouped comparison either retains the mixer or freezes anchor-only | Pending |
@@ -565,11 +565,13 @@ Save:
 
 Each NPZ must contain exactly one row per validation `sample_id`. Validate uniqueness, finite values, `[N,40]` logits, `[N,256]` embeddings, the same class-map hash as the dataset, and diagnostic `num_frames=[N]` and `num_clips=[N]` arrays. These diagnostic arrays must not be treated as action evidence by later fusion.
 
+For every Phase 4 fold, `best_accuracy.pt` is the sole checkpoint used for the primary scientific OOF prediction. Break equal-Accuracy ties by higher Macro-F1, then earlier epoch. `best_macro_f1.pt` and its predictions are diagnostic only and may not be substituted after results are visible or mixed across folds.
+
 - [ ] **Step 7: Record scientific and resource metrics**
 
 `history.csv` and `run_summary.json` must include train/val Accuracy, Macro-F1, weighted F1, loss, class coverage, zero-recall classes, worst-user Accuracy, learning rates, epoch duration, peak CUDA memory, parameter count, state-dict bytes, checkpoint file sizes, mean/max clips per trial, processed clips per second, and trial-level latency by length bucket.
 
-`run_summary.json` must also embed the compliance manifest: X3D weight hash and bytes, YOLO weight hash and bytes, custom-head bytes, combined serialized inference-weight bytes, the `95,000,000`-byte internal limit, pretrained source, and an explicit `submission_size_gate_passed` boolean. A run that fails the size gate may be used for diagnosis but must not be marked submission-eligible.
+`run_summary.json` must also embed the compliance manifest: X3D weight hash and bytes, YOLO weight hash and bytes, custom-head bytes, IR-route serialized weight subtotal, the `95,000,000`-byte internal limit, pretrained source, and an explicit `ir_route_provisional_size_gate_passed` boolean. This flag covers only the raw-IR-to-X3D route, not the six-modal submission package. A run that fails this provisional route gate may be used for diagnosis but must not be marked deployment-eligible.
 
 - [ ] **Step 8: Run trainer contract tests**
 
@@ -597,7 +599,7 @@ git commit -m "Add adaptive multi-clip X3D-S training pipeline"
 
 **Interfaces:**
 - Consumes: the real combined manifest and a smoke-run directory.
-- Produces: a pass/fail audit covering split membership, shapes, pretrained loading, gradients, complete inference-stack size, online ROI parity, latency, and fusion contract.
+- Produces: a pass/fail audit covering split membership, shapes, pretrained loading, gradients, provisional IR-route deployment subtotal, online ROI parity, latency, and fusion contract.
 
 - [ ] **Step 1: Write the real-manifest read-only contract test**
 
@@ -647,7 +649,7 @@ Use 16 training samples covering at least 8 classes and containing both one-clip
 - successful `align_expert_batch()` against a fixture with shuffled sample order;
 - `calibrated_probability_mixture(alpha=0)` exactly recovers X3D probabilities.
 
-The audit must sum the serialized weights of every component needed to transform an official raw trial into final logits. For the initial route this includes YOLO11n-pose, X3D-S, the embedding/classification head, and any learned preprocessing or calibration module. Count deployable files, not conceptual submodules: if the custom head is already inside the final X3D checkpoint, do not add it twice. Require the aggregate to remain below the conservative internal limit of `95,000,000` bytes; do not report only X3D's parameter count.
+The audit must sum the serialized weights of every component needed by the provisional IR route. This includes YOLO11n-pose, X3D-S, the embedding/classification head, and any learned IR preprocessing or calibration module. Count deployable files, not conceptual submodules: if the custom head is already inside the final X3D checkpoint, do not add it twice. Require this IR-route subtotal to remain below the conservative internal limit of `95,000,000` bytes; do not call it the complete submission package or report only X3D's parameter count.
 
 - [ ] **Step 6: Implement and verify raw-trial online inference parity**
 
@@ -699,13 +701,13 @@ git commit -m "Verify compliant X3D-S inference end to end"
 
 - [ ] **Step 1: Freeze and hash the experiment inputs**
 
-Record the configuration hash, manifest hash, class-map hash, X3D and YOLO pretrained-weight hashes, compliance-document hash, rule-source URLs and access date, Git SHA, environment probe, complete inference-weight byte total, outer train/held-out users, inner OOF fold users, trial counts, and seed before looking at OOF results. The experiment may start only if the submission-size gate passes and the command cannot load the held-out archive.
+Record the configuration hash, manifest hash, class-map hash, X3D and YOLO pretrained-weight hashes, compliance-document hash, rule-source URLs and access date, Git SHA, environment probe, provisional IR-route deployment subtotal, outer train/held-out users, inner OOF fold users, trial counts, and seed before looking at OOF results. The experiment may start only if `ir_route_provisional_size_gate_passed=true` and the command cannot load the held-out archive.
 
 - [ ] **Step 2: Run the fixed three-fold user-grouped OOF experiment**
 
 Run:
 
-First generate and persist `metadata/splits/train14_oof_3fold.json` from canonical train-14 labels/users using `StratifiedGroupKFold(n_splits=3, shuffle=True, random_state=20260715)`, then run each declared fold through the Phase 2 trainer:
+Generate `metadata/splits/train14_oof_3fold.json` exactly once from canonical train-14 labels/users using `StratifiedGroupKFold(n_splits=3, shuffle=True, random_state=20260715)`. Validate disjoint users and 40-class coverage, record its SHA-256 in the Phase 4 experiment manifest, make the file immutable for later phases, then run each declared fold through the Phase 2 trainer:
 
 ```powershell
 D:\Anaconda\envs\pyTorch2.7\python.exe -m src.train_x3d_s_visual_expert `
@@ -715,7 +717,7 @@ D:\Anaconda\envs\pyTorch2.7\python.exe -m src.train_x3d_s_visual_expert `
   --run-id x3d_s_ir_context_adaptive_oof_seed20260715
 ```
 
-For each inner fold, fit on the other train-14 users, select epoch/checkpoint only on that fold's validation users, and emit exactly one cross-fitted prediction per usable IR trial in the fold. Do not change ROI views, local frame count, `target_window_frames=32`, `max_clips=8`, crop size, aggregation method, loss, or `val_views_per_window=1` during this run.
+For each inner fold, fit on the other train-14 users, select `best_accuracy.pt` only on that fold's validation users using the pre-registered tie rule, and emit exactly one formal cross-fitted prediction per usable IR trial in the fold. Keep `best_macro_f1.pt` diagnostic only. Do not change ROI views, local frame count, `target_window_frames=32`, `max_clips=8`, crop size, aggregation method, loss, or `val_views_per_window=1` during this run.
 
 - [ ] **Step 3: Re-evaluate the selected fold checkpoints**
 
@@ -729,11 +731,11 @@ Compare X3D-S with:
 - a matched MobileNet/TCN IR-context baseline using the exact same train-14 OOF user folds, trial `sample_id` set, class map, ROI assets, and trial-level metric implementation; rerun it if the existing result does not satisfy every matching condition;
 - a canonically rerun Skeleton TCN train-14 OOF result when available; historical held-out scores remain context only.
 
-Report Accuracy, Macro-F1, worst-user Accuracy, per-user metrics, per-class recall, zero-recall classes, training/generalization gap, complete inference-stack bytes, individual component sizes, checkpoint size, GPU memory, X3D-only latency, YOLO/ROI latency, and end-to-end trial latency.
+Report Accuracy, Macro-F1, worst-user Accuracy, per-user metrics, per-class recall, zero-recall classes, training/generalization gap, provisional IR-route deployment subtotal, individual component sizes, checkpoint size, GPU memory, X3D-only latency, YOLO/ROI latency, and end-to-end trial latency.
 
 Also report Accuracy, Macro-F1, sample count, mean clip count, and mean latency separately for trial-length buckets `<=13`, `14-32`, `33-64`, and `>64`. Compare short-action and long-action class recall so a global score cannot hide duration-dependent failure.
 
-For the matched IR-context comparison, align cross-fitted predictions by `sample_id` and run 10,000 paired bootstrap replicates stratified by train-14 OOF user. Keep the class label set fixed at all 40 classes in every replicate and report point deltas plus 95% confidence intervals for Accuracy and Macro-F1. This bootstrap quantifies cross-fitted sample uncertainty only; three-seed confirmation is still required before claiming training stability.
+For the matched IR-context comparison, align cross-fitted predictions by `sample_id` and run 10,000 paired bootstrap replicates stratified by train-14 OOF user. Every replicate must retain every OOF user, independently resample paired trials with replacement within each user, concatenate the resampled users, and recompute metrics. Keep the class label set fixed at all 40 classes in every replicate and report point deltas plus 95% confidence intervals for Accuracy and Macro-F1. Do not bootstrap only the user clusters. This bootstrap quantifies cross-fitted sample uncertainty only; three-seed confirmation is still required before claiming training stability.
 
 - [ ] **Step 5: Apply the pre-registered decision rule**
 
@@ -782,6 +784,10 @@ def test_evidence_allows_optional_embedding_but_requires_provenance() -> None:
 def test_evidence_rejects_duplicate_or_unknown_samples() -> None:
     with pytest.raises(ValueError, match="duplicate sample"):
         fixture_evidence(sample_ids=("a", "a")).validate()
+
+def test_heldout_evidence_forbids_labels() -> None:
+    with pytest.raises(ValueError, match="labels forbidden"):
+        fixture_evidence(role="heldout", labels=np.array([0, 1])).validate()
 ```
 
 - [ ] **Step 2: Run the evidence tests and observe RED**
@@ -792,19 +798,15 @@ Expected: FAIL because `src.fusion.expert_evidence` does not exist.
 
 - [ ] **Step 3: Implement `ExpertEvidence` without changing `ExpertOutput`**
 
-Required fields are `expert_id`, `sample_ids`, `user_ids`, `labels`, `logits`, `availability`, `quality`, `quality_mask`, `class_map_hash`, `model_sha256`, `config_sha256`, `deployed_weight_bytes`, and `preprocessing_dependencies`. Optional fields are `embeddings`, `engineered_summary`, and diagnostic arrays. Require finite logits, unique IDs, 40 classes, matching row counts, a non-empty class hash, and SHA-256 values. For IR, preserve label-free ROI diagnostics such as pose-detection rate, keypoint confidence, context-effective rate, recovered-ROI fraction, and local-view reliability when available; missing diagnostics remain masked and may not be imputed from labels.
+Required for every role are `role`, `expert_id`, `sample_ids`, `user_ids`, `logits`, `availability`, modality-native `quality`, `quality_mask`, scalar `fusion_quality_score=[N,1]`, `class_map_hash`, `model_sha256`, `config_sha256`, `deployed_weight_bytes`, and `preprocessing_dependencies`. `labels` is optional at the type level but required exactly for `role=oof_train14` and forbidden for `role=heldout` or `role=competition_test`. Optional fields are `embeddings`, `engineered_summary`, and diagnostic arrays. Require finite logits, unique IDs, 40 classes, matching row counts, a non-empty class hash, SHA-256 values, and fusion quality in `[0,1]`.
+
+Each expert must pre-register a deterministic label-free mapping from its native quality vector/mask to `fusion_quality_score`. The mapping and its hash are provenance. It may use sensor validity, detection confidence, point coverage, or similar input diagnostics, but never class labels, correctness, held-out performance, or fitted action metrics. If no defensible scaling exists, pre-register the constant score `1.0` and let availability/support control the first gate rather than inventing a post-hoc scale. For IR, preserve native diagnostics such as pose-detection rate, keypoint confidence, context-effective rate, recovered-ROI fraction, and local-view reliability when available.
 
 This Phase 5 registration is immutable. A future teacher-assisted candidate must use a distinct identity such as `ir_x3d_s_teacher_assisted`, its own config/model/provenance hashes, and independently generated OOF and held-out evidence. It may later replace the pure candidate through the Phase 6 portfolio gate, but it may not overwrite `ir_x3d_s_k400_pure` artifacts or be silently treated as the same experiment.
 
-- [ ] **Step 4: Freeze one shared three-fold OOF user assignment**
+- [ ] **Step 4: Load and verify the frozen Phase 4 OOF assignment**
 
-Generate a persisted assignment inside the 14 training users with:
-
-```python
-StratifiedGroupKFold(n_splits=3, shuffle=True, random_state=20260715)
-```
-
-Use `class_id` as `y` and `user_id` as groups. Require disjoint train/OOF users, complete 40-class coverage in every OOF fold, and the same fold assignment for all later modalities. Do not derive folds from model results.
+Load the exact `metadata/splits/train14_oof_3fold.json` created in Phase 4. Require disjoint train/OOF users, complete 40-class coverage in every fold, and an SHA-256 equal to the Phase 4 experiment manifest. Fail if the file is missing or differs; Phase 5 must never regenerate or repair it. All later modalities and fusion folds must reuse this same assignment.
 
 - [ ] **Step 5: Generate sparse IR OOF evidence**
 
@@ -814,7 +816,7 @@ Save `oof_evidence.npz`, `oof_provenance.json`, fold checkpoints, per-fold metri
 
 - [ ] **Step 6: Generate quarantined held-out evidence**
 
-Freeze the architecture, seed policy, preprocessing, and training duration from Phase 4, train/finalize the retained X3D expert on all 14 training users without labeled validation, and predict usable IR rows from the four held-out users exactly once. Save `heldout_evidence.npz` and provenance separately without computing or displaying held-out metrics. Mark the archive `evaluation_only=true`; no fitting, selection, reporting, or diagnostic command before Phase 10 may accept or inspect that path.
+Freeze the architecture, seed policy, preprocessing, and training duration from Phase 4, train/finalize the retained X3D expert on all 14 training users without labeled validation, and predict usable IR rows from the four held-out users exactly once. Save `heldout_evidence.npz` and provenance separately with `role=heldout`, `labels=None`, and no label array in the serialized file. Mark the archive `evaluation_only=true`; no fitting, selection, reporting, or diagnostic command before Phase 10 may accept or inspect that path.
 
 - [ ] **Step 7: Report expert complementarity inputs**
 
@@ -867,7 +869,7 @@ def test_candidate_must_match_canonical_users_and_class_map() -> None:
 
 - [ ] **Step 2: Audit IMU RF and Skeleton evidence**
 
-Verify source commit, feature schema, train-only preprocessing, class map, sample population, weights, imputer, hashes, inference entry point, serialized bytes, and license. Historical scores from a different user split remain context only. Rerun each accepted architecture on the canonical 14/4 split and later generate the common OOF assignment rather than reusing incompatible predictions.
+Verify source commit, feature schema, train-only preprocessing, class map, sample population, weights, imputer, hashes, inference entry point, serialized bytes, and license. Historical scores from a different user split remain context only. Rerun each accepted architecture on the canonical train-14 population using the exact Phase 4 `train14_oof_3fold.json` and its registered SHA-256. Select candidates only from cross-fitted predictions; the outer four users and their labels remain unavailable throughout Phase 6.
 
 For Skeleton, retain all native joints and sequence features such as root-centered coordinates, scale-normalized geometry, bones, and velocity. The 12-joint YOLO correspondence is an audit/quality signal only; do not reduce the expert to those joints or impose frame-level visual alignment.
 
@@ -907,13 +909,15 @@ Verify the known exact IR/Depth timestamp pairing and prove spatial ROI parity b
 
 Require each candidate to emit 40-class logits, label-free quality, usability, provenance, latency, and exact deployed bytes. Radar tests must cover an empty point-set trial without deleting the canonical row. Visual tests must cover locator failure and documented context fallback.
 
+Every Depth, Thermal, and Radar candidate must use the exact frozen Phase 4 `train14_oof_3fold.json`. Fit preprocessing, checkpoints, and candidate decisions inside those train-14 folds only. The outer four users and their labels are unavailable for candidate metrics, early stopping, architecture choice, or portfolio selection.
+
 - [ ] **Step 3: Run controlled candidate experiments**
 
 Depth starts with a compact spatial-temporal/geometric expert that preserves native geometry. Thermal starts with a compact visual-temporal expert. Radar compares the failed 21-stat TCN reference with raw variable point sets encoded by a shared point MLP, mean/max frame pooling, and a small masked TCN. PointNet+TCN is retained only if it improves relevant metrics or complementarity per deployed byte.
 
 - [ ] **Step 4: Apply the portfolio gate**
 
-Retain a candidate only when it has reproducible canonical-split outputs, valid missingness behavior, useful standalone or complementary evidence, acceptable latency, and a provisional six-expert package below 95,000,000 bytes. Do not clone X3D-sized capacity into Depth or Thermal without a measured benefit-per-byte case.
+Retain a candidate only when it has reproducible canonical-split outputs, valid missingness behavior, useful standalone or complementary evidence, acceptable latency, and a provisional six-expert package below 95,000,000 bytes. Record this estimate separately as `provisional_complete_package_size_gate_passed`; it includes declared upper-bound estimates for the anchor, adapters, and optional residual mixer and is not the final Phase 10 `complete_submission_size_gate_passed`. Do not clone X3D-sized capacity into Depth or Thermal without a measured benefit-per-byte case.
 
 - [ ] **Step 5: Commit candidate code/config/reports only**
 
@@ -932,7 +936,7 @@ Do not commit weights or prediction arrays. Commit source, fixed configs, tests,
 
 **Interfaces:**
 - Consumes: canonical 3,036-trial manifest, fixed OOF fold assignment, and sparse OOF/held-out evidence from six experts.
-- Produces: a dense canonical row index plus sparse expert tensors and masks; it never invents predictions for missing evidence.
+- Produces: a labeled `oof_train14` registry and a structurally label-free `heldout` registry with dense canonical row indices plus sparse expert tensors and masks; it never invents predictions for missing evidence.
 
 - [ ] **Step 1: Preserve strict alignment and write RED outer-alignment tests**
 
@@ -946,11 +950,16 @@ def test_outer_alignment_fills_neutral_values_and_false_availability() -> None:
 def test_outer_alignment_rejects_unknown_ids_and_label_mismatch() -> None:
     with pytest.raises(ValueError, match="unknown sample"):
         outer_align_evidence(canonical_ids=("a",), evidence=only_b())
+
+def test_serialized_heldout_registry_has_no_labels_key(tmp_path: Path) -> None:
+    path = save_registry(tmp_path, role="heldout", canonical=label_free_canonical())
+    with np.load(path) as data:
+        assert "labels" not in data.files
 ```
 
 - [ ] **Step 2: Implement canonical registry state**
 
-Use fixed expert order `IR, Depth_Color, Thermal, IMU, Skeleton, Radar`. Store canonical IDs/users/labels, `logits=[N,6,40]`, `availability=[N,6]`, modality-specific quality payloads/masks, optional embedding/summary references, OOF fold IDs, expert hashes, and evidence hashes. Neutral values are storage placeholders and may never be treated as available evidence.
+Use fixed expert order `IR, Depth_Color, Thermal, IMU, Skeleton, Radar`. Both registry roles store canonical IDs/users, `logits=[N,6,40]`, `availability=[N,6]`, modality-native quality payloads/masks, `fusion_quality_score=[N,6]`, optional embedding/summary references, fold lineage, expert hashes, and evidence hashes. Only `registry_role=oof_train14` stores canonical labels and OOF fold IDs. Before building `registry_role=heldout`, project the canonical index to label-free ID/user/missingness fields so the builder never receives `class_id`; the serialized registry must not contain a labels key or accept expert evidence carrying labels. Neutral values are storage placeholders and may never be treated as available evidence.
 
 - [ ] **Step 3: Audit present versus usable**
 
@@ -958,7 +967,7 @@ Compare raw manifest directory presence with evidence usability for every expert
 
 - [ ] **Step 4: Quarantine held-out registry**
 
-Write training OOF and held-out registries to separate paths and metadata domains. Fusion fitting APIs accept only `registry_role=oof_train14`; held-out loading is evaluation-only and raises if passed to calibration or training functions.
+Write training OOF and held-out registries to separate paths and metadata domains. Fusion fitting APIs accept only `registry_role=oof_train14`; held-out loading is evaluation-only and raises if passed to calibration or training functions. Tests must inspect the serialized held-out registry and prove that no `labels` field exists.
 
 - [ ] **Step 5: Verify and commit**
 
@@ -979,12 +988,12 @@ git commit -m "Build canonical sparse expert registry"
 - Create: `src/fusion/calibrated_anchor.py`
 - Create: `scripts/fit_calibrated_anchor.py`
 - Create: `tests/test_calibrated_anchor.py`
-- Create at runtime: calibration parameters and OOF anchor predictions.
+- Create at runtime: per-fold calibration parameters, cross-fitted OOF anchor predictions, and final train-14 refit parameters.
 - Create: `reports/six_modal_anchor_report.md`
 
 **Interfaces:**
 - Consumes: train-14 sparse OOF registry only.
-- Produces: per-expert scalar temperatures, globally normalized non-negative expert weights, and anchor probabilities for any non-empty usable expert subset.
+- Produces: cross-fitted anchor A predictions for unbiased train-14 reporting, final train-14-refit scalar temperatures/weights for later frozen evaluation, and anchor probabilities for any non-empty usable expert subset.
 
 - [ ] **Step 1: Write RED anchor invariance tests**
 
@@ -997,6 +1006,10 @@ def test_single_available_expert_is_recovered_exactly() -> None:
 def test_no_usable_expert_fails_explicitly() -> None:
     with pytest.raises(NoUsableExpertError):
         anchor(logits, availability=torch.zeros(1, 6, dtype=torch.bool), ...)
+
+def test_crossfit_calibration_excludes_validation_users() -> None:
+    result = crossfit_anchor(registry_fixture(), frozen_user_folds())
+    assert all(set(f.fit_users).isdisjoint(f.validation_users) for f in result.fold_lineage)
 ```
 
 - [ ] **Step 2: Implement masked calibrated mixture**
@@ -1005,11 +1018,13 @@ Fit one positive scalar temperature per expert from its OOF rows. Convert IMU RF
 
 - [ ] **Step 3: Fit without held-out leakage**
 
-Optimize OOF negative log likelihood inside the 14 training users. Predeclare metric tie-breaking as Macro-F1, worst-user Accuracy, then smaller calibration complexity. Use user-grouped fusion cross-validation to report generalization; refit the frozen calibration form on all train-14 OOF rows only after hyperparameters are fixed.
+Use the exact shared user folds for cross-fitting. For each fusion fold, fit all six temperatures and global expert weights using only that fold's fusion-train users, freeze them, and predict the fusion-validation users. Every reported validation prediction must therefore come from calibration and weights fitted without that user's labels. Concatenate the three validation partitions into `anchor_oof_crossfit.npz` and compute all Phase 8 labeled metrics only from these predictions.
+
+Predeclare the anchor form, optimization, and metric tie-breaking as Macro-F1, worst-user Accuracy, then smaller calibration complexity before cross-fitting. Only after those choices are frozen may the same form be refit on all train-14 OOF rows to produce the final anchor parameters consumed by Phase 10. Never substitute predictions from this all-train refit into the cross-fitted Phase 8 report.
 
 - [ ] **Step 4: Stress every train-14 observed pattern and every singleton**
 
-Evaluate labeled behavior on train-14 OOF presence patterns and add synthetic singleton fixtures for all six experts. Report OOF Accuracy, Macro-F1, worst-user, calibration error, pattern counts, failures, latency, and anchor-versus-best-single-expert deltas. Before Phase 10, the held-out registry may be checked only for schema, finite outputs, routing integrity, and unlabeled pattern counts; its labels and metrics remain sealed. Rare train patterns remain diagnostic and do not drive selection.
+Evaluate labeled behavior on train-14 cross-fitted presence patterns and add synthetic singleton fixtures for all six experts. Report OOF Accuracy, Macro-F1, worst-user, calibration error, pattern counts, failures, latency, and anchor-versus-best-single-expert deltas. Before Phase 10, the structurally label-free held-out registry may be checked only for schema, finite outputs, routing integrity, and unlabeled pattern counts. Rare train patterns remain diagnostic and do not drive selection.
 
 - [ ] **Step 5: Freeze A as the permanent baseline**
 
@@ -1036,7 +1051,7 @@ git commit -m "Add safe six-modal probability anchor"
 - Create: `reports/six_modal_residual_mixer_report.md`
 
 **Interfaces:**
-- Consumes: frozen anchor, train-14 OOF registry, modality-specific token adapters, availability, and label-free quality.
+- Consumes: the frozen anchor form, exact Phase 8 fusion-fold definitions, train-14 OOF registry, modality-specific token adapters, availability, native label-free quality, and normalized `fusion_quality_score`. The all-train final anchor fit is deployment-only and may not be used to create Phase 9 cross-validation inputs.
 - Produces: an optional `delta_logits=[B,40]`, deterministic `g(A,Q)`, and a retain/reject decision against anchor A.
 
 - [ ] **Step 1: Write RED structural-invariant tests**
@@ -1044,17 +1059,22 @@ git commit -m "Add safe six-modal probability anchor"
 ```python
 def test_zero_initialized_mixer_exactly_recovers_anchor() -> None:
     mixer = tiny_mixer(zero_initialize_output=True)
-    final = mixer.apply(anchor_probabilities, evidence_tokens, availability, quality)
+    final = mixer.apply(anchor_probabilities, evidence_tokens, availability, fusion_quality_score)
     torch.testing.assert_close(final, anchor_probabilities, atol=0.0, rtol=0.0)
 
 def test_singleton_and_unsupported_pattern_disable_residual() -> None:
-    assert deterministic_support_gate(singleton_availability(), quality()).item() == 0
-    assert deterministic_support_gate(rare_pair_availability(), quality()).item() == 0
+    assert deterministic_support_gate(singleton_availability(), fusion_quality()).item() == 0
+    assert deterministic_support_gate(rare_pair_availability(), fusion_quality()).item() == 0
+
+def test_a_and_d_share_outer_folds_without_validation_label_access() -> None:
+    result = crossfit_anchor_and_residual(registry_fixture(), frozen_user_folds())
+    assert result.anchor_validation_ids == result.residual_validation_ids
+    assert all(set(f.fit_users).isdisjoint(f.validation_users) for f in result.fold_lineage)
 ```
 
 - [ ] **Step 2: Implement modality-specific token adapters**
 
-Neural experts may use logits, embeddings, and quality. IMU RF may use logits, engineered summaries, and quality. Project each available expert to a fixed 64-dimensional token with a modality ID. Padded/missing tokens are masked and may not affect normalization or attention.
+Neural experts may use logits, embeddings, native quality, and `fusion_quality_score`. IMU RF may use logits, engineered summaries, native quality, and the same normalized scalar. Project each available expert to a fixed 64-dimensional token with a modality ID. Padded/missing tokens are masked and may not affect normalization or attention.
 
 - [ ] **Step 3: Implement the tiny correction model**
 
@@ -1064,7 +1084,7 @@ Use either DeepSets/gated MLP or at most two masked self-attention layers, chose
 z_final = log(clamp(p_anchor)) + g(A,Q) * lambda * delta_logits
 ```
 
-Keep `lambda` separate from `g`. The first `g` is deterministic: zero for fewer than two usable experts, zero for natural train-14 patterns with support below 16, otherwise multiplied by the mean available label-free quality score in `[0,1]`.
+Keep `lambda` separate from `g`. The first `g` is deterministic: zero for fewer than two usable experts, zero for natural train-14 patterns with support below 16, otherwise multiplied by the mean available `fusion_quality_score` in `[0,1]`. Never average or directly compare modality-native quality-vector coordinates. The normalized scalar must come from each expert's pre-registered label-free mapping and may not be refit inside fusion CV.
 
 - [ ] **Step 4: Build the restricted training distribution**
 
@@ -1072,7 +1092,9 @@ Use natural OOF patterns with at least two usable experts and train-14 support a
 
 - [ ] **Step 5: Select residual strength without held-out users**
 
-Use user-grouped fusion cross-validation over the train-14 OOF registry. Freeze the architecture and choose `lambda` from `[0.0, 0.25, 0.5, 1.0]` by Accuracy delta, then Macro-F1, worst-user Accuracy, and smaller `lambda`. Refit the selected model on all train-14 OOF rows. Never use the four held-out users for early stopping or selection.
+Cross-fit A and D on exactly the same outer user folds. For each outer fusion fold: use only the fusion-train users to fit A temperatures/weights; choose residual early stopping and `lambda` from `[0.0, 0.25, 0.5, 1.0]` through an inner user-grouped split contained entirely inside those fusion-train users; refit the selected residual on all outer fusion-train users with that fold-specific A; freeze both; then predict the untouched fusion-validation users with A and D. No temperature, weight, adapter, residual parameter, early-stopping decision, or `lambda` may use an outer validation user's label.
+
+Concatenate the outer-fold A and D predictions and compute D-minus-A only from these paired cross-fitted rows. After the architecture, stopping rule, and `lambda` are frozen, refit final A and then final D on all train-14 OOF rows for deployment. Never use the all-train final A as input to the reported residual cross-validation, and never use the four held-out users for fitting or selection.
 
 - [ ] **Step 6: Apply the D-versus-A retention rule**
 
@@ -1114,11 +1136,11 @@ Run each supplied modality independently. Execute YOLO on IR only when the verif
 
 - [ ] **Step 3: Evaluate the four held-out users once**
 
-Load only frozen 14-user final experts, OOF-fitted calibration/weights, and the retained-or-rejected Phase 9 decision. Report overall, per-user, per-class, and per-missing-pattern Accuracy/Macro-F1, calibration, common-path latency, extreme-fallback failures, and D-versus-A deltas. Do not modify the system after viewing this result except to fix a demonstrated implementation defect with a new audit trail.
+Load only frozen 14-user final experts, OOF-fitted calibration/weights, the retained-or-rejected Phase 9 decision, and structurally label-free held-out predictions. Load held-out labels from a separate sealed evaluation source only inside this Phase 10 command, join by `sample_id`, and never write those labels back into `ExpertEvidence` or the held-out registry. Report overall, per-user, per-class, and per-missing-pattern Accuracy/Macro-F1, calibration, common-path latency, extreme-fallback failures, and D-versus-A deltas. Do not modify the system after viewing this result except to fix a demonstrated implementation defect with a new audit trail.
 
 - [ ] **Step 4: Audit the exact complete inference package**
 
-Sum unique serialized bytes for YOLO, X3D/head, Depth, Thermal, Skeleton, Radar, IMU RF, IMU imputer, calibration, adapters, optional residual mixer, and learned preprocessing. Require `<95,000,000` bytes, record SHA-256 and license/provenance for every artifact, and fail on duplicate or undeclared weights. Measure CPU/GPU memory and latency by modality pattern and trial duration.
+Sum unique serialized bytes for YOLO, X3D/head, Depth, Thermal, Skeleton, Radar, IMU RF, IMU imputer, calibration, adapters, optional residual mixer, and learned preprocessing. Require `<95,000,000` bytes, record `complete_submission_size_gate_passed`, SHA-256, and license/provenance for every artifact, and fail on duplicate or undeclared weights. This is the first final-package use of that flag. Measure CPU/GPU memory and latency by modality pattern and trial duration.
 
 - [ ] **Step 5: Freeze the evaluation architecture before production refit**
 
