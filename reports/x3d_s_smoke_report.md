@@ -78,4 +78,4 @@ The first full-suite run identified an Ultralytics import-time global OpenCV I/O
 
 ## Phase Gate
 
-Steps 1-7 pass. Step 8 is ready for the evidence commit; no Phase 4 scientific results are claimed here.
+All Task 5 steps pass. The end-to-end implementation and evidence were committed as `dc13b96`; no Phase 4 scientific results are claimed here.

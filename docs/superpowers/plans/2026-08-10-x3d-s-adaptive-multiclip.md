@@ -683,7 +683,7 @@ D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest -q
 
 Expected: all tests pass.
 
-- [ ] **Step 8: Commit smoke evidence**
+- [x] **Step 8: Commit smoke evidence**
 
 ```bash
 git add scripts/audit_x3d_s_run.py src/inference/x3d_s_ir_context_pipeline.py tests/test_x3d_s_real_manifest_contract.py tests/test_x3d_s_online_roi_parity.py reports/x3d_s_smoke_report.md
