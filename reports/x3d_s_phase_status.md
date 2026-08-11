@@ -1,15 +1,32 @@
 # X3D-S Execution Phase Status
 
-Updated: 2026-08-10 (Asia/Shanghai)
+Updated: 2026-08-11 (Asia/Shanghai)
 
 | Phase | Status | Git SHA | Evidence | Risks | Next decision |
 |---|---|---|---|---|---|
 | Phase 0: Compliance and runtime | Completed | `c088db0` | Official rules rechecked; official X3D forward, YOLO inventory, conservative size gate, dependency check and 15 focused/regression tests passed | X3D-S has no model-specific organizer approval; final trained checkpoint must be remeasured | Phase 1 may begin |
 | Phase 1: Temporal data contract | Completed | `481ccb4` | 23 dataset tests, 30 focused/regression tests, and all 74 repository tests passed; real shortest/longest trial probe passed | Exported quality fields are constant in this manifest, so they are contract metadata rather than discriminative evidence in the first run | Phase 2 may begin after review |
-| Phase 2: Expert and trainer | Pending | - | - | - | Wait for Phase 1 exit gate |
+| Phase 2: Expert and trainer | Pending | - | Phase 1 exit gate passed | - | Phase 2 may begin after plan review |
 | Phase 3: End-to-end verification | Pending | - | - | - | Wait for Phase 2 exit gate |
-| Phase 4: Matched scientific evaluation | Pending | - | - | - | Wait for Phase 3 exit gate |
-| Phase 5: Fusion handoff | Pending | - | - | - | Wait for Phase 4 retain decision |
+| Phase 4: Train-14 OOF scientific evaluation | Pending | - | - | Held-out labels must remain sealed | Wait for Phase 3 exit gate |
+| Phase 5: Register IR sparse evidence | Pending | - | - | Held-out archive is evaluation-only until Phase 10 | Wait for Phase 4 retain decision |
+| Phase 6: Freeze expert portfolio | Pending | - | Program-level roadmap only | Historical metrics use mixed folds and require canonical reruns | Execute later on a dedicated branch after Phase 5 review |
+| Phase 7: Build sparse evidence registry | Pending | - | Program-level roadmap only | Natural missingness and unusable-present rows must remain explicit | Wait for Phase 6 |
+| Phase 8: Fit safe anchor | Pending | - | Program-level roadmap only | Calibration must use train-14 OOF evidence only | Wait for Phase 7 |
+| Phase 9: Test residual correction | Pending | - | Program-level roadmap only | Rare modality combinations must not dominate training | Wait for Phase 8 |
+| Phase 10: Assemble final inference | Pending | - | Program-level roadmap only | The four held-out users may be evaluated only once after freeze | Wait for Phase 9 |
+
+## Frozen Program Context
+
+- Approved design: `docs/superpowers/specs/2026-08-11-six-modal-sparse-evidence-fusion-design.md` (`0af881e`).
+- Authoritative execution plan: `docs/superpowers/plans/2026-08-10-x3d-s-adaptive-multiclip.md`.
+- X3D-S is the IR specialist, not the complete six-modal model.
+- Final architecture: heterogeneous experts -> canonical sparse OOF registry -> calibrated available-expert probability anchor -> optional tiny zero-initialized residual set mixer -> trial probability.
+- The canonical population is the 3,036-trial union. `present`, `usable`, and label-free `quality` are separate states; fusion uses `usable`.
+- The anchor remains a complete deployable fallback. One usable expert returns that expert's calibrated probability exactly; zero usable experts is an explicit routed failure.
+- YOLO11n-pose is verified as the IR locator. IR/Depth are timestamp-aligned in the audited export, while Thermal has independent frame numbering and no demonstrated common timestamps.
+- Skeleton/YOLO diagnostics support sequence-level evidence fusion, not frame-level or joint-level hard fusion.
+- Historical expert scores use mixed folds and are context only until regenerated on the canonical split and common train-14 OOF assignment.
 
 ## Phase 0 Evidence Log
 

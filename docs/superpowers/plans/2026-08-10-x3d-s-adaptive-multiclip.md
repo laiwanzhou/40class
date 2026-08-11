@@ -1,22 +1,33 @@
-# X3D-S Adaptive Multi-Clip Visual Expert Implementation Plan
+# X3D-S IR Expert and Six-Modal Sparse-Evidence Fusion Implementation Plan
 
 > **For implementation:** Use `superpowers:executing-plans` to execute this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build a rules-audited, Kinetics-pretrained X3D-S IR-context video expert that represents variable-duration trials with length-adaptive local clips, keeps its complete reproducible inference stack conservatively below the Small Model Track size limit, and emits fusion-ready trial-level outputs.
+**Goal:** Build a rules-audited X3D-S IR expert, register leakage-free sparse evidence for it, and integrate it with heterogeneous Depth_Color, Thermal, IMU, Skeleton, and Radar experts into one missing-modality-tolerant inference model below the Small Model Track size limit.
 
-**Architecture:** Reuse the existing YOLO-derived `ir_context` image sequences and quality metadata for training, while retaining an auditable raw-trial-to-YOLO-to-ROI inference path for verification and test data. Replace the MobileNet-plus-TCN path with a variable number of local 13-frame X3D-S clips: split each complete trial into length-adaptive contiguous windows, encode every valid clip with one shared X3D-S, and aggregate clip probabilities and embeddings into one trial output. Wrap the result in the existing `ExpertOutput` and `ExpertBatchResult` contracts. VideoMAE is excluded from the submitted inference stack until the organizer explicitly confirms it; it may be used later as a distillation teacher because the competition host has explicitly allowed knowledge distillation.
+**Architecture:** Reuse the verified IR YOLO pose-guided person-context assets and represent each variable-duration IR trial with adaptive local 13-frame X3D-S clips. X3D-S is one heterogeneous IR expert, not the complete model. Every expert later registers sparse user-grouped OOF evidence into the canonical 3,036-trial union; a calibrated available-expert probability mixture is the permanent safe anchor, and a tiny zero-initialized residual set mixer may only correct that anchor on supported modality patterns. VideoMAE remains excluded from submitted inference unless the organizer explicitly approves the exact checkpoint.
 
-**Tech Stack:** Python 3, PyTorch 2.7, torchvision 0.22, PyTorchVideo 0.1.5 or a compatibility-verified official PyTorchVideo revision, pandas, OpenCV/Pillow, NumPy, scikit-learn, pytest, CUDA BF16 AMP.
+**Tech Stack:** Python 3, PyTorch 2.7, torchvision 0.22, PyTorchVideo 0.1.5, pandas, OpenCV/Pillow, NumPy, scikit-learn, joblib, pytest, CUDA BF16 AMP.
 
 ## Global Constraints
 
 - Work only in `D:\work\2026.7.14_kaggle\40class-x3d-adaptive-multiclip` on branch `x3d-s-adaptive-multiclip`.
+- Phases 0-5 belong to this IR-expert branch. Phases 6-10 are the approved program-level roadmap and must execute later on dedicated branches/worktrees after Phase 5 closes.
 - Do not read competition test data and do not generate a submission.
 - Treat the official challenge page and the competition host's Kaggle clarification as the compliance basis: lightweight pretrained CNNs and knowledge distillation are allowed, while large pretrained foundation backbones are prohibited.
 - Record the official rule page, the host clarification URL, access date, and verbatim model-size statement in every compliance report.
 - Use the existing `combined_frame_manifest.csv`; do not regenerate the full ROI dataset in the first experiment.
 - The first scientific run uses only `ir_context_path`; `ir_relation`, left/right ROI, Depth, Skeleton, and IMU are excluded.
-- Preserve the existing train/validation users and `sample_id` membership exactly.
+- Treat X3D-S as the IR specialist. Do not turn this branch into a joint six-modality trainer.
+- The canonical future fusion population is the 3,036-row union in `metadata/manifest.csv`, not the 2,748-row all-six intersection and not the 2,910-row IR ROI export.
+- Preserve the fixed 14-train-user/4-held-out-user split in `metadata/splits/fold_0.json`. The four held-out users may never fit temperatures, expert weights, support thresholds, residual parameters, or architecture choices.
+- Distinguish raw-modality `present`, expert `usable`, and label-free `quality`. Only `usable` controls fusion availability.
+- Keep `strict_alignment` for matched equal-sample experiments and add a separate canonical-union `outer_evidence_alignment` for sparse multimodal fusion.
+- The calibrated available-expert probability mixture is a complete deployable model and permanent fallback. The residual mixer is optional and may never be the only classification path.
+- If exactly one expert is usable, return its calibrated probability exactly. If no supplied modality produces usable evidence, fail explicitly with per-modality reasons.
+- Train the residual mixer primarily on all-six and sufficiently supported natural missingness patterns. Rare combinations use anchor-only inference and must not dominate training.
+- Keep the existing neural `ExpertOutput` unchanged. Add a serialized `ExpertEvidence` fusion contract that permits optional embeddings or engineered summaries.
+- Pose-guided visual localization is reusable infrastructure. YOLO11n-pose is currently verified for IR; reuse its coordinates for Depth or Thermal only after registration/parity evidence.
+- Preserve the existing 14-train-user/4-held-out-user and `sample_id` membership exactly. Within train-14, use persisted user-grouped folds for all epoch, checkpoint, architecture, and hyperparameter decisions; the official held-out labels remain sealed until Phase 10.
 - Never split or shuffle individual frames across train and validation.
 - Each local X3D input is `[3,13,182,182]`; grayscale IR is repeated to three channels.
 - Use `K = min(8, max(1, ceil(num_frames / 32)))` local clips per trial. Split the complete ordered trial into `K` contiguous, near-equal windows before sampling 13 frames inside each window.
@@ -25,7 +36,7 @@
 - Train with one stochastic temporal view per local window; validate the first experiment with one deterministic midpoint view per local window. Aggregate clips before computing trial-level metrics.
 - Keep three-view temporal test-time augmentation out of the first experiment so adaptive coverage and view augmentation remain separate variables.
 - Store trial-level logits, embeddings, labels, users, qualities, `sample_ids`, and `class_map_hash`.
-- Do not choose future fusion temperatures or weights on the four held-out validation users.
+- Do not choose expert checkpoints, temporal settings, architectures, fusion temperatures, weights, support rules, or residual behavior on the four held-out users.
 - Count every inference-time weight file in one aggregate: X3D-S, classification head, YOLO pose, sensor experts, fusion modules, and any learned preprocessing model.
 - Use `95,000,000` serialized bytes as the internal acceptance ceiling, leaving headroom below the published `100 MB` limit and avoiding MB/MiB ambiguity.
 - Do not rely on ZIP compression, optimizer removal, or FP16 conversion as the sole reason a model passes the size gate; record serialized bytes and FP32 parameter bytes.
@@ -60,6 +71,25 @@ The Kaggle Small Track Rules page currently contains copied Large Track wording 
 The current `combined_frame_manifest.csv` contains 2,910 trials with frame-count minimum `1`, median `24`, 75th percentile `37`, 95th percentile `69`, and maximum `236`. A total of 2,250 trials (`77.3%`) exceed 13 frames, and class-level median duration ranges from 10 to 56 frames. Therefore, globally reducing every complete trial to 13 samples is retained only as a possible ablation, not the primary design.
 
 With `target_window_frames=32` and `max_clips=8`, the observed data produces a mean of approximately `1.414` local clips per trial: 1,972 trials use one clip, 743 use two, 146 use three, 37 use four, 6 use five, 4 use six, and 2 use eight. This preserves local temporal density for the 236-frame extreme while keeping average X3D work close to the single-clip baseline.
+
+## Recovered Project Evidence and Its Planning Consequences
+
+The following evidence was recovered from the three referenced project histories and is part of this plan's context. Historical metrics were produced by several different user folds and sample populations; unless a row explicitly says canonical OOF, its score is context only and must not be compared numerically with the new fixed 14/4 protocol.
+
+| Recovered evidence | Planning consequence |
+|---|---|
+| Canonical raw-trial union: 3,036 trials, 40 classes, 18 users. Modality directory counts are Depth 2,931, IMU 2,903, IR 2,933, Radar 2,914, Skeleton 2,931, Thermal 2,891; only 2,748 rows have all six directories. | Train experts on every usable modality row and outer-align sparse evidence. Never shrink the system to the all-six intersection, which discards about 9.5% of the union. |
+| The current ROI export contains 2,910 trials and 84,906 temporally aligned IR/Depth frame rows. IR and Depth share exact frame timestamps in this export. | Reuse the verified IR person-context route for X3D. Preserve IR/Depth pixel correspondence for a later controlled co-expert, but do not add Depth to the first IR experiment. |
+| Thermal has independent frame numbering, roughly 2.41 times as many frames at the median, and no common timestamps with IR/Depth in the audited export. | Do not copy IR frame indices, ROI coordinates, or frame-level fusion assumptions into Thermal. Require spatial and temporal registration evidence first; otherwise use a Thermal-native locator/context and trial-level fusion only. |
+| The skeleton-to-depth projection search paired 42/42 trials temporally, but all 96 coordinate-mapping candidates were visually unreliable because Skeleton coordinates are normalized/relative. | Do not use direct Skeleton-to-image projection as a production ROI source. Keep Skeleton and visual experts independent until trial-level evidence fusion. |
+| The 12-common-joint YOLO/Skeleton diagnostic achieved 2D retrieval Top-1 0.593, Top-5 0.832 and AUC 0.841, while 2.5D pseudodepth was worse. Frame motion correlation was weak. | Use pose correspondence as a quality/identity diagnostic, not a frame-level hard-fusion contract. The Skeleton expert keeps all native joints and full sequence dynamics. |
+| Historical aligned Depth+IR B2 reached about 0.4627 Accuracy / 0.3928 Macro-F1, while an IR-primary plus weak ordinal-Depth-vector full-sequence model fell to about 0.2780 / 0.1585. | Early aligned visual interaction can matter. Do not compress Depth to a weak late residual and call that a replacement; defer an aligned IR+Depth co-expert until independent OOF evidence and byte headroom justify it. |
+| Historical B2 training Accuracy reached about 0.9763 while held-user Accuracy remained about 0.4627; cross-user SupCon did not reliably improve both Accuracy and Macro-F1. | Cross-user generalization, not raw capacity, is the governing risk. Require user-grouped OOF for every selection and keep the residual mixer tiny. |
+| Historical MobileNet and ResNet18 object-interaction experts were similar; the specific ResNet18 inference bundle was 68,994,661 bytes (65.80 MiB) for little Macro-F1 gain. | Treat this as evidence against that specific expert's benefit per byte, not a universal rejection of ResNet18. Do not replicate large visual backbones across modalities without measured complementarity. |
+| Historical IMU compact RF was about 0.4188 Accuracy / 0.3352 Macro-F1 at about 5.919 MiB, while Skeleton was a strong anchor candidate. Radar's 21-stat TCN underfit badly. | Audit and canonically rerun IMU RF and full-sequence Skeleton first. Treat raw-point PointNet-frame plus masked TCN as a Radar candidate, not an established result. |
+| Tight person crops can remove phones, cups, documents, tableware, medicine and other class-defining objects. Existing ROI audits support extended person context and aligned local interaction regions. | Keep pose-guided person-context as the default IR view. Preserve relation/local ROI generators as reusable infrastructure, but add them only through separately registered ablations. |
+
+Historical results are evidence about architecture and failure modes, not reusable fusion predictions. Any expert retained for the final system must regenerate predictions on the canonical split and the shared user-grouped OOF assignment.
 
 ## Fixed First-Run Design
 
@@ -101,10 +131,15 @@ Execute phases in order. A phase may start only after the previous phase's exit 
 | Phase 1: Temporal data contract | Task 2 | Phase 0 passes | Adaptive window boundary tests, real duration audit, determinism, padding and leakage tests pass | Completed (`481ccb4`) |
 | Phase 2: Expert and trainer | Tasks 3-4 | Phase 1 passes | Trial-level masked aggregation, gradients, archive schema and focused tests pass | Pending |
 | Phase 3: End-to-end verification | Task 5 | Phase 2 passes | Online/offline ROI parity, shortest/longest trial smoke, overfit test, size audit and full tests pass | Pending |
-| Phase 4: Matched scientific evaluation | Task 6 | Phase 3 passes | Pre-registered run completes; paired comparison and duration/user/class reports generated | Pending |
-| Phase 5: Fusion handoff | Task 7 | Phase 4 decision retains X3D | Fusion contract, alignment tests and aggregate submission-budget gate pass | Pending |
+| Phase 4: Train-14 OOF scientific evaluation | Task 6 | Phase 3 passes | Pre-registered grouped-OOF comparison, duration/user/class reports, and frozen X3D decision are complete without held-out access | Pending |
+| Phase 5: Register IR sparse evidence | Task 7 | Phase 4 OOF decision retains X3D as an expert | Verified train-user OOF archive plus one quarantined held-out IR archive, provenance, evidence contract and size record pass | Pending |
+| Phase 6: Freeze expert portfolio | Tasks 8-9 | Phase 5 passes | Six expert candidates use the canonical split, report complementarity, and fit the provisional byte budget | Pending |
+| Phase 7: Build sparse evidence registry | Task 10 | Phase 6 passes | Six leakage-free OOF archives outer-align to the canonical union with audited missingness | Pending |
+| Phase 8: Fit safe anchor | Task 11 | Phase 7 passes | Calibrated masked probability mixture passes singleton, missing-pattern, user and budget gates | Pending |
+| Phase 9: Test residual correction | Task 12 | Phase 8 passes | D-versus-A user-grouped comparison either retains the mixer or freezes anchor-only | Pending |
+| Phase 10: Assemble final inference | Task 13 | Phase 9 decision freezes architecture | Raw-trial routing, held-out evaluation, all-18-user production refit, exact package size and latency gates pass | Pending |
 
-At each phase boundary, record the Git SHA, changed files, executed commands, pass/fail evidence, unresolved risks, and the next phase decision in `reports/x3d_s_phase_status.md`. Do not silently continue after a failed exit gate.
+At each phase boundary, record the Git SHA, changed files, executed commands, pass/fail evidence, unresolved risks, and the next phase decision in `reports/x3d_s_phase_status.md`. Phases 6-10 may use a successor program-status report but must link back to this plan and the approved design spec. Do not silently continue after a failed exit gate.
 
 ## Phase 0: Compliance and Runtime Gate
 
@@ -138,7 +173,7 @@ The initial components are `x3d_s`, `x3d_custom_head`, and `yolo11n_pose`. Mark 
 
 Also include, but do not post automatically, a concise organizer clarification draft naming `X3D-S/Kinetics-400`, `VideoMAE-S` and its exact pretraining source, whether the `100 MB` cap applies to the sum of all inference weights, and whether FP32 serialized state-dict bytes are the intended measurement. Lack of a reply does not block the X3D experiment, but it keeps model-specific approval marked provisional; lack of a VideoMAE reply blocks VideoMAE from final inference.
 
-Initialize `reports/x3d_s_phase_status.md` with the six phases above, all statuses set to `Pending`, plus empty fields for Git SHA, evidence commands, artifacts, risks, and next decision. Set Phase 0 to `In progress` only when implementation begins.
+At Phase 0 this initialized `reports/x3d_s_phase_status.md` with the then-current Phases 0-5. The approved 2026-08-11 six-modal design later expanded the roadmap through Phase 10; keep the status report synchronized with the current phase table, Git SHA, evidence commands, artifacts, risks, and next decision.
 
 - [x] **Step 2: Write the failing environment contract test**
 
@@ -341,9 +376,9 @@ git add src/data/x3d_clip_dataset.py tests/test_x3d_clip_dataset.py
 git commit -m "Add trial-safe adaptive X3D clip dataset"
 ```
 
-## Phase 2: Expert and Trainer
+## Phase 2: IR Expert and Trainer
 
-### Task 3: Wrap X3D-S as a Fusion-Compatible Visual Expert
+### Task 3: Wrap X3D-S as a Fusion-Compatible IR Expert
 
 **Files:**
 - Create: `src/models/x3d_s_visual_expert.py`
@@ -434,10 +469,11 @@ git commit -m "Add fusion-compatible X3D-S visual expert"
 **Files:**
 - Create: `src/train_x3d_s_visual_expert.py`
 - Create: `configs/experiments/x3d_s_ir_context_fold0.yaml`
+- Create: `configs/experiments/x3d_s_ir_context_oof.yaml`
 - Create: `tests/test_x3d_s_trainer_contract.py`
 
 **Interfaces:**
-- Consumes: `X3DClipDataset`, `X3DSVisualExpert`, and the fixed YAML configuration.
+- Consumes: `X3DClipDataset`, `X3DSVisualExpert`, the fixed YAML configuration, and an explicit train-14 user partition or persisted OOF-fold assignment.
 - Produces: checkpoints, `history.csv`, per-class metrics, trial-level prediction archives, `run_summary.json`, and fusion-ready `ExpertBatchResult` data.
 
 - [ ] **Step 1: Write failing trainer contract tests**
@@ -477,9 +513,13 @@ Support:
 --epochs
 --max-train-batches
 --max-val-batches
+--train-user-ids
+--validation-user-ids
+--oof-fold-assignment
+--oof-role
 ```
 
-Reject any config with a non-IR-context first-run view, a class count other than 40, local clip length other than 13, `target_window_frames` other than 32, `max_clips` other than 8, `val_views_per_window` other than 1, nonpositive temperatures or learning rates, or an output directory that would overwrite an existing run.
+Reject any config with a non-IR-context first-run view, a class count other than 40, local clip length other than 13, `target_window_frames` other than 32, `max_clips` other than 8, `val_views_per_window` other than 1, nonpositive temperatures or learning rates, or an output directory that would overwrite an existing run. The persisted OOF assignment must contain only the 14 training users and disjoint fit/validation user groups. Training mode must reject the four official held-out user IDs in either partition unless an explicit Phase 5 `finalize_train14` mode is active; that mode accepts all train-14 users for fitting and no labeled validation set.
 
 Freeze the temporal section as:
 
@@ -536,7 +576,7 @@ Expected: PASS.
 - [ ] **Step 9: Commit the trainer**
 
 ```bash
-git add src/train_x3d_s_visual_expert.py configs/experiments/x3d_s_ir_context_fold0.yaml tests/test_x3d_s_trainer_contract.py
+git add src/train_x3d_s_visual_expert.py configs/experiments/x3d_s_ir_context_fold0.yaml configs/experiments/x3d_s_ir_context_oof.yaml tests/test_x3d_s_trainer_contract.py
 git commit -m "Add adaptive multi-clip X3D-S training pipeline"
 ```
 
@@ -637,60 +677,65 @@ git add scripts/audit_x3d_s_run.py src/inference/x3d_s_ir_context_pipeline.py te
 git commit -m "Verify compliant X3D-S inference end to end"
 ```
 
-## Phase 4: Matched Scientific Evaluation
+## Phase 4: Train-14 OOF Scientific Evaluation
 
-### Task 6: Run the Pre-Registered Adaptive Multi-Clip IR-Context Experiment
+### Task 6: Run the Pre-Registered Train-14 OOF Adaptive Multi-Clip IR-Context Experiment
 
 **Files:**
-- Create at runtime: `outputs/x3d_s_ir_context_fold0/<run-id>/...`
+- Create at runtime: `outputs/x3d_s_ir_context_oof/<run-id>/...`
 - Create: `scripts/summarize_x3d_s_experiment.py`
-- Create at runtime: `reports/x3d_s_ir_context_fold0_report.md`
-- Create at runtime: `reports/x3d_s_ir_context_fold0_per_class.csv`
-- Create at runtime: `reports/x3d_s_ir_context_fold0_per_user.csv`
+- Create at runtime: `metadata/splits/train14_oof_3fold.json`
+- Create at runtime: `reports/x3d_s_ir_context_oof_report.md`
+- Create at runtime: `reports/x3d_s_ir_context_oof_per_class.csv`
+- Create at runtime: `reports/x3d_s_ir_context_oof_per_user.csv`
 
 **Interfaces:**
-- Consumes: the verified configuration and real train/validation split.
-- Produces: one reproducible adaptive multi-clip X3D-S visual baseline and a decision on whether to continue X3D experiments.
+- Consumes: the verified configuration, fixed outer 14/4 split, and the persisted three-fold user assignment inside train-14.
+- Produces: one cross-fitted adaptive multi-clip X3D-S comparison over train-14 and a frozen decision on whether X3D remains an IR expert candidate; it does not read held-out labels or predictions.
 
 - [ ] **Step 1: Freeze and hash the experiment inputs**
 
-Record the configuration hash, manifest hash, class-map hash, X3D and YOLO pretrained-weight hashes, compliance-document hash, rule-source URLs and access date, Git SHA, environment probe, complete inference-weight byte total, train/val users, trial counts, and seed before looking at validation results. The experiment may start only if the submission-size gate passes.
+Record the configuration hash, manifest hash, class-map hash, X3D and YOLO pretrained-weight hashes, compliance-document hash, rule-source URLs and access date, Git SHA, environment probe, complete inference-weight byte total, outer train/held-out users, inner OOF fold users, trial counts, and seed before looking at OOF results. The experiment may start only if the submission-size gate passes and the command cannot load the held-out archive.
 
-- [ ] **Step 2: Run the single full experiment**
+- [ ] **Step 2: Run the fixed three-fold user-grouped OOF experiment**
 
 Run:
 
+First generate and persist `metadata/splits/train14_oof_3fold.json` from canonical train-14 labels/users using `StratifiedGroupKFold(n_splits=3, shuffle=True, random_state=20260715)`, then run each declared fold through the Phase 2 trainer:
+
 ```powershell
 D:\Anaconda\envs\pyTorch2.7\python.exe -m src.train_x3d_s_visual_expert `
-  --config configs/experiments/x3d_s_ir_context_fold0.yaml `
-  --run-id x3d_s_ir_context_adaptive_k400_seed20260715
+  --config configs/experiments/x3d_s_ir_context_oof.yaml `
+  --oof-fold-assignment metadata/splits/train14_oof_3fold.json `
+  --oof-role train14 `
+  --run-id x3d_s_ir_context_adaptive_oof_seed20260715
 ```
 
-Do not change ROI views, local frame count, `target_window_frames=32`, `max_clips=8`, crop size, aggregation method, loss, or `val_views_per_window=1` during this run.
+For each inner fold, fit on the other train-14 users, select epoch/checkpoint only on that fold's validation users, and emit exactly one cross-fitted prediction per usable IR trial in the fold. Do not change ROI views, local frame count, `target_window_frames=32`, `max_clips=8`, crop size, aggregation method, loss, or `val_views_per_window=1` during this run.
 
-- [ ] **Step 3: Re-evaluate both saved checkpoints**
+- [ ] **Step 3: Re-evaluate the selected fold checkpoints**
 
-Reload `best_accuracy.pt` and `best_macro_f1.pt`, regenerate validation outputs, and require exact metric agreement with the values saved during training within `1e-6`.
+Reload every selected inner-fold checkpoint, regenerate that fold's predictions, and require exact prediction and metric agreement with the saved values within `1e-6`. Concatenate only after verifying that each train-14 usable IR `sample_id` occurs exactly once and was predicted by a model that never trained on its user.
 
 - [ ] **Step 4: Generate the report**
 
 Compare X3D-S with:
 
-- the teammate VideoMAE result only after confirming identical split and trial-level metric semantics;
-- a matched MobileNet/TCN IR-context baseline using the exact same train/validation users, trial `sample_id` set, class map, ROI assets, and trial-level metric implementation; rerun it if the existing result does not satisfy all matching conditions;
-- the existing Skeleton TCN result.
+- the teammate VideoMAE result as descriptive context only after confirming identical outer split and trial-level metric semantics; its held-out score cannot select this X3D configuration;
+- a matched MobileNet/TCN IR-context baseline using the exact same train-14 OOF user folds, trial `sample_id` set, class map, ROI assets, and trial-level metric implementation; rerun it if the existing result does not satisfy every matching condition;
+- a canonically rerun Skeleton TCN train-14 OOF result when available; historical held-out scores remain context only.
 
 Report Accuracy, Macro-F1, worst-user Accuracy, per-user metrics, per-class recall, zero-recall classes, training/generalization gap, complete inference-stack bytes, individual component sizes, checkpoint size, GPU memory, X3D-only latency, YOLO/ROI latency, and end-to-end trial latency.
 
 Also report Accuracy, Macro-F1, sample count, mean clip count, and mean latency separately for trial-length buckets `<=13`, `14-32`, `33-64`, and `>64`. Compare short-action and long-action class recall so a global score cannot hide duration-dependent failure.
 
-For the matched IR-context comparison, align predictions by `sample_id` and run 10,000 paired bootstrap replicates stratified by held-out user. Keep the class label set fixed at all 40 classes in every replicate and report point deltas plus 95% confidence intervals for Accuracy and Macro-F1. This bootstrap quantifies validation-sample uncertainty only; three-seed confirmation is still required before claiming training stability.
+For the matched IR-context comparison, align cross-fitted predictions by `sample_id` and run 10,000 paired bootstrap replicates stratified by train-14 OOF user. Keep the class label set fixed at all 40 classes in every replicate and report point deltas plus 95% confidence intervals for Accuracy and Macro-F1. This bootstrap quantifies cross-fitted sample uncertainty only; three-seed confirmation is still required before claiming training stability.
 
 - [ ] **Step 5: Apply the pre-registered decision rule**
 
-- **Primary expert candidate:** X3D-S has positive Accuracy and Macro-F1 deltas over the matched IR-context baseline, the paired 95% confidence interval for the Accuracy delta excludes zero, Macro-F1 improves, and worst-user Accuracy does not regress. Run three seeds before fusion and report mean, standard deviation, and per-seed deltas.
+- **Primary expert candidate:** Train-14 cross-fitted X3D-S has positive Accuracy and Macro-F1 deltas over the matched IR-context baseline, the paired 95% confidence interval for the Accuracy delta excludes zero, Macro-F1 improves, and worst-user Accuracy does not regress. Run three OOF seeds before fusion and report mean, standard deviation, and per-seed deltas.
 - **Promising but unconfirmed:** both point deltas are positive but the Accuracy interval includes zero, or results vary materially by user or duration bucket. Retain the predictions for complementarity analysis and run the three-seed confirmation before expanding inputs.
-- **Temporal follow-up only:** the `>64` bucket trails the matched baseline while shorter buckets improve. Keep the visual input fixed and test only `target_window_frames=24` versus 32; do not mix this with three-view TTA.
+- **Temporal follow-up only:** the train-14 OOF `>64` bucket trails the matched baseline while shorter buckets improve. Keep the visual input fixed and test only `target_window_frames=24` versus 32 using the same inner folds; do not mix this with three-view TTA or inspect held-out results.
 - **Stop and audit:** Accuracy or Macro-F1 fails to improve against the matched baseline without a clear complementary per-class benefit. Audit normalization, pretrained loading, adaptive window coverage, padded-clip masking, aggregation, and split comparability before architectural expansion.
 - Do not add Depth or additional ROI views merely because the first score is low.
 
@@ -699,78 +744,390 @@ For the matched IR-context comparison, align predictions by `sample_id` and run 
 Do not commit weights, NPZ files, or the output directory.
 
 ```bash
-git add scripts/summarize_x3d_s_experiment.py reports/x3d_s_ir_context_fold0_report.md reports/x3d_s_ir_context_fold0_per_class.csv reports/x3d_s_ir_context_fold0_per_user.csv
+git add scripts/summarize_x3d_s_experiment.py metadata/splits/train14_oof_3fold.json reports/x3d_s_ir_context_oof_report.md reports/x3d_s_ir_context_oof_per_class.csv reports/x3d_s_ir_context_oof_per_user.csv
 git commit -m "Report X3D-S IR-context baseline"
 ```
 
-## Phase 5: Fusion Handoff
+## Phase 5: Register the IR Expert into the Sparse Evidence System
 
-### Task 7: Preserve the Future Fusion Boundary
+### Task 7: Generate Leakage-Free IR ExpertEvidence
 
 **Files:**
-- Create: `docs/x3d_s_fusion_contract.md`
-- Modify only if required by a failing contract test: `src/models/expert_contract.py`
-- Modify only if required by a failing contract test: `tests/test_expert_contract.py`
+- Create: `src/fusion/expert_evidence.py`
+- Create: `scripts/build_x3d_s_ir_evidence.py`
+- Create: `docs/x3d_s_ir_evidence_contract.md`
+- Create: `tests/test_expert_evidence_contract.py`
+- Create at runtime: `outputs/x3d_s_ir_evidence/<run-id>/...`
+- Modify: `reports/x3d_s_phase_status.md`
 
 **Interfaces:**
-- Consumes: X3D-S and any later rule-approved compact expert's trial-level prediction archives. VideoMAE predictions may be used as teacher targets during training, but VideoMAE weights are excluded from the submitted inference graph unless the organizer gives written approval.
-- Produces: one shared contract for later OOF calibration and sequence-level probability fusion.
+- Consumes: the retained Phase 4 X3D configuration, canonical union manifest, fixed 14/4 user split, and exact IR ROI manifest.
+- Produces: a verified sparse IR OOF archive and one quarantined held-out `ExpertEvidence` archive plus immutable provenance; it does not fit a multimodal fusion model.
 
-- [ ] **Step 1: Document the immutable archive schema**
-
-Require every expert to provide:
-
-```text
-sample_ids: [N]
-user_ids: [N]
-labels: [N]
-logits: [N,40]
-embeddings: [N,D]
-quality: [N,Q]
-quality_mask: [N,Q]
-availability: [N,M]
-class_map_hash: scalar string
-```
-
-Embedding dimensions may differ between experts. Logits, labels, sample sets, and class-map hashes may not differ.
-
-Experts may append diagnostic arrays such as `num_frames` and `num_clips`; fusion loaders must ignore unknown diagnostic fields after validating the required schema. Such fields cannot be used as action evidence in the first fusion experiment.
-
-- [ ] **Step 2: Verify strict sample alignment**
-
-Use `align_expert_batch()` for all in-memory fusion. For NPZ fusion, build the same explicit `sample_id` lookup, reject duplicates, reject missing/extra samples, and reorder only after validation.
-
-- [ ] **Step 3: Freeze the first fusion method**
-
-The first later fusion experiment is calibrated probability mixture:
+- [ ] **Step 1: Write RED tests for the serialized evidence contract**
 
 ```python
-px = softmax(x3d_logits / Tx)
-ps = softmax(skeleton_logits / Ts)
-p = (1.0 - alpha) * px + alpha * ps
+def test_evidence_allows_optional_embedding_but_requires_provenance() -> None:
+    evidence = fixture_evidence(embeddings=None, engineered_summary=np.ones((3, 5)))
+    evidence.validate()
+    assert evidence.logits.shape == (3, 40)
+    assert evidence.model_sha256
+    assert evidence.config_sha256
+
+def test_evidence_rejects_duplicate_or_unknown_samples() -> None:
+    with pytest.raises(ValueError, match="duplicate sample"):
+        fixture_evidence(sample_ids=("a", "a")).validate()
 ```
 
-Learn `Tx`, `Ts`, and `alpha` only from user-grouped cross-fitted OOF predictions generated inside the 14 training users. The four held-out validation users are final evaluation only.
+- [ ] **Step 2: Run the evidence tests and observe RED**
 
-- [ ] **Step 4: Keep YOLO quality separate from action evidence**
+Run: `D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest tests/test_expert_evidence_contract.py -v`
 
-X3D quality fields may later gate `ir_relation` or expert availability, but the first fusion gate must not consume embeddings or class logits. Start with a global alpha, then a deterministic quality-only alpha, and only then consider a learned quality gate.
+Expected: FAIL because `src.fusion.expert_evidence` does not exist.
 
-- [ ] **Step 5: Enforce the aggregate submission budget for every fusion candidate**
+- [ ] **Step 3: Implement `ExpertEvidence` without changing `ExpertOutput`**
 
-Before evaluating a fused submission candidate, rebuild the compliance manifest from the exact deployed files and sum all serialized inference-time weights: YOLO, X3D, Skeleton/IMU/other experts, calibration parameters, and learned fusion gates. Require the aggregate to remain below `95,000,000` bytes. Teacher-only models are recorded for provenance but excluded from the total only when their weights and code path are provably absent from inference.
+Required fields are `expert_id`, `sample_ids`, `user_ids`, `labels`, `logits`, `availability`, `quality`, `quality_mask`, `class_map_hash`, `model_sha256`, `config_sha256`, `deployed_weight_bytes`, and `preprocessing_dependencies`. Optional fields are `embeddings`, `engineered_summary`, and diagnostic arrays. Require finite logits, unique IDs, 40 classes, matching row counts, a non-empty class hash, and SHA-256 values. For IR, preserve label-free ROI diagnostics such as pose-detection rate, keypoint confidence, context-effective rate, recovered-ROI fraction, and local-view reliability when available; missing diagnostics remain masked and may not be imputed from labels.
 
-Do not add VideoMAE weights to the inference bundle until the organizer has answered in writing that the specific checkpoint, pretraining source, and parameter scale are allowed in the Small Model Track. That approval is a separate gate from the byte limit.
+- [ ] **Step 4: Freeze one shared three-fold OOF user assignment**
 
-- [ ] **Step 6: Run contract tests and commit documentation**
+Generate a persisted assignment inside the 14 training users with:
 
-Run: `D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest tests/test_expert_contract.py tests/test_x3d_s_trainer_contract.py -v`
+```python
+StratifiedGroupKFold(n_splits=3, shuffle=True, random_state=20260715)
+```
 
-Expected: PASS.
+Use `class_id` as `y` and `user_id` as groups. Require disjoint train/OOF users, complete 40-class coverage in every OOF fold, and the same fold assignment for all later modalities. Do not derive folds from model results.
+
+- [ ] **Step 5: Generate sparse IR OOF evidence**
+
+Reuse the complete Phase 4 OOF archive when its config, manifest, fold assignment, model, and code hashes match; otherwise regenerate it deterministically. For each OOF fold, fit/train the complete IR preprocessing and X3D expert without that fold's users, then predict only usable IR rows belonging to the OOF users. Concatenate folds and require exactly one prediction for every usable IR trial in the 14-user union, no prediction for unavailable IR, and no user predicted by a model trained on that user.
+
+Save `oof_evidence.npz`, `oof_provenance.json`, fold checkpoints, per-fold metrics, hashes, frame/clip diagnostics, and deployed-byte totals. Do not copy neutral rows into the sparse expert archive; outer alignment belongs to Phase 7.
+
+- [ ] **Step 6: Generate quarantined held-out evidence**
+
+Freeze the architecture, seed policy, preprocessing, and training duration from Phase 4, train/finalize the retained X3D expert on all 14 training users without labeled validation, and predict usable IR rows from the four held-out users exactly once. Save `heldout_evidence.npz` and provenance separately without computing or displaying held-out metrics. Mark the archive `evaluation_only=true`; no fitting, selection, reporting, or diagnostic command before Phase 10 may accept or inspect that path.
+
+- [ ] **Step 7: Report expert complementarity inputs**
+
+Using train-14 OOF evidence only, report standalone Accuracy, Macro-F1, worst-user Accuracy, per-class recall, duration buckets, unique-correct samples relative to the matched IR baseline, oracle-pair Accuracy, error agreement, latency, YOLO/X3D bytes, and the exact evidence population. For held-out evidence, report only row counts, hashes, schema validity, routing availability, and quarantine status until Phase 10. These metrics assess whether X3D is useful as an IR expert, not whether it is the whole model.
+
+- [ ] **Step 8: Verify and commit Phase 5**
+
+Run:
+
+```powershell
+D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest tests/test_expert_evidence_contract.py tests/test_x3d_s_trainer_contract.py tests/test_expert_contract.py -v
+D:\Anaconda\envs\pyTorch2.7\python.exe -m scripts.build_x3d_s_ir_evidence --config configs/experiments/x3d_s_ir_context_oof.yaml --audit-only
+git diff --check
+```
+
+Expected: contracts pass, the audit proves user-held-out OOF generation and held-out quarantine, and the exact IR deployment dependencies remain recorded below the program budget.
 
 ```bash
-git add docs/x3d_s_fusion_contract.md src/models/expert_contract.py tests/test_expert_contract.py
-git commit -m "Document X3D-S expert fusion contract"
+git add src/fusion/expert_evidence.py scripts/build_x3d_s_ir_evidence.py docs/x3d_s_ir_evidence_contract.md tests/test_expert_evidence_contract.py reports/x3d_s_phase_status.md
+git commit -m "Register X3D-S IR sparse evidence"
+```
+
+Stop this branch after Phase 5 review. Phases 6-10 execute in later dedicated worktrees.
+
+## Phase 6: Freeze the Six-Expert Portfolio
+
+### Task 8: Audit and Reproduce Existing Strong Experts on the Canonical Split
+
+**Files:**
+- Create: `scripts/audit_six_modal_expert_portfolio.py`
+- Create: `reports/six_modal_expert_portfolio.md`
+- Create: `tests/test_six_modal_expert_portfolio.py`
+- Reuse: IMU compact Random Forest and Skeleton sequence-expert source from their accepted branches.
+
+**Interfaces:**
+- Consumes: canonical manifest/split, historical checkpoints/reports, expert configs, and the 95 MB ledger.
+- Produces: reproducible candidate records for IMU and Skeleton and an explicit rerun decision for every historical expert.
+
+- [ ] **Step 1: Write RED provenance and split-compatibility tests**
+
+```python
+def test_portfolio_rejects_metric_without_reproducible_artifact() -> None:
+    with pytest.raises(ValueError, match="reproducible artifact"):
+        validate_candidate(candidate_with_metrics_only())
+
+def test_candidate_must_match_canonical_users_and_class_map() -> None:
+    with pytest.raises(ValueError, match="canonical split"):
+        validate_candidate(candidate_with_old_fold())
+```
+
+- [ ] **Step 2: Audit IMU RF and Skeleton evidence**
+
+Verify source commit, feature schema, train-only preprocessing, class map, sample population, weights, imputer, hashes, inference entry point, serialized bytes, and license. Historical scores from a different user split remain context only. Rerun each accepted architecture on the canonical 14/4 split and later generate the common OOF assignment rather than reusing incompatible predictions.
+
+For Skeleton, retain all native joints and sequence features such as root-centered coordinates, scale-normalized geometry, bones, and velocity. The 12-joint YOLO correspondence is an audit/quality signal only; do not reduce the expert to those joints or impose frame-level visual alignment.
+
+- [ ] **Step 3: Add complementarity reporting**
+
+For each candidate, compute standalone Accuracy/Macro-F1, worst-user Accuracy, pairwise error agreement with registered experts, unique-correct counts in both directions, oracle-pair Accuracy, and class-wise rescues. Do not eliminate a smaller expert solely because its standalone Accuracy is lower.
+
+- [ ] **Step 4: Run and commit the audit**
+
+Run: `D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest tests/test_six_modal_expert_portfolio.py -v`
+
+Expected: PASS with every retained historical result linked to reproducible artifacts and canonical-rerun status.
+
+```bash
+git add scripts/audit_six_modal_expert_portfolio.py reports/six_modal_expert_portfolio.md tests/test_six_modal_expert_portfolio.py
+git commit -m "Audit six-modal expert portfolio"
+```
+
+### Task 9: Select Compact Depth, Thermal, and Radar Experts
+
+**Files:**
+- Create: `configs/experiments/depth_compact_expert.yaml`
+- Create: `configs/experiments/thermal_compact_expert.yaml`
+- Create: `configs/experiments/radar_point_tcn_expert.yaml`
+- Create: `tests/test_candidate_expert_contracts.py`
+- Create at runtime: candidate reports and sparse OOF-ready archives.
+
+**Interfaces:**
+- Consumes: modality-native raw training data, canonical split, common expert/evidence contracts, and remaining byte budget after IR/YOLO/IMU/Skeleton.
+- Produces: one retained or explicitly rejected candidate for Depth, Thermal, and Radar.
+
+- [ ] **Step 1: Audit visual registration before model selection**
+
+Verify the known exact IR/Depth timestamp pairing and prove spatial ROI parity before reusing IR coordinates for Depth. Thermal's audited export has independent frame numbering and no common timestamps with IR/Depth, so default to Thermal-native temporal sampling and trial-level fusion. Reuse IR coordinates for Thermal only after new field-of-view, resolution, camera-geometry, and temporal-registration evidence passes. Count YOLO once when preprocessing is genuinely shared.
+
+- [ ] **Step 2: Write RED modality-contract tests**
+
+Require each candidate to emit 40-class logits, label-free quality, usability, provenance, latency, and exact deployed bytes. Radar tests must cover an empty point-set trial without deleting the canonical row. Visual tests must cover locator failure and documented context fallback.
+
+- [ ] **Step 3: Run controlled candidate experiments**
+
+Depth starts with a compact spatial-temporal/geometric expert that preserves native geometry. Thermal starts with a compact visual-temporal expert. Radar compares the failed 21-stat TCN reference with raw variable point sets encoded by a shared point MLP, mean/max frame pooling, and a small masked TCN. PointNet+TCN is retained only if it improves relevant metrics or complementarity per deployed byte.
+
+- [ ] **Step 4: Apply the portfolio gate**
+
+Retain a candidate only when it has reproducible canonical-split outputs, valid missingness behavior, useful standalone or complementary evidence, acceptable latency, and a provisional six-expert package below 95,000,000 bytes. Do not clone X3D-sized capacity into Depth or Thermal without a measured benefit-per-byte case.
+
+- [ ] **Step 5: Commit candidate code/config/reports only**
+
+Do not commit weights or prediction arrays. Commit source, fixed configs, tests, and small reports with one commit per accepted modality candidate.
+
+## Phase 7: Build the Canonical Sparse Evidence Registry
+
+### Task 10: Outer-Align Six Leakage-Free OOF Archives
+
+**Files:**
+- Create: `src/fusion/sparse_evidence_registry.py`
+- Create: `scripts/build_sparse_evidence_registry.py`
+- Create: `tests/test_sparse_evidence_registry.py`
+- Create at runtime: `outputs/sparse_evidence_registry/<run-id>/registry.npz`
+- Create: `reports/sparse_evidence_registry_audit.md`
+
+**Interfaces:**
+- Consumes: canonical 3,036-trial manifest, fixed OOF fold assignment, and sparse OOF/held-out evidence from six experts.
+- Produces: a dense canonical row index plus sparse expert tensors and masks; it never invents predictions for missing evidence.
+
+- [ ] **Step 1: Preserve strict alignment and write RED outer-alignment tests**
+
+```python
+def test_outer_alignment_fills_neutral_values_and_false_availability() -> None:
+    registry = outer_align_evidence(canonical_ids=("a", "b"), evidence=only_a())
+    assert registry.logits.shape == (2, 1, 40)
+    assert registry.availability[:, 0].tolist() == [True, False]
+    assert not registry.logits[1, 0].any()
+
+def test_outer_alignment_rejects_unknown_ids_and_label_mismatch() -> None:
+    with pytest.raises(ValueError, match="unknown sample"):
+        outer_align_evidence(canonical_ids=("a",), evidence=only_b())
+```
+
+- [ ] **Step 2: Implement canonical registry state**
+
+Use fixed expert order `IR, Depth_Color, Thermal, IMU, Skeleton, Radar`. Store canonical IDs/users/labels, `logits=[N,6,40]`, `availability=[N,6]`, modality-specific quality payloads/masks, optional embedding/summary references, OOF fold IDs, expert hashes, and evidence hashes. Neutral values are storage placeholders and may never be treated as available evidence.
+
+- [ ] **Step 3: Audit present versus usable**
+
+Compare raw manifest directory presence with evidence usability for every expert. Report present-but-unusable rows, reasons, and modality-pattern counts for train-14 and held-out-4 separately. Require every usable train row to have exactly one user-held-out OOF prediction.
+
+- [ ] **Step 4: Quarantine held-out registry**
+
+Write training OOF and held-out registries to separate paths and metadata domains. Fusion fitting APIs accept only `registry_role=oof_train14`; held-out loading is evaluation-only and raises if passed to calibration or training functions.
+
+- [ ] **Step 5: Verify and commit**
+
+Run: `D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest tests/test_expert_evidence_contract.py tests/test_sparse_evidence_registry.py tests/test_expert_contract.py -v`
+
+Expected: PASS with canonical row membership, sparse masks, provenance, fold lineage, and held-out quarantine audited.
+
+```bash
+git add src/fusion/sparse_evidence_registry.py scripts/build_sparse_evidence_registry.py tests/test_sparse_evidence_registry.py reports/sparse_evidence_registry_audit.md
+git commit -m "Build canonical sparse expert registry"
+```
+
+## Phase 8: Fit the Safe Available-Expert Anchor
+
+### Task 11: Calibrate and Mix Every Usable Expert Subset
+
+**Files:**
+- Create: `src/fusion/calibrated_anchor.py`
+- Create: `scripts/fit_calibrated_anchor.py`
+- Create: `tests/test_calibrated_anchor.py`
+- Create at runtime: calibration parameters and OOF anchor predictions.
+- Create: `reports/six_modal_anchor_report.md`
+
+**Interfaces:**
+- Consumes: train-14 sparse OOF registry only.
+- Produces: per-expert scalar temperatures, globally normalized non-negative expert weights, and anchor probabilities for any non-empty usable expert subset.
+
+- [ ] **Step 1: Write RED anchor invariance tests**
+
+```python
+def test_single_available_expert_is_recovered_exactly() -> None:
+    result = anchor(logits, availability=only_expert_two(), temperatures, weights)
+    expected = softmax(logits[:, 2] / temperatures[2], dim=-1)
+    torch.testing.assert_close(result, expected, atol=0.0, rtol=0.0)
+
+def test_no_usable_expert_fails_explicitly() -> None:
+    with pytest.raises(NoUsableExpertError):
+        anchor(logits, availability=torch.zeros(1, 6, dtype=torch.bool), ...)
+```
+
+- [ ] **Step 2: Implement masked calibrated mixture**
+
+Fit one positive scalar temperature per expert from its OOF rows. Convert IMU RF probabilities to clipped log-probability inputs before the same scalar calibration. Parameterize six global weights with softmax for non-negativity and identifiability, then renormalize weights over the usable subset per trial.
+
+- [ ] **Step 3: Fit without held-out leakage**
+
+Optimize OOF negative log likelihood inside the 14 training users. Predeclare metric tie-breaking as Macro-F1, worst-user Accuracy, then smaller calibration complexity. Use user-grouped fusion cross-validation to report generalization; refit the frozen calibration form on all train-14 OOF rows only after hyperparameters are fixed.
+
+- [ ] **Step 4: Stress every train-14 observed pattern and every singleton**
+
+Evaluate labeled behavior on train-14 OOF presence patterns and add synthetic singleton fixtures for all six experts. Report OOF Accuracy, Macro-F1, worst-user, calibration error, pattern counts, failures, latency, and anchor-versus-best-single-expert deltas. Before Phase 10, the held-out registry may be checked only for schema, finite outputs, routing integrity, and unlabeled pattern counts; its labels and metrics remain sealed. Rare train patterns remain diagnostic and do not drive selection.
+
+- [ ] **Step 5: Freeze A as the permanent baseline**
+
+Save temperatures, weights, class hash, expert hashes, registry hash, code SHA, and exact serialized bytes. The anchor must remain independently runnable even if Phase 9 is rejected.
+
+- [ ] **Step 6: Verify and commit**
+
+Run: `D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest tests/test_calibrated_anchor.py tests/test_sparse_evidence_registry.py -v`
+
+```bash
+git add src/fusion/calibrated_anchor.py scripts/fit_calibrated_anchor.py tests/test_calibrated_anchor.py reports/six_modal_anchor_report.md
+git commit -m "Add safe six-modal probability anchor"
+```
+
+## Phase 9: Test the Optional Residual Set Mixer
+
+### Task 12: Compare D Against the Frozen A Anchor
+
+**Files:**
+- Create: `src/fusion/residual_set_mixer.py`
+- Create: `scripts/train_residual_set_mixer.py`
+- Create: `configs/experiments/six_modal_residual_mixer.yaml`
+- Create: `tests/test_residual_set_mixer.py`
+- Create: `reports/six_modal_residual_mixer_report.md`
+
+**Interfaces:**
+- Consumes: frozen anchor, train-14 OOF registry, modality-specific token adapters, availability, and label-free quality.
+- Produces: an optional `delta_logits=[B,40]`, deterministic `g(A,Q)`, and a retain/reject decision against anchor A.
+
+- [ ] **Step 1: Write RED structural-invariant tests**
+
+```python
+def test_zero_initialized_mixer_exactly_recovers_anchor() -> None:
+    mixer = tiny_mixer(zero_initialize_output=True)
+    final = mixer.apply(anchor_probabilities, evidence_tokens, availability, quality)
+    torch.testing.assert_close(final, anchor_probabilities, atol=0.0, rtol=0.0)
+
+def test_singleton_and_unsupported_pattern_disable_residual() -> None:
+    assert deterministic_support_gate(singleton_availability(), quality()).item() == 0
+    assert deterministic_support_gate(rare_pair_availability(), quality()).item() == 0
+```
+
+- [ ] **Step 2: Implement modality-specific token adapters**
+
+Neural experts may use logits, embeddings, and quality. IMU RF may use logits, engineered summaries, and quality. Project each available expert to a fixed 64-dimensional token with a modality ID. Padded/missing tokens are masked and may not affect normalization or attention.
+
+- [ ] **Step 3: Implement the tiny correction model**
+
+Use either DeepSets/gated MLP or at most two masked self-attention layers, chosen before viewing held-out results. Feed anchor log-probability as context and emit 40 residual logits through a zero-initialized final layer. Enforce:
+
+```text
+z_final = log(clamp(p_anchor)) + g(A,Q) * lambda * delta_logits
+```
+
+Keep `lambda` separate from `g`. The first `g` is deterministic: zero for fewer than two usable experts, zero for natural train-14 patterns with support below 16, otherwise multiplied by the mean available label-free quality score in `[0,1]`.
+
+- [ ] **Step 4: Build the restricted training distribution**
+
+Use natural OOF patterns with at least two usable experts and train-14 support at least 16. From all-six rows, drop exactly one randomly selected modality with probability 0.15; weight this synthetic-dropout loss by 0.25 relative to natural-pattern loss. Do not synthesize arbitrary pairs/singletons. Seed sampling by `20260715 + epoch + sample_index`.
+
+- [ ] **Step 5: Select residual strength without held-out users**
+
+Use user-grouped fusion cross-validation over the train-14 OOF registry. Freeze the architecture and choose `lambda` from `[0.0, 0.25, 0.5, 1.0]` by Accuracy delta, then Macro-F1, worst-user Accuracy, and smaller `lambda`. Refit the selected model on all train-14 OOF rows. Never use the four held-out users for early stopping or selection.
+
+- [ ] **Step 6: Apply the D-versus-A retention rule**
+
+Retain D only when cross-validated Accuracy and Macro-F1 point deltas are positive, worst-user Accuracy does not materially regress, all-six/common-pattern performance improves or holds, and singleton/rare patterns exactly recover A. Otherwise discard the mixer checkpoint and freeze A as the final fusion architecture.
+
+- [ ] **Step 7: Verify and commit**
+
+Run: `D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest tests/test_residual_set_mixer.py tests/test_calibrated_anchor.py tests/test_sparse_evidence_registry.py -v`
+
+```bash
+git add src/fusion/residual_set_mixer.py scripts/train_residual_set_mixer.py configs/experiments/six_modal_residual_mixer.yaml tests/test_residual_set_mixer.py reports/six_modal_residual_mixer_report.md
+git commit -m "Evaluate residual multimodal correction"
+```
+
+## Phase 10: Assemble and Audit the Final Inference Model
+
+### Task 13: Build Raw-Trial Routing, Held-Out Evaluation, and Production Refit
+
+**Files:**
+- Create: `src/inference/six_modal_pipeline.py`
+- Create: `scripts/audit_six_modal_inference.py`
+- Create: `tests/test_six_modal_inference.py`
+- Create: `docs/six_modal_inference_contract.md`
+- Create at runtime: `reports/six_modal_heldout_evaluation.md`
+- Create at runtime: `reports/six_modal_deployment_audit.md`
+- Create at runtime: exact deployment manifest.
+
+**Interfaces:**
+- Consumes: raw non-empty modality subsets, six finalized experts, safe anchor, optional retained mixer, and exact preprocessing artifacts.
+- Produces: one audited trial probability or an explicit no-usable-expert failure, followed by a production package after architecture freeze.
+
+- [ ] **Step 1: Write RED end-to-end routing tests**
+
+Cover all-six input, each six singleton input, observed missing patterns, present-but-unusable Radar, IR locator failure, sensor-only input, and empty input. If at least one expert becomes usable, output must be finite `[1,40]`; if none does, return `NoUsableExpertError` with per-modality reasons.
+
+- [ ] **Step 2: Implement modality-isolated preprocessing and routing**
+
+Run each supplied modality independently. Execute YOLO on IR only when the verified IR route is used; reuse coordinates for Depth only under the registered parity contract. Record raw presence, usability, quality, hashes, preprocessing latency, expert latency, anchor probability, residual gate, and final probability.
+
+- [ ] **Step 3: Evaluate the four held-out users once**
+
+Load only frozen 14-user final experts, OOF-fitted calibration/weights, and the retained-or-rejected Phase 9 decision. Report overall, per-user, per-class, and per-missing-pattern Accuracy/Macro-F1, calibration, common-path latency, extreme-fallback failures, and D-versus-A deltas. Do not modify the system after viewing this result except to fix a demonstrated implementation defect with a new audit trail.
+
+- [ ] **Step 4: Audit the exact complete inference package**
+
+Sum unique serialized bytes for YOLO, X3D/head, Depth, Thermal, Skeleton, Radar, IMU RF, IMU imputer, calibration, adapters, optional residual mixer, and learned preprocessing. Require `<95,000,000` bytes, record SHA-256 and license/provenance for every artifact, and fail on duplicate or undeclared weights. Measure CPU/GPU memory and latency by modality pattern and trial duration.
+
+- [ ] **Step 5: Freeze the evaluation architecture before production refit**
+
+After the held-out report and retain/reject decisions are immutable, generate a new deterministic three-fold user-grouped OOF registry across all 18 training users using the frozen expert architectures. Refit only the already-approved calibration form and residual form, then train each expert on all usable data from all 18 users. Architecture, features, hyperparameters, thresholds, and expert membership may not change.
+
+- [ ] **Step 6: Audit the all-18-user production package**
+
+Reload every artifact in a clean process, repeat missing-subset contract tests, verify class-map/sample schema, run raw-training fixtures only, and remeasure exact bytes and latency. Competition test data may be read only after this production gate passes and all experiment choices are frozen.
+
+- [ ] **Step 7: Commit code and small audit reports**
+
+Do not commit weights, test predictions, NPZ registries, or submissions.
+
+```bash
+git add src/inference/six_modal_pipeline.py scripts/audit_six_modal_inference.py tests/test_six_modal_inference.py docs/six_modal_inference_contract.md reports/six_modal_heldout_evaluation.md reports/six_modal_deployment_audit.md
+git commit -m "Assemble audited six-modal inference pipeline"
 ```
 
 ## Deliberately Deferred Work
@@ -782,12 +1139,13 @@ git commit -m "Document X3D-S expert fusion contract"
 - Direct YOLO keypoint-vector classification.
 - YOLO keypoint motion-peak clip sampling, because the original pose-track NPZ is not currently present.
 - Depth ordinal input.
-- Skeleton and IMU training or fusion.
+- An aligned IR+Depth co-expert, pending OOF complementarity and byte-budget evidence.
+- Reusing IR ROI coordinates for Thermal without a passed registration audit.
 - VideoMAE as a final inference expert, pending written organizer approval for the exact checkpoint and pretraining source.
 - VideoMAE-to-X3D knowledge distillation as a separate pre-registered teacher/student experiment; the host clarification permits distillation, but only the compliant student may ship.
-- Learned per-sample fusion gates.
-- Multi-fold or test-set inference.
+- A learned per-sample residual-support gate beyond the deterministic first-run `g(A,Q)`.
+- Competition-test inference or submission generation before the Phase 10 production gate.
 - DataLoader worker and batch-size optimization.
 - Quantization and pruning.
 
-These items require separate pre-registered experiments after the IR-context baseline passes its acceptance gate.
+These items require separate pre-registered experiments after the relevant IR-expert or six-modal program gate passes.
