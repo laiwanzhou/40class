@@ -11,8 +11,10 @@
 ## Global Constraints
 
 - Work only in `D:\work\2026.7.14_kaggle\40class-x3d-adaptive-multiclip` on branch `x3d-s-adaptive-multiclip`.
-- Phases 0-5 belong to this IR-expert branch. Phases 6-10 are the approved program-level roadmap and must execute later on dedicated branches/worktrees after Phase 5 closes.
-- Do not read competition test data and do not generate a submission.
+- Phases 0-5 belong to this IR-expert branch. Phase 5.5 freezes the program-level six-modal charter; Phases 6-10 are the approved program-level roadmap and must execute later on dedicated branches/worktrees after Phase 5 closes.
+- Phase 5.5 and all later phases must comply with `docs/superpowers/plans/2026-08-11-six-modal-program-charter.md`; modality-specific model internals may evolve, but sample identity, class order, OOF lineage, availability semantics, evidence interface, and deployment-byte accounting may not drift.
+- This is a competition research plan, not a production-service project. Reviews must focus on scientific validity, cross-subject generalization, modality information preservation, cross-modal compatibility, competition compliance, and package-size feasibility. Do not add production-grade fault tolerance, service availability, broad malformed-input handling, monitoring, rollback, or generalized defensive-programming gates unless they directly affect experiment validity or correct competition inference.
+- Do not read competition test data and do not generate a submission before the Phase 10 production gate.
 - Treat the official challenge page and the competition host's Kaggle clarification as the compliance basis: lightweight pretrained CNNs and knowledge distillation are allowed, while large pretrained foundation backbones are prohibited.
 - Record the official rule page, the host clarification URL, access date, and verbatim model-size statement in every compliance report.
 - Use the existing `combined_frame_manifest.csv`; do not regenerate the full ROI dataset in the first experiment.
@@ -28,6 +30,7 @@
 - If exactly one expert is usable, return its calibrated probability exactly. If no supplied modality produces usable evidence, fail explicitly with per-modality reasons.
 - Train the residual mixer primarily on all-six and sufficiently supported natural missingness patterns. Rare combinations use anchor-only inference and must not dominate training.
 - Keep the existing neural `ExpertOutput` unchanged. Add a serialized `ExpertEvidence` fusion contract that permits optional embeddings or engineered summaries.
+- First-generation six-modal fusion must remain operable from 40-class logits/probabilities, availability, and label-free quality alone. Do not require heterogeneous or independently trained OOF embeddings to share a coordinate system; embedding/summary fusion is a separate later ablation after an explicit alignment study.
 - Pose-guided visual localization is reusable infrastructure. YOLO11n-pose is currently verified for IR; reuse its coordinates for Depth or Thermal only after registration/parity evidence.
 - Preserve the existing 14-train-user/4-held-out-user and `sample_id` membership exactly. Within train-14, use persisted user-grouped folds for all epoch, checkpoint, architecture, and hyperparameter decisions; the official held-out labels remain sealed until Phase 10.
 - Never split or shuffle individual frames across train and validation.
@@ -91,6 +94,7 @@ The following evidence was recovered from the three referenced project histories
 | Historical B2 training Accuracy reached about 0.9763 while held-user Accuracy remained about 0.4627; cross-user SupCon did not reliably improve both Accuracy and Macro-F1. | Cross-user generalization, not raw capacity, is the governing risk. Require user-grouped OOF for every selection and keep the residual mixer tiny. |
 | Historical MobileNet and ResNet18 object-interaction experts were similar; the specific ResNet18 inference bundle was 68,994,661 bytes (65.80 MiB) for little Macro-F1 gain. | Treat this as evidence against that specific expert's benefit per byte, not a universal rejection of ResNet18. Do not replicate large visual backbones across modalities without measured complementarity. |
 | Historical IMU compact RF was about 0.4188 Accuracy / 0.3352 Macro-F1 at about 5.919 MiB, while Skeleton was a strong anchor candidate. Radar's 21-stat TCN underfit badly. | Audit and canonically rerun IMU RF and full-sequence Skeleton first. Treat raw-point PointNet-frame plus masked TCN as a Radar candidate, not an established result. |
+| The finalized IMU RF per-class report is strongest on large motion/posture classes and selected wrist-dominant personal-care classes, while phone/game/write/tableware classes are weak. Early visual interaction experiments rescue several object-defined classes. | Expect natural cross-modal complementarity from sensing physics. Do not deliberately weaken experts to force diversity; instead preserve each modality's native evidence and measure complementarity from canonical OOF errors. |
 | Tight person crops can remove phones, cups, documents, tableware, medicine and other class-defining objects. Existing ROI audits support extended person context and aligned local interaction regions. | Keep pose-guided person-context as the default IR view. Preserve relation/local ROI generators as reusable infrastructure, but add them only through separately registered ablations. |
 
 Historical results are evidence about architecture and failure modes, not reusable fusion predictions. Any expert retained for the final system must regenerate predictions on the canonical split and the shared user-grouped OOF assignment.
@@ -138,13 +142,14 @@ Execute phases in order. A phase may start only after the previous phase's exit 
 | Phase 3: End-to-end verification | Task 5 | Phase 2 passes | Online/offline ROI parity, shortest/longest trial smoke, overfit test, size audit and full tests pass | Completed (`dc13b96`; closure `03eed56`) |
 | Phase 4: Train-14 OOF scientific evaluation | Task 6 | Phase 3 passes | Pre-registered grouped-OOF comparison, duration/user/class reports, and frozen X3D decision are complete without held-out access | In progress (Step 1 `74c679a`; scheduler `335f5e2`; equal-trial accumulation `b95e18f`) |
 | Phase 5: Register IR sparse evidence | Task 7 | Phase 4 retains pure X3D as a primary or complementary IR expert | Verified train-user OOF archive plus one quarantined held-out IR archive, provenance, evidence contract and size record pass | Pending |
-| Phase 6: Freeze expert portfolio | Tasks 8-9 | Phase 5 passes | Six retained experts use only train-14 OOF for selection and each has OOF plus structurally label-free held-out evidence | Pending |
+| Phase 5.5: Freeze six-modal program charter | Task 7.5 | Phase 5 passes | Modality roles, 40x6 capability-map evidence hierarchy, canonical identity/evidence interfaces, shared OOF lineage, fusion feature boundary, and package ledger are frozen | Pending |
+| Phase 6: Freeze expert portfolio | Tasks 8-9 | Phase 5.5 passes | Six retained experts use only train-14 OOF for selection and each has OOF plus structurally label-free held-out evidence | Pending |
 | Phase 7: Build sparse evidence registry | Task 10 | Phase 6 passes | Global registries plus outer-fold nested fusion evidence packages pass lineage and missingness audits | Pending |
 | Phase 8: Fit safe anchor | Task 11 | Phase 7 passes | Calibrated masked probability mixture passes singleton, missing-pattern, user and budget gates | Pending |
 | Phase 9: Test residual correction | Task 12 | Phase 8 passes | D-versus-A user-grouped comparison either retains the mixer or freezes anchor-only | Pending |
-| Phase 10: Assemble final inference | Task 13 | Phase 9 decision freezes architecture | Raw-trial routing, held-out evaluation, all-18-user production refit, exact package size and latency gates pass | Pending |
+| Phase 10: Assemble final inference and first external check | Tasks 13-14 | Phase 9 decision freezes architecture | Held-out evaluation, all-18-user production refit, exact package-size gate, competition-test CSV audit, and one user-submitted external leaderboard check are complete | Pending |
 
-At each phase boundary, record the Git SHA, changed files, executed commands, pass/fail evidence, unresolved risks, and the next phase decision in `reports/x3d_s_phase_status.md`. Phases 6-10 may use a successor program-status report but must link back to this plan and the approved design spec. Do not silently continue after a failed exit gate.
+At each phase boundary, record the Git SHA, changed files, executed commands, pass/fail evidence, unresolved scientific risks, and the next phase decision in `reports/x3d_s_phase_status.md`. Phases 6-10 may use a successor program-status report but must link back to this plan, `2026-08-11-six-modal-program-charter.md`, and the approved design spec. Do not silently continue after a failed scientific exit gate.
 
 ## Phase 0: Compliance and Runtime Gate
 
@@ -178,7 +183,7 @@ The initial components are `x3d_s`, `x3d_custom_head`, and `yolo11n_pose`. Mark 
 
 Also include, but do not post automatically, a concise organizer clarification draft naming `X3D-S/Kinetics-400`, `VideoMAE-S` and its exact pretraining source, whether the `100 MB` cap applies to the sum of all inference weights, and whether FP32 serialized state-dict bytes are the intended measurement. Lack of a reply does not block the X3D experiment, but it keeps model-specific approval marked provisional; lack of a VideoMAE reply blocks VideoMAE from final inference.
 
-At Phase 0 this initialized `reports/x3d_s_phase_status.md` with the then-current Phases 0-5. The approved 2026-08-11 six-modal design later expanded the roadmap through Phase 10; keep the status report synchronized with the current phase table, Git SHA, evidence commands, artifacts, risks, and next decision.
+At Phase 0 this initialized `reports/x3d_s_phase_status.md` with the then-current Phases 0-5. The approved 2026-08-11 six-modal design later expanded the roadmap through Phase 10; keep the status report synchronized with the current phase table, Git SHA, evidence commands, artifacts, scientific risks, and next decision.
 
 - [x] **Step 2: Write the failing environment contract test**
 
@@ -714,8 +719,6 @@ Record the configuration hash, manifest hash, class-map hash, X3D and YOLO pretr
 
 - [ ] **Step 2: Run the fixed three-fold user-grouped OOF experiment**
 
-Run:
-
 Generate `metadata/splits/train14_oof_3fold.json` exactly once from canonical train-14 labels/users using `StratifiedGroupKFold(n_splits=3, shuffle=True, random_state=20260715)`. Validate disjoint users, complete 40-class coverage in every outer-train partition, complete 40-class coverage after concatenating the three outer-validation partitions, and exactly-once outer-validation ownership for every train-14 user. Report per-fold outer-validation class coverage rather than requiring 40 classes in every individual fold: class 25 occurs for only `user1` and `user7` in train-14, so three validation folds with class 25 are mathematically impossible. Keep the metric label set fixed at all 40 classes. Record the assignment SHA-256 in the Phase 4 experiment manifest and make the file immutable for later phases.
 
 For each outer fold, also freeze one epoch-selection split entirely inside the outer-train users before model results. Generate three candidate inner splits with `StratifiedGroupKFold(n_splits=3, shuffle=True, random_state=20260715 + outer_fold)`, discard any candidate whose canonical inner-fit side lacks any of the 40 classes, then choose the remaining candidate with maximum canonical inner-validation class coverage and lower candidate index as the tie break. Before training, separately audit the selected candidate on the usable-IR population and require its inner-fit side to cover all 40 classes; record usable-IR fit/validation trial counts, class counts, and missing class IDs. If that usable-IR gate fails, preserve the original assignment and create a separately versioned successor that discards candidates lacking usable-IR 40-class fit coverage. All three training seeds reuse the same accepted outer and inner user assignments. The already frozen assignment passes the usable-IR gate, so preserve it and attach the separate hashed coverage audit instead of mutating it.
@@ -858,7 +861,93 @@ git add src/fusion/expert_evidence.py scripts/build_x3d_s_ir_evidence.py docs/x3
 git commit -m "Register X3D-S IR sparse evidence"
 ```
 
-Stop this branch after Phase 5 review. Phases 6-10 execute in later dedicated worktrees.
+Stop this branch after Phase 5 review. Phase 5.5 is the program handoff gate; Phases 6-10 execute in later dedicated worktrees.
+
+## Phase 5.5: Freeze the Six-Modal Program Charter
+
+### Task 7.5: Freeze Modality Roles, Capability Evidence, and Cross-Expert Compatibility
+
+**Files:**
+- Reuse authoritative charter: `docs/superpowers/plans/2026-08-11-six-modal-program-charter.md`
+- Create: `reports/six_modal_action_capability_map.md`
+- Create: `reports/six_modal_program_freeze.md`
+- Create: `tests/test_six_modal_program_contract.py`
+
+**Interfaces:**
+- Consumes: the frozen Phase 5 IR evidence contract, canonical 3,036-trial manifest, Phase 4 OOF assignment, historical branch reports, official CUHK-X sensor/benchmark descriptions, and sensor-domain research priors.
+- Produces: an immutable program-level compatibility boundary for every Phase 6-10 branch. It does not train or select a new classifier.
+
+- [ ] **Step 1: Freeze modality roles and first model-family directions**
+
+Use the charter's six roles as the Phase 6 starting point:
+
+```text
+IR        -> high-capacity appearance / object-interaction expert -> X3D-S adaptive multi-clip
+Depth     -> geometry / depth-motion expert -> compact geometry-aware spatial + temporal model
+Thermal   -> heat-appearance / temporal expert -> Thermal-native lightweight spatial-temporal/video model
+Skeleton  -> body-topology / pose-motion expert -> lightweight graph-temporal candidate versus accepted TCN
+IMU       -> inertial-dynamics expert -> compact RF primary; tiny neural candidate only if justified
+Radar     -> point-space / motion expert -> raw PointNet-style frame encoder + masked temporal model
+```
+
+These are first model families, not irrevocable architectures. A Phase 6 experiment may replace a family only from train-14 evidence and must continue to obey the common external contract.
+
+- [ ] **Step 2: Materialize the 40x6 capability map with A/B/C evidence**
+
+Create one row for every `(class_id, modality)` cell with:
+
+```text
+class_id
+action_name
+modality
+expected_strength
+ evidence_level  # A / B / C
+reason
+experimental_status
+source_reference
+```
+
+Evidence meanings are fixed: A = internal dataset experiment; B = official CUHK-X dataset/benchmark evidence; C = sensing-physics or related-research prior. A overrides a conflicting C-level expectation for this dataset. B/C motivate experiments but do not become fusion weights. Update a modality column to A-level evidence whenever Phase 6 produces canonical per-class OOF results.
+
+- [ ] **Step 3: Freeze the common identity/evidence contract**
+
+Require all six experts to preserve canonical `sample_id`, `user_id`, class order `0..39`, `class_map_hash`, `present`, `usable`, fixed outer-fold ownership, and sparse canonical-row semantics. A missing modality changes only that expert's availability; it never removes the trial.
+
+The required first-generation fusion surface is:
+
+```text
+logits/probabilities [40]
+availability
+native label-free quality + quality mask
+fusion_quality_score
+model/config/preprocessing provenance
+deployed bytes
+```
+
+Optional embeddings and engineered summaries may be stored but must not be required by Phase 7/8 or the first registered Phase 9 mixer.
+
+- [ ] **Step 4: Freeze shared OOF and held-out lineage**
+
+Every modality reuses the exact Phase 4 train-14 outer-fold assignment. Modality-specific preprocessing may differ, but an OOF row must come from a model for which that user's raw training rows and labels influenced neither preprocessing fit, weight fit, epoch/checkpoint selection, nor hyperparameter choice. The four outer held-out users remain unavailable until Phase 10.
+
+- [ ] **Step 5: Freeze the package ledger and program prohibitions**
+
+The only hard size gate remains `<95,000,000` serialized bytes for the complete inference stack. Record per-modality planning envelopes from the charter as soft allocation guidance rather than hard quotas. Any expert may exceed its envelope only with measured OOF benefit per byte and a still-passing full-package estimate.
+
+Program prohibitions are frozen: no expert-specific class order, no new outer folds, no deletion of canonical rows for missingness, no heldout/test-driven selection, no assumption that embeddings are aligned, no bypass of `ExpertEvidence`, no hand-coded class-specific fusion weights from the capability map, and no silent byte-budget overrun.
+
+- [ ] **Step 6: Run a scientific compatibility review**
+
+Review only scientific/statistical/competition compatibility: native sensor information preservation, cross-subject lineage, capability-map evidence separation, sparse trial alignment, first-generation fusion compatibility, and aggregate-size feasibility. Do not fail the charter for production-service robustness concerns that do not affect scientific validity or correct competition inference.
+
+- [ ] **Step 7: Freeze and commit the program handoff**
+
+```bash
+git add docs/superpowers/plans/2026-08-11-six-modal-program-charter.md reports/six_modal_action_capability_map.md reports/six_modal_program_freeze.md tests/test_six_modal_program_contract.py
+git commit -m "Freeze six-modal program compatibility charter"
+```
+
+Phase 6 may start only after this charter is reviewed and frozen.
 
 ## Phase 6: Freeze the Six-Expert Portfolio
 
@@ -871,8 +960,8 @@ Stop this branch after Phase 5 review. Phases 6-10 execute in later dedicated wo
 - Reuse: IMU compact Random Forest and Skeleton sequence-expert source from their accepted branches.
 
 **Interfaces:**
-- Consumes: canonical manifest/split, historical checkpoints/reports, expert configs, and the 95 MB ledger.
-- Produces: reproducible candidate records for IMU and Skeleton and an explicit rerun decision for every historical expert.
+- Consumes: canonical manifest/split, Phase 5.5 charter/capability map, historical checkpoints/reports, expert configs, and the 95 MB ledger.
+- Produces: reproducible candidate records for IMU and Skeleton and an explicit rerun/model-family decision for every historical expert.
 
 - [ ] **Step 1: Write RED provenance and split-compatibility tests**
 
@@ -886,17 +975,23 @@ def test_candidate_must_match_canonical_users_and_class_map() -> None:
         validate_candidate(candidate_with_old_fold())
 ```
 
-- [ ] **Step 2: Audit IMU RF and Skeleton evidence**
+- [ ] **Step 2: Audit IMU RF and freeze its primary-candidate status**
 
-Verify source commit, feature schema, train-only preprocessing, class map, sample population, weights, imputer, hashes, inference entry point, serialized bytes, and license. Historical scores from a different user split remain context only. Rerun each accepted architecture on the canonical train-14 population using the exact Phase 4 `train14_oof_3fold.json` and its registered SHA-256. Select candidates only from cross-fitted predictions; the outer four users and their labels remain unavailable throughout Phase 6.
+Verify source commit, feature schema, train-only preprocessing, class map, sample population, weights, imputer, hashes, inference entry point, serialized bytes, and license. Historical scores from a different user split remain context only. Rerun the accepted compact RF architecture on the canonical train-14 population using the exact Phase 4 `train14_oof_3fold.json` and its registered SHA-256. Select candidates only from cross-fitted predictions; the outer four users and their labels remain unavailable throughout Phase 6.
+
+The compact RF is the first IMU primary candidate because it already has strong benefit per byte and useful per-class motion behavior. A small 1D temporal neural candidate may be added only as a controlled comparison if it has a plausible path to better canonical standalone or complementary evidence without consuming disproportionate budget; do not reopen a broad IMU architecture search by default.
+
+- [ ] **Step 3: Reproduce Skeleton TCN, then test one topology-aware family**
 
 For Skeleton, retain all native joints and sequence features such as root-centered coordinates, scale-normalized geometry, bones, and velocity. The 12-joint YOLO correspondence is an audit/quality signal only; do not reduce the expert to those joints or impose frame-level visual alignment.
 
-- [ ] **Step 3: Add complementarity reporting**
+First reproduce the accepted root-centered + velocity TCN on the exact canonical folds. Then compare one lightweight graph-temporal family (ST-GCN / multi-scale graph-temporal class) that explicitly models skeleton topology plus temporal motion. Do not jump directly to a large MotionBERT-style backbone under the shared byte budget. Use the same OOF metrics and evidence contract for the TCN and graph candidate.
 
-For each candidate, compute standalone Accuracy/Macro-F1, worst-user Accuracy, pairwise error agreement with registered experts, unique-correct counts in both directions, oracle-pair Accuracy, and class-wise rescues. Do not eliminate a smaller expert solely because its standalone Accuracy is lower.
+- [ ] **Step 4: Add capability-map and complementarity reporting**
 
-- [ ] **Step 4: Run and commit the audit**
+For each candidate, compute standalone Accuracy/Macro-F1, worst-user Accuracy, per-class recall/F1, pairwise error agreement with registered experts, unique-correct counts in both directions, oracle-pair Accuracy, and class-wise rescues. Update the IMU/Skeleton capability-map cells from prior B/C evidence to A where canonical evidence exists. Do not eliminate a smaller expert solely because its standalone Accuracy is lower.
+
+- [ ] **Step 5: Run and commit the audit**
 
 Run: `D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest tests/test_six_modal_expert_portfolio.py -v`
 
@@ -917,26 +1012,34 @@ git commit -m "Audit six-modal expert portfolio"
 - Create at runtime: candidate reports and sparse OOF-ready archives.
 
 **Interfaces:**
-- Consumes: modality-native raw training data, canonical split, common expert/evidence contracts, and remaining byte budget after IR/YOLO/IMU/Skeleton.
-- Produces: one retained or explicitly rejected candidate for Depth, Thermal, and Radar.
+- Consumes: modality-native raw training data, Phase 5.5 modality roles/capability priors, canonical split, common expert/evidence contracts, and remaining byte budget after IR/YOLO/IMU/Skeleton.
+- Produces: one retained or explicitly rejected candidate for Depth, Thermal, and Radar plus A-level per-class capability evidence.
 
 - [ ] **Step 1: Audit visual registration before model selection**
 
 Verify the known exact IR/Depth timestamp pairing and prove spatial ROI parity before reusing IR coordinates for Depth. Thermal's audited export has independent frame numbering and no common timestamps with IR/Depth, so default to Thermal-native temporal sampling and trial-level fusion. Reuse IR coordinates for Thermal only after new field-of-view, resolution, camera-geometry, and temporal-registration evidence passes. Count YOLO once when preprocessing is genuinely shared.
 
-- [ ] **Step 2: Write RED modality-contract tests**
+- [ ] **Step 2: Write modality-compatibility tests**
 
-Require each candidate to emit 40-class logits, label-free quality, usability, provenance, latency, and exact deployed bytes. Radar tests must cover an empty point-set trial without deleting the canonical row. Visual tests must cover locator failure and documented context fallback.
+Require each candidate to emit 40-class logits, label-free quality, usability, provenance, latency, and exact deployed bytes. Radar evaluation must preserve canonical rows whose point set is unusable by marking that expert unavailable rather than changing the sample universe. Visual experts must preserve the same canonical sample/class identity even when their own preprocessing cannot produce usable evidence.
 
-Every Depth, Thermal, and Radar candidate must use the exact frozen Phase 4 `train14_oof_3fold.json`. Fit preprocessing, checkpoints, and candidate decisions inside those train-14 folds only. The outer four users and their labels are unavailable for candidate metrics, early stopping, architecture choice, or portfolio selection.
+Every Depth, Thermal, and Radar candidate must use the exact frozen Phase 4 `train14_oof_3fold.json`. Fit preprocessing, checkpoints, and candidate decisions inside those train-14 folds only. The outer four users and their labels are unavailable for candidate metrics, epoch selection, architecture choice, or portfolio selection.
 
-- [ ] **Step 3: Run controlled candidate experiments**
+- [ ] **Step 3: Run controlled native-information candidate experiments**
 
-Depth starts with a compact spatial-temporal/geometric expert that preserves native geometry. Thermal starts with a compact visual-temporal expert. Radar compares the failed 21-stat TCN reference with raw variable point sets encoded by a shared point MLP, mean/max frame pooling, and a small masked TCN. PointNet+TCN is retained only if it improves relevant metrics or complementarity per deployed byte.
+Use the Phase 5.5 directions as the first controlled families:
 
-- [ ] **Step 4: Apply the portfolio gate**
+- **Depth:** compact geometry-aware spatial encoder plus temporal model. Preserve native depth/geometry, relative depth change, silhouette, and distance cues; do not merely clone an X3D-sized IR appearance model. Historical capacity-only visual scaling is context against spending large byte budget without geometric benefit.
+- **Thermal:** Thermal-native lightweight spatial-temporal/video model with an independent temporal sampler matching its own frame rate/numbering. Treat the old MobileNet+temporal-mean result as a weak historical baseline, not proof that Thermal lacks information.
+- **Radar:** compare the failed 21-stat TCN reference with raw variable point sets encoded by a shared PointNet-style point MLP, mean/max frame pooling, and a small masked temporal model. The new direction is retained only if canonical evidence shows useful standalone or complementary performance per deployed byte.
 
-Retain a candidate only when it has reproducible canonical-split outputs, valid missingness behavior, useful standalone or complementary evidence, acceptable latency, and a provisional six-expert package below 95,000,000 bytes. Record this estimate separately as `provisional_complete_package_size_gate_passed`; it includes declared upper-bound estimates for the anchor, adapters, and optional residual mixer and is not the final Phase 10 `complete_submission_size_gate_passed`. Do not clone X3D-sized capacity into Depth or Thermal without a measured benefit-per-byte case.
+For all three, first optimize the modality's own native signal. Do not deliberately reduce standalone quality merely to create architectural diversity from IR.
+
+- [ ] **Step 4: Apply the portfolio gate and update the capability map**
+
+Retain a candidate only when it has reproducible canonical-split outputs, valid sparse-missingness semantics, useful standalone or complementary evidence, acceptable competition-inference cost, and a provisional six-expert package below 95,000,000 bytes. Record this estimate separately as `provisional_complete_package_size_gate_passed`; it includes declared upper-bound estimates for the anchor, adapters, and optional residual mixer and is not the final Phase 10 `complete_submission_size_gate_passed`.
+
+Report per-class behavior and update each candidate's capability-map column to A-level evidence where results exist. Compare observed strengths with B/C priors to decide what the next model iteration should fix; do not feed the prior itself into the classifier or fusion weights.
 
 - [ ] **Step 5: Freeze all five non-IR experts and generate quarantined evidence**
 
@@ -946,7 +1049,7 @@ Finalize each retained expert on all usable train-14 rows, predict only its usab
 
 - [ ] **Step 6: Commit candidate code/config/reports only**
 
-Do not commit weights or prediction arrays. Commit source, fixed configs, tests, and small reports with one commit per accepted modality candidate.
+Do not commit weights or prediction arrays. Commit source, fixed configs, tests, capability-map updates, and small reports with one commit per accepted modality candidate.
 
 ## Phase 7: Build the Canonical Sparse Evidence Registry
 
@@ -984,9 +1087,11 @@ def test_serialized_heldout_registry_has_no_labels_key(tmp_path: Path) -> None:
         assert "labels" not in data.files
 ```
 
-- [ ] **Step 2: Implement canonical registry state**
+- [ ] **Step 2: Implement canonical registry state and first-generation fusion boundary**
 
 Use fixed expert order `IR, Depth_Color, Thermal, IMU, Skeleton, Radar`. Both registry roles store canonical IDs/users, `logits=[N,6,40]`, `availability=[N,6]`, modality-native quality payloads/masks, `fusion_quality_score=[N,6]`, optional embedding/summary references, fold lineage, expert hashes, and evidence hashes. Only `registry_role=oof_train14` stores canonical labels and OOF fold IDs. Before building `registry_role=heldout`, project the canonical index to label-free ID/user/missingness fields so the builder never receives `class_id`; the serialized registry must not contain a labels key or accept expert evidence carrying labels. Neutral values are storage placeholders and may never be treated as available evidence.
+
+The compatibility-critical first-generation fusion feature surface is the 40-class logits/probabilities, availability, and label-free quality. Embeddings/engineered summaries are retained as optional diagnostic references only and are not required to align across expert families or OOF fold models.
 
 - [ ] **Step 3: Audit present versus usable**
 
@@ -1012,7 +1117,7 @@ The output for each outer fold is `(nested_train_evidence, outer_validation_evid
 
 Run: `D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest tests/test_expert_evidence_contract.py tests/test_sparse_evidence_registry.py tests/test_nested_fusion_evidence.py tests/test_expert_contract.py -v`
 
-Expected: PASS with canonical row membership, sparse masks, provenance, fold lineage, and held-out quarantine audited.
+Expected: PASS with canonical row membership, sparse masks, provenance, fold lineage, held-out quarantine, and first-generation logits/availability/quality compatibility audited.
 
 ```bash
 git add src/fusion/sparse_evidence_registry.py scripts/build_sparse_evidence_registry.py scripts/build_nested_fusion_evidence.py tests/test_sparse_evidence_registry.py tests/test_nested_fusion_evidence.py reports/sparse_evidence_registry_audit.md
@@ -1090,7 +1195,7 @@ git commit -m "Add safe six-modal probability anchor"
 - Create: `reports/six_modal_residual_mixer_report.md`
 
 **Interfaces:**
-- Consumes: the frozen anchor form, exact Phase 7 nested fusion evidence packages and outer folds, the global train-14 OOF registry only for final refit, modality-specific token adapters, availability, native label-free quality, and normalized `fusion_quality_score`. The global-OOF final anchor fit is deployment-only and may not be used to create Phase 9 validation inputs.
+- Consumes: the frozen anchor form, exact Phase 7 nested fusion evidence packages and outer folds, the global train-14 OOF registry only for final refit, per-expert logits/log-probabilities, availability, native label-free quality, and normalized `fusion_quality_score`. The global-OOF final anchor fit is deployment-only and may not be used to create Phase 9 validation inputs.
 - Produces: an optional `delta_logits=[B,40]`, deterministic `g(A,Q)`, and a retain/reject decision against anchor A.
 
 - [ ] **Step 1: Write RED structural-invariant tests**
@@ -1111,9 +1216,11 @@ def test_a_and_d_share_outer_folds_without_validation_label_access() -> None:
     assert all(set(f.fit_users).isdisjoint(f.validation_users) for f in result.fold_lineage)
 ```
 
-- [ ] **Step 2: Implement modality-specific token adapters**
+- [ ] **Step 2: Implement first-generation modality tokens from compatible evidence only**
 
-Neural experts may use logits, embeddings, native quality, and `fusion_quality_score`. IMU RF may use logits, engineered summaries, native quality, and the same normalized scalar. Project each available expert to a fixed 64-dimensional token with a modality ID. Padded/missing tokens are masked and may not affect normalization or attention.
+For the first registered residual mixer, build each available modality token from its 40-class logits/log-probabilities, modality ID, native quality mask/summary, and normalized `fusion_quality_score`. Project each available expert to a fixed 64-dimensional token. Padded/missing tokens are masked and may not affect normalization or attention.
+
+Do not consume raw heterogeneous embeddings or IMU engineered-summary feature vectors in this first mixer. Their coordinate systems and fold-to-fold comparability are not assumed. An embedding/engineered-summary fusion candidate is a separately pre-registered ablation after an explicit representation-alignment study.
 
 - [ ] **Step 3: Implement the tiny correction model**
 
@@ -1148,7 +1255,7 @@ git add src/fusion/residual_set_mixer.py scripts/train_residual_set_mixer.py con
 git commit -m "Evaluate residual multimodal correction"
 ```
 
-## Phase 10: Assemble and Audit the Final Inference Model
+## Phase 10: Assemble, Evaluate, Refit, and Perform the First Competition Check
 
 ### Task 13: Build Raw-Trial Routing, Held-Out Evaluation, and Production Refit
 
@@ -1165,9 +1272,9 @@ git commit -m "Evaluate residual multimodal correction"
 - Consumes: raw non-empty modality subsets, six finalized experts, safe anchor, optional retained mixer, and exact preprocessing artifacts.
 - Produces: one audited trial probability or an explicit no-usable-expert failure, followed by a production package after architecture freeze.
 
-- [ ] **Step 1: Write RED end-to-end routing tests**
+- [ ] **Step 1: Write end-to-end scientific routing tests**
 
-Cover all-six input, each six singleton input, observed missing patterns, present-but-unusable Radar, IR locator failure, sensor-only input, and empty input. If at least one expert becomes usable, output must be finite `[1,40]`; if none does, return `NoUsableExpertError` with per-modality reasons.
+Cover all-six input, each six singleton input, observed natural missing patterns, present-but-unusable Radar, sensor-only input, and empty input. The purpose is to verify the program's sparse-evidence semantics and submission path, not generalized production fault tolerance. If at least one expert becomes usable, output must be finite `[1,40]`; if none does, return `NoUsableExpertError` with the modality usability state.
 
 - [ ] **Step 2: Implement modality-isolated preprocessing and routing**
 
@@ -1175,11 +1282,11 @@ Run each supplied modality independently. Execute YOLO on IR only when the verif
 
 - [ ] **Step 3: Evaluate the four held-out users once**
 
-Load only frozen 14-user final experts, OOF-fitted calibration/weights, the retained-or-rejected Phase 9 decision, and structurally label-free held-out predictions. Load held-out labels from a separate sealed evaluation source only inside this Phase 10 command, join by `sample_id`, and never write those labels back into `ExpertEvidence` or the held-out registry. Report overall, per-user, per-class, and per-missing-pattern Accuracy/Macro-F1, calibration, common-path latency, extreme-fallback failures, and D-versus-A deltas. Do not modify the system after viewing this result except to fix a demonstrated implementation defect with a new audit trail.
+Load only frozen 14-user final experts, OOF-fitted calibration/weights, the retained-or-rejected Phase 9 decision, and structurally label-free held-out predictions. Load held-out labels from a separate sealed evaluation source only inside this Phase 10 command, join by `sample_id`, and never write those labels back into `ExpertEvidence` or the held-out registry. Report overall, per-user, per-class, and per-missing-pattern Accuracy/Macro-F1, calibration, common-path latency, and D-versus-A deltas. Do not modify the scientific system after viewing this result except to fix a demonstrated implementation defect with a new audit trail.
 
 - [ ] **Step 4: Audit the exact complete inference package**
 
-Sum unique serialized bytes for YOLO, X3D/head, Depth, Thermal, Skeleton, Radar, IMU RF, IMU imputer, calibration, adapters, optional residual mixer, and learned preprocessing. Require `<95,000,000` bytes, record `complete_submission_size_gate_passed`, SHA-256, and license/provenance for every artifact, and fail on duplicate or undeclared weights. This is the first final-package use of that flag. Measure CPU/GPU memory and latency by modality pattern and trial duration.
+Sum unique serialized bytes for YOLO, X3D/head, Depth, Thermal, Skeleton, Radar, IMU RF, IMU imputer, calibration, adapters, optional residual mixer, and learned preprocessing. Require `<95,000,000` bytes, record `complete_submission_size_gate_passed`, SHA-256, and license/provenance for every artifact, and fail on duplicate or undeclared learned weights. This is the first final-package use of that flag. Measure representative inference latency by modality pattern and trial duration for competition planning; do not turn this into a production-service performance audit.
 
 - [ ] **Step 5: Freeze the evaluation architecture before production refit**
 
@@ -1187,7 +1294,7 @@ After the held-out report and retain/reject decisions are immutable, generate a 
 
 - [ ] **Step 6: Audit the all-18-user production package**
 
-Reload every artifact in a clean process, repeat missing-subset contract tests, verify class-map/sample schema, run raw-training fixtures only, and remeasure exact bytes and latency. Competition test data may be read only after this production gate passes and all experiment choices are frozen.
+Reload every artifact in a clean process, repeat the scientific sparse-subset contract tests, verify class-map/sample schema, run raw-training fixtures only, and remeasure exact bytes and representative latency. Competition test data may be read only after this production gate passes and all experiment choices are frozen.
 
 - [ ] **Step 7: Commit code and small audit reports**
 
@@ -1197,6 +1304,42 @@ Do not commit weights, test predictions, NPZ registries, or submissions.
 git add src/inference/six_modal_pipeline.py scripts/audit_six_modal_inference.py tests/test_six_modal_inference.py docs/six_modal_inference_contract.md reports/six_modal_heldout_evaluation.md reports/six_modal_deployment_audit.md
 git commit -m "Assemble audited six-modal inference pipeline"
 ```
+
+### Task 14: Generate the First Frozen Competition-Test Submission CSV
+
+**Files:**
+- Create: `scripts/predict_competition_test.py`
+- Create: `scripts/audit_submission_csv.py`
+- Create: `tests/test_submission_schema.py`
+- Create at runtime: `outputs/submission_phase10_v1.csv`
+- Create at runtime: `reports/submission_phase10_v1_manifest.json`
+- Create at runtime after manual upload: `reports/submission_phase10_v1_result.md`
+
+**Interfaces:**
+- Consumes: only the frozen all-18-user production package that passed Task 13, the official competition-test trials, and the official sample-submission schema.
+- Produces: exactly one first-generation CSV for user-controlled manual submission and a hash manifest tying it to the frozen model package.
+
+- [ ] **Step 1: Freeze submission provenance before reading test trials**
+
+Record the production-package manifest hash, all expert/model hashes, fusion hashes, class-map hash, code SHA, package bytes, and exact inference configuration. Task 14 may not change architecture, preprocessing, expert membership, thresholds, calibration form, residual form, or class mapping.
+
+- [ ] **Step 2: Run competition-test inference once with the frozen routing contract**
+
+For every official test trial, run the same modality-native preprocessing, expert availability semantics, safe anchor, and optional retained residual path used by the Task 13 production package. Do not fit any parameter or inspect any test label during this step.
+
+- [ ] **Step 3: Build and audit the CSV against the official submission schema**
+
+Require exactly one output row per official test sample, exactly the official sample ordering or identifier mapping, no duplicate/missing sample IDs, and predictions restricted to the official 40-class label domain. Compare columns and row count with the official sample-submission file before writing `outputs/submission_phase10_v1.csv`.
+
+- [ ] **Step 4: Hash and freeze the first submission artifact**
+
+Write `reports/submission_phase10_v1_manifest.json` containing the CSV SHA-256, row count, class-order hash, complete production-package hash, code SHA, and timestamp. Do not automatically upload from code.
+
+- [ ] **Step 5: User manually submits once and records the Public-LB result**
+
+The user uploads `submission_phase10_v1.csv` to Kaggle. Record the returned public score and submission timestamp in `reports/submission_phase10_v1_result.md`. Treat this score as an external diagnostic of the frozen system, not as a replacement for train-14 OOF or heldout-4 evidence and not as permission to retroactively alter the completed Phase 10 architecture.
+
+Any later leaderboard-driven modification starts a separately named experiment generation and must preserve the Phase 10 v1 evidence unchanged.
 
 ## Deliberately Deferred Work
 
@@ -1212,7 +1355,8 @@ git commit -m "Assemble audited six-modal inference pipeline"
 - VideoMAE as a final inference expert, pending written organizer approval for the exact checkpoint and pretraining source.
 - High-priority optional VideoMAE-to-X3D teacher-assisted ablation only after standalone pure X3D-S completes Phase 4 and its failure modes are understood. It is not an automatic next phase, must not replace the independently evaluated pure-X3D route by default, and requires a separate pre-registration. The host clarification permits distillation, but only the compliant student may ship; register it as `ir_x3d_s_teacher_assisted` without overwriting `ir_x3d_s_k400_pure`.
 - A learned per-sample residual-support gate beyond the deterministic first-run `g(A,Q)`.
-- Competition-test inference or submission generation before the Phase 10 production gate.
+- Heterogeneous expert embedding or engineered-summary fusion before a dedicated cross-fold/cross-expert representation-alignment experiment.
+- Competition-test inference or submission generation before the Phase 10 Task 13 production gate.
 - DataLoader worker and batch-size optimization.
 - Quantization and pruning.
 
