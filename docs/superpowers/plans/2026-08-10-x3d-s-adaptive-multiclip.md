@@ -137,8 +137,8 @@ Execute phases in order. A phase may start only after the previous phase's exit 
 | Phase 3: End-to-end verification | Task 5 | Phase 2 passes | Online/offline ROI parity, shortest/longest trial smoke, overfit test, size audit and full tests pass | Pending |
 | Phase 4: Train-14 OOF scientific evaluation | Task 6 | Phase 3 passes | Pre-registered grouped-OOF comparison, duration/user/class reports, and frozen X3D decision are complete without held-out access | Pending |
 | Phase 5: Register IR sparse evidence | Task 7 | Phase 4 retains pure X3D as a primary or complementary IR expert | Verified train-user OOF archive plus one quarantined held-out IR archive, provenance, evidence contract and size record pass | Pending |
-| Phase 6: Freeze expert portfolio | Tasks 8-9 | Phase 5 passes | Six expert candidates use only the canonical train-14 population and frozen shared OOF folds, report complementarity, and fit the provisional complete-package byte budget | Pending |
-| Phase 7: Build sparse evidence registry | Task 10 | Phase 6 passes | Six leakage-free OOF archives outer-align to the canonical union with audited missingness | Pending |
+| Phase 6: Freeze expert portfolio | Tasks 8-9 | Phase 5 passes | Six retained experts use only train-14 OOF for selection and each has OOF plus structurally label-free held-out evidence | Pending |
+| Phase 7: Build sparse evidence registry | Task 10 | Phase 6 passes | Global registries plus outer-fold nested fusion evidence packages pass lineage and missingness audits | Pending |
 | Phase 8: Fit safe anchor | Task 11 | Phase 7 passes | Calibrated masked probability mixture passes singleton, missing-pattern, user and budget gates | Pending |
 | Phase 9: Test residual correction | Task 12 | Phase 8 passes | D-versus-A user-grouped comparison either retains the mixer or freezes anchor-only | Pending |
 | Phase 10: Assemble final inference | Task 13 | Phase 9 decision freezes architecture | Raw-trial routing, held-out evaluation, all-18-user production refit, exact package size and latency gates pass | Pending |
@@ -455,6 +455,8 @@ The pretrained backbone uses `3e-5`; embedding and classifier heads use `3e-4`. 
 
 Expose `set_backbone_trainable(enabled: bool)`. Epochs 1-2 train only the new embedding and classifier heads; epoch 3 onward trains the full model. BatchNorm layers in a frozen backbone must remain in evaluation mode.
 
+Expose an explicit `update_backbone_bn_running_stats` policy, fixed to `False` for the first run. Calling `model.train()` must keep every backbone BatchNorm module in evaluation mode so Kinetics-400 running mean/variance remain frozen, including after epoch 3. After backbone unfreeze, BatchNorm affine parameters (`weight`, `bias`) remain trainable with the other backbone parameters. A later running-stat adaptation experiment is a separate pre-registered ablation.
+
 - [ ] **Step 6: Run model and expert-contract tests**
 
 Run: `D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest tests/test_x3d_s_visual_expert.py tests/test_expert_contract.py -v`
@@ -523,7 +525,7 @@ Support:
 --oof-role
 ```
 
-Reject any config with a non-IR-context first-run view, a class count other than 40, local clip length other than 13, `target_window_frames` other than 32, `max_clips` other than 8, `val_views_per_window` other than 1, nonpositive temperatures or learning rates, or an output directory that would overwrite an existing run. The persisted OOF assignment must contain only the 14 training users and disjoint fit/validation user groups. Training mode must reject the four official held-out user IDs in either partition unless an explicit Phase 5 `finalize_train14` mode is active; that mode accepts all train-14 users for fitting and no labeled validation set.
+Reject any config with a non-IR-context first-run view, a class count other than 40, local clip length other than 13, `target_window_frames` other than 32, `max_clips` other than 8, `val_views_per_window` other than 1, `backbone_bn.update_running_stats` other than `false`, `backbone_bn.train_affine_after_unfreeze` other than `true`, nonpositive temperatures or learning rates, or an output directory that would overwrite an existing run. The persisted OOF assignment must contain only the 14 training users and disjoint fit/validation user groups. Training mode must reject the four official held-out user IDs in either partition unless an explicit Phase 5 `finalize_train14` mode is active; that mode accepts all train-14 users for fitting and no labeled validation set.
 
 Freeze the temporal section as:
 
@@ -538,6 +540,9 @@ temporal:
 loader:
   max_trials_per_batch: 2
   max_valid_clips_per_batch: 8
+backbone_bn:
+  update_running_stats: false
+  train_affine_after_unfreeze: true
 ```
 
 - [ ] **Step 4: Implement training**
@@ -707,7 +712,7 @@ Record the configuration hash, manifest hash, class-map hash, X3D and YOLO pretr
 
 Run:
 
-Generate `metadata/splits/train14_oof_3fold.json` exactly once from canonical train-14 labels/users using `StratifiedGroupKFold(n_splits=3, shuffle=True, random_state=20260715)`. Validate disjoint users and 40-class coverage, record its SHA-256 in the Phase 4 experiment manifest, make the file immutable for later phases, then run each declared fold through the Phase 2 trainer:
+Generate `metadata/splits/train14_oof_3fold.json` exactly once from canonical train-14 labels/users using `StratifiedGroupKFold(n_splits=3, shuffle=True, random_state=20260715)`. Validate disjoint users and 40-class coverage, record its SHA-256 in the Phase 4 experiment manifest, and make the file immutable for later phases. The formal three-seed confirmation uses seeds `20260715`, `20260716`, and `20260717` on these same folds, then runs each declared fold through the Phase 2 trainer:
 
 ```powershell
 D:\Anaconda\envs\pyTorch2.7\python.exe -m src.train_x3d_s_visual_expert `
@@ -816,7 +821,7 @@ Save `oof_evidence.npz`, `oof_provenance.json`, fold checkpoints, per-fold metri
 
 - [ ] **Step 6: Generate quarantined held-out evidence**
 
-Freeze the architecture, seed policy, preprocessing, and training duration from Phase 4, train/finalize the retained X3D expert on all 14 training users without labeled validation, and predict usable IR rows from the four held-out users exactly once. Save `heldout_evidence.npz` and provenance separately with `role=heldout`, `labels=None`, and no label array in the serialized file. Mark the archive `evaluation_only=true`; no fitting, selection, reporting, or diagnostic command before Phase 10 may accept or inspect that path.
+Freeze the architecture, preprocessing, and checkpoint rule from Phase 4. Compute `finalize_epochs` as the median of the nine selected `best_accuracy.pt` epochs from the three fixed seeds times three OOF folds; with nine values this is an observed integer epoch and requires no rounding rule. Set the final train-all-14 seed to `20260715`. Record the nine source epochs, median, seed, and hashes before finalization, train the retained X3D expert on all 14 training users for exactly `finalize_epochs` without labeled validation, and predict usable IR rows from the four held-out users exactly once. Save `heldout_evidence.npz` and provenance separately with `role=heldout`, `labels=None`, and no label array in the serialized file. Mark the archive `evaluation_only=true`; no fitting, selection, reporting, or diagnostic command before Phase 10 may accept or inspect that path.
 
 - [ ] **Step 7: Report expert complementarity inputs**
 
@@ -919,7 +924,13 @@ Depth starts with a compact spatial-temporal/geometric expert that preserves nat
 
 Retain a candidate only when it has reproducible canonical-split outputs, valid missingness behavior, useful standalone or complementary evidence, acceptable latency, and a provisional six-expert package below 95,000,000 bytes. Record this estimate separately as `provisional_complete_package_size_gate_passed`; it includes declared upper-bound estimates for the anchor, adapters, and optional residual mixer and is not the final Phase 10 `complete_submission_size_gate_passed`. Do not clone X3D-sized capacity into Depth or Thermal without a measured benefit-per-byte case.
 
-- [ ] **Step 5: Commit candidate code/config/reports only**
+- [ ] **Step 5: Freeze all five non-IR experts and generate quarantined evidence**
+
+After IMU, Skeleton, Depth, Thermal, and Radar candidate identities are frozen from train-14 OOF evidence, require each retained expert to have a complete OOF `ExpertEvidence` archive on the shared Phase 4 fold assignment. For iterative experts, set `finalize_epochs` to the median selected epoch across their pre-registered multi-seed OOF runs and use their pre-registered primary seed; for non-iterative experts such as the IMU RF, use the frozen deterministic fit seed and full train-14 fitting policy. Record the policy and source values before finalization.
+
+Finalize each retained expert on all usable train-14 rows, predict only its usable outer-four rows, and serialize a separate `role=heldout` archive with no labels key. Quarantine all five archives exactly like the Phase 5 IR archive: before Phase 10 only hashes, row counts, schema, finite outputs, availability, and routing may be inspected. The Phase 6 exit gate fails unless all six retained experts now have both leakage-free OOF evidence and structurally label-free held-out evidence.
+
+- [ ] **Step 6: Commit candidate code/config/reports only**
 
 Do not commit weights or prediction arrays. Commit source, fixed configs, tests, and small reports with one commit per accepted modality candidate.
 
@@ -930,13 +941,15 @@ Do not commit weights or prediction arrays. Commit source, fixed configs, tests,
 **Files:**
 - Create: `src/fusion/sparse_evidence_registry.py`
 - Create: `scripts/build_sparse_evidence_registry.py`
+- Create: `scripts/build_nested_fusion_evidence.py`
 - Create: `tests/test_sparse_evidence_registry.py`
+- Create: `tests/test_nested_fusion_evidence.py`
 - Create at runtime: `outputs/sparse_evidence_registry/<run-id>/registry.npz`
 - Create: `reports/sparse_evidence_registry_audit.md`
 
 **Interfaces:**
 - Consumes: canonical 3,036-trial manifest, fixed OOF fold assignment, and sparse OOF/held-out evidence from six experts.
-- Produces: a labeled `oof_train14` registry and a structurally label-free `heldout` registry with dense canonical row indices plus sparse expert tensors and masks; it never invents predictions for missing evidence.
+- Produces: a labeled global `oof_train14` registry, a structurally label-free `heldout` registry, and three outer-fold nested fusion evidence packages. It never invents predictions for missing evidence. The global OOF registry supports complementarity analysis, contracts, and final train-14 fusion refit; by itself it is not sufficient for unbiased stacker-level validation.
 
 - [ ] **Step 1: Preserve strict alignment and write RED outer-alignment tests**
 
@@ -969,14 +982,26 @@ Compare raw manifest directory presence with evidence usability for every expert
 
 Write training OOF and held-out registries to separate paths and metadata domains. Fusion fitting APIs accept only `registry_role=oof_train14`; held-out loading is evaluation-only and raises if passed to calibration or training functions. Tests must inspect the serialized held-out registry and prove that no `labels` field exists.
 
-- [ ] **Step 5: Verify and commit**
+- [ ] **Step 5: Build nested base evidence for unbiased fusion evaluation**
 
-Run: `D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest tests/test_expert_evidence_contract.py tests/test_sparse_evidence_registry.py tests/test_expert_contract.py -v`
+Use the Phase 4 three-fold user assignment as the outer fusion folds. For each outer fold:
+
+1. Remove the outer-validation users from every expert's training universe before any preprocessing or base-model fit.
+2. Within the remaining outer-train users, create a deterministic three-fold inner user assignment using seed `20260715 + outer_fold_index`; persist and hash it.
+3. For each expert, generate fusion-training evidence by inner user-OOF: fit only on the other outer-train users and predict the inner-validation users. Concatenate these predictions into a sparse nested training registry whose base features depend only on outer-train data.
+4. Finalize each expert on all outer-train users using its frozen finalization policy, then predict the untouched outer-validation users into a label-free nested validation registry.
+5. Record model, preprocessing, inner-fold, sample, user, class-map, and evidence lineage. Assert that no base model used to create either nested training or outer-validation features saw an outer-validation user's labels or raw training rows.
+
+The output for each outer fold is `(nested_train_evidence, outer_validation_evidence)`. Phase 8/9 must consume these packages for reported A/D evaluation. They may not substitute the cheaper global train-14 OOF registry.
+
+- [ ] **Step 6: Verify and commit**
+
+Run: `D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest tests/test_expert_evidence_contract.py tests/test_sparse_evidence_registry.py tests/test_nested_fusion_evidence.py tests/test_expert_contract.py -v`
 
 Expected: PASS with canonical row membership, sparse masks, provenance, fold lineage, and held-out quarantine audited.
 
 ```bash
-git add src/fusion/sparse_evidence_registry.py scripts/build_sparse_evidence_registry.py tests/test_sparse_evidence_registry.py reports/sparse_evidence_registry_audit.md
+git add src/fusion/sparse_evidence_registry.py scripts/build_sparse_evidence_registry.py scripts/build_nested_fusion_evidence.py tests/test_sparse_evidence_registry.py tests/test_nested_fusion_evidence.py reports/sparse_evidence_registry_audit.md
 git commit -m "Build canonical sparse expert registry"
 ```
 
@@ -992,7 +1017,7 @@ git commit -m "Build canonical sparse expert registry"
 - Create: `reports/six_modal_anchor_report.md`
 
 **Interfaces:**
-- Consumes: train-14 sparse OOF registry only.
+- Consumes: the three Phase 7 nested `(outer_train_inner_oof, outer_validation)` evidence packages for unbiased reporting, plus the global train-14 OOF registry only for the final frozen refit.
 - Produces: cross-fitted anchor A predictions for unbiased train-14 reporting, final train-14-refit scalar temperatures/weights for later frozen evaluation, and anchor probabilities for any non-empty usable expert subset.
 
 - [ ] **Step 1: Write RED anchor invariance tests**
@@ -1018,9 +1043,9 @@ Fit one positive scalar temperature per expert from its OOF rows. Convert IMU RF
 
 - [ ] **Step 3: Fit without held-out leakage**
 
-Use the exact shared user folds for cross-fitting. For each fusion fold, fit all six temperatures and global expert weights using only that fold's fusion-train users, freeze them, and predict the fusion-validation users. Every reported validation prediction must therefore come from calibration and weights fitted without that user's labels. Concatenate the three validation partitions into `anchor_oof_crossfit.npz` and compute all Phase 8 labeled metrics only from these predictions.
+For each outer fusion fold, fit all six temperatures and global expert weights only on that fold's nested outer-train inner-OOF evidence, freeze them, and predict the corresponding outer-validation evidence produced by base experts trained only on outer-train users. Every reported validation prediction must therefore use both base features and anchor parameters created without that outer-validation user's labels or training rows. Concatenate the three outer-validation partitions into `anchor_oof_crossfit.npz` and compute all Phase 8 labeled metrics only from these predictions.
 
-Predeclare the anchor form, optimization, and metric tie-breaking as Macro-F1, worst-user Accuracy, then smaller calibration complexity before cross-fitting. Only after those choices are frozen may the same form be refit on all train-14 OOF rows to produce the final anchor parameters consumed by Phase 10. Never substitute predictions from this all-train refit into the cross-fitted Phase 8 report.
+Predeclare the anchor form, optimization, and metric tie-breaking as Macro-F1, worst-user Accuracy, then smaller calibration complexity before nested cross-fitting. Only after those choices are frozen may the same form be refit on the global train-14 OOF registry to produce the final anchor parameters consumed by Phase 10. Never substitute global-OOF or all-train-refit predictions into the nested Phase 8 report.
 
 - [ ] **Step 4: Stress every train-14 observed pattern and every singleton**
 
@@ -1051,7 +1076,7 @@ git commit -m "Add safe six-modal probability anchor"
 - Create: `reports/six_modal_residual_mixer_report.md`
 
 **Interfaces:**
-- Consumes: the frozen anchor form, exact Phase 8 fusion-fold definitions, train-14 OOF registry, modality-specific token adapters, availability, native label-free quality, and normalized `fusion_quality_score`. The all-train final anchor fit is deployment-only and may not be used to create Phase 9 cross-validation inputs.
+- Consumes: the frozen anchor form, exact Phase 7 nested fusion evidence packages and outer folds, the global train-14 OOF registry only for final refit, modality-specific token adapters, availability, native label-free quality, and normalized `fusion_quality_score`. The global-OOF final anchor fit is deployment-only and may not be used to create Phase 9 validation inputs.
 - Produces: an optional `delta_logits=[B,40]`, deterministic `g(A,Q)`, and a retain/reject decision against anchor A.
 
 - [ ] **Step 1: Write RED structural-invariant tests**
@@ -1084,17 +1109,17 @@ Use either DeepSets/gated MLP or at most two masked self-attention layers, chose
 z_final = log(clamp(p_anchor)) + g(A,Q) * lambda * delta_logits
 ```
 
-Keep `lambda` separate from `g`. The first `g` is deterministic: zero for fewer than two usable experts, zero for natural train-14 patterns with support below 16, otherwise multiplied by the mean available `fusion_quality_score` in `[0,1]`. Never average or directly compare modality-native quality-vector coordinates. The normalized scalar must come from each expert's pre-registered label-free mapping and may not be refit inside fusion CV.
+Keep `lambda` separate from `g`. The first `g` is deterministic: zero for fewer than two usable experts, zero for modality patterns whose support is below 16 in the current outer fusion-train nested evidence, otherwise multiplied by the mean available `fusion_quality_score` in `[0,1]`. Never compute pattern support from complete train-14 before applying the gate to an outer-validation fold. Never average or directly compare modality-native quality-vector coordinates. The normalized scalar must come from each expert's pre-registered label-free mapping and may not be refit inside fusion CV.
 
 - [ ] **Step 4: Build the restricted training distribution**
 
-Use natural OOF patterns with at least two usable experts and train-14 support at least 16. From all-six rows, drop exactly one randomly selected modality with probability 0.15; weight this synthetic-dropout loss by 0.25 relative to natural-pattern loss. Do not synthesize arbitrary pairs/singletons. Seed sampling by `20260715 + epoch + sample_index`.
+Within each outer fold, use natural patterns from that fold's nested outer-train evidence with at least two usable experts and outer-train-local support at least 16. From its all-six rows, drop exactly one randomly selected modality with probability 0.15; weight this synthetic-dropout loss by 0.25 relative to natural-pattern loss. Do not synthesize arbitrary pairs/singletons. Seed sampling by `20260715 + outer_fold_index + epoch + sample_index`. For the final global refit only, recompute support from the complete global train-14 OOF registry.
 
 - [ ] **Step 5: Select residual strength without held-out users**
 
-Cross-fit A and D on exactly the same outer user folds. For each outer fusion fold: use only the fusion-train users to fit A temperatures/weights; choose residual early stopping and `lambda` from `[0.0, 0.25, 0.5, 1.0]` through an inner user-grouped split contained entirely inside those fusion-train users; refit the selected residual on all outer fusion-train users with that fold-specific A; freeze both; then predict the untouched fusion-validation users with A and D. No temperature, weight, adapter, residual parameter, early-stopping decision, or `lambda` may use an outer validation user's label.
+Cross-fit A and D on exactly the same outer user folds and Phase 7 nested evidence. For each outer fusion fold: fit A temperatures/weights on the nested outer-train inner-OOF evidence; choose residual early stopping and `lambda` from `[0.0, 0.25, 0.5, 1.0]` through a user-grouped split contained entirely inside that nested outer-train evidence; refit the selected residual on all nested outer-train evidence with that fold-specific A; freeze both; then predict the untouched outer-validation evidence produced by base experts finalized only on outer-train users. No base-model training row, temperature, weight, adapter, residual parameter, pattern-support count, early-stopping decision, or `lambda` may use an outer-validation user's label or training row.
 
-Concatenate the outer-fold A and D predictions and compute D-minus-A only from these paired cross-fitted rows. After the architecture, stopping rule, and `lambda` are frozen, refit final A and then final D on all train-14 OOF rows for deployment. Never use the all-train final A as input to the reported residual cross-validation, and never use the four held-out users for fitting or selection.
+Concatenate the outer-fold A and D predictions and compute D-minus-A only from these paired nested cross-fitted rows. After the architecture, stopping rule, and `lambda` are frozen, refit final A and then final D on the global train-14 OOF registry for deployment. Never use the global-OOF final A as input to the reported residual evaluation, and never use the four held-out users for fitting or selection.
 
 - [ ] **Step 6: Apply the D-versus-A retention rule**
 

@@ -6,12 +6,12 @@ Updated: 2026-08-11 (Asia/Shanghai)
 |---|---|---|---|---|---|
 | Phase 0: Compliance and runtime | Completed | `c088db0` | Official rules rechecked; official X3D forward, provisional IR-route subtotal, dependency check and 15 focused/regression tests passed | X3D-S has no model-specific organizer approval; final trained checkpoint must be remeasured | Phase 1 may begin |
 | Phase 1: Temporal data contract | Completed | `481ccb4` | 23 dataset tests, 30 focused/regression tests, and all 74 repository tests passed; real shortest/longest trial probe passed | Exported quality fields are constant in this manifest, so they are contract metadata rather than discriminative evidence in the first run | Phase 2 may begin after review |
-| Phase 2: Expert and trainer | Pending | - | Phase 1 exit gate passed | - | Phase 2 may begin after plan review |
+| Phase 2: Expert and trainer | Pending | - | Phase 1 exit gate passed; first-run BN policy frozen | K400 running stats stay frozen; BN affine trains after backbone unfreeze | Task 3 may begin |
 | Phase 3: End-to-end verification | Pending | - | - | - | Wait for Phase 2 exit gate |
 | Phase 4: Train-14 OOF scientific evaluation | Pending | - | Pure X3D has primary and complementary retention paths | Held-out labels must remain sealed | Wait for Phase 3 exit gate |
 | Phase 5: Register IR sparse evidence | Pending | - | Pure candidate registers as `ir_x3d_s_k400_pure` | Held-out archive is evaluation-only until Phase 10 | Wait for Phase 4 primary/complementary retain decision |
-| Phase 6: Freeze expert portfolio | Pending | - | Program-level roadmap; all candidates reuse the exact Phase 4 OOF assignment/hash | Historical metrics use mixed folds; outer four users are unavailable for selection | Execute later on a dedicated branch after Phase 5 review |
-| Phase 7: Build sparse evidence registry | Pending | - | Program-level roadmap only | Natural missingness and unusable-present rows must remain explicit | Wait for Phase 6 |
+| Phase 6: Freeze expert portfolio | Pending | - | Every retained expert must emit global OOF plus label-free held-out evidence | Historical metrics use mixed folds; outer four users are unavailable for selection | Execute later on a dedicated branch after Phase 5 review |
+| Phase 7: Build sparse evidence registry | Pending | - | Global registries plus nested outer-fold fusion evidence | Base-level global OOF alone is insufficient for unbiased stacker CV | Wait for Phase 6 |
 | Phase 8: Fit safe anchor | Pending | - | Program-level roadmap only | Calibration must use train-14 OOF evidence only | Wait for Phase 7 |
 | Phase 9: Test residual correction | Pending | - | Program-level roadmap only | Rare modality combinations must not dominate training | Wait for Phase 8 |
 | Phase 10: Assemble final inference | Pending | - | Program-level roadmap only | The four held-out users may be evaluated only once after freeze | Wait for Phase 9 |
@@ -33,6 +33,9 @@ Updated: 2026-08-11 (Asia/Shanghai)
 - Held-out/test `ExpertEvidence` and registries are structurally label-free. Phase 10 joins predictions to a separate sealed held-out label source.
 - Phase 8 reports cross-fitted A; Phase 9 cross-fits A and D on identical outer user folds with residual selection inside outer-train users only.
 - Every expert exposes native quality plus a pre-registered label-free scalar `fusion_quality_score` in `[0,1]`; fusion never directly averages heterogeneous native quality coordinates.
+- Pure X3D final train-14 duration is the median of the nine Phase 4 selected best-Accuracy epochs; its finalization seed is `20260715`.
+- Unbiased Phase 8/9 evaluation requires outer-fold-local base evidence: inner OOF on outer-train users and base experts finalized on outer-train only for outer-validation prediction.
+- Missing-pattern support for `g(A,Q)` is computed from each outer-train package; complete train-14 support is used only for final refit.
 
 ## Phase 0 Evidence Log
 
