@@ -64,8 +64,10 @@ optimizer:
 
 training:
   epochs: 30
+  scheduler_horizon_epochs: 30
   warmup_epochs: 2
   patience: 8
+  early_stopping_enabled: false
 
 amp:
   enabled: true

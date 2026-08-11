@@ -7,6 +7,8 @@ import pandas as pd
 import pytest
 
 from scripts.summarize_x3d_s_experiment import (
+    build_ir_inner_coverage_audit,
+    create_frozen_ir_inner_coverage_audit,
     create_frozen_oof_assignment,
     generate_train14_oof_assignment,
 )
@@ -76,3 +78,49 @@ def test_frozen_assignment_refuses_overwrite(tmp_path: Path) -> None:
     assert json.loads(path.read_text(encoding="utf-8")) == assignment
     with pytest.raises(FileExistsError, match="already exists"):
         create_frozen_oof_assignment(path, assignment)
+
+
+def test_ir_inner_coverage_audit_is_bound_to_assignment_and_requires_40_class_fit() -> None:
+    frame = _trial_frame()
+    allowed_users = set(frame["user_id"].astype(str))
+    assignment = generate_train14_oof_assignment(
+        frame,
+        allowed_users=allowed_users,
+        random_state=20260715,
+    )
+
+    audit = build_ir_inner_coverage_audit(
+        assignment,
+        frame,
+        assignment_sha256="a" * 64,
+    )
+
+    assert audit["assignment_sha256"] == "a" * 64
+    assert len(audit["folds"]) == 3
+    assert all(fold["ir_fit_class_count"] == 40 for fold in audit["folds"])
+    assert all(fold["ir_fit_missing_class_ids"] == [] for fold in audit["folds"])
+
+    incomplete_ir = frame[frame["class_id"] != 39]
+    with pytest.raises(ValueError, match="usable-IR inner-fit lacks complete 40-class coverage"):
+        build_ir_inner_coverage_audit(
+            assignment,
+            incomplete_ir,
+            assignment_sha256="a" * 64,
+        )
+
+
+def test_frozen_ir_inner_coverage_audit_refuses_overwrite(tmp_path: Path) -> None:
+    audit_path = tmp_path / "ir_coverage.json"
+    audit = {
+        "schema_version": 1,
+        "role": "phase4_usable_ir_inner_coverage_audit",
+        "assignment_sha256": "a" * 64,
+        "folds": [],
+        "gate_passed": True,
+    }
+
+    digest = create_frozen_ir_inner_coverage_audit(audit_path, audit)
+
+    assert len(digest) == 64
+    with pytest.raises(FileExistsError, match="already exists"):
+        create_frozen_ir_inner_coverage_audit(audit_path, audit)

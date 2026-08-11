@@ -381,15 +381,19 @@ def train_partition(
         )
     )
     epochs = int(training_config["epochs"])
+    scheduler_horizon_epochs = int(training_config.get("scheduler_horizon_epochs", epochs))
     warmup_epochs = int(training_config["warmup_epochs"])
     scheduler = torch.optim.lr_scheduler.LambdaLR(
         optimizer,
-        lr_lambda=lambda index: _warmup_cosine_multiplier(index, epochs, warmup_epochs),
+        lr_lambda=lambda index: _warmup_cosine_multiplier(
+            index, scheduler_horizon_epochs, warmup_epochs
+        ),
     )
     amp_enabled = bool(amp_config["enabled"]) and device.type == "cuda"
     gradient_accumulation = int(optimizer_config["gradient_accumulation"])
     gradient_clip = float(optimizer_config["gradient_clip"])
     patience = int(training_config["patience"])
+    early_stopping_enabled = bool(training_config.get("early_stopping_enabled", True))
     class_names = list(getattr(validation_dataset, "class_names", [str(i) for i in range(40)]))
 
     history: list[dict[str, Any]] = []
@@ -461,7 +465,7 @@ def train_partition(
                 }
         epochs_without_macro_improvement = 0 if macro_improved else epochs_without_macro_improvement + 1
         scheduler.step()
-        if epochs_without_macro_improvement >= patience:
+        if early_stopping_enabled and epochs_without_macro_improvement >= patience:
             break
 
     checkpoint_bytes = {
@@ -478,6 +482,8 @@ def train_partition(
         "seed": int(config["seed"]),
         "resolved_config_sha256": resolved_config_sha256(config),
         "epochs_completed": history[-1]["epoch"],
+        "scheduler_horizon_epochs": scheduler_horizon_epochs,
+        "early_stopping_enabled": early_stopping_enabled,
         "runtime_seconds": time.perf_counter() - started,
         "train_samples_evaluated_last_epoch": history[-1]["train_sample_count"],
         "val_samples_evaluated_last_epoch": history[-1]["val_sample_count"],
@@ -554,10 +560,13 @@ def finalize_train14(
         )
     )
     epochs = int(training_config["epochs"])
+    scheduler_horizon_epochs = int(training_config.get("scheduler_horizon_epochs", epochs))
     warmup_epochs = int(training_config["warmup_epochs"])
     scheduler = torch.optim.lr_scheduler.LambdaLR(
         optimizer,
-        lr_lambda=lambda index: _warmup_cosine_multiplier(index, epochs, warmup_epochs),
+        lr_lambda=lambda index: _warmup_cosine_multiplier(
+            index, scheduler_horizon_epochs, warmup_epochs
+        ),
     )
     amp_enabled = bool(amp_config["enabled"]) and device.type == "cuda"
     history: list[dict[str, Any]] = []
@@ -607,6 +616,7 @@ def finalize_train14(
         "status": "passed",
         "role": "finalize_train14",
         "epochs_completed": epochs,
+        "scheduler_horizon_epochs": scheduler_horizon_epochs,
         "seed": seed,
         "resolved_config_sha256": resolved_config_sha256(config),
         "runtime_seconds": time.perf_counter() - started,
@@ -661,12 +671,7 @@ def train_strict_oof_partition(
     )
     selected_epoch = int(selection_summary["best_accuracy"]["epoch"])
 
-    formal_config = copy.deepcopy(dict(config))
-    formal_config["training"] = {
-        **dict(_mapping(config, "training")),
-        "epochs": selected_epoch,
-        "patience": max(selected_epoch + 1, 1),
-    }
+    formal_config = _formal_refit_config(config, selected_epoch=selected_epoch)
     _set_seed(int(formal_config["seed"]))
     formal_model = model_factory()
     refit_summary = finalize_train14(
@@ -684,6 +689,9 @@ def train_strict_oof_partition(
         **dict(fold_provenance),
         "actual_seed": int(formal_config["seed"]),
         "selected_epoch": selected_epoch,
+        "scheduler_horizon_epochs": int(
+            _mapping(formal_config, "training")["scheduler_horizon_epochs"]
+        ),
         "resolved_config_sha256": resolved_config_sha256(formal_config),
         "outer_validation_labels_used_for_selection": False,
     }
@@ -732,6 +740,9 @@ def train_strict_oof_partition(
         "selection_labels_from_outer_validation": False,
         "selection_directory": "epoch_selection",
         "selected_epoch": selected_epoch,
+        "scheduler_horizon_epochs": int(
+            _mapping(formal_config, "training")["scheduler_horizon_epochs"]
+        ),
         "formal_checkpoint": formal_checkpoint.name,
         "formal_checkpoint_bytes": formal_checkpoint.stat().st_size,
         "formal_checkpoint_sha256": _sha256_file(formal_checkpoint),
@@ -789,6 +800,11 @@ def validate_config(config: Mapping[str, Any]) -> None:
     training = _mapping(config, "training")
     if int(training.get("epochs", 0)) <= 0 or int(training.get("warmup_epochs", 0)) != 2:
         raise ValueError("training must use positive epochs and two warmup epochs")
+    scheduler_horizon_epochs = int(
+        training.get("scheduler_horizon_epochs", training.get("epochs", 0))
+    )
+    if scheduler_horizon_epochs < int(training["epochs"]):
+        raise ValueError("training.scheduler_horizon_epochs must cover every training epoch")
     if int(training.get("patience", 0)) <= 0:
         raise ValueError("training.patience must be positive")
     if int(_mapping(config, "size_gate").get("internal_limit_bytes", 0)) != 95_000_000:
@@ -955,12 +971,35 @@ def _epoch_metrics(result: TrialPredictionResult, loss: float) -> dict[str, Any]
     return metrics
 
 
-def _warmup_cosine_multiplier(epoch_index: int, epochs: int, warmup_epochs: int) -> float:
+def _warmup_cosine_multiplier(
+    epoch_index: int, scheduler_horizon_epochs: int, warmup_epochs: int
+) -> float:
     if epoch_index < warmup_epochs:
         return (epoch_index + 1) / warmup_epochs
-    decay_intervals = max(1, epochs - warmup_epochs - 1)
+    decay_intervals = max(1, scheduler_horizon_epochs - warmup_epochs - 1)
     progress = min(1.0, (epoch_index - warmup_epochs) / decay_intervals)
     return 0.5 * (1.0 + math.cos(math.pi * progress))
+
+
+def _formal_refit_config(
+    config: Mapping[str, Any], *, selected_epoch: int
+) -> dict[str, Any]:
+    if selected_epoch <= 0:
+        raise ValueError("selected_epoch must be positive")
+    formal_config = copy.deepcopy(dict(config))
+    selection_training = dict(_mapping(config, "training"))
+    scheduler_horizon_epochs = int(
+        selection_training.get("scheduler_horizon_epochs", selection_training["epochs"])
+    )
+    formal_config["training"] = {
+        **selection_training,
+        "epochs": int(selected_epoch),
+        "scheduler_horizon_epochs": scheduler_horizon_epochs,
+        "early_stopping_enabled": False,
+        "patience": max(int(selected_epoch) + 1, 1),
+    }
+    validate_config(formal_config)
+    return formal_config
 
 
 def _history_row(
@@ -1274,13 +1313,13 @@ def _build_model(config: Mapping[str, Any]) -> X3DSVisualExpert:
 
 
 def _length_bucket(num_frames: int) -> str:
+    if num_frames <= 13:
+        return "<=13"
     if num_frames <= 32:
-        return "1-32"
+        return "14-32"
     if num_frames <= 64:
         return "33-64"
-    if num_frames <= 128:
-        return "65-128"
-    return "129+"
+    return ">64"
 
 
 def _serialized_state(module: torch.nn.Module) -> bytes:

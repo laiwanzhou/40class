@@ -21,6 +21,9 @@ from src.train_x3d_s_visual_expert import resolved_config_sha256, validate_oof_a
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CONFIG = PROJECT_ROOT / "configs/experiments/x3d_s_ir_context_oof.yaml"
 DEFAULT_ASSIGNMENT = PROJECT_ROOT / "metadata/splits/train14_oof_3fold.json"
+DEFAULT_IR_COVERAGE_AUDIT = (
+    PROJECT_ROOT / "metadata/splits/train14_oof_3fold_ir_coverage_audit.json"
+)
 DEFAULT_EXPERIMENT_MANIFEST = (
     PROJECT_ROOT / "outputs/x3d_s_ir_context_oof/phase4_experiment_manifest.json"
 )
@@ -189,6 +192,61 @@ def generate_train14_oof_assignment(
     return assignment
 
 
+def build_ir_inner_coverage_audit(
+    assignment: Mapping[str, Any],
+    ir_trials: pd.DataFrame,
+    *,
+    assignment_sha256: str,
+) -> dict[str, Any]:
+    if len(assignment_sha256) != 64:
+        raise ValueError("assignment_sha256 must contain 64 hexadecimal characters")
+    required = {"sample_id", "user_id", "class_id"}
+    missing = required - set(ir_trials.columns)
+    if missing:
+        raise ValueError(f"Usable-IR trials are missing columns: {sorted(missing)}")
+    trial_rows = ir_trials[list(required)].drop_duplicates("sample_id").copy()
+    folds = []
+    for fold in assignment["folds"]:
+        epoch_selection = fold["epoch_selection"]
+        fit = trial_rows[
+            trial_rows["user_id"].astype(str).isin(epoch_selection["fit_user_ids"])
+        ]
+        validation = trial_rows[
+            trial_rows["user_id"].astype(str).isin(epoch_selection["validation_user_ids"])
+        ]
+        fit_classes = set(fit["class_id"].astype(int).unique().tolist())
+        validation_classes = set(validation["class_id"].astype(int).unique().tolist())
+        fit_missing = sorted(set(range(40)) - fit_classes)
+        if fit_missing:
+            raise ValueError(
+                f"Fold {fold['fold']} usable-IR inner-fit lacks complete 40-class coverage: "
+                f"missing {fit_missing}"
+            )
+        folds.append(
+            {
+                "fold": int(fold["fold"]),
+                "candidate_index": int(epoch_selection["candidate_index"]),
+                "ir_fit_trial_count": int(len(fit)),
+                "ir_fit_class_count": len(fit_classes),
+                "ir_fit_missing_class_ids": fit_missing,
+                "ir_validation_trial_count": int(len(validation)),
+                "ir_validation_class_count": len(validation_classes),
+                "ir_validation_missing_class_ids": sorted(
+                    set(range(40)) - validation_classes
+                ),
+            }
+        )
+    return {
+        "schema_version": 1,
+        "role": "phase4_usable_ir_inner_coverage_audit",
+        "assignment_sha256": assignment_sha256,
+        "required_ir_fit_class_count": 40,
+        "folds": folds,
+        "gate_passed": True,
+        "immutable_policy": "write_once_and_verify_sha256",
+    }
+
+
 def _write_json_once(path: Path, value: Mapping[str, Any]) -> str:
     path.parent.mkdir(parents=True, exist_ok=True)
     try:
@@ -198,6 +256,16 @@ def _write_json_once(path: Path, value: Mapping[str, Any]) -> str:
     except FileExistsError as error:
         raise FileExistsError(f"Frozen artifact already exists: {path}") from error
     return sha256_file(path)
+
+
+def create_frozen_ir_inner_coverage_audit(
+    path: Path, audit: Mapping[str, Any]
+) -> str:
+    if audit.get("role") != "phase4_usable_ir_inner_coverage_audit":
+        raise ValueError("Unexpected usable-IR coverage audit role")
+    if audit.get("gate_passed") is not True:
+        raise ValueError("Usable-IR coverage audit gate must pass before freezing")
+    return _write_json_once(path, audit)
 
 
 def create_frozen_oof_assignment(path: Path, assignment: Mapping[str, Any]) -> str:
@@ -379,9 +447,40 @@ def freeze_phase4_inputs(
     return manifest
 
 
+def freeze_ir_inner_coverage_audit(
+    *, config_path: Path, assignment_path: Path, audit_path: Path
+) -> dict[str, Any]:
+    config = yaml.safe_load(config_path.resolve().read_text(encoding="utf-8"))
+    if not isinstance(config, Mapping):
+        raise ValueError("Config root must be a mapping")
+    split_path = (PROJECT_ROOT / Path(str(config["split_path"]))).resolve()
+    outer_split = json.loads(split_path.read_text(encoding="utf-8"))
+    train_users = set(str(user) for user in outer_split["train_users"])
+    input_manifest_path = Path(str(config["input_manifest"])).resolve()
+    train14_frame = _load_train14_manifest(input_manifest_path, train_users)
+    ir_trials = _trial_rows(train14_frame, allowed_users=train_users)
+    assignment_path = assignment_path.resolve()
+    assignment = json.loads(assignment_path.read_text(encoding="utf-8"))
+    assignment_sha256 = sha256_file(assignment_path)
+    validate_oof_assignment(assignment, allowed_users=train_users)
+    audit = build_ir_inner_coverage_audit(
+        assignment,
+        ir_trials,
+        assignment_sha256=assignment_sha256,
+    )
+    audit["assignment_path"] = str(assignment_path)
+    audit["input_manifest_path"] = str(input_manifest_path)
+    audit["input_manifest_sha256"] = sha256_file(input_manifest_path)
+    audit["usable_ir_trial_count"] = int(len(ir_trials))
+    create_frozen_ir_inner_coverage_audit(audit_path.resolve(), audit)
+    return audit
+
+
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Freeze or summarize Phase 4 X3D-S evidence")
-    parser.add_argument("--freeze-inputs", action="store_true")
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--freeze-inputs", action="store_true")
+    mode.add_argument("--freeze-ir-coverage-audit", action="store_true")
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     parser.add_argument("--assignment", type=Path, default=DEFAULT_ASSIGNMENT)
     parser.add_argument(
@@ -389,19 +488,29 @@ def build_arg_parser() -> argparse.ArgumentParser:
         type=Path,
         default=DEFAULT_EXPERIMENT_MANIFEST,
     )
+    parser.add_argument(
+        "--ir-coverage-audit",
+        type=Path,
+        default=DEFAULT_IR_COVERAGE_AUDIT,
+    )
     return parser
 
 
 def main() -> None:
     args = build_arg_parser().parse_args()
-    if not args.freeze_inputs:
-        raise ValueError("Select --freeze-inputs")
-    manifest = freeze_phase4_inputs(
-        config_path=args.config,
-        assignment_path=args.assignment,
-        experiment_manifest_path=args.experiment_manifest,
-    )
-    print(json.dumps(manifest, indent=2))
+    if args.freeze_ir_coverage_audit:
+        result = freeze_ir_inner_coverage_audit(
+            config_path=args.config,
+            assignment_path=args.assignment,
+            audit_path=args.ir_coverage_audit,
+        )
+    else:
+        result = freeze_phase4_inputs(
+            config_path=args.config,
+            assignment_path=args.assignment,
+            experiment_manifest_path=args.experiment_manifest,
+        )
+    print(json.dumps(result, indent=2))
 
 
 if __name__ == "__main__":

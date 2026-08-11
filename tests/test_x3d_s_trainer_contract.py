@@ -10,6 +10,7 @@ import pytest
 import torch
 from torch import nn
 from torch.utils.data import Dataset
+import src.train_x3d_s_visual_expert as trainer_module
 
 from src.models.expert_contract import ExpertOutput
 from src.data.ir_primary_full_sequence_dataset import class_map_hash
@@ -33,6 +34,8 @@ from src.train_x3d_s_visual_expert import (
     validate_config,
     validate_oof_assignment,
     validate_user_partition,
+    _formal_refit_config,
+    _length_bucket,
     _warmup_cosine_multiplier,
 )
 
@@ -330,9 +333,91 @@ def test_cli_seed_overrides_yaml_and_changes_resolved_provenance_hash() -> None:
 
 
 def test_cosine_schedule_keeps_nonzero_lr_for_first_unfrozen_epoch() -> None:
-    assert _warmup_cosine_multiplier(0, epochs=3, warmup_epochs=2) == pytest.approx(0.5)
-    assert _warmup_cosine_multiplier(1, epochs=3, warmup_epochs=2) == pytest.approx(1.0)
-    assert _warmup_cosine_multiplier(2, epochs=3, warmup_epochs=2) == pytest.approx(1.0)
+    assert _warmup_cosine_multiplier(
+        0, scheduler_horizon_epochs=3, warmup_epochs=2
+    ) == pytest.approx(0.5)
+    assert _warmup_cosine_multiplier(
+        1, scheduler_horizon_epochs=3, warmup_epochs=2
+    ) == pytest.approx(1.0)
+    assert _warmup_cosine_multiplier(
+        2, scheduler_horizon_epochs=3, warmup_epochs=2
+    ) == pytest.approx(1.0)
+
+
+def test_formal_refit_preserves_the_full_cosine_schedule_prefix(tmp_path: Path) -> None:
+    selection_config = fixed_config(tmp_path)
+    selection_config["training"] = {
+        "epochs": 30,
+        "scheduler_horizon_epochs": 30,
+        "warmup_epochs": 2,
+        "patience": 8,
+        "early_stopping_enabled": False,
+    }
+
+    formal_config = _formal_refit_config(selection_config, selected_epoch=12)
+
+    assert formal_config["training"]["epochs"] == 12
+    assert formal_config["training"]["scheduler_horizon_epochs"] == 30
+    selection_prefix = [
+        _warmup_cosine_multiplier(index, scheduler_horizon_epochs=30, warmup_epochs=2)
+        for index in range(12)
+    ]
+    formal_prefix = [
+        _warmup_cosine_multiplier(
+            index,
+            scheduler_horizon_epochs=formal_config["training"]["scheduler_horizon_epochs"],
+            warmup_epochs=2,
+        )
+        for index in range(12)
+    ]
+    assert formal_prefix == pytest.approx(selection_prefix)
+
+
+def test_disabled_early_stopping_runs_the_full_inner_epoch_search(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = fixed_config(tmp_path)
+    config["training"] = {
+        "epochs": 3,
+        "scheduler_horizon_epochs": 30,
+        "warmup_epochs": 2,
+        "patience": 1,
+        "early_stopping_enabled": False,
+    }
+    config["amp"] = {"enabled": False, "dtype": "bfloat16"}
+    config["deployment_artifacts"] = {"yolo_checkpoint": None}
+    run_directory = tmp_path / "full-inner-search"
+    run_directory.mkdir()
+    monkeypatch.setattr(
+        trainer_module,
+        "is_better_checkpoint",
+        lambda candidate, current, *, objective: current is None,
+    )
+
+    summary = train_partition(
+        model=tiny_trainer_model(),
+        train_dataset=TinyTrialDataset("train", 2),
+        validation_dataset=TinyTrialDataset("validation", 2),
+        config=config,
+        run_directory=run_directory,
+        device=torch.device("cpu"),
+        max_train_batches=1,
+        max_val_batches=1,
+    )
+
+    assert summary["epochs_completed"] == 3
+    assert len(pd.read_csv(run_directory / "history.csv")) == 3
+
+
+@pytest.mark.parametrize(
+    ("num_frames", "expected"),
+    [(1, "<=13"), (13, "<=13"), (14, "14-32"), (32, "14-32"),
+     (33, "33-64"), (64, "33-64"), (65, ">64"), (236, ">64")],
+)
+def test_length_bucket_matches_the_phase4_reporting_contract(
+    num_frames: int, expected: str
+) -> None:
+    assert _length_bucket(num_frames) == expected
 
 
 def test_eval_epoch_emits_one_prediction_per_trial() -> None:
@@ -448,7 +533,13 @@ def test_train_partition_records_backbone_gradient_after_epoch_three(tmp_path: P
 
 def test_strict_oof_freezes_refit_checkpoint_before_outer_validation(tmp_path: Path) -> None:
     config = fixed_config(tmp_path)
-    config["training"] = {"epochs": 2, "warmup_epochs": 2, "patience": 8}
+    config["training"] = {
+        "epochs": 2,
+        "scheduler_horizon_epochs": 30,
+        "warmup_epochs": 2,
+        "patience": 8,
+        "early_stopping_enabled": False,
+    }
     config["amp"] = {"enabled": False, "dtype": "bfloat16"}
     config["deployment_artifacts"] = {"yolo_checkpoint": None}
     run_directory = tmp_path / "strict-oof"
@@ -483,6 +574,11 @@ def test_strict_oof_freezes_refit_checkpoint_before_outer_validation(tmp_path: P
     assert summary["selection_labels_from_outer_validation"] is False
     assert summary["formal_checkpoint"] == "formal_outer_refit.pt"
     assert summary["selected_epoch"] in {1, 2}
+    assert summary["scheduler_horizon_epochs"] == 30
+    formal_checkpoint = torch.load(
+        run_directory / "formal_outer_refit.pt", map_location="cpu", weights_only=False
+    )
+    assert formal_checkpoint["strict_oof_provenance"]["scheduler_horizon_epochs"] == 30
     assert (run_directory / "formal_outer_predictions.npz").is_file()
 
 
