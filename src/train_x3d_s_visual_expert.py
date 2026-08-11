@@ -192,6 +192,7 @@ def run_model_epoch(
     latency_buckets: dict[str, list[float]] = {}
     backbone_received_finite_gradient = False
     head_received_finite_gradient = False
+    accumulated_trial_count = 0
 
     context = torch.enable_grad if training else torch.inference_mode
     with context():
@@ -209,8 +210,7 @@ def run_model_epoch(
             if device.type == "cuda":
                 torch.cuda.synchronize(device)
             batch_started = time.perf_counter()
-            window_start = (batch_index // gradient_accumulation) * gradient_accumulation
-            window_size = min(gradient_accumulation, total_batches - window_start)
+            rows = int(labels.shape[0])
             with torch.autocast(
                 device_type=device.type,
                 dtype=torch.bfloat16,
@@ -223,13 +223,20 @@ def run_model_epoch(
                     quality_mask=quality_mask,
                     availability=availability,
                 )
-                loss = torch.nn.functional.nll_loss(output.main_logits, labels)
+                loss_sum = torch.nn.functional.nll_loss(
+                    output.main_logits, labels, reduction="sum"
+                )
+                loss = loss_sum / rows
             if training:
-                (loss / window_size).backward()
+                loss_sum.backward()
+                accumulated_trial_count += rows
                 end_of_window = (batch_index + 1) % gradient_accumulation == 0
                 end_of_epoch = batch_index + 1 == total_batches
                 if end_of_window or end_of_epoch:
                     named_parameters = tuple(model.named_parameters())
+                    for _, parameter in named_parameters:
+                        if parameter.grad is not None:
+                            parameter.grad.div_(accumulated_trial_count)
                     backbone_received_finite_gradient |= _received_finite_gradient(
                         parameter
                         for name, parameter in named_parameters
@@ -243,6 +250,7 @@ def run_model_epoch(
                     torch.nn.utils.clip_grad_norm_(model.parameters(), gradient_clip)
                     optimizer.step()
                     optimizer.zero_grad(set_to_none=True)
+                    accumulated_trial_count = 0
 
             if device.type == "cuda":
                 torch.cuda.synchronize(device)
@@ -251,8 +259,7 @@ def run_model_epoch(
             processed_clips += valid_clips
             model_seconds += batch_seconds
 
-            rows = labels.shape[0]
-            loss_total += float(loss.detach()) * rows
+            loss_total += float(loss_sum.detach())
             sample_count += rows
             sample_ids.extend(str(value) for value in batch["sample_ids"])
             user_ids.extend(str(value) for value in batch["user_ids"])

@@ -118,6 +118,7 @@ Historical results are evidence about architecture and failure modes, not reusab
 | Scheduler | cosine over the fixed full 30-epoch horizon; stopping epoch and scheduler horizon are separate fields |
 | Epochs / patience | Formal Phase 4 inner search always runs all 30 epochs with no early stopping; patience 8 remains development-only |
 | Batch / accumulation | at most 2 trials and 8 valid clips per microbatch / accumulate 4 microbatches |
+| Accumulation objective | equal-weight trial-level NLL: backpropagate summed trial losses, divide accumulated gradients by the actual trial count in each optimizer window, then clip and step |
 | AMP | BF16 on CUDA |
 | Gradient clipping | 1.0 |
 | Checkpoints | best Accuracy and best Macro-F1 |
@@ -727,12 +728,14 @@ D:\Anaconda\envs\pyTorch2.7\python.exe -m src.train_x3d_s_visual_expert `
   --oof-fold-assignment metadata/splits/train14_oof_3fold.json `
   --oof-role train14 `
   --seed 20260715 `
-  --run-id x3d_s_ir_context_adaptive_oof_strict_v2_seed20260715
+  --run-id x3d_s_ir_context_adaptive_oof_strict_v3_seed20260715
 ```
 
 For each outer fold and seed, first train only on the frozen inner-fit users for all 30 epochs with no early stopping and select the epoch using Accuracy, then Macro-F1, then earlier epoch on the frozen inner-validation users. Keep `best_macro_f1.pt` diagnostic only. Then discard that selection model for formal prediction, initialize a fresh model from the same pretrained source, train on every outer-train user for exactly the selected epoch with no labeled validation or early stopping, freeze `formal_outer_refit.pt`, and evaluate the untouched outer-validation users exactly once. Both stages use the identical first `selected_epoch` learning rates from the frozen 30-epoch cosine trajectory: `training.epochs` controls when the loop stops, while `training.scheduler_horizon_epochs=30` remains unchanged. Outer-validation labels may compute final metrics only after the formal checkpoint is frozen; they may never select an epoch, stop training, or choose a checkpoint. Emit exactly one formal cross-fitted prediction per usable IR trial in the outer fold. Do not change ROI views, local frame count, `target_window_frames=32`, `max_clips=8`, crop size, aggregation method, loss, or `val_views_per_window=1` during this run.
 
 The accidentally started run `x3d_s_ir_context_adaptive_oof_seed20260715` was interrupted during fold-0 inner epoch selection before any formal refit or outer-validation access after the scheduler-horizon defect was identified. Preserve it unchanged with its abort sidecar; it is invalid scientific evidence and may not be resumed, overwritten, or merged into the replacement run.
+
+Two later launch directories are also excluded and preserved. `x3d_s_ir_context_adaptive_oof_strict_v2_seed20260715` stopped before epoch 1 because PowerShell promoted a CUDA warning to a native-command error. `x3d_s_ir_context_adaptive_oof_strict_v2b_seed20260715` stopped after fold-0 inner epoch 6, before refit or outer-validation access, when review found that averaging microbatch-mean losses over a variable-size accumulation window gave singleton trial batches twice the per-trial weight of two-trial batches. Formal Phase 4 training must use summed trial NLL per microbatch, accumulate raw gradients, divide gradients by the actual number of trials in the optimizer window, and only then apply gradient clipping and the optimizer step. The reported loss must be the same total trial NLL divided by total trials. A regression test must require a `1+2+2+2` microbatch update to match the same seven trials evaluated as one full batch.
 
 - [ ] **Step 3: Re-evaluate the selected fold checkpoints**
 

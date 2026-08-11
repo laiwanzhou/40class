@@ -115,6 +115,51 @@ class TinyTrialDataset(Dataset[dict[str, object]]):
         }
 
 
+class TrialLinearExpert(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.classifier = nn.Linear(1, 40, bias=False)
+
+    def forward(
+        self,
+        clips: torch.Tensor,
+        *,
+        clip_mask: torch.Tensor,
+        quality: torch.Tensor,
+        quality_mask: torch.Tensor,
+        availability: torch.Tensor,
+    ) -> ExpertOutput:
+        del clip_mask
+        feature = clips[:, 0, 0, 0, 0, 0].unsqueeze(1)
+        logits = torch.log_softmax(self.classifier(feature), dim=-1)
+        return ExpertOutput(
+            main_logits=logits,
+            embedding=torch.nn.functional.normalize(torch.cat((feature, feature), dim=1)),
+            quality=quality,
+            quality_mask=quality_mask,
+            availability=availability,
+        )
+
+
+def trial_linear_batch(features: list[float], *, offset: int) -> dict[str, object]:
+    rows = len(features)
+    clips = torch.zeros(rows, 1, 1, 3, 13, 1, 1)
+    clips[:, 0, 0, 0, 0, 0, 0] = torch.tensor(features)
+    return {
+        "clips": clips,
+        "clip_mask": torch.ones(rows, 1, dtype=torch.bool),
+        "labels": torch.tensor([(offset + index) % 3 for index in range(rows)]),
+        "sample_ids": tuple(f"weighted-{offset + index}" for index in range(rows)),
+        "user_ids": tuple("u1" for _ in range(rows)),
+        "class_map_hash": "class-map",
+        "quality": torch.ones(rows, 1),
+        "quality_mask": torch.ones(rows, 1, dtype=torch.bool),
+        "availability": torch.ones(rows, 1, dtype=torch.bool),
+        "num_frames": torch.tensor([65 if rows == 1 else 13] * rows),
+        "num_clips": torch.ones(rows, dtype=torch.long),
+    }
+
+
 def fixed_config(tmp_path: Path) -> dict[str, object]:
     return {
         "input_manifest": "manifest.csv",
@@ -443,6 +488,49 @@ def test_eval_epoch_emits_one_prediction_per_trial() -> None:
     assert outcome.metrics["class_coverage"] == 2
 
 
+def test_gradient_accumulation_weights_trials_equally_across_variable_microbatches() -> None:
+    torch.manual_seed(7)
+    accumulated_model = TrialLinearExpert()
+    full_batch_model = TrialLinearExpert()
+    full_batch_model.load_state_dict(accumulated_model.state_dict())
+    microbatches = [
+        trial_linear_batch([0.5], offset=0),
+        trial_linear_batch([1.0, 1.5], offset=1),
+        trial_linear_batch([2.0, 2.5], offset=3),
+        trial_linear_batch([3.0, 3.5], offset=5),
+    ]
+    full_batch = trial_linear_batch([0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5], offset=0)
+    accumulated_optimizer = torch.optim.SGD(accumulated_model.parameters(), lr=0.1)
+    full_batch_optimizer = torch.optim.SGD(full_batch_model.parameters(), lr=0.1)
+
+    accumulated_outcome = run_model_epoch(
+        accumulated_model,
+        microbatches,
+        device=torch.device("cpu"),
+        optimizer=accumulated_optimizer,
+        gradient_accumulation=4,
+        gradient_clip=1e6,
+        amp_enabled=False,
+    )
+    full_batch_outcome = run_model_epoch(
+        full_batch_model,
+        [full_batch],
+        device=torch.device("cpu"),
+        optimizer=full_batch_optimizer,
+        gradient_accumulation=1,
+        gradient_clip=1e6,
+        amp_enabled=False,
+    )
+
+    assert torch.allclose(
+        accumulated_model.classifier.weight,
+        full_batch_model.classifier.weight,
+        atol=1e-7,
+        rtol=0.0,
+    )
+    assert accumulated_outcome.metrics["loss"] == pytest.approx(
+        full_batch_outcome.metrics["loss"], abs=1e-6
+    )
 def test_train_epoch_updates_head_without_updating_bn_running_stats() -> None:
     model = tiny_trainer_model()
     model.set_backbone_trainable(True)
