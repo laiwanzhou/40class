@@ -36,6 +36,7 @@ Updated: 2026-08-11 (Asia/Shanghai)
 - Pure X3D final train-14 duration is the median of the nine Phase 4 selected best-Accuracy epochs; its finalization seed is `20260715`.
 - Unbiased Phase 8/9 evaluation requires outer-fold-local base evidence: inner OOF on outer-train users and base experts finalized on outer-train only for outer-validation prediction.
 - Missing-pattern support for `g(A,Q)` is computed from each outer-train package; complete train-14 support is used only for final refit.
+- Phase 4 complementary retention freezes worst-user Accuracy delta at `>= -0.02` relative to the matched baseline. Any seed or aggregate below `-0.02` triggers a mandatory human-review stop with all checkpoints, predictions, logs, histories, manifests, and audit artifacts preserved; no automatic deletion, rejection, registration, or Phase 5 continuation is allowed.
 
 ## Phase 0 Evidence Log
 
