@@ -18,6 +18,8 @@
 - Use the existing `combined_frame_manifest.csv`; do not regenerate the full ROI dataset in the first experiment.
 - The first scientific run uses only `ir_context_path`; `ir_relation`, left/right ROI, Depth, Skeleton, and IMU are excluded.
 - Treat X3D-S as the IR specialist. Do not turn this branch into a joint six-modality trainer.
+- Preserve methodological diversity from teammate visual pipelines. Teammate results may motivate transferable principles, but their student architecture, clip construction, teacher protocol, distillation hyperparameters, and training recipe are not inputs to this branch unless a separately pre-registered replication experiment is explicitly approved.
+- Freeze this branch's visual inductive bias as pose-guided person context, length-adaptive local temporal decomposition, and X3D spatiotemporal encoding. Do not silently replace any of these with a teammate-specific pipeline after seeing a higher external score.
 - The canonical future fusion population is the 3,036-row union in `metadata/manifest.csv`, not the 2,748-row all-six intersection and not the 2,910-row IR ROI export.
 - Preserve the fixed 14-train-user/4-held-out-user split in `metadata/splits/fold_0.json`. The four held-out users may never fit temperatures, expert weights, support thresholds, residual parameters, or architecture choices.
 - Distinguish raw-modality `present`, expert `usable`, and label-free `quality`. Only `usable` controls fusion availability.
@@ -71,6 +73,8 @@ The Kaggle Small Track Rules page currently contains copied Large Track wording 
 The current `combined_frame_manifest.csv` contains 2,910 trials with frame-count minimum `1`, median `24`, 75th percentile `37`, 95th percentile `69`, and maximum `236`. A total of 2,250 trials (`77.3%`) exceed 13 frames, and class-level median duration ranges from 10 to 56 frames. Therefore, globally reducing every complete trial to 13 samples is retained only as a possible ablation, not the primary design.
 
 With `target_window_frames=32` and `max_clips=8`, the observed data produces a mean of approximately `1.414` local clips per trial: 1,972 trials use one clip, 743 use two, 146 use three, 37 use four, 6 use five, 4 use six, and 2 use eight. This preserves local temporal density for the 236-frame extreme while keeping average X3D work close to the single-clip baseline.
+
+A second motivation for the X3D route is to preserve local spatial structure while temporal features are learned, rather than independently pooling each frame into a compact 2D/frame vector before temporal modeling. This principle is already realized by applying X3D directly to each `[3,13,182,182]` person-context clip; it does not require copying another visual architecture or training recipe.
 
 ## Recovered Project Evidence and Its Planning Consequences
 
@@ -132,7 +136,7 @@ Execute phases in order. A phase may start only after the previous phase's exit 
 | Phase 2: Expert and trainer | Tasks 3-4 | Phase 1 passes | Trial-level masked aggregation, gradients, archive schema and focused tests pass | Pending |
 | Phase 3: End-to-end verification | Task 5 | Phase 2 passes | Online/offline ROI parity, shortest/longest trial smoke, overfit test, size audit and full tests pass | Pending |
 | Phase 4: Train-14 OOF scientific evaluation | Task 6 | Phase 3 passes | Pre-registered grouped-OOF comparison, duration/user/class reports, and frozen X3D decision are complete without held-out access | Pending |
-| Phase 5: Register IR sparse evidence | Task 7 | Phase 4 OOF decision retains X3D as an expert | Verified train-user OOF archive plus one quarantined held-out IR archive, provenance, evidence contract and size record pass | Pending |
+| Phase 5: Register IR sparse evidence | Task 7 | Phase 4 retains pure X3D as a primary or complementary IR expert | Verified train-user OOF archive plus one quarantined held-out IR archive, provenance, evidence contract and size record pass | Pending |
 | Phase 6: Freeze expert portfolio | Tasks 8-9 | Phase 5 passes | Six expert candidates use the canonical split, report complementarity, and fit the provisional byte budget | Pending |
 | Phase 7: Build sparse evidence registry | Task 10 | Phase 6 passes | Six leakage-free OOF archives outer-align to the canonical union with audited missingness | Pending |
 | Phase 8: Fit safe anchor | Task 11 | Phase 7 passes | Calibrated masked probability mixture passes singleton, missing-pattern, user and budget gates | Pending |
@@ -721,7 +725,7 @@ Reload every selected inner-fold checkpoint, regenerate that fold's predictions,
 
 Compare X3D-S with:
 
-- the teammate VideoMAE result as descriptive context only after confirming identical outer split and trial-level metric semantics; its held-out score cannot select this X3D configuration;
+- the teammate VideoMAE result as descriptive context only after confirming identical outer split and trial-level metric semantics; its held-out score cannot select this X3D configuration. No teammate-specific architecture, clip schedule, teacher hyperparameters, or distillation recipe is required for this comparison; record only coarse comparability metadata such as evaluation population and metric definition;
 - a matched MobileNet/TCN IR-context baseline using the exact same train-14 OOF user folds, trial `sample_id` set, class map, ROI assets, and trial-level metric implementation; rerun it if the existing result does not satisfy every matching condition;
 - a canonically rerun Skeleton TCN train-14 OOF result when available; historical held-out scores remain context only.
 
@@ -733,10 +737,11 @@ For the matched IR-context comparison, align cross-fitted predictions by `sample
 
 - [ ] **Step 5: Apply the pre-registered decision rule**
 
-- **Primary expert candidate:** Train-14 cross-fitted X3D-S has positive Accuracy and Macro-F1 deltas over the matched IR-context baseline, the paired 95% confidence interval for the Accuracy delta excludes zero, Macro-F1 improves, and worst-user Accuracy does not regress. Run three OOF seeds before fusion and report mean, standard deviation, and per-seed deltas.
-- **Promising but unconfirmed:** both point deltas are positive but the Accuracy interval includes zero, or results vary materially by user or duration bucket. Retain the predictions for complementarity analysis and run the three-seed confirmation before expanding inputs.
+- **Primary IR expert:** Train-14 cross-fitted pure X3D-S has positive Accuracy and Macro-F1 deltas over the matched IR-context baseline, the paired 95% confidence interval for the Accuracy delta excludes zero, Macro-F1 improves, and worst-user Accuracy does not regress. Run three OOF seeds before registration and report mean, standard deviation, and per-seed deltas.
+- **Complementary IR expert:** Standalone Accuracy/Macro-F1 does not satisfy the primary rule, but worst-user Accuracy stays within a tolerance pre-registered before results and X3D supplies reproducible additional evidence against the matched baseline. Require unique-correct counts in both directions, oracle-pair Accuracy and its paired confidence interval, class-wise rescues, and error disagreement; retention requires a positive oracle-pair gain whose 95% interval excludes zero plus class-wise rescue that persists across the three OOF seeds. Register it as complementary rather than primary.
+- **Promising but unconfirmed:** point metrics or complementarity are positive but their paired intervals include zero, or results vary materially by user, seed, class, or duration bucket. Preserve the predictions for diagnosis, but do not register the candidate until the pre-registered three-seed confirmation passes one of the two retention paths.
 - **Temporal follow-up only:** the train-14 OOF `>64` bucket trails the matched baseline while shorter buckets improve. Keep the visual input fixed and test only `target_window_frames=24` versus 32 using the same inner folds; do not mix this with three-view TTA or inspect held-out results.
-- **Stop and audit:** Accuracy or Macro-F1 fails to improve against the matched baseline without a clear complementary per-class benefit. Audit normalization, pretrained loading, adaptive window coverage, padded-clip masking, aggregation, and split comparability before architectural expansion.
+- **Stop and audit:** X3D satisfies neither the primary nor complementary path. Audit normalization, pretrained loading, adaptive window coverage, padded-clip masking, aggregation, and split comparability before architectural expansion.
 - Do not add Depth or additional ROI views merely because the first score is low.
 
 - [ ] **Step 6: Commit only code and small reports**
@@ -762,7 +767,7 @@ git commit -m "Report X3D-S IR-context baseline"
 
 **Interfaces:**
 - Consumes: the retained Phase 4 X3D configuration, canonical union manifest, fixed 14/4 user split, and exact IR ROI manifest.
-- Produces: a verified sparse IR OOF archive and one quarantined held-out `ExpertEvidence` archive plus immutable provenance; it does not fit a multimodal fusion model.
+- Produces: a verified sparse pure-X3D IR OOF archive and one quarantined held-out `ExpertEvidence` archive plus immutable provenance under `expert_id=ir_x3d_s_k400_pure`; it does not fit a multimodal fusion model.
 
 - [ ] **Step 1: Write RED tests for the serialized evidence contract**
 
@@ -788,6 +793,8 @@ Expected: FAIL because `src.fusion.expert_evidence` does not exist.
 - [ ] **Step 3: Implement `ExpertEvidence` without changing `ExpertOutput`**
 
 Required fields are `expert_id`, `sample_ids`, `user_ids`, `labels`, `logits`, `availability`, `quality`, `quality_mask`, `class_map_hash`, `model_sha256`, `config_sha256`, `deployed_weight_bytes`, and `preprocessing_dependencies`. Optional fields are `embeddings`, `engineered_summary`, and diagnostic arrays. Require finite logits, unique IDs, 40 classes, matching row counts, a non-empty class hash, and SHA-256 values. For IR, preserve label-free ROI diagnostics such as pose-detection rate, keypoint confidence, context-effective rate, recovered-ROI fraction, and local-view reliability when available; missing diagnostics remain masked and may not be imputed from labels.
+
+This Phase 5 registration is immutable. A future teacher-assisted candidate must use a distinct identity such as `ir_x3d_s_teacher_assisted`, its own config/model/provenance hashes, and independently generated OOF and held-out evidence. It may later replace the pure candidate through the Phase 6 portfolio gate, but it may not overwrite `ir_x3d_s_k400_pure` artifacts or be silently treated as the same experiment.
 
 - [ ] **Step 4: Freeze one shared three-fold OOF user assignment**
 
@@ -1142,7 +1149,7 @@ git commit -m "Assemble audited six-modal inference pipeline"
 - An aligned IR+Depth co-expert, pending OOF complementarity and byte-budget evidence.
 - Reusing IR ROI coordinates for Thermal without a passed registration audit.
 - VideoMAE as a final inference expert, pending written organizer approval for the exact checkpoint and pretraining source.
-- VideoMAE-to-X3D knowledge distillation as a separate pre-registered teacher/student experiment; the host clarification permits distillation, but only the compliant student may ship.
+- High-priority optional VideoMAE-to-X3D teacher-assisted ablation only after standalone pure X3D-S completes Phase 4 and its failure modes are understood. It is not an automatic next phase, must not replace the independently evaluated pure-X3D route by default, and requires a separate pre-registration. The host clarification permits distillation, but only the compliant student may ship; register it as `ir_x3d_s_teacher_assisted` without overwriting `ir_x3d_s_k400_pure`.
 - A learned per-sample residual-support gate beyond the deterministic first-run `g(A,Q)`.
 - Competition-test inference or submission generation before the Phase 10 production gate.
 - DataLoader worker and batch-size optimization.
