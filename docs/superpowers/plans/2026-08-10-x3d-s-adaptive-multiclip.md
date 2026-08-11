@@ -706,7 +706,7 @@ git commit -m "Verify compliant X3D-S inference end to end"
 - Consumes: the verified configuration, fixed outer 14/4 split, and the persisted three-fold user assignment inside train-14.
 - Produces: one cross-fitted adaptive multi-clip X3D-S comparison over train-14 and a frozen decision on whether X3D remains an IR expert candidate; it does not read held-out labels or predictions.
 
-- [ ] **Step 1: Freeze and hash the experiment inputs**
+- [x] **Step 1: Freeze and hash the experiment inputs**
 
 Record the configuration hash, manifest hash, class-map hash, X3D and YOLO pretrained-weight hashes, compliance-document hash, rule-source URLs and access date, Git SHA, environment probe, provisional IR-route deployment subtotal, outer train/held-out users, formal outer OOF fold users, outer-train-only epoch-selection users, trial counts, and all three actual runtime seeds before looking at OOF results. Freeze `20260715` as the canonical Phase 5 OOF evidence seed; `20260716` and `20260717` are training-stability confirmation only and may not replace it based on results. The experiment may start only if `ir_route_provisional_size_gate_passed=true` and the command cannot load the held-out archive.
 

@@ -8,7 +8,7 @@ Updated: 2026-08-11 (Asia/Shanghai)
 | Phase 1: Temporal data contract | Completed | `481ccb4` | 23 dataset tests, 30 focused/regression tests, and all 74 repository tests passed; real shortest/longest trial probe passed | Exported quality fields are constant in this manifest, so they are contract metadata rather than discriminative evidence in the first run | Phase 2 may begin after review |
 | Phase 2: Expert and trainer | Completed | `1601a31` | Trial-level trainer, dual checkpoint archives, fixed BN policy, train-14 finalization, resource audit and held-out rejection implemented; 24 focused and 94 full-suite tests passed | Real CUDA/data smoke is intentionally deferred to Phase 3 | Begin Phase 3 Task 5 |
 | Phase 3: End-to-end verification | Completed | `dc13b96` | Revised six-trial parity, fixed-checkpoint sensitivity, CUDA/overfit/size audits, 65 focused tests, and 107 full-suite tests pass | Latency is representative smoke evidence, not a production benchmark | Begin Phase 4 Task 6 |
-| Phase 4: Train-14 OOF scientific evaluation | Pending | - | Pure X3D has primary and complementary retention paths | Held-out labels must remain sealed | Wait for Phase 3 exit gate |
+| Phase 4: Train-14 OOF scientific evaluation | In progress | `a1663bb` | Step 1 inputs, strict OOF protocol, canonical seed and write-once three-fold assignment are frozen | Formal three-seed training has not started; held-out labels remain sealed | Run strict OOF for seed `20260715` first |
 | Phase 5: Register IR sparse evidence | Pending | - | Pure candidate registers as `ir_x3d_s_k400_pure` | Held-out archive is evaluation-only until Phase 10 | Wait for Phase 4 primary/complementary retain decision |
 | Phase 6: Freeze expert portfolio | Pending | - | Every retained expert must emit global OOF plus label-free held-out evidence | Historical metrics use mixed folds; outer four users are unavailable for selection | Execute later on a dedicated branch after Phase 5 review |
 | Phase 7: Build sparse evidence registry | Pending | - | Global registries plus nested outer-fold fusion evidence | Base-level global OOF alone is insufficient for unbiased stacker CV | Wait for Phase 6 |
@@ -155,3 +155,12 @@ Passed on 2026-08-11. Task 3 and Task 4 jointly satisfy the Phase 2 masked aggre
 ### Exit Gate
 
 Passed on 2026-08-11. All Task 5 steps are complete and the end-to-end implementation/evidence is committed as `dc13b96`. Phase 4 may begin under the frozen train-14 OOF contract without held-out access.
+
+## Phase 4 Evidence Log
+
+- Review fixes were pre-registered before formal results: runtime `--seed` propagation, strict checkpoint-selection OOF, and canonical Phase 5 evidence seed `20260715`; seeds `20260716/17` are stability-only.
+- Formal outer fold assignment was generated once from the 2,427-trial canonical train-14 union with `StratifiedGroupKFold(n_splits=3, shuffle=True, random_state=20260715)`. The usable IR population contains 2,320 trials.
+- Assignment SHA-256: `2a0dde67ced6f40cf3a163f63d545f1e3cde3545b6ee0eb0291cf1c52c38ea76`. Every user owns exactly one outer-validation fold, every outer-train and inner-fit partition covers all 40 classes, and concatenated OOF covers all 40 classes.
+- Outer-validation class counts are `[39,40,40]`; fold 0 lacks class 25 because that class occurs for only two train-14 users. Metrics retain the fixed 40-class label set.
+- Phase 4 experiment manifest records code SHA `a1663bb60bebdd44047db2810e066cddbbf7a805`, actual seed-specific resolved config hashes, config/data/class-map/weights/rules/environment hashes, no held-out archive access, and a provisional IR route of 20,644,200 / 95,000,000 bytes.
+- Write-once retry correctly fails with `FileExistsError`; formal OOF training has not started.

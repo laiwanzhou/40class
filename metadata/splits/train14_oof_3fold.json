@@ -1,0 +1,200 @@
+{
+  "schema_version": 1,
+  "method": "StratifiedGroupKFold",
+  "n_splits": 3,
+  "shuffle": true,
+  "random_state": 20260715,
+  "group_field": "user_id",
+  "label_field": "class_id",
+  "population": "official_train14_canonical_union",
+  "trial_count": 2427,
+  "user_count": 14,
+  "class_count": 40,
+  "combined_validation_class_count": 40,
+  "folds": [
+    {
+      "fold": 0,
+      "train_user_ids": [
+        "user1",
+        "user16",
+        "user19",
+        "user2",
+        "user22",
+        "user5",
+        "user6",
+        "user7",
+        "user8"
+      ],
+      "validation_user_ids": [
+        "user18",
+        "user20",
+        "user21",
+        "user3",
+        "user9"
+      ],
+      "train_trial_count": 1606,
+      "validation_trial_count": 821,
+      "train_class_count": 40,
+      "validation_class_count": 39,
+      "validation_missing_class_ids": [
+        25
+      ],
+      "epoch_selection": {
+        "method": "StratifiedGroupKFold_candidate_selection",
+        "n_splits": 3,
+        "shuffle": true,
+        "random_state": 20260715,
+        "selection_rule": "fit_class_count_40_then_max_validation_coverage_then_lower_index",
+        "candidate_index": 1,
+        "fit_user_ids": [
+          "user1",
+          "user19",
+          "user2",
+          "user6",
+          "user7",
+          "user8"
+        ],
+        "validation_user_ids": [
+          "user16",
+          "user22",
+          "user5"
+        ],
+        "fit_trial_count": 1066,
+        "validation_trial_count": 540,
+        "fit_class_count": 40,
+        "validation_class_count": 39,
+        "validation_missing_class_ids": [
+          25
+        ]
+      },
+      "ir_train_trial_count": 1520,
+      "ir_validation_trial_count": 800,
+      "ir_train_class_count": 40,
+      "ir_validation_class_count": 39,
+      "ir_validation_missing_class_ids": [
+        25
+      ]
+    },
+    {
+      "fold": 1,
+      "train_user_ids": [
+        "user18",
+        "user19",
+        "user20",
+        "user21",
+        "user22",
+        "user3",
+        "user5",
+        "user6",
+        "user7",
+        "user9"
+      ],
+      "validation_user_ids": [
+        "user1",
+        "user16",
+        "user2",
+        "user8"
+      ],
+      "train_trial_count": 1751,
+      "validation_trial_count": 676,
+      "train_class_count": 40,
+      "validation_class_count": 40,
+      "validation_missing_class_ids": [],
+      "epoch_selection": {
+        "method": "StratifiedGroupKFold_candidate_selection",
+        "n_splits": 3,
+        "shuffle": true,
+        "random_state": 20260716,
+        "selection_rule": "fit_class_count_40_then_max_validation_coverage_then_lower_index",
+        "candidate_index": 2,
+        "fit_user_ids": [
+          "user18",
+          "user19",
+          "user21",
+          "user3",
+          "user6",
+          "user7",
+          "user9"
+        ],
+        "validation_user_ids": [
+          "user20",
+          "user22",
+          "user5"
+        ],
+        "fit_trial_count": 1238,
+        "validation_trial_count": 513,
+        "fit_class_count": 40,
+        "validation_class_count": 38,
+        "validation_missing_class_ids": [
+          25,
+          26
+        ]
+      },
+      "ir_train_trial_count": 1662,
+      "ir_validation_trial_count": 658,
+      "ir_train_class_count": 40,
+      "ir_validation_class_count": 40,
+      "ir_validation_missing_class_ids": []
+    },
+    {
+      "fold": 2,
+      "train_user_ids": [
+        "user1",
+        "user16",
+        "user18",
+        "user2",
+        "user20",
+        "user21",
+        "user3",
+        "user8",
+        "user9"
+      ],
+      "validation_user_ids": [
+        "user19",
+        "user22",
+        "user5",
+        "user6",
+        "user7"
+      ],
+      "train_trial_count": 1497,
+      "validation_trial_count": 930,
+      "train_class_count": 40,
+      "validation_class_count": 40,
+      "validation_missing_class_ids": [],
+      "epoch_selection": {
+        "method": "StratifiedGroupKFold_candidate_selection",
+        "n_splits": 3,
+        "shuffle": true,
+        "random_state": 20260717,
+        "selection_rule": "fit_class_count_40_then_max_validation_coverage_then_lower_index",
+        "candidate_index": 2,
+        "fit_user_ids": [
+          "user1",
+          "user16",
+          "user20",
+          "user21",
+          "user3",
+          "user8"
+        ],
+        "validation_user_ids": [
+          "user18",
+          "user2",
+          "user9"
+        ],
+        "fit_trial_count": 963,
+        "validation_trial_count": 534,
+        "fit_class_count": 40,
+        "validation_class_count": 39,
+        "validation_missing_class_ids": [
+          25
+        ]
+      },
+      "ir_train_trial_count": 1458,
+      "ir_validation_trial_count": 862,
+      "ir_train_class_count": 40,
+      "ir_validation_class_count": 40,
+      "ir_validation_missing_class_ids": []
+    }
+  ],
+  "immutable_policy": "write_once_and_verify_sha256"
+}
