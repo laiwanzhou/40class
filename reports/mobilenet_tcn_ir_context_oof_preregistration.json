@@ -1,0 +1,43 @@
+﻿{
+    "schema_version":  1,
+    "status":  "preregistered_before_formal_results",
+    "created_at":  "2026-08-12T17:00:00+08:00",
+    "code_sha":  "d4e3e760275fd8351453bb64b8e9d58dce2464b4",
+    "config_path":  "configs/experiments/mobilenet_tcn_ir_context_oof.yaml",
+    "config_sha256":  "cecf1c175d083ff61f3e44080425ec9bcd868b0c195b593dde8ff6c57c494969",
+    "assignment_path":  "metadata/splits/train14_oof_3fold.json",
+    "assignment_sha256":  "2a0dde67ced6f40cf3a163f63d545f1e3cde3545b6ee0eb0291cf1c52c38ea76",
+    "input_manifest_sha256":  "e80a78ea67985a02a539485b2502bef68c097365654ce137cd5a7f40e9cd70b9",
+    "seed":  20260715,
+    "model_family":  "mobilenet_v3_small_tcn",
+    "input_view":  "ir_context_path",
+    "trial_population":  2320,
+    "folds":  3,
+    "inner_epoch_search":  30,
+    "selection_rule":  "Accuracy then Macro-F1 then earlier epoch",
+    "formal_refit":  "fresh ImageNet initialization on full outer-train for selected epoch",
+    "scheduler_horizon_epochs":  30,
+    "local_frames":  13,
+    "target_window_frames":  32,
+    "max_clips":  8,
+    "aggregation":  "mean_probability",
+    "tcn_channels":  256,
+    "tcn_dilations":  [
+                          1,
+                          2,
+                          4,
+                          8,
+                          16
+                      ],
+    "backbone_bn_running_stats":  "frozen",
+    "outer_validation_for_selection":  false,
+    "heldout_access":  false,
+    "smoke":  {
+                  "status":  "passed",
+                  "parameter_count":  3188809,
+                  "state_dict_bytes":  12906511,
+                  "peak_cuda_memory_bytes":  287685120,
+                  "backbone_source_weight_sha256":  "cafc1a04cbd1319acfae3ddcf51e5f0048efa425f05382a94826f3fac0d267f2",
+                  "pretrained_source":  "https://download.pytorch.org/models/mobilenet_v3_small-047dcff4.pth"
+              }
+}
