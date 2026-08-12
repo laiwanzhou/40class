@@ -1,0 +1,51 @@
+{
+  "fold": 2,
+  "scope": "inner_selection",
+  "fit_user_ids": [
+    "user1",
+    "user16",
+    "user20",
+    "user21",
+    "user3",
+    "user8"
+  ],
+  "validation_user_ids": [
+    "user18",
+    "user2",
+    "user9"
+  ],
+  "fit_validation_overlap": [],
+  "projection_matrix": [
+    [
+      -0.8205174447172292,
+      -0.21536558320060467
+    ],
+    [
+      -0.04524631321777639,
+      0.24840054497243866
+    ],
+    [
+      -0.11374951249106212,
+      -1.1800582233197052
+    ]
+  ],
+  "calibration_frames": 26510,
+  "calibration_correspondences": 287685,
+  "unique_frames": 43855,
+  "retained_frames": 43393,
+  "ambiguous_frames": 462,
+  "single_person_retained": 42050,
+  "confident_multi_person_retained": 1343,
+  "low_margin_ambiguous": 43,
+  "unavailable_decision_ambiguous": 419,
+  "retained_trials": 1479,
+  "empty_trials": 0,
+  "retained_segments": 1642,
+  "margin_threshold": 0.2,
+  "confidence_threshold": 0.25,
+  "ridge": 0.001,
+  "oof_assignment_sha256": "2a0dde67ced6f40cf3a163f63d545f1e3cde3545b6ee0eb0291cf1c52c38ea76",
+  "master_retained_sha256": "d1de22af1e32d004ad2eb7a22e50a8f8222da679d42cfafb083559c8d0d972b0",
+  "master_ambiguous_sha256": "0b997140887f6bd6a09f6d48b5a8c181b9caf81bfd560777d5a6961d0050a3fe",
+  "clean_view_sha256": "ec0579888607425dcdec9b66f2c26c2c055822806039b33e149c45c3a599b1ec"
+}
