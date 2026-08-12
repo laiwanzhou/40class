@@ -140,7 +140,7 @@ Execute phases in order. A phase may start only after the previous phase's exit 
 | Phase 1: Temporal data contract | Task 2 | Phase 0 passes | Adaptive window boundary tests, real duration audit, determinism, padding and leakage tests pass | Completed (`481ccb4`) |
 | Phase 2: Expert and trainer | Tasks 3-4 | Phase 1 passes | Trial-level masked aggregation, gradients, archive schema and focused tests pass | Completed (Task 3 `cc5bc26`; Task 4 `1601a31`) |
 | Phase 3: End-to-end verification | Task 5 | Phase 2 passes | Online/offline ROI parity, shortest/longest trial smoke, overfit test, size audit and full tests pass | Completed (`dc13b96`; closure `03eed56`) |
-| Phase 4: Train-14 OOF scientific evaluation | Task 6 | Phase 3 passes | Three-seed grouped OOF, checkpoint regeneration, duration/user/class reports, and the compute-amended fixed-budget matched sanity decision are complete without held-out access | Completed under competition-compute amendment (`ac5fc7e`; final report pending closure commit) |
+| Phase 4: Train-14 OOF scientific evaluation | Task 6 | Phase 3 passes | Three-seed grouped OOF, checkpoint regeneration, duration/user/class reports, and the compute-amended fixed-budget matched sanity decision are complete without held-out access | Completed under competition-compute amendment (`a1a2fa2`) |
 | Phase 5: Register IR sparse evidence | Task 7 | Phase 4 retains pure X3D as a primary or complementary IR expert | Verified train-user OOF archive plus one quarantined held-out IR archive, provenance, evidence contract and size record pass | Pending |
 | Phase 5.5: Freeze six-modal program charter | Task 7.5 | Phase 5 passes | Modality roles, 40x6 capability-map evidence hierarchy, canonical identity/evidence interfaces, shared OOF lineage, fusion feature boundary, and package ledger are frozen | Pending |
 | Phase 6: Freeze expert portfolio | Tasks 8-9 | Phase 5.5 passes | Six retained experts use only train-14 OOF for selection and each has OOF plus structurally label-free held-out evidence | Pending |
@@ -771,7 +771,7 @@ For the matched IR-context comparison, align cross-fitted predictions by `sample
 - **Stop and audit:** X3D satisfies neither the primary nor complementary path. Audit normalization, pretrained loading, adaptive window coverage, padded-clip masking, aggregation, and split comparability before architectural expansion. This path also preserves all generated artifacts and requires a reported human decision before any cleanup or continuation.
 - Do not add Depth or additional ROI views merely because the first score is low.
 
-- [ ] **Step 6: Commit only code and small reports**
+- [x] **Step 6: Commit only code and small reports**
 
 Do not commit weights, NPZ files, or the output directory.
 
