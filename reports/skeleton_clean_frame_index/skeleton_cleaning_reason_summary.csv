@@ -1,0 +1,5 @@
+﻿clean_status,selection_reason,size,rate
+ambiguous,multi_person_visual_decision_unavailable,1017,0.011842243156068423
+ambiguous,multi_person_visual_margin_lt_20pct,65,0.0007568788644488175
+retained,multi_person_visual_margin_ge_20pct,2441,0.02842371243260867
+retained,single_person,82356,0.9589771655468741
