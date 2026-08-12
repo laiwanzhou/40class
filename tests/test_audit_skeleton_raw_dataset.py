@@ -54,3 +54,7 @@ def test_describe_reports_expected_quantiles() -> None:
     assert stats["median"] == 2.0
     assert stats["mean"] == 2.0
     assert stats["max"] == 3.0
+
+
+def test_consecutive_runs_deduplicates_and_splits_gaps() -> None:
+    assert AUDIT.consecutive_runs([8, 7, 7, 3, 2, 10]) == [[2, 3], [7, 8], [10]]

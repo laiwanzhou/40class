@@ -83,6 +83,16 @@ def markdown_table(frame: pd.DataFrame, columns: list[str], floatfmt: str = ".4f
     return frame.loc[:, columns].to_markdown(index=False, floatfmt=floatfmt)
 
 
+def consecutive_runs(frame_ids: list[int]) -> list[list[int]]:
+    runs: list[list[int]] = []
+    for frame_id in sorted(set(frame_ids)):
+        if not runs or frame_id != runs[-1][-1] + 1:
+            runs.append([frame_id])
+        else:
+            runs[-1].append(frame_id)
+    return runs
+
+
 def main() -> None:
     args = parse_args()
     report_dir = args.report_dir.resolve()
@@ -95,6 +105,7 @@ def main() -> None:
     all_unique_points: list[np.ndarray] = []
     all_scores: list[np.ndarray] = []
     trial_rows: list[dict[str, object]] = []
+    multi_person_run_rows: list[dict[str, object]] = []
     anomaly_rows: list[dict[str, object]] = []
     schema_counter: Counter[str] = Counter()
     people_counter: Counter[int] = Counter()
@@ -127,6 +138,7 @@ def main() -> None:
         frame_ids: list[int] = []
         frame_times: list[datetime] = []
         points_by_frame_id: dict[int, list[np.ndarray]] = {}
+        people_counts_by_frame_id: dict[int, list[int]] = {}
         filenames_parsed = 0
 
         for file_index, path in enumerate(files):
@@ -225,6 +237,7 @@ def main() -> None:
                 frame_id = int(match.group("frame"))
                 frame_ids.append(frame_id)
                 points_by_frame_id.setdefault(frame_id, []).append(points)
+                people_counts_by_frame_id.setdefault(frame_id, []).append(people_count)
                 if match.group("timestamp"):
                     frame_times.append(datetime.strptime(match.group("timestamp"), "%Y-%m-%d_%H-%M-%S.%f"))
 
@@ -244,6 +257,18 @@ def main() -> None:
         missing_frame_id_slots = sum(
             max(0, second - first - 1) for first, second in zip(unique_frame_ids, unique_frame_ids[1:])
         )
+        multi_frame_ids = sorted(
+            frame_id for frame_id, counts in people_counts_by_frame_id.items() if max(counts) > 1
+        )
+        multi_runs = consecutive_runs(multi_frame_ids)
+        for run_index, run in enumerate(multi_runs):
+            multi_person_run_rows.append({
+                "sample_id": row.sample_id, "class_id": int(row.class_id), "action_name": row.action_name,
+                "user_id": row.user_id, "trial_id": row.trial_id, "fold_split": split_name(row.user_id, fold),
+                "run_index": run_index, "start_frame_id": run[0], "end_frame_id": run[-1],
+                "run_length": len(run), "trial_unique_frames": len(unique_frame_ids),
+                "run_fraction_of_trial": len(run) / len(unique_frame_ids) if unique_frame_ids else math.nan,
+            })
         frame_id_strict = len(frame_ids) == len(unique_frame_ids) and all(
             second > first for first, second in zip(frame_ids, frame_ids[1:])
         )
@@ -263,6 +288,10 @@ def main() -> None:
             "duplicate_frame_ids_exact": duplicate_frame_ids_exact, "missing_frame_id_slots": missing_frame_id_slots,
             "empty_frames": empty_frames, "malformed_frames": malformed_frames,
             "multi_person_frames": multi_person_frames, "frames_with_nonfinite_points": frames_with_nonfinite_points,
+            "unique_multi_person_frames": len(multi_frame_ids), "multi_person_runs": len(multi_runs),
+            "longest_multi_person_run": max((len(run) for run in multi_runs), default=0),
+            "isolated_multi_person_frames": sum(len(run) == 1 for run in multi_runs),
+            "multi_person_unique_rate": len(multi_frame_ids) / len(unique_frame_ids) if unique_frame_ids else 0.0,
             "frames_with_nonpositive_scores": frames_with_nonpositive_scores,
             "frames_with_whole_zero_joint": frames_with_whole_zero_joint,
             "parsed_filenames": filenames_parsed, "frame_ids_strictly_increasing": frame_id_strict,
@@ -274,8 +303,10 @@ def main() -> None:
 
     trials = pd.DataFrame(trial_rows)
     anomalies = pd.DataFrame(anomaly_rows, columns=["sample_id", "frame_path", "category", "detail"])
+    multi_person_runs = pd.DataFrame(multi_person_run_rows)
     trials.to_csv(report_dir / "trial_inventory.csv", index=False, encoding="utf-8-sig")
     anomalies.to_csv(report_dir / "frame_anomalies.csv", index=False, encoding="utf-8-sig")
+    multi_person_runs.to_csv(report_dir / "multi_person_temporal_runs.csv", index=False, encoding="utf-8-sig")
     file_points = np.stack(all_points)
     points = np.stack(all_unique_points)
     scores = np.stack(all_scores)
@@ -416,6 +447,21 @@ def main() -> None:
         {"invariant": "per-frame minimum z exactly zero", "rate": min_z_zero},
     ])
     overall_bucket_table = length_buckets[length_buckets["fold_split"] == "all"]
+    run_lengths = multi_person_runs["run_length"].to_numpy(dtype=np.int64)
+    run_bucket_labels = ("1", "2-4", "5-9", "10-19", "20-39", "40+")
+    run_categories = pd.cut(
+        run_lengths, bins=[0, 1, 4, 9, 19, 39, np.inf], labels=run_bucket_labels, include_lowest=True,
+    )
+    run_buckets = pd.Series(run_categories).value_counts(sort=False)
+    run_bucket_table = pd.DataFrame({
+        "run_length": run_bucket_labels,
+        "runs": [int(run_buckets[label]) for label in run_bucket_labels],
+        "frames": [int(run_lengths[run_categories == label].sum()) for label in run_bucket_labels],
+    })
+    run_bucket_table["frame_rate"] = run_bucket_table["frames"] / run_bucket_table["frames"].sum()
+    affected_multi_trials = trials[trials["unique_multi_person_frames"] > 0]
+    full_multi_trials = affected_multi_trials[affected_multi_trials["multi_person_unique_rate"] == 1.0]
+    single_run_trials = affected_multi_trials[affected_multi_trials["multi_person_runs"] == 1]
 
     report = f"""# Skeleton 原始数据全量审计
 
@@ -437,6 +483,17 @@ def main() -> None:
 全部人物的 `keypoint_scores` 唯一值为 `{sorted(all_person_score_counter)}`。因此它在这份导出中不是有信息量的逐关节置信度或可见性信号；不能据此识别遮挡或 missing joint。
 
 人物数分布：1 人 {people_counter[1]} 帧，2 人 {people_counter[2]} 帧，3 人 {people_counter[3]} 帧，4 人 {people_counter[4]} 帧。共有 {sum(count for people, count in people_counter.items() if people > 1)} 个多人物帧。JSON 不含 track ID，且所有 score 相同；旧 loader 的“最高平均 score”选择在多人物帧上实际退化为取列表第一个人，不能保证跨帧身份连续。
+
+### 多候选帧的时间聚集性
+
+按唯一 `frame_id` 去重后，多候选时间步为 {int(trials['unique_multi_person_frames'].sum())}，分布在 {(trials['unique_multi_person_frames'] > 0).sum()} 个 trial，组成 {len(multi_person_runs)} 个连续段。连续段定义为相邻 `frame_id` 差 1。
+
+{markdown_table(run_bucket_table, ['run_length', 'runs', 'frames', 'frame_rate'])}
+
+- 孤立单帧共有 {int((run_lengths == 1).sum())} 段、{int((run_lengths == 1).sum())} 帧，占全部多候选唯一帧的 {(run_lengths == 1).sum() / run_lengths.sum():.4%}。
+- 长度至少 5 帧的连续段承载 {run_lengths[run_lengths >= 5].sum()} 帧，占 {run_lengths[run_lengths >= 5].sum() / run_lengths.sum():.4%}；长度至少 20 帧的连续段承载 {run_lengths[run_lengths >= 20].sum()} 帧，占 {run_lengths[run_lengths >= 20].sum() / run_lengths.sum():.4%}。
+- {len(single_run_trials)} / {len(affected_multi_trials)} 个受影响 trial 只有一个连续段；{len(full_multi_trials)} 个 trial 从首帧到末帧全部为多候选，它们承载 {int(full_multi_trials['unique_multi_person_frames'].sum())} 帧，占全部多候选唯一帧的 {full_multi_trials['unique_multi_person_frames'].sum() / run_lengths.sum():.4%}。
+- 最长连续段为 {run_lengths.max()} 帧。逐段边界见 `multi_person_temporal_runs.csv`，逐 trial 的段数、最长段和覆盖率见 `trial_inventory.csv`。
 
 ## 2. 关节数量、顺序与字段含义
 
