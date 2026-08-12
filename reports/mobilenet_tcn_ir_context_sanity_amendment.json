@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "status": "approved_new_requirement_after_partial_inner_results",
+  "approved_at": "2026-08-12T17:35:00+08:00",
+  "supersedes_for_competition_retention": "reports/mobilenet_tcn_ir_context_oof_preregistration.json",
+  "reason": "Conserve GPU budget after three X3D seeds and a large gap to historical visual baselines",
+  "abandoned_run": {
+    "run_id": "matched_mobilenet_tcn_ir_context_oof_seed20260715",
+    "observed_fold": 0,
+    "observed_inner_epochs": 4,
+    "formal_outer_refit_exists": false,
+    "formal_outer_predictions_exist": false,
+    "fold1_or_fold2_started": false,
+    "may_be_reported_as_completed_matched_oof": false
+  },
+  "replacement_protocol": {
+    "role": "fixed_budget_sanity_check",
+    "model_family": "mobilenet_v3_small_tcn",
+    "seed": 20260715,
+    "fold": 0,
+    "epochs": 10,
+    "scheduler_horizon_epochs": 30,
+    "epoch_selection": "none",
+    "outer_validation_evaluations": 1,
+    "threshold_accuracy": 0.53,
+    "below_threshold": "stop baseline compute and competition-retain pure X3D",
+    "at_or_above_threshold": "reconsider full matched three-fold experiment"
+  },
+  "scientific_claim_limit": "The sanity result cannot support the original three-fold paired-bootstrap primary rule"
+}
