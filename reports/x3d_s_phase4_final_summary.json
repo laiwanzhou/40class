@@ -1,0 +1,70 @@
+{
+  "status": "phase4_completed_under_compute_amendment",
+  "decision": "competition-retained; full matched primary rule not evaluated",
+  "canonical_seed": 20260715,
+  "sample_count": 2320,
+  "seed_results": [
+    {
+      "seed": 20260715,
+      "accuracy": 0.5655172413793104,
+      "macro_f1": 0.48078568302541874,
+      "worst_user_accuracy": 0.4206896551724138,
+      "worst_user_id": "user1",
+      "protocol": "strict"
+    },
+    {
+      "seed": 20260716,
+      "accuracy": 0.569396551724138,
+      "macro_f1": 0.48955245877410797,
+      "worst_user_accuracy": 0.4482758620689655,
+      "worst_user_id": "user1",
+      "protocol": "strict"
+    },
+    {
+      "seed": 20260717,
+      "accuracy": 0.55,
+      "macro_f1": 0.4778795258533396,
+      "worst_user_accuracy": 0.4,
+      "worst_user_id": "user1",
+      "protocol": "recovery_deviation_fold1_epoch10"
+    }
+  ],
+  "three_seed_mean": {
+    "accuracy": 0.5616379310344828,
+    "macro_f1": 0.48273922255095547,
+    "worst_user_accuracy": 0.4229885057471264
+  },
+  "three_seed_sample_std": {
+    "accuracy": 0.010263690430853999,
+    "macro_f1": 0.006076724302744458,
+    "worst_user_accuracy": 0.024219893684718934
+  },
+  "checkpoint_reverification_all_passed": true,
+  "checkpoint_reverification_maximum_delta": 0.0,
+  "matched_sanity_fold0": {
+    "sample_count": 800,
+    "x3d_accuracy": 0.57125,
+    "baseline_accuracy": 0.28375,
+    "accuracy_delta": 0.28750000000000003,
+    "x3d_macro_f1": 0.48691831623854603,
+    "baseline_macro_f1": 0.1735360788205942,
+    "macro_f1_delta": 0.31338223741795185,
+    "x3d_worst_user_accuracy": 0.5338345864661654,
+    "baseline_worst_user_accuracy": 0.23756906077348067,
+    "worst_user_delta": 0.2962655256926848,
+    "x3d_unique_correct": 257,
+    "baseline_unique_correct": 27,
+    "both_correct": 200,
+    "both_wrong": 316,
+    "oracle_pair_accuracy": 0.605,
+    "prediction_disagreement": 0.63875,
+    "sanity_threshold": 0.53,
+    "decision": "stop_baseline_compute_keep_x3d"
+  },
+  "paired_bootstrap_performed": false,
+  "paired_bootstrap_omission_reason": "Superseded by approved fixed-compute sanity amendment",
+  "seed17_protocol_note": "Fold1 selected epoch 10 from the best observed Accuracy after 28/30 inner epochs",
+  "zero_recall_class_ids": [
+    25
+  ]
+}
