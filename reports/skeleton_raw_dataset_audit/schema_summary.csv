@@ -1,0 +1,13 @@
+﻿category,value,frames
+top_level_type,list,86050
+selected_person_keys,keypoint_scores|keypoints,86050
+people_count,1,82525
+people_count,2,2667
+people_count,3,833
+people_count,4,25
+keypoints_shape,"(17, 3)",86050
+keypoint_scores_shape,"(17,)",86050
+all_person_keys,keypoint_scores|keypoints,90458
+all_person_keypoints_shape,"(17, 3)",90458
+all_person_scores_shape,"(17,)",90458
+all_person_score_value,1.0,1537786
