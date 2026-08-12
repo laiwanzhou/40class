@@ -1,0 +1,261 @@
+{
+  "schema_version": 1,
+  "assignment_sha256": "2a0dde67ced6f40cf3a163f63d545f1e3cde3545b6ee0eb0291cf1c52c38ea76",
+  "tolerance": 1e-06,
+  "entry_count": 9,
+  "all_passed": true,
+  "entries": [
+    {
+      "seed": 20260715,
+      "fold": 0,
+      "fold_directory": "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\x3d_s_ir_context_oof\\x3d_s_ir_context_adaptive_oof_strict_v3_seed20260715\\fold_0",
+      "selected_epoch": 10,
+      "checkpoint_sha256": "2962631e48541730cd80e347dff588c4122c58263600ab0d0d63207392b36d7a",
+      "archive_sha256": "18266310ad2706468d07ecd1a10bbd74b3d59d8f0c7d6cf9911ceaf8cf6ff648",
+      "sample_count": 800,
+      "maximum_array_delta": 0.0,
+      "array_deltas": {
+        "sample_ids": 0.0,
+        "user_ids": 0.0,
+        "labels": 0.0,
+        "logits": 0.0,
+        "embeddings": 0.0,
+        "quality": 0.0,
+        "quality_mask": 0.0,
+        "availability": 0.0,
+        "num_frames": 0.0,
+        "num_clips": 0.0
+      },
+      "metric_deltas": {
+        "accuracy": 0.0,
+        "macro_f1": 0.0,
+        "worst_user_accuracy": 0.0
+      },
+      "status": "passed"
+    },
+    {
+      "seed": 20260715,
+      "fold": 1,
+      "fold_directory": "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\x3d_s_ir_context_oof\\x3d_s_ir_context_adaptive_oof_strict_v3_seed20260715\\fold_1",
+      "selected_epoch": 29,
+      "checkpoint_sha256": "7340ffadd63684f0397b7af26801a8912b49d791686ecf334d09825d7e7897f7",
+      "archive_sha256": "7f390289522b64a59420a4b1c76c3e2e43b3df4a5ef14b030f62edd182a1a15f",
+      "sample_count": 658,
+      "maximum_array_delta": 0.0,
+      "array_deltas": {
+        "sample_ids": 0.0,
+        "user_ids": 0.0,
+        "labels": 0.0,
+        "logits": 0.0,
+        "embeddings": 0.0,
+        "quality": 0.0,
+        "quality_mask": 0.0,
+        "availability": 0.0,
+        "num_frames": 0.0,
+        "num_clips": 0.0
+      },
+      "metric_deltas": {
+        "accuracy": 0.0,
+        "macro_f1": 0.0,
+        "worst_user_accuracy": 0.0
+      },
+      "status": "passed"
+    },
+    {
+      "seed": 20260715,
+      "fold": 2,
+      "fold_directory": "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\x3d_s_ir_context_oof\\x3d_s_ir_context_adaptive_oof_strict_v3_seed20260715_fold2_only\\fold_2",
+      "selected_epoch": 11,
+      "checkpoint_sha256": "975072193e84e9cb7b98bd68401459a34d1a4c8223dc70ce2f0047519c636803",
+      "archive_sha256": "1bbaf43261f918cbb03f209a67dacb988d04ae01aa7cff5818f70f258259308c",
+      "sample_count": 862,
+      "maximum_array_delta": 0.0,
+      "array_deltas": {
+        "sample_ids": 0.0,
+        "user_ids": 0.0,
+        "labels": 0.0,
+        "logits": 0.0,
+        "embeddings": 0.0,
+        "quality": 0.0,
+        "quality_mask": 0.0,
+        "availability": 0.0,
+        "num_frames": 0.0,
+        "num_clips": 0.0
+      },
+      "metric_deltas": {
+        "accuracy": 0.0,
+        "macro_f1": 0.0,
+        "worst_user_accuracy": 0.0
+      },
+      "status": "passed"
+    },
+    {
+      "seed": 20260716,
+      "fold": 0,
+      "fold_directory": "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\x3d_s_ir_context_oof\\x3d_s_ir_context_adaptive_oof_strict_v3_seed20260716\\fold_0",
+      "selected_epoch": 16,
+      "checkpoint_sha256": "f3a84c6bc6a9aa4ee4fc10c38acb5adcff8cd92e1caec12cf240b9fff2cce476",
+      "archive_sha256": "884ae5cb06d604b3ea34854855ace4028cee68b15027155aebbb7391365c220b",
+      "sample_count": 800,
+      "maximum_array_delta": 0.0,
+      "array_deltas": {
+        "sample_ids": 0.0,
+        "user_ids": 0.0,
+        "labels": 0.0,
+        "logits": 0.0,
+        "embeddings": 0.0,
+        "quality": 0.0,
+        "quality_mask": 0.0,
+        "availability": 0.0,
+        "num_frames": 0.0,
+        "num_clips": 0.0
+      },
+      "metric_deltas": {
+        "accuracy": 0.0,
+        "macro_f1": 0.0,
+        "worst_user_accuracy": 0.0
+      },
+      "status": "passed"
+    },
+    {
+      "seed": 20260716,
+      "fold": 1,
+      "fold_directory": "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\x3d_s_ir_context_oof\\x3d_s_ir_context_adaptive_oof_strict_v3_seed20260716\\fold_1",
+      "selected_epoch": 20,
+      "checkpoint_sha256": "3cff463727388529392f81dda0f1923ab1dbb85113036f4ae2f76bad53c9a28d",
+      "archive_sha256": "503a84dff77131782b68fd978d50cbbc9af1101ae4c812e94ea0667e03b9de4c",
+      "sample_count": 658,
+      "maximum_array_delta": 0.0,
+      "array_deltas": {
+        "sample_ids": 0.0,
+        "user_ids": 0.0,
+        "labels": 0.0,
+        "logits": 0.0,
+        "embeddings": 0.0,
+        "quality": 0.0,
+        "quality_mask": 0.0,
+        "availability": 0.0,
+        "num_frames": 0.0,
+        "num_clips": 0.0
+      },
+      "metric_deltas": {
+        "accuracy": 0.0,
+        "macro_f1": 0.0,
+        "worst_user_accuracy": 0.0
+      },
+      "status": "passed"
+    },
+    {
+      "seed": 20260716,
+      "fold": 2,
+      "fold_directory": "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\x3d_s_ir_context_oof\\x3d_s_ir_context_adaptive_oof_strict_v3_seed20260716\\fold_2",
+      "selected_epoch": 12,
+      "checkpoint_sha256": "80f85cb28c39cfab84aa053ba4743f3c746e9b06dcf795a5e50b24c40b1c3c77",
+      "archive_sha256": "be7c77cf75d1464e57d586b176762a7c97dffc0919735e75a459db75da3e784c",
+      "sample_count": 862,
+      "maximum_array_delta": 0.0,
+      "array_deltas": {
+        "sample_ids": 0.0,
+        "user_ids": 0.0,
+        "labels": 0.0,
+        "logits": 0.0,
+        "embeddings": 0.0,
+        "quality": 0.0,
+        "quality_mask": 0.0,
+        "availability": 0.0,
+        "num_frames": 0.0,
+        "num_clips": 0.0
+      },
+      "metric_deltas": {
+        "accuracy": 0.0,
+        "macro_f1": 0.0,
+        "worst_user_accuracy": 0.0
+      },
+      "status": "passed"
+    },
+    {
+      "seed": 20260717,
+      "fold": 0,
+      "fold_directory": "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\x3d_s_ir_context_oof\\x3d_s_ir_context_adaptive_oof_strict_v3_seed20260717_restart\\fold_0",
+      "selected_epoch": 8,
+      "checkpoint_sha256": "b9e17d645f7fa72dd253cb9119755ecb11c00b55e7d923d61f9517d369eba0b9",
+      "archive_sha256": "a55e2aaa36181b3577d8dae4a6247e92d7b76e83f2d42a37b89ad3637d00cad1",
+      "sample_count": 800,
+      "maximum_array_delta": 0.0,
+      "array_deltas": {
+        "sample_ids": 0.0,
+        "user_ids": 0.0,
+        "labels": 0.0,
+        "logits": 0.0,
+        "embeddings": 0.0,
+        "quality": 0.0,
+        "quality_mask": 0.0,
+        "availability": 0.0,
+        "num_frames": 0.0,
+        "num_clips": 0.0
+      },
+      "metric_deltas": {
+        "accuracy": 0.0,
+        "macro_f1": 0.0,
+        "worst_user_accuracy": 0.0
+      },
+      "status": "passed"
+    },
+    {
+      "seed": 20260717,
+      "fold": 1,
+      "fold_directory": "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\x3d_s_ir_context_oof\\x3d_s_ir_context_adaptive_oof_strict_v3_seed20260717_fold1_refit10_fold2\\fold_1",
+      "selected_epoch": 10,
+      "checkpoint_sha256": "4dd622b2f2bf8732d3eca8f350d086b64287e6133515ddaafe62aa10301f5fd5",
+      "archive_sha256": "77ffcc7414b7e2720719565b233dddd93fb6317c809d69ea562f138d5384a4a2",
+      "sample_count": 658,
+      "maximum_array_delta": 0.0,
+      "array_deltas": {
+        "sample_ids": 0.0,
+        "user_ids": 0.0,
+        "labels": 0.0,
+        "logits": 0.0,
+        "embeddings": 0.0,
+        "quality": 0.0,
+        "quality_mask": 0.0,
+        "availability": 0.0,
+        "num_frames": 0.0,
+        "num_clips": 0.0
+      },
+      "metric_deltas": {
+        "accuracy": 0.0,
+        "macro_f1": 0.0,
+        "worst_user_accuracy": 0.0
+      },
+      "status": "passed"
+    },
+    {
+      "seed": 20260717,
+      "fold": 2,
+      "fold_directory": "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\x3d_s_ir_context_oof\\x3d_s_ir_context_adaptive_oof_strict_v3_seed20260717_fold1_refit10_fold2\\fold_2",
+      "selected_epoch": 7,
+      "checkpoint_sha256": "174879a214933fafc4afb4e64d4c2df9ae56cbced5d5fd5fa328f058b0bb824d",
+      "archive_sha256": "311961085d18ea812672a722f9ea3aaba9ed6494f4300bd6b81390831db13ea5",
+      "sample_count": 862,
+      "maximum_array_delta": 0.0,
+      "array_deltas": {
+        "sample_ids": 0.0,
+        "user_ids": 0.0,
+        "labels": 0.0,
+        "logits": 0.0,
+        "embeddings": 0.0,
+        "quality": 0.0,
+        "quality_mask": 0.0,
+        "availability": 0.0,
+        "num_frames": 0.0,
+        "num_clips": 0.0
+      },
+      "metric_deltas": {
+        "accuracy": 0.0,
+        "macro_f1": 0.0,
+        "worst_user_accuracy": 0.0
+      },
+      "status": "passed"
+    }
+  ]
+}

@@ -21,6 +21,7 @@ import yaml
 from src.data.x3d_clip_dataset import X3DClipDataset, collate_x3d_clips
 from src.engine.metrics import classification_metrics
 from src.models.expert_contract import ExpertBatchResult, ExpertOutput
+from src.models.mobilenet_tcn_visual_expert import build_mobilenet_tcn_visual_expert
 from src.models.x3d_s_visual_expert import X3DSVisualExpert, build_x3d_s_feature_backbone
 
 
@@ -769,7 +770,114 @@ def train_strict_oof_partition(
     return summary
 
 
+def refit_strict_oof_partition(
+    *,
+    model_factory: Callable[[], X3DSVisualExpert],
+    outer_train_dataset: Dataset[Mapping[str, object]],
+    outer_validation_dataset: Dataset[Mapping[str, object]],
+    config: Mapping[str, Any],
+    run_directory: Path,
+    device: torch.device,
+    selected_epoch: int,
+    fold_provenance: Mapping[str, Any],
+    selection_summary: Mapping[str, Any],
+    max_train_batches: int | None,
+    max_val_batches: int | None,
+) -> dict[str, Any]:
+    """Run only the leakage-safe formal refit for a preselected epoch."""
+    formal_config = _formal_refit_config(config, selected_epoch=selected_epoch)
+    _set_seed(int(formal_config["seed"]))
+    formal_model = model_factory()
+    refit_summary = finalize_train14(
+        model=formal_model,
+        train_dataset=outer_train_dataset,
+        config=formal_config,
+        run_directory=run_directory,
+        device=device,
+        max_train_batches=max_train_batches,
+    )
+    temporary_checkpoint = run_directory / "final_train14.pt"
+    formal_checkpoint = run_directory / "formal_outer_refit.pt"
+    checkpoint = torch.load(temporary_checkpoint, map_location="cpu", weights_only=False)
+    checkpoint["strict_oof_provenance"] = {
+        **dict(fold_provenance),
+        "actual_seed": int(formal_config["seed"]),
+        "selected_epoch": int(selected_epoch),
+        "scheduler_horizon_epochs": int(
+            _mapping(formal_config, "training")["scheduler_horizon_epochs"]
+        ),
+        "resolved_config_sha256": resolved_config_sha256(formal_config),
+        "outer_validation_labels_used_for_selection": False,
+    }
+    torch.save(checkpoint, formal_checkpoint)
+    temporary_checkpoint.unlink()
+
+    loader_config = _mapping(formal_config, "loader")
+    validation_sampler = ClipBudgetBatchSampler(
+        getattr(outer_validation_dataset, "num_clips"),
+        max_trials_per_batch=int(loader_config["max_trials_per_batch"]),
+        max_valid_clips_per_batch=int(loader_config["max_valid_clips_per_batch"]),
+        shuffle=False,
+        seed=int(formal_config["seed"]),
+    )
+    validation_loader = DataLoader(
+        outer_validation_dataset,
+        batch_sampler=validation_sampler,
+        collate_fn=collate_x3d_clips,
+        num_workers=int(loader_config["num_workers"]),
+        pin_memory=device.type == "cuda",
+    )
+    formal_outcome = run_model_epoch(
+        formal_model,
+        validation_loader,
+        device=device,
+        optimizer=None,
+        gradient_accumulation=1,
+        gradient_clip=float(_mapping(formal_config, "optimizer")["gradient_clip"]),
+        amp_enabled=bool(_mapping(formal_config, "amp")["enabled"]),
+        max_batches=max_val_batches,
+    )
+    save_prediction_archive(
+        run_directory / "formal_outer_predictions.npz", formal_outcome.predictions
+    )
+    _save_per_class_metrics(
+        run_directory / "formal_outer_per_class.csv",
+        formal_outcome.metrics,
+        list(getattr(outer_validation_dataset, "class_names", [str(i) for i in range(40)])),
+    )
+    summary = {
+        "status": "passed",
+        "role": "strict_fixed_epoch_oof_refit",
+        "seed": int(formal_config["seed"]),
+        "resolved_config_sha256": resolved_config_sha256(formal_config),
+        "selection_labels_from_outer_validation": False,
+        "selected_epoch": int(selected_epoch),
+        "scheduler_horizon_epochs": int(
+            _mapping(formal_config, "training")["scheduler_horizon_epochs"]
+        ),
+        "formal_checkpoint": formal_checkpoint.name,
+        "formal_checkpoint_bytes": formal_checkpoint.stat().st_size,
+        "formal_checkpoint_sha256": _sha256_file(formal_checkpoint),
+        "formal_outer_accuracy": float(formal_outcome.metrics["accuracy"]),
+        "formal_outer_macro_f1": float(formal_outcome.metrics["macro_f1"]),
+        "formal_outer_worst_user_accuracy": float(
+            formal_outcome.metrics["worst_user_accuracy"]
+        ),
+        "formal_outer_sample_count": int(formal_outcome.metrics["sample_count"]),
+        "fold_provenance": dict(fold_provenance),
+        "epoch_selection_summary": dict(selection_summary),
+        "outer_refit_summary": refit_summary,
+    }
+    (run_directory / "run_summary.json").write_text(
+        json.dumps(summary, indent=2) + "\n", encoding="utf-8"
+    )
+    return summary
+
+
 def validate_config(config: Mapping[str, Any]) -> None:
+    model_family = str(config.get("model_family", "x3d_s"))
+    if model_family not in {"x3d_s", "mobilenet_v3_small_tcn"}:
+        raise ValueError("model_family must be x3d_s or mobilenet_v3_small_tcn")
     if config.get("input_view") != "ir_context_path":
         raise ValueError("First-run input_view must be ir_context_path")
     if config.get("num_classes") != 40:
@@ -1307,7 +1415,21 @@ def run(args: argparse.Namespace) -> None:
     )
 
 
-def _build_model(config: Mapping[str, Any]) -> X3DSVisualExpert:
+def _build_model(config: Mapping[str, Any]) -> torch.nn.Module:
+    if str(config.get("model_family", "x3d_s")) == "mobilenet_v3_small_tcn":
+        baseline = config.get("matched_baseline", {})
+        if not isinstance(baseline, Mapping):
+            raise ValueError("matched_baseline must be a mapping")
+        return build_mobilenet_tcn_visual_expert(
+            pretrained=bool(config["pretrained"]),
+            num_classes=int(config["num_classes"]),
+            tcn_channels=int(baseline.get("tcn_channels", 256)),
+            embedding_dim=int(config["embedding_dim"]),
+            dropout=float(config["dropout"]),
+            update_backbone_bn_running_stats=bool(
+                _mapping(config, "backbone_bn")["update_running_stats"]
+            ),
+        )
     return X3DSVisualExpert(
         backbone=build_x3d_s_feature_backbone(pretrained=bool(config["pretrained"])),
         num_classes=int(config["num_classes"]),
@@ -1344,19 +1466,23 @@ def _sha256_file(path: Path) -> str:
 
 
 def _resource_manifest(
-    model: X3DSVisualExpert,
+    model: torch.nn.Module,
     config: Mapping[str, Any],
     device: torch.device,
 ) -> dict[str, Any]:
     state_bytes = _serialized_state(model)
-    head_buffer = io.BytesIO()
-    torch.save(
-        {
-            "embedding_head": model.embedding_head.state_dict(),
-            "classifier": model.classifier.state_dict(),
-        },
-        head_buffer,
-    )
+    if hasattr(model, "non_backbone_state_bytes"):
+        custom_head_bytes = len(model.non_backbone_state_bytes())
+    else:
+        head_buffer = io.BytesIO()
+        torch.save(
+            {
+                "embedding_head": model.embedding_head.state_dict(),
+                "classifier": model.classifier.state_dict(),
+            },
+            head_buffer,
+        )
+        custom_head_bytes = len(head_buffer.getvalue())
     deployment_value = config.get("deployment_artifacts", {})
     deployment = deployment_value if isinstance(deployment_value, Mapping) else {}
     yolo_value = deployment.get("yolo_checkpoint")
@@ -1370,6 +1496,7 @@ def _resource_manifest(
             probe = loaded
     components = probe.get("components", {}) if isinstance(probe, Mapping) else {}
     x3d_probe = components.get("x3d_s", {}) if isinstance(components, Mapping) else {}
+    is_x3d = not hasattr(model, "source_weight_sha256")
     return {
         "parameter_count": sum(parameter.numel() for parameter in model.parameters()),
         "trainable_parameter_count": sum(
@@ -1377,16 +1504,25 @@ def _resource_manifest(
         ),
         "state_dict_bytes": len(state_bytes),
         "state_dict_sha256": hashlib.sha256(state_bytes).hexdigest(),
-        "custom_head_bytes": len(head_buffer.getvalue()),
+        "custom_head_bytes": custom_head_bytes,
         "peak_cuda_memory_bytes": (
             int(torch.cuda.max_memory_allocated(device)) if device.type == "cuda" else 0
         ),
-        "pretrained_source": probe.get("source_url", "pytorchvideo x3d_s") if probe else "pytorchvideo x3d_s",
-        "pretraining_dataset": probe.get("pretraining", "kinetics_400") if probe else "kinetics_400",
-        "source_revision": probe.get("source_revision") if probe else None,
-        "license": probe.get("license") if probe else None,
-        "x3d_source_weight_bytes": x3d_probe.get("serialized_bytes") if isinstance(x3d_probe, Mapping) else None,
-        "x3d_source_weight_sha256": x3d_probe.get("sha256") if isinstance(x3d_probe, Mapping) else None,
+        "pretrained_source": getattr(model, "pretrained_source", None)
+        or (probe.get("source_url", "pytorchvideo x3d_s") if probe else "pytorchvideo x3d_s"),
+        "pretraining_dataset": getattr(model, "pretraining_dataset", None)
+        or (probe.get("pretraining", "kinetics_400") if probe else "kinetics_400"),
+        "source_revision": getattr(model, "source_revision", None)
+        or (probe.get("source_revision") if probe else None),
+        "license": getattr(model, "license", None) or (probe.get("license") if probe else None),
+        "backbone_source_weight_bytes": getattr(model, "source_weight_bytes", None),
+        "backbone_source_weight_sha256": getattr(model, "source_weight_sha256", None),
+        "x3d_source_weight_bytes": (
+            x3d_probe.get("serialized_bytes") if is_x3d and isinstance(x3d_probe, Mapping) else None
+        ),
+        "x3d_source_weight_sha256": (
+            x3d_probe.get("sha256") if is_x3d and isinstance(x3d_probe, Mapping) else None
+        ),
         "yolo_weight_bytes": yolo_path.stat().st_size if yolo_path and yolo_path.is_file() else 0,
         "yolo_weight_sha256": _sha256_file(yolo_path) if yolo_path and yolo_path.is_file() else None,
     }

@@ -31,6 +31,7 @@ from src.train_x3d_s_visual_expert import (
     save_prediction_archive,
     train_partition,
     train_strict_oof_partition,
+    refit_strict_oof_partition,
     validate_config,
     validate_oof_assignment,
     validate_user_partition,
@@ -668,6 +669,46 @@ def test_strict_oof_freezes_refit_checkpoint_before_outer_validation(tmp_path: P
     )
     assert formal_checkpoint["strict_oof_provenance"]["scheduler_horizon_epochs"] == 30
     assert (run_directory / "formal_outer_predictions.npz").is_file()
+
+
+def test_manual_selected_epoch_refit_is_frozen_before_outer_validation(tmp_path: Path) -> None:
+    config = fixed_config(tmp_path)
+    config["training"] = {
+        "epochs": 30,
+        "scheduler_horizon_epochs": 30,
+        "warmup_epochs": 2,
+        "patience": 8,
+        "early_stopping_enabled": False,
+    }
+    config["amp"] = {"enabled": False, "dtype": "bfloat16"}
+    config["deployment_artifacts"] = {"yolo_checkpoint": None}
+    run_directory = tmp_path / "manual-refit"
+    run_directory.mkdir()
+
+    class GuardedOuterValidation(TinyTrialDataset):
+        def __getitem__(self, index: int) -> dict[str, object]:
+            assert (run_directory / "formal_outer_refit.pt").is_file()
+            return super().__getitem__(index)
+
+    summary = refit_strict_oof_partition(
+        model_factory=tiny_trainer_model,
+        outer_train_dataset=TinyTrialDataset("outer-train", 2),
+        outer_validation_dataset=GuardedOuterValidation("outer-validation", 2),
+        config=config,
+        run_directory=run_directory,
+        device=torch.device("cpu"),
+        selected_epoch=1,
+        fold_provenance={"outer_fold": 1, "selection_policy": "manual_selected_epoch"},
+        selection_summary={"status": "incomplete", "epochs_completed": 28},
+        max_train_batches=1,
+        max_val_batches=1,
+    )
+
+    assert summary["selected_epoch"] == 1
+    checkpoint = torch.load(
+        run_directory / "formal_outer_refit.pt", map_location="cpu", weights_only=False
+    )
+    assert checkpoint["strict_oof_provenance"]["selection_policy"] == "manual_selected_epoch"
 
 
 def test_finalize_train14_trains_fixed_epochs_without_validation(tmp_path: Path) -> None:
