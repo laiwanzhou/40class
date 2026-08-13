@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "status": "frozen_before_train14_finalization",
+  "expert_id": "ir_x3d_s_k400_pure",
+  "source_epochs": [
+    10,
+    29,
+    11,
+    16,
+    20,
+    12,
+    8,
+    10,
+    7
+  ],
+  "median_finalize_epochs": 11,
+  "final_seed": 20260715,
+  "scheduler_horizon_epochs": 30,
+  "selection_uses_heldout": false,
+  "heldout_role": "evaluation_only",
+  "heldout_labels_serialized": false
+}
