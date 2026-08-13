@@ -1,0 +1,2 @@
+﻿representation,samples,accuracy,macro_f1_40class,weighted_f1
+T2_c1_tcn_96,2341,0.42246903032891925,0.3211705335385311,0.4017799318926477
