@@ -1,0 +1,22 @@
+data_root: D:\work\2026.7.14_kaggle\datasets\Small-Model-Track\train
+oof_folds: metadata/splits/train14_oof_3fold.json
+strict_views_root: reports/skeleton_strict_oof_clean_views
+output_root: outputs/skeleton_t96_tcn_strict_oof
+report_dir: reports/skeleton_t96_tcn_strict_oof
+sequence_length: 96
+scale_policy: per_frame
+input_features: 102
+embedding_dim: 128
+tcn_channels: [64, 128]
+batch_size: 32
+epochs: 40
+learning_rate: 0.0003
+weight_decay: 0.0001
+dropout: 0.2
+early_stopping_patience: 8
+gradient_clip: 1.0
+amp: true
+num_workers: 0
+seed: 20260812
+num_classes: 40
+device: cuda
