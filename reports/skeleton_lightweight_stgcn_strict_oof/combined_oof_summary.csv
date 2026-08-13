@@ -1,0 +1,2 @@
+﻿representation,samples,accuracy,macro_f1_40class,weighted_f1
+lightweight_stgcn_c1,2341,0.2357966680905596,0.1253943027935467,0.19232427462822776
