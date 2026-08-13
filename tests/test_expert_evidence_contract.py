@@ -13,6 +13,7 @@ from scripts.build_x3d_s_ir_evidence import (
     QUALITY_MAPPING_SHA256,
     SOURCE_EPOCHS,
     finalization_policy,
+    single_validation_view,
 )
 
 
@@ -95,3 +96,13 @@ def test_ir_quality_mapping_and_finalization_are_frozen_before_training() -> Non
     assert policy["scheduler_horizon_epochs"] == 30
     assert policy["selection_uses_heldout"] is False
     assert policy["heldout_labels_serialized"] is False
+
+
+def test_label_free_inference_removes_the_single_validation_view_dimension() -> None:
+    import torch
+
+    clips = torch.zeros((2, 3, 1, 3, 13, 182, 182))
+    normalized = single_validation_view(clips)
+    assert normalized.shape == (2, 3, 3, 13, 182, 182)
+    with pytest.raises(ValueError, match="V=1"):
+        single_validation_view(torch.zeros((2, 3, 2, 3, 13, 182, 182)))

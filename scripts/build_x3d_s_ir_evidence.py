@@ -51,10 +51,6 @@ def sha256_json(value: object) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
-def config_sha256(path: Path) -> str:
-    return trainer._sha256_file(path.resolve())
-
-
 def validate_assignment(path: Path, config: Mapping[str, Any]) -> tuple[trainer.UserFold, ...]:
     if trainer._sha256_file(path) != ASSIGNMENT_SHA256:
         raise ValueError("Phase 5 assignment SHA differs from frozen Phase 4 assignment")
@@ -115,6 +111,7 @@ def load_canonical_archives(
                 "selected_epoch": int(strict["selected_epoch"]),
                 "checkpoint_sha256": trainer._sha256_file(checkpoint_path),
                 "prediction_sha256": trainer._sha256_file(archive_path),
+                "resolved_config_sha256": strict["resolved_config_sha256"],
                 "sample_count": len(archive["sample_ids"]),
                 "outer_train_user_ids": list(fold.train_user_ids),
                 "outer_validation_user_ids": list(fold.validation_user_ids),
@@ -144,6 +141,7 @@ def build_oof(config_path: Path, assignment: Path, output_root: Path) -> None:
     config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     combined, folds = load_canonical_archives(config=config, assignment=assignment)
     model_lineage_sha = sha256_json([fold["checkpoint_sha256"] for fold in folds])
+    config_lineage_sha = sha256_json([fold["resolved_config_sha256"] for fold in folds])
     evidence = ExpertEvidence(
         role="oof_train14",
         expert_id=EXPERT_ID,
@@ -158,7 +156,7 @@ def build_oof(config_path: Path, assignment: Path, output_root: Path) -> None:
         fusion_quality_score=np.ones((len(combined["sample_ids"]), 1), dtype=np.float32),
         class_map_hash=str(combined["class_map_hash"].item()),
         model_sha256=model_lineage_sha,
-        config_sha256=config_sha256(config_path),
+        config_sha256=config_lineage_sha,
         deployed_weight_bytes=20_644_200,
         preprocessing_dependencies=(
             "yolo11n-pose:869e83fcdffdc7371fa4e34cd8e51c838cc729571d1635e5141e3075e9319dc0",
@@ -172,8 +170,11 @@ def build_oof(config_path: Path, assignment: Path, output_root: Path) -> None:
             "num_clips": combined["num_clips"],
         },
     )
-    output_root.mkdir(parents=True, exist_ok=False)
+    output_root.mkdir(parents=True, exist_ok=True)
     evidence_path = output_root / "oof_evidence.npz"
+    provenance_path = output_root / "oof_provenance.json"
+    if evidence_path.exists() or provenance_path.exists():
+        raise FileExistsError("OOF evidence or provenance already exists")
     evidence.save(evidence_path)
     provenance = {
         "schema_version": 1,
@@ -181,7 +182,7 @@ def build_oof(config_path: Path, assignment: Path, output_root: Path) -> None:
         "expert_id": EXPERT_ID,
         "canonical_seed": CANONICAL_SEED,
         "assignment_sha256": ASSIGNMENT_SHA256,
-        "config_sha256": config_sha256(config_path),
+        "config_lineage_sha256": config_lineage_sha,
         "model_lineage_sha256": model_lineage_sha,
         "quality_mapping": QUALITY_MAPPING,
         "quality_mapping_sha256": QUALITY_MAPPING_SHA256,
@@ -192,7 +193,7 @@ def build_oof(config_path: Path, assignment: Path, output_root: Path) -> None:
         "deployed_weight_bytes": 20_644_200,
         "heldout_access": False,
     }
-    (output_root / "oof_provenance.json").write_text(
+    provenance_path.write_text(
         json.dumps(provenance, indent=2) + "\n", encoding="utf-8"
     )
 
@@ -230,6 +231,13 @@ def prepare_finalization(output_root: Path) -> None:
 
 
 @torch.no_grad()
+def single_validation_view(clips: torch.Tensor) -> torch.Tensor:
+    if clips.ndim != 7 or clips.shape[2] != 1:
+        raise ValueError("Label-free inference requires clips with V=1")
+    return clips.squeeze(2)
+
+
+@torch.no_grad()
 def predict_label_free(
     *, model: torch.nn.Module, dataset: X3DClipDataset, config: Mapping[str, Any], device: torch.device
 ) -> dict[str, np.ndarray]:
@@ -256,8 +264,9 @@ def predict_label_free(
     sample_ids: list[str] = []
     user_ids: list[str] = []
     for batch in loader:
+        clips = single_validation_view(batch["clips"]).to(device, non_blocking=True)
         output = model(
-            batch["clips"].to(device, non_blocking=True),
+            clips,
             clip_mask=batch["clip_mask"].to(device, non_blocking=True),
             quality=batch["quality"].to(device, non_blocking=True),
             quality_mask=batch["quality_mask"].to(device, non_blocking=True),
@@ -293,6 +302,10 @@ def build_heldout(
     if int(config["seed"]) != CANONICAL_SEED or int(config["training"]["epochs"]) != FINALIZE_EPOCHS:
         raise ValueError("Final run does not match frozen seed/epoch policy")
     validate_assignment(assignment, config)
+    resolved_sha = trainer.resolved_config_sha256(config)
+    run_summary = json.loads((final_run_directory / "run_summary.json").read_text(encoding="utf-8"))
+    if run_summary.get("resolved_config_sha256") != resolved_sha:
+        raise ValueError("Final run resolved config provenance mismatch")
     checkpoint_path = final_run_directory / "final_train14.pt"
     checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
     if int(checkpoint["epoch"]) != FINALIZE_EPOCHS:
@@ -330,7 +343,7 @@ def build_heldout(
         fusion_quality_score=np.ones((590, 1), dtype=np.float32),
         class_map_hash=class_hash,
         model_sha256=checkpoint_sha,
-        config_sha256=config_sha256(config_path),
+        config_sha256=resolved_sha,
         deployed_weight_bytes=int(checkpoint_path.stat().st_size + 6_255_593),
         preprocessing_dependencies=(
             "yolo11n-pose:869e83fcdffdc7371fa4e34cd8e51c838cc729571d1635e5141e3075e9319dc0",
@@ -361,7 +374,7 @@ def build_heldout(
         "finalize_epochs": FINALIZE_EPOCHS,
         "checkpoint_sha256": checkpoint_sha,
         "evidence_sha256": trainer._sha256_file(evidence_path),
-        "config_sha256": config_sha256(config_path),
+        "resolved_config_sha256": resolved_sha,
         "assignment_sha256": ASSIGNMENT_SHA256,
         "deployed_weight_bytes": evidence.deployed_weight_bytes,
         "quarantine_until_phase": 10,

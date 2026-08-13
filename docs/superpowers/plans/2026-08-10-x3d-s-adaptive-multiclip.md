@@ -141,7 +141,7 @@ Execute phases in order. A phase may start only after the previous phase's exit 
 | Phase 2: Expert and trainer | Tasks 3-4 | Phase 1 passes | Trial-level masked aggregation, gradients, archive schema and focused tests pass | Completed (Task 3 `cc5bc26`; Task 4 `1601a31`) |
 | Phase 3: End-to-end verification | Task 5 | Phase 2 passes | Online/offline ROI parity, shortest/longest trial smoke, overfit test, size audit and full tests pass | Completed (`dc13b96`; closure `03eed56`) |
 | Phase 4: Train-14 OOF scientific evaluation | Task 6 | Phase 3 passes | Three-seed grouped OOF, checkpoint regeneration, duration/user/class reports, and the compute-amended fixed-budget matched sanity decision are complete without held-out access | Completed under competition-compute amendment (`a1a2fa2`) |
-| Phase 5: Register IR sparse evidence | Task 7 | Phase 4 retains pure X3D as a primary or complementary IR expert | Verified train-user OOF archive plus one quarantined held-out IR archive, provenance, evidence contract and size record pass | Pending |
+| Phase 5: Register IR sparse evidence | Task 7 | Phase 4 retains pure X3D as a primary or complementary IR expert | Verified train-user OOF archive plus one quarantined held-out IR archive, provenance, evidence contract and size record pass | Completed |
 | Phase 5.5: Freeze six-modal program charter | Task 7.5 | Phase 5 passes | Modality roles, 40x6 capability-map evidence hierarchy, canonical identity/evidence interfaces, shared OOF lineage, fusion feature boundary, and package ledger are frozen | Pending |
 | Phase 6: Freeze expert portfolio | Tasks 8-9 | Phase 5.5 passes | Six retained experts use only train-14 OOF for selection and each has OOF plus structurally label-free held-out evidence | Pending |
 | Phase 7: Build sparse evidence registry | Task 10 | Phase 6 passes | Global registries plus outer-fold nested fusion evidence packages pass lineage and missingness audits | Pending |
@@ -796,7 +796,7 @@ git commit -m "Report X3D-S IR-context baseline"
 - Consumes: the retained Phase 4 X3D configuration, canonical union manifest, fixed 14/4 user split, and exact IR ROI manifest.
 - Produces: a verified sparse pure-X3D IR OOF archive and one quarantined held-out `ExpertEvidence` archive plus immutable provenance under `expert_id=ir_x3d_s_k400_pure`; it does not fit a multimodal fusion model.
 
-- [ ] **Step 1: Write RED tests for the serialized evidence contract**
+- [x] **Step 1: Write RED tests for the serialized evidence contract**
 
 ```python
 def test_evidence_allows_optional_embedding_but_requires_provenance() -> None:
@@ -815,13 +815,13 @@ def test_heldout_evidence_forbids_labels() -> None:
         fixture_evidence(role="heldout", labels=np.array([0, 1])).validate()
 ```
 
-- [ ] **Step 2: Run the evidence tests and observe RED**
+- [x] **Step 2: Run the evidence tests and observe RED**
 
 Run: `D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest tests/test_expert_evidence_contract.py -v`
 
 Expected: FAIL because `src.fusion.expert_evidence` does not exist.
 
-- [ ] **Step 3: Implement `ExpertEvidence` without changing `ExpertOutput`**
+- [x] **Step 3: Implement `ExpertEvidence` without changing `ExpertOutput`**
 
 Required for every role are `role`, `expert_id`, `sample_ids`, `user_ids`, `logits`, `availability`, modality-native `quality`, `quality_mask`, scalar `fusion_quality_score=[N,1]`, `class_map_hash`, `model_sha256`, `config_sha256`, `deployed_weight_bytes`, and `preprocessing_dependencies`. `labels` is optional at the type level but required exactly for `role=oof_train14` and forbidden for `role=heldout` or `role=competition_test`. Optional fields are `embeddings`, `engineered_summary`, and diagnostic arrays. Require finite logits, unique IDs, 40 classes, matching row counts, a non-empty class hash, SHA-256 values, and fusion quality in `[0,1]`.
 
@@ -829,25 +829,25 @@ Each expert must pre-register a deterministic label-free mapping from its native
 
 This Phase 5 registration is immutable. A future teacher-assisted candidate must use a distinct identity such as `ir_x3d_s_teacher_assisted`, its own config/model/provenance hashes, and independently generated OOF and held-out evidence. It may later replace the pure candidate through the Phase 6 portfolio gate, but it may not overwrite `ir_x3d_s_k400_pure` artifacts or be silently treated as the same experiment.
 
-- [ ] **Step 4: Load and verify the frozen Phase 4 OOF assignment**
+- [x] **Step 4: Load and verify the frozen Phase 4 OOF assignment**
 
 Load the exact `metadata/splits/train14_oof_3fold.json` created in Phase 4. Require disjoint train/OOF users, 40-class coverage in every outer-train partition and in the concatenated outer-validation population, exactly-once validation ownership, frozen inner epoch-selection users contained entirely inside outer-train, and an SHA-256 equal to the Phase 4 experiment manifest. Individual outer-validation folds may have fewer than 40 classes because class 25 exists for only two train-14 users; preserve a fixed 40-class metric label set and report missing classes. Fail if the file is missing or differs; Phase 5 must never regenerate or repair it. All later modalities and fusion folds must reuse this same assignment.
 
-- [ ] **Step 5: Generate sparse IR OOF evidence**
+- [x] **Step 5: Generate sparse IR OOF evidence**
 
 Reuse only the canonical-seed `20260715` complete Phase 4 OOF archive when its config, manifest, fold assignment, model, actual seed, strict outer-refit protocol, and code hashes match; otherwise regenerate that seed deterministically under the same strict protocol. Seeds `20260716` and `20260717` remain stability evidence and cannot replace the canonical archive post hoc. For each OOF fold, select the epoch only inside outer-train, refit the complete IR preprocessing and X3D expert on all outer-train users for that fixed epoch, then predict only usable IR rows belonging to the untouched OOF users. Concatenate folds and require exactly one prediction for every usable IR trial in the 14-user union, no prediction for unavailable IR, and no user whose label influenced weight training, epoch selection, or checkpoint selection for its prediction.
 
 Save `oof_evidence.npz`, `oof_provenance.json`, fold checkpoints, per-fold metrics, hashes, frame/clip diagnostics, and deployed-byte totals. Do not copy neutral rows into the sparse expert archive; outer alignment belongs to Phase 7.
 
-- [ ] **Step 6: Generate quarantined held-out evidence**
+- [x] **Step 6: Generate quarantined held-out evidence**
 
 Freeze the architecture, preprocessing, and checkpoint rule from Phase 4. Compute `finalize_epochs` as the median of the nine selected `best_accuracy.pt` epochs from the three fixed seeds times three OOF folds; with nine values this is an observed integer epoch and requires no rounding rule. Set the final train-all-14 seed to `20260715`. Record the nine source epochs, median, seed, and hashes before finalization, train the retained X3D expert on all 14 training users for exactly `finalize_epochs` without labeled validation, and predict usable IR rows from the four held-out users exactly once. Save `heldout_evidence.npz` and provenance separately with `role=heldout`, `labels=None`, and no label array in the serialized file. Mark the archive `evaluation_only=true`; no fitting, selection, reporting, or diagnostic command before Phase 10 may accept or inspect that path.
 
-- [ ] **Step 7: Report expert complementarity inputs**
+- [x] **Step 7: Report expert complementarity inputs**
 
 Using train-14 OOF evidence only, report standalone Accuracy, Macro-F1, worst-user Accuracy, per-class recall, duration buckets, unique-correct samples relative to the matched IR baseline, oracle-pair Accuracy, error agreement, latency, YOLO/X3D bytes, and the exact evidence population. For held-out evidence, report only row counts, hashes, schema validity, routing availability, and quarantine status until Phase 10. These metrics assess whether X3D is useful as an IR expert, not whether it is the whole model.
 
-- [ ] **Step 8: Verify and commit Phase 5**
+- [x] **Step 8: Verify and commit Phase 5**
 
 Run:
 

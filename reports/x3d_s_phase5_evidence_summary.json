@@ -1,0 +1,23 @@
+{
+  "status": "phase5_completed",
+  "expert_id": "ir_x3d_s_k400_pure",
+  "phase4_decision": "competition-retained; full matched primary rule not evaluated",
+  "canonical_seed": 20260715,
+  "oof_sample_count": 2320,
+  "oof_evidence_sha256": "98517ac3785ab55647b6e8da4e27d31b8096a6115f1cfde9f2607ec861987f21",
+  "oof_accuracy": 0.5655172413793104,
+  "oof_macro_f1": 0.48078568302541874,
+  "oof_worst_user_accuracy": 0.4206896551724138,
+  "finalize_epochs": 11,
+  "final_seed": 20260715,
+  "scheduler_horizon_epochs": 30,
+  "final_checkpoint_sha256": "d913b91dec7273e9619394d7f81b72087f0265e77e3d846bc86d54991f776c58",
+  "final_resolved_config_sha256": "af1920f93c94efd29c2c1c0956cd59364dc419a12fa129dbfb0fd1e5243ebe0f",
+  "heldout_sample_count": 590,
+  "heldout_evidence_sha256": "420a338adedca97c60601b677dd07935e5e92da3f87b87e0254d832b2d3c34be",
+  "heldout_labels_present": false,
+  "heldout_labels_inspected": false,
+  "heldout_quarantine_until_phase": 10,
+  "ir_route_serialized_weight_subtotal": 20644200,
+  "internal_complete_package_limit_bytes": 95000000
+}
