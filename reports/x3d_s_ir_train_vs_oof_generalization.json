@@ -1,0 +1,169 @@
+{
+  "schema_version": 1,
+  "status": "passed_diagnostic_only",
+  "canonical_seed": 20260715,
+  "assignment_sha256": "2a0dde67ced6f40cf3a163f63d545f1e3cde3545b6ee0eb0291cf1c52c38ea76",
+  "combined_manifest_opened_as_path_index_source": true,
+  "heldout4_rows_selected_for_dataset_or_metrics": false,
+  "heldout4_evidence_or_predictions_accessed": false,
+  "competition_test_accessed": false,
+  "weights_updated": false,
+  "checkpoint_or_epoch_reselected": false,
+  "canonical_evidence_changed": false,
+  "folds": [
+    {
+      "fold": 0,
+      "outer_train_sample_count": 1520,
+      "outer_val_sample_count": 800,
+      "training_log_train_accuracy": 0.9006578947368421,
+      "training_log_train_macro_f1": 0.894709655062913,
+      "deterministic_train_eval_accuracy": 0.9526315789473684,
+      "deterministic_train_eval_macro_f1": 0.9491655249258383,
+      "deterministic_train_eval_worst_user_accuracy": 0.8656716417910447,
+      "formal_outer_val_accuracy": 0.57125,
+      "formal_outer_val_macro_f1": 0.48691831623854603,
+      "formal_outer_val_worst_user_accuracy": 0.5338345864661654,
+      "train_to_val_accuracy_gap": 0.38138157894736835,
+      "train_to_val_macro_f1_gap": 0.46224720868729224,
+      "train_to_val_worst_user_accuracy_gap": 0.3318370553248793,
+      "selected_epoch": 10,
+      "checkpoint_sha256": "2962631e48541730cd80e347dff588c4122c58263600ab0d0d63207392b36d7a",
+      "saved_outer_val_archive_sha256": "18266310ad2706468d07ecd1a10bbd74b3d59d8f0c7d6cf9911ceaf8cf6ff648",
+      "outer_train_prediction_sha256": "29cfa997eb958bf4d5d07891a83df74efc9ab6eb92bd098e7f5a8547da9721e3",
+      "outer_train_user_ids": [
+        "user1",
+        "user16",
+        "user19",
+        "user2",
+        "user22",
+        "user5",
+        "user6",
+        "user7",
+        "user8"
+      ],
+      "outer_val_user_ids": [
+        "user18",
+        "user20",
+        "user21",
+        "user3",
+        "user9"
+      ]
+    },
+    {
+      "fold": 1,
+      "outer_train_sample_count": 1662,
+      "outer_val_sample_count": 658,
+      "training_log_train_accuracy": 0.980746089049338,
+      "training_log_train_macro_f1": 0.9820583355923788,
+      "deterministic_train_eval_accuracy": 0.98014440433213,
+      "deterministic_train_eval_macro_f1": 0.981578049328574,
+      "deterministic_train_eval_worst_user_accuracy": 0.9054726368159204,
+      "formal_outer_val_accuracy": 0.5653495440729484,
+      "formal_outer_val_macro_f1": 0.4913658517551257,
+      "formal_outer_val_worst_user_accuracy": 0.4206896551724138,
+      "train_to_val_accuracy_gap": 0.41479486025918166,
+      "train_to_val_macro_f1_gap": 0.49021219757344825,
+      "train_to_val_worst_user_accuracy_gap": 0.4847829816435066,
+      "selected_epoch": 29,
+      "checkpoint_sha256": "7340ffadd63684f0397b7af26801a8912b49d791686ecf334d09825d7e7897f7",
+      "saved_outer_val_archive_sha256": "7f390289522b64a59420a4b1c76c3e2e43b3df4a5ef14b030f62edd182a1a15f",
+      "outer_train_prediction_sha256": "91b8e502a999ada8844ba219e366e15b4dbc026cf073d9910ef283cc8ace5784",
+      "outer_train_user_ids": [
+        "user18",
+        "user19",
+        "user20",
+        "user21",
+        "user22",
+        "user3",
+        "user5",
+        "user6",
+        "user7",
+        "user9"
+      ],
+      "outer_val_user_ids": [
+        "user1",
+        "user16",
+        "user2",
+        "user8"
+      ]
+    },
+    {
+      "fold": 2,
+      "outer_train_sample_count": 1458,
+      "outer_val_sample_count": 862,
+      "training_log_train_accuracy": 0.930727023319616,
+      "training_log_train_macro_f1": 0.9279688095877756,
+      "deterministic_train_eval_accuracy": 0.9629629629629629,
+      "deterministic_train_eval_macro_f1": 0.9615435799511814,
+      "deterministic_train_eval_worst_user_accuracy": 0.9213483146067416,
+      "formal_outer_val_accuracy": 0.5603248259860789,
+      "formal_outer_val_macro_f1": 0.4504850479487964,
+      "formal_outer_val_worst_user_accuracy": 0.48258706467661694,
+      "train_to_val_accuracy_gap": 0.402638136976884,
+      "train_to_val_macro_f1_gap": 0.511058532002385,
+      "train_to_val_worst_user_accuracy_gap": 0.43876124993012466,
+      "selected_epoch": 11,
+      "checkpoint_sha256": "975072193e84e9cb7b98bd68401459a34d1a4c8223dc70ce2f0047519c636803",
+      "saved_outer_val_archive_sha256": "1bbaf43261f918cbb03f209a67dacb988d04ae01aa7cff5818f70f258259308c",
+      "outer_train_prediction_sha256": "a1ed1a10c77181c21abd3f5cbbc8baeec9fef147f4144b1c2dc83b11c4063fae",
+      "outer_train_user_ids": [
+        "user1",
+        "user16",
+        "user18",
+        "user2",
+        "user20",
+        "user21",
+        "user3",
+        "user8",
+        "user9"
+      ],
+      "outer_val_user_ids": [
+        "user19",
+        "user22",
+        "user5",
+        "user6",
+        "user7"
+      ]
+    }
+  ],
+  "aggregate": {
+    "fold_mean": {
+      "training_log_train_accuracy": 0.9373770023685988,
+      "training_log_train_macro_f1": 0.9349122667476891,
+      "deterministic_train_eval_accuracy": 0.9652463154141538,
+      "deterministic_train_eval_macro_f1": 0.9640957180685312,
+      "deterministic_train_eval_worst_user_accuracy": 0.8974975310712355,
+      "formal_outer_val_accuracy": 0.5656414566863425,
+      "formal_outer_val_macro_f1": 0.4762564053141561,
+      "formal_outer_val_worst_user_accuracy": 0.4790371021050654,
+      "train_to_val_accuracy_gap": 0.3996048587278113,
+      "train_to_val_macro_f1_gap": 0.4878393127543752,
+      "train_to_val_worst_user_accuracy_gap": 0.4184604289661702
+    },
+    "training_log_trial_weighted": {
+      "outer_train_evaluation_rows": 4640,
+      "outer_val_unique_rows": 2320,
+      "outer_train_population_note": "Each canonical train-14 trial is evaluated by the two fold models that trained on it.",
+      "training_log_train_accuracy": 0.9387931034482758,
+      "training_log_train_macro_f1": 0.9364478779804177
+    },
+    "concatenated_population": {
+      "outer_train_evaluation": {
+        "sample_count": 4640,
+        "accuracy": 0.9657327586206896,
+        "macro_f1": 0.9648607932408512,
+        "worst_user_accuracy": 0.8855721393034826
+      },
+      "formal_outer_val_oof": {
+        "sample_count": 2320,
+        "accuracy": 0.5655172413793104,
+        "macro_f1": 0.48078568302541874,
+        "worst_user_accuracy": 0.4206896551724138
+      },
+      "train_to_val_accuracy_gap": 0.40021551724137927,
+      "train_to_val_macro_f1_gap": 0.4840751102154324,
+      "train_to_val_worst_user_accuracy_gap": 0.46488248413106875
+    }
+  },
+  "route_status_after_diagnostic": "frozen"
+}

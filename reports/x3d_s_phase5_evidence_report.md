@@ -70,3 +70,14 @@ It avoids inventing a post-hoc cross-expert reliability scale.
 The Phase 4 decision remains: `competition-retained; full matched primary rule
 not evaluated`. Phase 5 establishes reproducible evidence and quarantine; it
 does not use held-out feedback and does not begin Phase 5.5 or fusion fitting.
+
+## Post-registration route freeze
+
+The final pure-inference train-vs-OOF diagnostic is recorded in
+`reports/x3d_s_ir_train_vs_oof_generalization.md` and its JSON companion. It
+used only the three canonical formal checkpoints and train-14 fold populations.
+Concatenated deterministic outer-train Accuracy/Macro-F1 were `0.965733` /
+`0.964861`, versus formal OOF `0.565517` / `0.480786`, giving gaps of
+`0.400216` and `0.484075`. This result changes no Phase 4/5 artifact or decision.
+The IR/X3D route is now frozen; further single-modality IR training, tuning,
+matched baselines, or ablations require explicit approval.
