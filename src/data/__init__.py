@@ -2,7 +2,7 @@ from .common import load_modality_frames
 from .imu_dataset import IMUDataset
 from .radar_dataset import RadarDataset
 from .skeleton_dataset import SkeletonDataset
-from .clean_skeleton_dataset import CleanSkeletonDataset, CleanSkeletonGraphDataset
+from .clean_skeleton_dataset import CleanSkeletonDataset, CleanSkeletonGraphDataset, CleanSkeletonSegmentDataset
 from .clean_skeleton_joint_bone_dataset import CleanSkeletonJointBoneDataset
 from .visual_dataset import VisualSequenceDataset
 from .pose_roi_dataset import PoseROIDataset
@@ -13,6 +13,7 @@ __all__ = [
     "SkeletonDataset",
     "CleanSkeletonDataset",
     "CleanSkeletonGraphDataset",
+    "CleanSkeletonSegmentDataset",
     "CleanSkeletonJointBoneDataset",
     "VisualSequenceDataset",
     "PoseROIDataset",

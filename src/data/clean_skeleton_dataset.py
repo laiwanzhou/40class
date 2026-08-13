@@ -175,3 +175,13 @@ class CleanSkeletonGraphDataset(CleanSkeletonDataset):
             "segment_ids": self.load_segment_ids(index),
         }
         return item
+
+
+class CleanSkeletonSegmentDataset(CleanSkeletonDataset):
+    def __getitem__(self, index: int) -> dict[str, object]:
+        item = super().__getitem__(index)
+        features = item["input"]
+        if not isinstance(features, torch.Tensor):
+            raise TypeError("Clean Skeleton input must be a tensor")
+        item["input"] = {"features": features, "segment_ids": self.load_segment_ids(index)}
+        return item
