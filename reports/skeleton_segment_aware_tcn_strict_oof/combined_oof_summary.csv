@@ -1,0 +1,2 @@
+﻿representation,samples,accuracy,macro_f1_40class,weighted_f1
+T1_segment_aware_c1_tcn,2341,0.4194788551900897,0.3244304612905289,0.40461393171775584
