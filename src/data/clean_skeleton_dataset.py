@@ -47,9 +47,9 @@ def segment_local_velocity(values: np.ndarray, segments: np.ndarray) -> np.ndarr
     return velocity
 
 
-def gap_aware_resample(
+def gap_aware_resample_with_segments(
     frame_ids: np.ndarray, segments: np.ndarray, values: np.ndarray, target_length: int,
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     if len(frame_ids) == 0 or values.ndim != 2 or len(values) != len(frame_ids):
         raise ValueError("Expected a non-empty aligned frame/value sequence")
     if target_length <= 0:
@@ -63,6 +63,7 @@ def gap_aware_resample(
     target = np.linspace(frame_ids[0], frame_ids[-1], target_length, dtype=np.float64)
     output = np.zeros((target_length, values.shape[1]), dtype=np.float32)
     mask = np.zeros(target_length, dtype=bool)
+    output_segments = np.full(target_length, -1, dtype=np.int64)
     distance = np.full(target_length, np.inf, dtype=np.float64)
     for segment in pd.unique(segments):
         selected = segments == segment
@@ -81,7 +82,15 @@ def gap_aware_resample(
                     target[target_index], positions, segment_values[:, channel]
                 )
             mask[target_index] = True
+            output_segments[target_index] = int(segment)
             distance[target_index] = current_distance
+    return output, mask, output_segments
+
+
+def gap_aware_resample(
+    frame_ids: np.ndarray, segments: np.ndarray, values: np.ndarray, target_length: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    output, mask, _ = gap_aware_resample_with_segments(frame_ids, segments, values, target_length)
     return output, mask
 
 
@@ -101,7 +110,7 @@ class CleanSkeletonDataset(SequenceDatasetMixin, Dataset[dict[str, object]]):
         self.sequence_length = sequence_length
         self.mean = None
         self.std = None
-        self._tensor_cache: dict[int, tuple[np.ndarray, np.ndarray, int]] = {}
+        self._tensor_cache: dict[int, tuple[np.ndarray, np.ndarray, np.ndarray, int]] = {}
         self.groups = [group.reset_index(drop=True) for _, group in frame.groupby("sample_id", sort=False)]
         if not self.groups:
             raise ValueError("No retained Skeleton trials for requested users")
@@ -121,7 +130,7 @@ class CleanSkeletonDataset(SequenceDatasetMixin, Dataset[dict[str, object]]):
     def load_tensor(self, index: int, apply_normalization: bool = True) -> tuple[torch.Tensor, torch.Tensor, int]:
         cached = self._tensor_cache.get(index)
         if cached is not None:
-            cached_values, cached_mask, original_length = cached
+            cached_values, cached_mask, _, original_length = cached
             values = self.normalize(cached_values.copy(), cached_mask, apply_normalization)
             return torch.from_numpy(values), torch.from_numpy(cached_mask.copy()), original_length
         rows = self.groups[index]
@@ -133,12 +142,17 @@ class CleanSkeletonDataset(SequenceDatasetMixin, Dataset[dict[str, object]]):
         segments = rows["retained_segment_index"].to_numpy(dtype=np.int64)
         velocity = segment_local_velocity(normalized, segments)
         features = np.concatenate([normalized, velocity], axis=2).reshape(len(rows), 102)
-        values, mask = gap_aware_resample(
+        values, mask, output_segments = gap_aware_resample_with_segments(
             rows["frame_id"].to_numpy(dtype=np.int64), segments, features, self.sequence_length
         )
-        self._tensor_cache[index] = (values.copy(), mask.copy(), len(rows))
+        self._tensor_cache[index] = (values.copy(), mask.copy(), output_segments.copy(), len(rows))
         values = self.normalize(values, mask, apply_normalization)
         return torch.from_numpy(values), torch.from_numpy(mask), len(rows)
+
+    def load_segment_ids(self, index: int) -> torch.Tensor:
+        if index not in self._tensor_cache:
+            self.load_tensor(index, apply_normalization=False)
+        return torch.from_numpy(self._tensor_cache[index][2].copy())
 
     def __getitem__(self, index: int) -> dict[str, object]:
         rows = self.groups[index]
@@ -148,3 +162,16 @@ class CleanSkeletonDataset(SequenceDatasetMixin, Dataset[dict[str, object]]):
             "sample_id": str(rows.iloc[0]["sample_id"]), "user_id": str(rows.iloc[0]["user_id"]),
             "length": original_length,
         }
+
+
+class CleanSkeletonGraphDataset(CleanSkeletonDataset):
+    def __getitem__(self, index: int) -> dict[str, object]:
+        item = super().__getitem__(index)
+        flat = item["input"]
+        if not isinstance(flat, torch.Tensor):
+            raise TypeError("Clean Skeleton input must be a tensor")
+        item["input"] = {
+            "features": flat.reshape(self.sequence_length, 17, 6),
+            "segment_ids": self.load_segment_ids(index),
+        }
+        return item

@@ -6,6 +6,7 @@ import json
 import random
 import time
 from pathlib import Path
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -90,9 +91,10 @@ def optimizer_for(model: nn.Module, config: dict[str, Any]) -> torch.optim.Optim
 def train_selection(
     config: dict[str, Any], train: CleanSkeletonDataset, validation: CleanSkeletonDataset,
     device: torch.device, seed: int, output_dir: Path,
+    model_builder: Callable[[dict[str, Any]], nn.Module] | None = None,
 ) -> tuple[int, pd.DataFrame]:
     set_seed(seed)
-    model = model_for(config).to(device)
+    model = (model_builder or model_for)(config).to(device)
     optimizer = optimizer_for(model, config)
     epochs = int(config["epochs"])
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs)
@@ -138,9 +140,10 @@ def train_selection(
 def formal_refit_and_predict(
     config: dict[str, Any], train: CleanSkeletonDataset, validation: CleanSkeletonDataset,
     selected_epoch: int, device: torch.device, seed: int, output_dir: Path,
+    model_builder: Callable[[dict[str, Any]], nn.Module] | None = None,
 ) -> tuple[pd.DataFrame, dict[str, Any], pd.DataFrame]:
     set_seed(seed)
-    model = model_for(config).to(device)
+    model = (model_builder or model_for)(config).to(device)
     optimizer = optimizer_for(model, config)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=selected_epoch)
     amp = bool(config["amp"]) and device.type == "cuda"

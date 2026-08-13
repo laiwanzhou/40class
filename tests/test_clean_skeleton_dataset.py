@@ -1,8 +1,17 @@
 from __future__ import annotations
 
 import numpy as np
+import pandas as pd
+import json
+from pathlib import Path
 
-from src.data.clean_skeleton_dataset import gap_aware_resample, normalize_scale, segment_local_velocity
+from src.data.clean_skeleton_dataset import (
+    CleanSkeletonGraphDataset,
+    gap_aware_resample,
+    gap_aware_resample_with_segments,
+    normalize_scale,
+    segment_local_velocity,
+)
 
 
 def simple_pose(scale: float) -> np.ndarray:
@@ -51,3 +60,35 @@ def test_singleton_segment_is_kept_in_nearest_output_slot() -> None:
 
     assert mask.sum() == 3
     assert 2.0 in output[mask, 0]
+
+
+def test_resample_preserves_explicit_segment_identity() -> None:
+    _, mask, output_segments = gap_aware_resample_with_segments(
+        np.asarray([0, 1, 2, 3]),
+        np.asarray([7, 7, 9, 9]),
+        np.asarray([[0.0], [1.0], [2.0], [3.0]]),
+        target_length=4,
+    )
+
+    assert mask.tolist() == [True, True, True, True]
+    assert output_segments.tolist() == [7, 7, 9, 9]
+
+
+def test_graph_dataset_returns_joint_features_and_segment_ids(tmp_path: Path) -> None:
+    rows = []
+    for frame_id, segment in [(0, 0), (1, 0), (2, 1), (3, 1)]:
+        path = tmp_path / f"frame_{frame_id}.json"
+        path.write_text(json.dumps([{"keypoints": simple_pose(1.0).tolist()}]), encoding="utf-8")
+        rows.append({
+            "sample_id": "trial", "user_id": "user1", "class_id": 0, "frame_id": frame_id,
+            "retained_segment_index": segment, "candidate_index": 0,
+            "skeleton_json_path": path.name, "use_for_frame_training": True,
+        })
+    dataset = CleanSkeletonGraphDataset(
+        pd.DataFrame(rows), tmp_path, {"user1"}, "per_frame", sequence_length=4
+    )
+
+    item = dataset[0]
+
+    assert item["input"]["features"].shape == (4, 17, 6)
+    assert item["input"]["segment_ids"].tolist() == [0, 0, 1, 1]
