@@ -1,0 +1,2 @@
+﻿representation,samples,accuracy,macro_f1_40class,weighted_f1
+D2_joint_bone_tcn,2341,0.41178983340452796,0.29265728772646254,0.3818007515070286
