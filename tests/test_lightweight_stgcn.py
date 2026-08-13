@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+
 import torch
 
 from src.models.lightweight_stgcn import (
@@ -32,12 +34,22 @@ def test_model_returns_required_shapes() -> None:
     assert output["logits"].shape == (3, 40)
 
 
-def test_v1_uses_fixed_dilations_without_adaptive_graph_parameters() -> None:
+def test_v1_uses_frozen_temporal_contract_without_adaptive_graph_parameters() -> None:
     model = LightweightSTGCN(channels=(32, 48, 64))
 
     assert [block.temporal.dilation for block in model.blocks] == [1, 2, 4]
+    assert [block.temporal.kernel_size for block in model.blocks] == [5, 5, 5]
+    assert 1 + sum((block.temporal.kernel_size - 1) * block.temporal.dilation for block in model.blocks) == 29
     assert all("adjacency" not in name for name, _ in model.named_parameters())
     assert len([name for name, _ in model.named_buffers() if name.endswith("adjacency")]) == 3
+
+
+def test_temporal_initialization_uses_kernel_times_input_channels() -> None:
+    layer = SegmentAwareTemporalConv(32, 64, kernel_size=5)
+    expected_bound = 1.0 / math.sqrt(5 * 32)
+
+    assert layer.initialization_bound == expected_bound
+    assert layer.weight.abs().max() <= expected_bound
 
 
 def test_temporal_conv_does_not_cross_segment_boundary() -> None:
@@ -77,5 +89,5 @@ def test_model_stays_within_lightweight_parameter_budget() -> None:
     model = LightweightSTGCN(channels=(32, 48, 64), embedding_dim=128, num_classes=40)
     parameter_count = sum(parameter.numel() for parameter in model.parameters())
 
-    assert 20_000 < parameter_count < 250_000
+    assert parameter_count == 60_920
     assert "adjacency" not in dict(model.named_parameters())

@@ -48,6 +48,7 @@ def model_for(config: dict[str, Any]) -> LightweightSTGCN:
         embedding_dim=int(config["embedding_dim"]),
         num_classes=int(config["num_classes"]),
         dropout=float(config["dropout"]),
+        temporal_kernel_size=int(config["temporal_kernel_size"]),
     )
 
 

@@ -7,6 +7,7 @@ sequence_length: 64
 scale_policy: per_frame
 input_channels: 6
 stgcn_channels: [32, 48, 64]
+temporal_kernel_size: 5
 embedding_dim: 128
 num_classes: 40
 batch_size: 32
@@ -18,5 +19,5 @@ early_stopping_patience: 8
 gradient_clip: 1.0
 amp: true
 num_workers: 0
-seed: 20260813
+seed: 20260812
 device: cuda

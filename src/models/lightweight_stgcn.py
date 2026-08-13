@@ -31,7 +31,7 @@ class FixedGraphConv(nn.Module):
 
 class SegmentAwareTemporalConv(nn.Module):
     def __init__(
-        self, input_channels: int, output_channels: int, kernel_size: int = 3, dilation: int = 1,
+        self, input_channels: int, output_channels: int, kernel_size: int = 5, dilation: int = 1,
     ) -> None:
         super().__init__()
         if kernel_size <= 0 or kernel_size % 2 == 0:
@@ -40,9 +40,10 @@ class SegmentAwareTemporalConv(nn.Module):
             raise ValueError("dilation must be positive")
         self.kernel_size = kernel_size
         self.dilation = dilation
+        self.initialization_bound = 1.0 / math.sqrt(kernel_size * input_channels)
         self.weight = nn.Parameter(torch.empty(kernel_size, input_channels, output_channels))
         self.bias = nn.Parameter(torch.zeros(output_channels))
-        nn.init.kaiming_uniform_(self.weight, a=math.sqrt(5))
+        nn.init.uniform_(self.weight, -self.initialization_bound, self.initialization_bound)
 
     def forward(
         self, inputs: torch.Tensor, segment_ids: torch.Tensor, temporal_mask: torch.Tensor,
@@ -78,11 +79,14 @@ class SegmentAwareTemporalConv(nn.Module):
 class SpatialTemporalBlock(nn.Module):
     def __init__(
         self, input_channels: int, output_channels: int, dilation: int, dropout: float,
+        temporal_kernel_size: int = 5,
     ) -> None:
         super().__init__()
         self.spatial = FixedGraphConv(input_channels, output_channels)
         self.spatial_norm = nn.LayerNorm(output_channels)
-        self.temporal = SegmentAwareTemporalConv(output_channels, output_channels, dilation=dilation)
+        self.temporal = SegmentAwareTemporalConv(
+            output_channels, output_channels, kernel_size=temporal_kernel_size, dilation=dilation
+        )
         self.temporal_norm = nn.LayerNorm(output_channels)
         self.activation = nn.GELU()
         self.dropout = nn.Dropout(dropout)
@@ -105,6 +109,7 @@ class LightweightSTGCN(nn.Module):
     def __init__(
         self, input_channels: int = 6, channels: tuple[int, ...] = (32, 48, 64),
         embedding_dim: int = 128, num_classes: int = 40, dropout: float = 0.2,
+        temporal_kernel_size: int = 5,
     ) -> None:
         super().__init__()
         if not channels:
@@ -112,7 +117,9 @@ class LightweightSTGCN(nn.Module):
         blocks = []
         current = input_channels
         for index, channel in enumerate(channels):
-            blocks.append(SpatialTemporalBlock(current, channel, 2**index, dropout))
+            blocks.append(SpatialTemporalBlock(
+                current, channel, 2**index, dropout, temporal_kernel_size=temporal_kernel_size
+            ))
             current = channel
         self.blocks = nn.ModuleList(blocks)
         self.projection = nn.Sequential(nn.Linear(current, embedding_dim), nn.GELU(), nn.Dropout(dropout))
