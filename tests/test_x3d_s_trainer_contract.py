@@ -31,6 +31,7 @@ from src.train_x3d_s_visual_expert import (
     save_prediction_archive,
     train_partition,
     train_strict_oof_partition,
+    _trial_nll_loss,
     refit_strict_oof_partition,
     validate_config,
     validate_oof_assignment,
@@ -230,6 +231,30 @@ def test_validation_aggregates_valid_clips_with_one_view() -> None:
 
     assert probabilities.shape == (1, 2)
     assert probabilities.argmax(dim=1).item() == 0
+
+
+def test_trial_nll_loss_matches_standard_nll_without_smoothing() -> None:
+    logits = torch.log_softmax(torch.tensor([[3.0, 1.0, 0.0], [0.0, 2.0, 1.0]]), dim=1)
+    labels = torch.tensor([0, 2])
+
+    actual = _trial_nll_loss(logits, labels, label_smoothing=0.0, reduction="sum")
+    expected = torch.nn.functional.nll_loss(logits, labels, reduction="sum")
+
+    torch.testing.assert_close(actual, expected)
+
+
+def test_trial_nll_loss_uses_uniform_label_smoothing_per_trial() -> None:
+    logits = torch.log_softmax(torch.tensor([[3.0, 1.0, 0.0], [0.0, 2.0, 1.0]]), dim=1)
+    labels = torch.tensor([0, 2])
+    rows = torch.arange(labels.shape[0])
+
+    actual = _trial_nll_loss(logits, labels, label_smoothing=0.1, reduction="sum")
+    expected = -(
+        0.9 * logits[rows, labels]
+        + 0.1 * logits.mean(dim=1)
+    ).sum()
+
+    torch.testing.assert_close(actual, expected)
 
 
 def test_prediction_archive_contains_fusion_contract_fields(tmp_path: Path) -> None:

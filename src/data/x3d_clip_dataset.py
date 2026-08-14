@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 import math
 from pathlib import Path
-from typing import TypedDict
+from typing import Mapping, TypedDict
 
 import cv2
 import numpy as np
@@ -43,6 +44,48 @@ REQUIRED_COLUMNS = {
     "ir_context_effective_valid",
     "ir_context_reliability",
 }
+
+
+@dataclass(frozen=True)
+class IRAugmentationConfig:
+    brightness: tuple[float, float] = (1.0, 1.0)
+    contrast: tuple[float, float] = (1.0, 1.0)
+    gamma: tuple[float, float] = (1.0, 1.0)
+    noise_std_max: float = 0.0
+    blur_probability: float = 0.0
+    blur_kernel_size: int = 3
+    blur_sigma: tuple[float, float] = (0.1, 0.1)
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, object] | None) -> "IRAugmentationConfig":
+        if value is None:
+            return cls()
+
+        def pair(name: str, default: tuple[float, float]) -> tuple[float, float]:
+            raw = value.get(name, default)
+            if not isinstance(raw, Sequence) or isinstance(raw, (str, bytes)) or len(raw) != 2:
+                raise ValueError(f"augmentation.{name} must contain two values")
+            result = (float(raw[0]), float(raw[1]))
+            if result[0] <= 0.0 or result[0] > result[1]:
+                raise ValueError(f"augmentation.{name} must be positive and ordered")
+            return result
+
+        config = cls(
+            brightness=pair("brightness", (1.0, 1.0)),
+            contrast=pair("contrast", (1.0, 1.0)),
+            gamma=pair("gamma", (1.0, 1.0)),
+            noise_std_max=float(value.get("noise_std_max", 0.0)),
+            blur_probability=float(value.get("blur_probability", 0.0)),
+            blur_kernel_size=int(value.get("blur_kernel_size", 3)),
+            blur_sigma=pair("blur_sigma", (0.1, 0.1)),
+        )
+        if config.noise_std_max < 0.0:
+            raise ValueError("augmentation.noise_std_max must be non-negative")
+        if not 0.0 <= config.blur_probability <= 1.0:
+            raise ValueError("augmentation.blur_probability must lie in [0, 1]")
+        if config.blur_kernel_size <= 0 or config.blur_kernel_size % 2 == 0:
+            raise ValueError("augmentation.blur_kernel_size must be a positive odd integer")
+        return config
 
 
 class X3DClipSample(TypedDict):
@@ -185,6 +228,7 @@ def _transform_clip_frames(
     *,
     training: bool,
     generator: torch.Generator,
+    augmentation: IRAugmentationConfig | None = None,
 ) -> torch.Tensor:
     if not frames:
         raise ValueError("A clip must contain at least one frame")
@@ -209,6 +253,12 @@ def _transform_clip_frames(
         ]
         if flip:
             transformed = [transform_functional.hflip(frame) for frame in transformed]
+        if augmentation is not None:
+            transformed = _apply_ir_photometric_augmentation(
+                transformed,
+                config=augmentation,
+                generator=generator,
+            )
     else:
         transformed = [
             transform_functional.center_crop(
@@ -229,6 +279,52 @@ def _transform_clip_frames(
     return torch.stack(normalized, dim=1)
 
 
+def _sample_uniform(
+    bounds: tuple[float, float], generator: torch.Generator
+) -> float:
+    low, high = bounds
+    return low + (high - low) * float(torch.rand((), generator=generator).item())
+
+
+def _apply_ir_photometric_augmentation(
+    frames: list[torch.Tensor],
+    *,
+    config: IRAugmentationConfig,
+    generator: torch.Generator,
+) -> list[torch.Tensor]:
+    brightness = _sample_uniform(config.brightness, generator)
+    contrast = _sample_uniform(config.contrast, generator)
+    gamma = _sample_uniform(config.gamma, generator)
+    apply_blur = bool(
+        torch.rand((), generator=generator).item() < config.blur_probability
+    )
+    blur_sigma = _sample_uniform(config.blur_sigma, generator)
+    result: list[torch.Tensor] = []
+    for frame in frames:
+        transformed = transform_functional.adjust_brightness(frame, brightness)
+        transformed = transform_functional.adjust_contrast(transformed, contrast)
+        transformed = transform_functional.adjust_gamma(transformed.clamp(0.0, 1.0), gamma)
+        if apply_blur:
+            transformed = transform_functional.gaussian_blur(
+                transformed,
+                [config.blur_kernel_size, config.blur_kernel_size],
+                [blur_sigma, blur_sigma],
+            )
+        if config.noise_std_max > 0.0:
+            noise_std = config.noise_std_max * float(
+                torch.rand((), generator=generator).item()
+            )
+            noise = torch.randn(
+                transformed.shape,
+                generator=generator,
+                dtype=transformed.dtype,
+                device=transformed.device,
+            )
+            transformed = transformed + noise * noise_std
+        result.append(transformed.clamp(0.0, 1.0))
+    return result
+
+
 class X3DClipDataset(Dataset[X3DClipSample]):
     """One complete trial represented by adaptive local X3D clips."""
 
@@ -239,6 +335,7 @@ class X3DClipDataset(Dataset[X3DClipSample]):
         split: str,
         training: bool,
         augmentation_enabled: bool = True,
+        augmentation_config: Mapping[str, object] | IRAugmentationConfig | None = None,
         seed: int = 20260715,
     ) -> None:
         if split not in {"train", "val"}:
@@ -272,6 +369,11 @@ class X3DClipDataset(Dataset[X3DClipSample]):
         self.class_names = self.class_rows["action_name"].astype(str).tolist()
         self.training = bool(training)
         self.augmentation_enabled = bool(augmentation_enabled) and self.training
+        self.augmentation_config = (
+            augmentation_config
+            if isinstance(augmentation_config, IRAugmentationConfig)
+            else IRAugmentationConfig.from_mapping(augmentation_config)
+        )
         self.seed = int(seed)
         self.epoch = 0
 
@@ -345,6 +447,7 @@ class X3DClipDataset(Dataset[X3DClipSample]):
                 temporal_frames,
                 training=self.augmentation_enabled,
                 generator=generator,
+                augmentation=self.augmentation_config,
             )
             clips.append(clip.unsqueeze(0))
 

@@ -9,7 +9,9 @@ import pytest
 import torch
 
 from src.data.x3d_clip_dataset import (
+    IRAugmentationConfig,
     X3DClipDataset,
+    _transform_clip_frames,
     adaptive_clip_count,
     collate_x3d_clips,
     partition_trial_windows,
@@ -186,6 +188,92 @@ def test_spatial_transform_is_identical_for_all_frames_in_a_clip(tmp_path: Path)
     clip = dataset[0]["clips"][0, 0]
     for frame_index in range(1, 13):
         torch.testing.assert_close(clip[:, 0], clip[:, frame_index])
+
+
+def test_ir_photometric_augmentation_is_seed_deterministic() -> None:
+    frames = [torch.linspace(0.0, 1.0, 64).reshape(1, 8, 8) for _ in range(13)]
+    augmentation = IRAugmentationConfig(
+        brightness=(0.8, 1.2),
+        contrast=(0.8, 1.2),
+        gamma=(0.8, 1.2),
+        noise_std_max=0.025,
+        blur_probability=0.5,
+        blur_kernel_size=3,
+        blur_sigma=(0.1, 1.2),
+    )
+
+    first = _transform_clip_frames(
+        frames,
+        training=True,
+        generator=torch.Generator().manual_seed(123),
+        augmentation=augmentation,
+    )
+    repeated = _transform_clip_frames(
+        frames,
+        training=True,
+        generator=torch.Generator().manual_seed(123),
+        augmentation=augmentation,
+    )
+    changed = _transform_clip_frames(
+        frames,
+        training=True,
+        generator=torch.Generator().manual_seed(124),
+        augmentation=augmentation,
+    )
+
+    torch.testing.assert_close(first, repeated, atol=0.0, rtol=0.0)
+    assert not torch.equal(first, changed)
+    assert torch.isfinite(first).all()
+
+
+def test_clip_consistent_ir_factors_preserve_identical_frames_without_noise() -> None:
+    frame = torch.linspace(0.0, 1.0, 256).reshape(1, 16, 16)
+    augmentation = IRAugmentationConfig(
+        brightness=(0.7, 1.3),
+        contrast=(0.7, 1.3),
+        gamma=(0.7, 1.3),
+        noise_std_max=0.0,
+        blur_probability=1.0,
+        blur_kernel_size=3,
+        blur_sigma=(0.7, 0.7),
+    )
+
+    clip = _transform_clip_frames(
+        [frame.clone() for _ in range(13)],
+        training=True,
+        generator=torch.Generator().manual_seed(7),
+        augmentation=augmentation,
+    )
+
+    for frame_index in range(1, 13):
+        torch.testing.assert_close(clip[:, 0], clip[:, frame_index], atol=0.0, rtol=0.0)
+
+
+def test_validation_ignores_ir_augmentation_configuration() -> None:
+    frames = [torch.linspace(0.0, 1.0, 256).reshape(1, 16, 16) for _ in range(13)]
+    augmentation = IRAugmentationConfig(
+        brightness=(0.5, 0.5),
+        contrast=(0.5, 0.5),
+        gamma=(1.5, 1.5),
+        noise_std_max=0.1,
+        blur_probability=1.0,
+        blur_kernel_size=3,
+        blur_sigma=(1.0, 1.0),
+    )
+
+    plain = _transform_clip_frames(
+        frames,
+        training=False,
+        generator=torch.Generator().manual_seed(1),
+    )
+    configured = _transform_clip_frames(
+        frames,
+        training=False,
+        generator=torch.Generator().manual_seed(99),
+        augmentation=augmentation,
+    )
+
+    torch.testing.assert_close(plain, configured, atol=0.0, rtol=0.0)
 
 
 def test_collate_pads_only_clip_dimension_and_preserves_metadata(tmp_path: Path) -> None:

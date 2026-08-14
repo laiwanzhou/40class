@@ -161,10 +161,13 @@ def run_model_epoch(
     gradient_accumulation: int,
     gradient_clip: float,
     amp_enabled: bool,
+    label_smoothing: float = 0.0,
     max_batches: int | None = None,
 ) -> EpochOutcome:
     if gradient_accumulation <= 0 or gradient_clip <= 0:
         raise ValueError("gradient accumulation and clipping must be positive")
+    if not 0.0 <= label_smoothing < 1.0:
+        raise ValueError("label_smoothing must lie in [0, 1)")
     available_batches = len(loader)
     total_batches = min(available_batches, max_batches or available_batches)
     if total_batches <= 0:
@@ -224,8 +227,11 @@ def run_model_epoch(
                     quality_mask=quality_mask,
                     availability=availability,
                 )
-                loss_sum = torch.nn.functional.nll_loss(
-                    output.main_logits, labels, reduction="sum"
+                loss_sum = _trial_nll_loss(
+                    output.main_logits,
+                    labels,
+                    label_smoothing=label_smoothing,
+                    reduction="sum",
                 )
                 loss = loss_sum / rows
             if training:
@@ -310,6 +316,31 @@ def run_model_epoch(
         }
     )
     return EpochOutcome(metrics=metrics, predictions=prediction_result)
+
+
+def _trial_nll_loss(
+    log_probabilities: torch.Tensor,
+    labels: torch.Tensor,
+    *,
+    label_smoothing: float,
+    reduction: str,
+) -> torch.Tensor:
+    if log_probabilities.ndim != 2 or labels.shape != (log_probabilities.shape[0],):
+        raise ValueError("Trial logits and labels have incompatible shapes")
+    if not 0.0 <= label_smoothing < 1.0:
+        raise ValueError("label_smoothing must lie in [0, 1)")
+    if reduction not in {"sum", "mean", "none"}:
+        raise ValueError("reduction must be sum, mean, or none")
+    rows = torch.arange(labels.shape[0], device=labels.device)
+    losses = -(
+        (1.0 - label_smoothing) * log_probabilities[rows, labels]
+        + label_smoothing * log_probabilities.mean(dim=1)
+    )
+    if reduction == "sum":
+        return losses.sum()
+    if reduction == "mean":
+        return losses.mean()
+    return losses
 
 
 def save_prediction_archive(path: Path, result: TrialPredictionResult) -> None:
@@ -405,6 +436,7 @@ def train_partition(
     gradient_clip = float(optimizer_config["gradient_clip"])
     patience = int(training_config["patience"])
     early_stopping_enabled = bool(training_config.get("early_stopping_enabled", True))
+    label_smoothing = float(training_config.get("label_smoothing", 0.0))
     class_names = list(getattr(validation_dataset, "class_names", [str(i) for i in range(40)]))
 
     history: list[dict[str, Any]] = []
@@ -433,6 +465,7 @@ def train_partition(
             gradient_accumulation=gradient_accumulation,
             gradient_clip=gradient_clip,
             amp_enabled=amp_enabled,
+            label_smoothing=label_smoothing,
             max_batches=max_train_batches,
         )
         validation_outcome = run_model_epoch(
@@ -443,6 +476,7 @@ def train_partition(
             gradient_accumulation=1,
             gradient_clip=gradient_clip,
             amp_enabled=amp_enabled,
+            label_smoothing=0.0,
             max_batches=max_val_batches,
         )
         candidate = (
@@ -511,6 +545,7 @@ def train_partition(
         "epochs_completed": history[-1]["epoch"],
         "scheduler_horizon_epochs": scheduler_horizon_epochs,
         "early_stopping_enabled": early_stopping_enabled,
+        "label_smoothing": label_smoothing,
         "unfrozen_backbone_blocks": unfrozen_backbone_blocks,
         "trainable_backbone_parameters_last_epoch": sum(
             parameter.numel()
@@ -605,6 +640,7 @@ def finalize_train14(
         ),
     )
     amp_enabled = bool(amp_config["enabled"]) and device.type == "cuda"
+    label_smoothing = float(training_config.get("label_smoothing", 0.0))
     history: list[dict[str, Any]] = []
     started = time.perf_counter()
     last_outcome: EpochOutcome | None = None
@@ -628,6 +664,7 @@ def finalize_train14(
             gradient_accumulation=int(optimizer_config["gradient_accumulation"]),
             gradient_clip=float(optimizer_config["gradient_clip"]),
             amp_enabled=amp_enabled,
+            label_smoothing=label_smoothing,
             max_batches=max_train_batches,
         )
         history.append(
@@ -669,6 +706,7 @@ def finalize_train14(
         "role": "finalize_train14",
         "epochs_completed": epochs,
         "scheduler_horizon_epochs": scheduler_horizon_epochs,
+        "label_smoothing": label_smoothing,
         "unfrozen_backbone_blocks": unfrozen_backbone_blocks,
         "trainable_backbone_parameters": sum(
             parameter.numel()
