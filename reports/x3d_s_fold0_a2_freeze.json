@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "frozen_at": "2026-08-14",
+  "role": "fold0_development_candidate_freeze",
+  "candidate": "A2",
+  "unbiased_oof": false,
+  "branch": "test/x3d-fold0-generalization",
+  "freeze_source_commit": "4e79e5d2f68ef56d8c3c4719415235f138a583b2",
+  "run_id": "x3d_s_ir_context_fold0_dev_a2_seed20260715",
+  "selected_epoch": 14,
+  "metrics": {
+    "accuracy": 0.6075,
+    "macro_f1": 0.5268304455043984,
+    "worst_user_accuracy": 0.5393258426966292
+  },
+  "artifacts": {
+    "checkpoint_sha256": "e0162c78c0b12e0d8a85dc353f0ef164dc47b4fcf45ea78a98824d91ecbb6008",
+    "prediction_archive_sha256": "e1a4a9504571eb67ef3dd946f38734a73066732c9f4ca9d65f96e63506eec02c",
+    "resolved_config_sha256": "5cfb702c1f3dddba7a5789eb8c3dd80760d6d723489cce202616091657299490"
+  },
+  "mutation_permitted": false,
+  "replacement_by_later_candidate_permitted": false,
+  "note": "A3 is an independent development candidate and must not overwrite A2 artifacts or evidence."
+}
