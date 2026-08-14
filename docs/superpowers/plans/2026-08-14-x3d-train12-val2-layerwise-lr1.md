@@ -16,12 +16,13 @@
 - [x] Create the layerwise_lr1 config and preregistration record.
 - [x] Prove all non-LR behavior equals partial2.
 - [x] Record the partial1 local-output deletion while preserving versioned evidence.
-- [ ] Commit and push before smoke/full results.
+- [x] Commit and push before smoke/full results.
 
 ## Task 3: Execute and report
 
-- [ ] CUDA smoke verifies block4 `3e-6`, block5 `1e-5`, head `3e-4`, finite gradients, and unchanged canonical hashes.
-- [ ] Run the frozen candidate to the existing checkpoint/early-stop rule.
-- [ ] Independently compare trial, user, duration, confidence, and train-gap metrics against partial2.
-- [ ] Apply the frozen decision rule; preserve artifacts on human-review regression.
-- [ ] Run full verification, commit, push, and update the single handoff.
+- [x] CUDA smoke verifies block4 `3e-6`, block5 `1e-5`, head `3e-4`, finite gradients, and unchanged canonical hashes.
+- [x] Run the frozen candidate to the existing checkpoint/early-stop rule.
+- [x] Independently compare trial, user, duration, confidence, and train-gap metrics against partial2.
+- [x] Apply the frozen decision rule; preserve artifacts on human-review regression.
+- [x] Run full verification.
+- [ ] Commit, push, and update the single handoff.
