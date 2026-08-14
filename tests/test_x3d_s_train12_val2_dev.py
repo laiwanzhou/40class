@@ -81,3 +81,19 @@ def test_partial2_config_keeps_full_temporal_coverage() -> None:
     assert config["optimizer"]["backbone_lr"] == pytest.approx(3e-5)
     assert config["augmentation"]["brightness"] == [0.9, 1.1]
     assert config["training"]["label_smoothing"] == 0.0
+
+
+def test_partial1_changes_only_unfrozen_backbone_block_count() -> None:
+    partial2 = yaml.safe_load(
+        Path("configs/experiments/x3d_s_ir_context_train12_val2_partial2.yaml")
+        .read_text(encoding="utf-8")
+    )
+    partial1 = yaml.safe_load(
+        Path("configs/experiments/x3d_s_ir_context_train12_val2_partial1.yaml")
+        .read_text(encoding="utf-8")
+    )
+
+    assert partial2["training"]["unfrozen_backbone_blocks"] == 2
+    assert partial1["training"]["unfrozen_backbone_blocks"] == 1
+    partial2["training"]["unfrozen_backbone_blocks"] = 1
+    assert partial1 == partial2
