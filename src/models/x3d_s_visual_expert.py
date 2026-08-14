@@ -62,19 +62,45 @@ class X3DSVisualExpert(nn.Module):
         self.classifier = nn.Linear(embedding_dim, num_classes)
         self.update_backbone_bn_running_stats = update_backbone_bn_running_stats
         self._backbone_trainable = True
+        self._frozen_backbone_blocks: tuple[nn.Module, ...] = ()
 
     def train(self, mode: bool = True) -> X3DSVisualExpert:
         super().train(mode)
         if mode and not self._backbone_trainable:
             self.backbone.eval()
-        elif mode and not self.update_backbone_bn_running_stats:
-            self._set_backbone_batch_norm_eval()
+        elif mode:
+            for block in self._frozen_backbone_blocks:
+                block.eval()
+            if not self.update_backbone_bn_running_stats:
+                self._set_backbone_batch_norm_eval()
         return self
 
-    def set_backbone_trainable(self, enabled: bool) -> None:
+    def set_backbone_trainable(
+        self,
+        enabled: bool,
+        *,
+        last_blocks: int | None = None,
+    ) -> None:
         self._backbone_trainable = enabled
-        for parameter in self.backbone.parameters():
-            parameter.requires_grad_(enabled)
+        self._frozen_backbone_blocks = ()
+        if not enabled or last_blocks is None:
+            for parameter in self.backbone.parameters():
+                parameter.requires_grad_(enabled)
+        else:
+            blocks = getattr(self.backbone, "blocks", None)
+            if not isinstance(blocks, (nn.ModuleList, nn.Sequential)):
+                raise ValueError("last_blocks requires backbone.blocks to be an ordered module list")
+            if last_blocks <= 0 or last_blocks > len(blocks):
+                raise ValueError(f"last_blocks must lie in [1, {len(blocks)}]")
+            split_index = len(blocks) - last_blocks
+            frozen_blocks = tuple(blocks[:split_index])
+            trainable_blocks = tuple(blocks[split_index:])
+            for parameter in self.backbone.parameters():
+                parameter.requires_grad_(False)
+            for block in trainable_blocks:
+                for parameter in block.parameters():
+                    parameter.requires_grad_(True)
+            self._frozen_backbone_blocks = frozen_blocks
         self.train(self.training)
 
     def parameter_groups(

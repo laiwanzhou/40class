@@ -275,6 +275,25 @@ def test_config_freezes_first_run_temporal_and_bn_policy(tmp_path: Path) -> None
         validate_config(config)
 
 
+def test_config_accepts_bounded_partial_unfreeze_policy(tmp_path: Path) -> None:
+    config = fixed_config(tmp_path)
+    config["training"] = {
+        "epochs": 20,
+        "scheduler_horizon_epochs": 20,
+        "warmup_epochs": 5,
+        "unfrozen_backbone_blocks": 2,
+        "label_smoothing": 0.1,
+        "patience": 8,
+        "early_stopping_enabled": True,
+    }
+
+    validate_config(config)
+
+    config["training"]["unfrozen_backbone_blocks"] = 0
+    with pytest.raises(ValueError, match="unfrozen_backbone_blocks"):
+        validate_config(config)
+
+
 def test_user_partition_rejects_heldout_and_overlap() -> None:
     official_train = {"u1", "u2", "u3"}
     heldout = {"u4"}

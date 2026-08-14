@@ -21,6 +21,29 @@ class TinyBackbone(nn.Module):
         return self.pool(torch.relu(self.bn(self.conv(clips)))).flatten(1)
 
 
+class BlockBackbone(nn.Module):
+    output_dim = 3
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.blocks = nn.ModuleList(
+            [
+                nn.Sequential(
+                    nn.Conv3d(3, 3, kernel_size=1, bias=False),
+                    nn.BatchNorm3d(3),
+                    nn.ReLU(),
+                )
+                for _ in range(4)
+            ]
+        )
+        self.pool = nn.AdaptiveAvgPool3d(1)
+
+    def forward(self, clips: torch.Tensor) -> torch.Tensor:
+        for block in self.blocks:
+            clips = block(clips)
+        return self.pool(clips).flatten(1)
+
+
 def build_model() -> X3DSVisualExpert:
     torch.manual_seed(7)
     return X3DSVisualExpert(
@@ -117,6 +140,41 @@ def test_backbone_warmup_freezes_weights_and_bn_running_statistics() -> None:
     running_mean = backbone.bn.running_mean.clone()
     model(**fixture_inputs())
     torch.testing.assert_close(backbone.bn.running_mean, running_mean, atol=0.0, rtol=0.0)
+
+
+def test_selective_unfreeze_enables_only_last_backbone_blocks() -> None:
+    backbone = BlockBackbone()
+    model = X3DSVisualExpert(
+        backbone=backbone,
+        num_classes=40,
+        embedding_dim=16,
+        dropout=0.0,
+        update_backbone_bn_running_stats=False,
+    )
+
+    model.set_backbone_trainable(False)
+    assert not any(parameter.requires_grad for parameter in backbone.parameters())
+
+    model.set_backbone_trainable(True, last_blocks=2)
+    assert not any(parameter.requires_grad for parameter in backbone.blocks[0].parameters())
+    assert not any(parameter.requires_grad for parameter in backbone.blocks[1].parameters())
+    assert all(parameter.requires_grad for parameter in backbone.blocks[2].parameters())
+    assert all(parameter.requires_grad for parameter in backbone.blocks[3].parameters())
+    model.train()
+    assert all(not block[1].training for block in backbone.blocks)
+
+
+@pytest.mark.parametrize("last_blocks", [0, 5])
+def test_selective_unfreeze_rejects_invalid_block_count(last_blocks: int) -> None:
+    model = X3DSVisualExpert(
+        backbone=BlockBackbone(),
+        num_classes=40,
+        embedding_dim=16,
+        dropout=0.0,
+    )
+
+    with pytest.raises(ValueError, match="last_blocks"):
+        model.set_backbone_trainable(True, last_blocks=last_blocks)
 
 
 def test_official_x3d_builder_removes_only_kinetics_projection() -> None:

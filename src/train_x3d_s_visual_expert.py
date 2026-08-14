@@ -391,6 +391,9 @@ def train_partition(
     epochs = int(training_config["epochs"])
     scheduler_horizon_epochs = int(training_config.get("scheduler_horizon_epochs", epochs))
     warmup_epochs = int(training_config["warmup_epochs"])
+    unfrozen_backbone_blocks = training_config.get("unfrozen_backbone_blocks")
+    if unfrozen_backbone_blocks is not None:
+        unfrozen_backbone_blocks = int(unfrozen_backbone_blocks)
     scheduler = torch.optim.lr_scheduler.LambdaLR(
         optimizer,
         lr_lambda=lambda index: _warmup_cosine_multiplier(
@@ -413,7 +416,15 @@ def train_partition(
         epoch_started = time.perf_counter()
         getattr(train_dataset, "set_epoch")(epoch)
         train_sampler.set_epoch(epoch)
-        model.set_backbone_trainable(epoch > warmup_epochs)
+        backbone_enabled = epoch > warmup_epochs
+        model.set_backbone_trainable(
+            backbone_enabled,
+            **(
+                {"last_blocks": unfrozen_backbone_blocks}
+                if backbone_enabled and unfrozen_backbone_blocks is not None
+                else {}
+            ),
+        )
         train_outcome = run_model_epoch(
             model,
             train_loader,
@@ -445,6 +456,14 @@ def train_partition(
             validation_outcome.metrics,
             optimizer,
             time.perf_counter() - epoch_started,
+        )
+        row["unfrozen_backbone_blocks"] = (
+            unfrozen_backbone_blocks if backbone_enabled else 0
+        )
+        row["trainable_backbone_parameters"] = sum(
+            parameter.numel()
+            for parameter in model.backbone.parameters()
+            if parameter.requires_grad
         )
         history.append(row)
         pd.DataFrame(history).to_csv(run_directory / "history.csv", index=False, encoding="utf-8-sig")
@@ -492,6 +511,12 @@ def train_partition(
         "epochs_completed": history[-1]["epoch"],
         "scheduler_horizon_epochs": scheduler_horizon_epochs,
         "early_stopping_enabled": early_stopping_enabled,
+        "unfrozen_backbone_blocks": unfrozen_backbone_blocks,
+        "trainable_backbone_parameters_last_epoch": sum(
+            parameter.numel()
+            for parameter in model.backbone.parameters()
+            if parameter.requires_grad
+        ),
         "runtime_seconds": time.perf_counter() - started,
         "train_samples_evaluated_last_epoch": history[-1]["train_sample_count"],
         "val_samples_evaluated_last_epoch": history[-1]["val_sample_count"],
@@ -570,6 +595,9 @@ def finalize_train14(
     epochs = int(training_config["epochs"])
     scheduler_horizon_epochs = int(training_config.get("scheduler_horizon_epochs", epochs))
     warmup_epochs = int(training_config["warmup_epochs"])
+    unfrozen_backbone_blocks = training_config.get("unfrozen_backbone_blocks")
+    if unfrozen_backbone_blocks is not None:
+        unfrozen_backbone_blocks = int(unfrozen_backbone_blocks)
     scheduler = torch.optim.lr_scheduler.LambdaLR(
         optimizer,
         lr_lambda=lambda index: _warmup_cosine_multiplier(
@@ -583,7 +611,15 @@ def finalize_train14(
     for epoch in range(1, epochs + 1):
         getattr(train_dataset, "set_epoch")(epoch)
         sampler.set_epoch(epoch)
-        model.set_backbone_trainable(epoch > warmup_epochs)
+        backbone_enabled = epoch > warmup_epochs
+        model.set_backbone_trainable(
+            backbone_enabled,
+            **(
+                {"last_blocks": unfrozen_backbone_blocks}
+                if backbone_enabled and unfrozen_backbone_blocks is not None
+                else {}
+            ),
+        )
         last_outcome = run_model_epoch(
             model,
             loader,
@@ -606,6 +642,14 @@ def finalize_train14(
                 "processed_clips_per_second": last_outcome.metrics[
                     "processed_clips_per_second"
                 ],
+                "unfrozen_backbone_blocks": (
+                    unfrozen_backbone_blocks if backbone_enabled else 0
+                ),
+                "trainable_backbone_parameters": sum(
+                    parameter.numel()
+                    for parameter in model.backbone.parameters()
+                    if parameter.requires_grad
+                ),
             }
         )
         pd.DataFrame(history).to_csv(
@@ -625,6 +669,12 @@ def finalize_train14(
         "role": "finalize_train14",
         "epochs_completed": epochs,
         "scheduler_horizon_epochs": scheduler_horizon_epochs,
+        "unfrozen_backbone_blocks": unfrozen_backbone_blocks,
+        "trainable_backbone_parameters": sum(
+            parameter.numel()
+            for parameter in model.backbone.parameters()
+            if parameter.requires_grad
+        ),
         "seed": seed,
         "resolved_config_sha256": resolved_config_sha256(config),
         "runtime_seconds": time.perf_counter() - started,
@@ -913,8 +963,14 @@ def validate_config(config: Mapping[str, Any]) -> None:
     if int(optimizer.get("gradient_accumulation", 0)) != 4:
         raise ValueError("optimizer.gradient_accumulation must be 4")
     training = _mapping(config, "training")
-    if int(training.get("epochs", 0)) <= 0 or int(training.get("warmup_epochs", 0)) != 2:
-        raise ValueError("training must use positive epochs and two warmup epochs")
+    if int(training.get("epochs", 0)) <= 0 or int(training.get("warmup_epochs", -1)) < 0:
+        raise ValueError("training must use positive epochs and non-negative warmup epochs")
+    unfrozen_backbone_blocks = training.get("unfrozen_backbone_blocks")
+    if unfrozen_backbone_blocks is not None and int(unfrozen_backbone_blocks) <= 0:
+        raise ValueError("training.unfrozen_backbone_blocks must be positive")
+    label_smoothing = float(training.get("label_smoothing", 0.0))
+    if not 0.0 <= label_smoothing < 1.0:
+        raise ValueError("training.label_smoothing must lie in [0, 1)")
     scheduler_horizon_epochs = int(
         training.get("scheduler_horizon_epochs", training.get("epochs", 0))
     )
