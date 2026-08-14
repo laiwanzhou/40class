@@ -97,3 +97,18 @@ def test_partial1_changes_only_unfrozen_backbone_block_count() -> None:
     assert partial1["training"]["unfrozen_backbone_blocks"] == 1
     partial2["training"]["unfrozen_backbone_blocks"] = 1
     assert partial1 == partial2
+
+
+def test_layerwise_lr1_changes_only_block_specific_learning_rates() -> None:
+    partial2 = yaml.safe_load(
+        Path("configs/experiments/x3d_s_ir_context_train12_val2_partial2.yaml")
+        .read_text(encoding="utf-8")
+    )
+    candidate = yaml.safe_load(
+        Path("configs/experiments/x3d_s_ir_context_train12_val2_layerwise_lr1.yaml")
+        .read_text(encoding="utf-8")
+    )
+
+    assert candidate["optimizer"]["backbone_block_lrs"] == {4: 3e-6, 5: 1e-5}
+    candidate["optimizer"].pop("backbone_block_lrs")
+    assert candidate == partial2

@@ -417,6 +417,7 @@ def train_partition(
             float(optimizer_config["backbone_lr"]),
             float(optimizer_config["head_lr"]),
             float(optimizer_config["weight_decay"]),
+            backbone_block_lrs=_backbone_block_lrs(optimizer_config),
         )
     )
     epochs = int(training_config["epochs"])
@@ -547,6 +548,7 @@ def train_partition(
         "early_stopping_enabled": early_stopping_enabled,
         "label_smoothing": label_smoothing,
         "unfrozen_backbone_blocks": unfrozen_backbone_blocks,
+        "backbone_block_lrs": _serializable_backbone_block_lrs(optimizer_config),
         "trainable_backbone_parameters_last_epoch": sum(
             parameter.numel()
             for parameter in model.backbone.parameters()
@@ -625,6 +627,7 @@ def finalize_train14(
             float(optimizer_config["backbone_lr"]),
             float(optimizer_config["head_lr"]),
             float(optimizer_config["weight_decay"]),
+            backbone_block_lrs=_backbone_block_lrs(optimizer_config),
         )
     )
     epochs = int(training_config["epochs"])
@@ -674,8 +677,15 @@ def finalize_train14(
                 "train_accuracy": last_outcome.metrics["accuracy"],
                 "train_macro_f1": last_outcome.metrics["macro_f1"],
                 "sample_count": last_outcome.metrics["sample_count"],
-                "backbone_lr": optimizer.param_groups[0]["lr"],
-                "head_lr": max(group["lr"] for group in optimizer.param_groups),
+                "backbone_lr": _maximum_learning_rate(
+                    optimizer, scope_prefix="backbone_"
+                ),
+                "head_lr": _maximum_learning_rate(
+                    optimizer, scope_prefix="custom_head"
+                ),
+                "learning_rates_by_scope": json.dumps(
+                    _learning_rates_by_scope(optimizer), sort_keys=True
+                ),
                 "processed_clips_per_second": last_outcome.metrics[
                     "processed_clips_per_second"
                 ],
@@ -708,6 +718,7 @@ def finalize_train14(
         "scheduler_horizon_epochs": scheduler_horizon_epochs,
         "label_smoothing": label_smoothing,
         "unfrozen_backbone_blocks": unfrozen_backbone_blocks,
+        "backbone_block_lrs": _serializable_backbone_block_lrs(optimizer_config),
         "trainable_backbone_parameters": sum(
             parameter.numel()
             for parameter in model.backbone.parameters()
@@ -1000,12 +1011,25 @@ def validate_config(config: Mapping[str, Any]) -> None:
         raise ValueError("optimizer.weight_decay must be non-negative")
     if int(optimizer.get("gradient_accumulation", 0)) != 4:
         raise ValueError("optimizer.gradient_accumulation must be 4")
+    block_lrs = _backbone_block_lrs(optimizer)
     training = _mapping(config, "training")
     if int(training.get("epochs", 0)) <= 0 or int(training.get("warmup_epochs", -1)) < 0:
         raise ValueError("training must use positive epochs and non-negative warmup epochs")
     unfrozen_backbone_blocks = training.get("unfrozen_backbone_blocks")
     if unfrozen_backbone_blocks is not None and int(unfrozen_backbone_blocks) <= 0:
         raise ValueError("training.unfrozen_backbone_blocks must be positive")
+    if block_lrs:
+        if model_family != "x3d_s" or unfrozen_backbone_blocks is None:
+            raise ValueError(
+                "optimizer.backbone_block_lrs requires bounded X3D partial unfreezing"
+            )
+        expected_indices = set(
+            range(6 - int(unfrozen_backbone_blocks), 6)
+        )
+        if set(block_lrs) != expected_indices:
+            raise ValueError(
+                "optimizer.backbone_block_lrs must exactly match the unfrozen X3D blocks"
+            )
     label_smoothing = float(training.get("label_smoothing", 0.0))
     if not 0.0 <= label_smoothing < 1.0:
         raise ValueError("training.label_smoothing must lie in [0, 1)")
@@ -1240,8 +1264,11 @@ def _history_row(
         "val_class_coverage": validation_metrics["class_coverage"],
         "val_zero_recall_class_count": validation_metrics["zero_recall_class_count"],
         "val_sample_count": validation_metrics["sample_count"],
-        "backbone_lr": optimizer.param_groups[0]["lr"],
-        "head_lr": max(group["lr"] for group in optimizer.param_groups),
+        "backbone_lr": _maximum_learning_rate(optimizer, scope_prefix="backbone_"),
+        "head_lr": _maximum_learning_rate(optimizer, scope_prefix="custom_head"),
+        "learning_rates_by_scope": json.dumps(
+            _learning_rates_by_scope(optimizer), sort_keys=True
+        ),
         "epoch_seconds": epoch_seconds,
         "train_processed_clips_per_second": train_metrics["processed_clips_per_second"],
         "val_processed_clips_per_second": validation_metrics["processed_clips_per_second"],
@@ -1252,6 +1279,62 @@ def _history_row(
             validation_metrics["trial_latency_ms_by_length_bucket"], sort_keys=True
         ),
     }
+
+
+def _backbone_block_lrs(config: Mapping[str, Any]) -> dict[int, float] | None:
+    raw = config.get("backbone_block_lrs")
+    if raw is None:
+        return None
+    if not isinstance(raw, Mapping) or not raw:
+        raise ValueError("optimizer.backbone_block_lrs must be a non-empty mapping")
+    resolved: dict[int, float] = {}
+    for raw_index, raw_learning_rate in raw.items():
+        try:
+            index = int(raw_index)
+            learning_rate = float(raw_learning_rate)
+        except (TypeError, ValueError) as error:
+            raise ValueError(
+                "optimizer.backbone_block_lrs requires integer indices and numeric rates"
+            ) from error
+        if index < 0 or learning_rate <= 0:
+            raise ValueError(
+                "optimizer.backbone_block_lrs indices must be non-negative and rates positive"
+            )
+        if index in resolved:
+            raise ValueError("optimizer.backbone_block_lrs contains duplicate block indices")
+        resolved[index] = learning_rate
+    return resolved
+
+
+def _serializable_backbone_block_lrs(config: Mapping[str, Any]) -> dict[str, float] | None:
+    resolved = _backbone_block_lrs(config)
+    if resolved is None:
+        return None
+    return {str(index): learning_rate for index, learning_rate in sorted(resolved.items())}
+
+
+def _learning_rates_by_scope(optimizer: torch.optim.Optimizer) -> dict[str, float]:
+    result: dict[str, float] = {}
+    for index, group in enumerate(optimizer.param_groups):
+        scope = str(group.get("group_name", f"group_{index}"))
+        learning_rate = float(group["lr"])
+        previous = result.setdefault(scope, learning_rate)
+        if abs(previous - learning_rate) > 1e-15:
+            raise RuntimeError(f"Optimizer scope {scope} has inconsistent learning rates")
+    return result
+
+
+def _maximum_learning_rate(
+    optimizer: torch.optim.Optimizer, *, scope_prefix: str
+) -> float:
+    matching = [
+        learning_rate
+        for scope, learning_rate in _learning_rates_by_scope(optimizer).items()
+        if scope.startswith(scope_prefix)
+    ]
+    if not matching:
+        raise RuntimeError(f"Optimizer has no learning-rate scope matching {scope_prefix}")
+    return max(matching)
 
 
 def _save_checkpoint(

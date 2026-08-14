@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
+
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -108,6 +110,8 @@ class X3DSVisualExpert(nn.Module):
         backbone_lr: float,
         head_lr: float,
         weight_decay: float,
+        *,
+        backbone_block_lrs: Mapping[int, float] | None = None,
     ) -> list[dict[str, object]]:
         if backbone_lr <= 0 or head_lr <= 0:
             raise ValueError("learning rates must be positive")
@@ -121,15 +125,41 @@ class X3DSVisualExpert(nn.Module):
             for parameter in module.parameters(recurse=False)
         }
         backbone_parameters = {id(parameter) for parameter in self.backbone.parameters()}
-        grouped: dict[tuple[float, float], list[nn.Parameter]] = {}
+        block_learning_rates: dict[int, tuple[str, float]] = {}
+        if backbone_block_lrs:
+            blocks = getattr(self.backbone, "blocks", None)
+            if not isinstance(blocks, (nn.ModuleList, nn.Sequential)):
+                raise ValueError("backbone_block_lrs requires an ordered backbone.blocks list")
+            for raw_index, raw_learning_rate in backbone_block_lrs.items():
+                index = int(raw_index)
+                learning_rate = float(raw_learning_rate)
+                if index < 0 or index >= len(blocks):
+                    raise ValueError(f"backbone block index must lie in [0, {len(blocks) - 1}]")
+                if learning_rate <= 0:
+                    raise ValueError("backbone block learning rates must be positive")
+                scope = f"backbone_block_{index}"
+                for parameter in blocks[index].parameters():
+                    block_learning_rates[id(parameter)] = (scope, learning_rate)
+
+        grouped: dict[tuple[str, float, float], list[nn.Parameter]] = {}
         for name, parameter in self.named_parameters():
-            learning_rate = backbone_lr if id(parameter) in backbone_parameters else head_lr
+            if id(parameter) not in backbone_parameters:
+                scope, learning_rate = "custom_head", head_lr
+            elif id(parameter) in block_learning_rates:
+                scope, learning_rate = block_learning_rates[id(parameter)]
+            else:
+                scope, learning_rate = "backbone_default", backbone_lr
             decay = 0.0 if name.endswith(".bias") or id(parameter) in normalization_parameters else weight_decay
-            grouped.setdefault((learning_rate, decay), []).append(parameter)
+            grouped.setdefault((scope, learning_rate, decay), []).append(parameter)
 
         return [
-            {"params": parameters, "lr": learning_rate, "weight_decay": decay}
-            for (learning_rate, decay), parameters in grouped.items()
+            {
+                "params": parameters,
+                "lr": learning_rate,
+                "weight_decay": decay,
+                "group_name": scope,
+            }
+            for (scope, learning_rate, decay), parameters in grouped.items()
         ]
 
     def forward(

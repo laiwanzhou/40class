@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "registered_at": "2026-08-14",
+  "role": "train12_val2_development_tuning_preregistration",
+  "candidate": "train12_val2_layerwise_lr1",
+  "parent_candidate": "train12_val2_partial2",
+  "unbiased_oof": false,
+  "development_split": "metadata/splits/train12_val2_development.json",
+  "seed": 20260715,
+  "run_id": "x3d_s_ir_context_train12_val2_layerwise_lr1_seed20260715",
+  "model_intervention": {
+    "unfrozen_backbone_blocks": 2,
+    "block4_lr": 0.000003,
+    "block5_lr": 0.00001,
+    "custom_head_lr": 0.0003,
+    "partial2_shared_backbone_lr": 0.00003,
+    "meaning": "retain block4/block5 adaptation while reducing block4 LR to one tenth and block5 LR to one third of partial2"
+  },
+  "fixed_recipe": {
+    "train_clip_keep_fraction": 1.0,
+    "validation_clip_keep_fraction": 1.0,
+    "local_frames": 13,
+    "target_window_frames": 32,
+    "max_clips": 8,
+    "aggregation": "mean_probability",
+    "warmup_epochs": 2,
+    "label_smoothing": 0.0,
+    "photometric_ranges": [0.9, 1.1],
+    "noise_std_max": 0.0,
+    "blur_probability": 0.0,
+    "epochs_maximum": 20,
+    "scheduler_horizon_epochs": 20,
+    "macro_f1_patience": 8,
+    "weight_decay": 0.05,
+    "backbone_bn_running_stats_frozen": true
+  },
+  "matched_partial2_reference": {
+    "accuracy": 0.5524691358024691,
+    "macro_f1": 0.41865149855281436,
+    "worst_user_accuracy": 0.45864661654135336,
+    "accuracy_human_review_floor": 0.5324691358024691,
+    "config_sha256": "909343ef87086d746bd085ab6bb98bc603c54c7334e4d9e6b75c8824ac585b9d",
+    "report_sha256": "1dbd73f19c61703039cc5ef00dd30bd1863d99248db7f3c00686e562f7bd179b",
+    "checkpoint_sha256": "8434c91d9e1b49f23ef914f21422c6d0620daf7d37af03c3031e4172d48fde26",
+    "prediction_sha256": "c7871e61239e6d755f5c89136fa6723418e059ce9a09b04261794450c6c44b9a"
+  },
+  "decision_rule": {
+    "human_review": "Accuracy below 0.5324691358024691; preserve every artifact",
+    "preferred": "Accuracy, Macro-F1, and worst-user Accuracy all no worse than partial2, with at least one strict improvement",
+    "otherwise": "freeze as a non-winning matched optimization ablation"
+  },
+  "forbidden": [
+    "clip_dropout",
+    "motion_peak_sampling",
+    "l2_sp_in_this_candidate",
+    "additional_regularizer",
+    "heldout4_access",
+    "competition_test_access",
+    "canonical_phase4_or_phase5_mutation",
+    "automatic_artifact_deletion"
+  ]
+}

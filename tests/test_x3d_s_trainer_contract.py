@@ -319,6 +319,22 @@ def test_config_accepts_bounded_partial_unfreeze_policy(tmp_path: Path) -> None:
         validate_config(config)
 
 
+def test_config_accepts_exact_lrs_for_unfrozen_x3d_blocks(tmp_path: Path) -> None:
+    config = fixed_config(tmp_path)
+    config["training"]["unfrozen_backbone_blocks"] = 2
+    config["optimizer"]["backbone_block_lrs"] = {4: 3e-6, 5: 1e-5}
+
+    validate_config(config)
+
+    config["optimizer"]["backbone_block_lrs"] = {5: 1e-5}
+    with pytest.raises(ValueError, match="exactly match"):
+        validate_config(config)
+
+    config["optimizer"]["backbone_block_lrs"] = {4: -1.0, 5: 1e-5}
+    with pytest.raises(ValueError, match="positive"):
+        validate_config(config)
+
+
 def test_user_partition_rejects_heldout_and_overlap() -> None:
     official_train = {"u1", "u2", "u3"}
     heldout = {"u4"}

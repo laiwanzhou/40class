@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "deleted_at": "2026-08-14",
+  "reason": "explicit user request to retain experiment records but remove local partial1 runtime products",
+  "deleted_directories": [
+    {
+      "path": "outputs/x3d_s_ir_context_train12_val2_dev/x3d_s_ir_context_train12_val2_partial1_seed20260715",
+      "bytes_before_deletion": 29502037,
+      "best_accuracy_checkpoint_sha256": "648ca801dfb93c1887c8bb573f523f558a33a35dd2d1b799219f1c27be40206e",
+      "best_accuracy_prediction_sha256": "4f5d000a57dabdf3fb19f2aeb5347b5ad2413f51e01f16498e2afc4f5b1e61a0"
+    },
+    {
+      "path": "outputs/x3d_s_ir_context_train12_val2_dev/x3d_s_ir_context_train12_val2_partial1_smoke_20260814",
+      "bytes_before_deletion": 28798068
+    }
+  ],
+  "total_deleted_bytes": 58300105,
+  "retained_versioned_records": {
+    "config": {
+      "path": "configs/experiments/x3d_s_ir_context_train12_val2_partial1.yaml",
+      "sha256": "f840a10a0cbdd6d40895e10b0f8424e0bbe55fdbd7f5270fafbcb8db8815114f"
+    },
+    "preregistration": {
+      "path": "reports/x3d_s_train12_val2_partial1_preregistration.json",
+      "sha256": "7481229f5bd6a88ee83bd00e5869a03f9c30ef7ad63bb25052bd5633c1c6c8ad"
+    },
+    "json_report": {
+      "path": "reports/x3d_s_train12_val2_partial1_report.json",
+      "sha256": "6fd5de8291b3e9b92e732c2e5203741739d1b41715d7f3b6798360eb4bf72fda"
+    },
+    "markdown_report": {
+      "path": "reports/x3d_s_train12_val2_partial1_report.md",
+      "sha256": "330787aba7dd1983ee821f0b25eda941c72325ff205f46104e68c7a3dfc1f234"
+    }
+  },
+  "verification": {
+    "matching_output_directories_remaining": 0,
+    "versioned_records_present": true
+  }
+}

@@ -118,6 +118,43 @@ def test_parameter_groups_split_backbone_head_and_zero_decay_parameters() -> Non
     }
 
 
+def test_parameter_groups_apply_block_specific_learning_rates() -> None:
+    backbone = BlockBackbone()
+    model = X3DSVisualExpert(
+        backbone=backbone,
+        num_classes=40,
+        embedding_dim=16,
+        dropout=0.0,
+    )
+
+    groups = model.parameter_groups(
+        backbone_lr=3e-5,
+        head_lr=3e-4,
+        weight_decay=0.05,
+        backbone_block_lrs={2: 3e-6, 3: 1e-5},
+    )
+    learning_rate_by_parameter = {
+        id(parameter): float(group["lr"])
+        for group in groups
+        for parameter in group["params"]
+    }
+
+    assert all(
+        learning_rate_by_parameter[id(parameter)] == pytest.approx(3e-6)
+        for parameter in backbone.blocks[2].parameters()
+    )
+    assert all(
+        learning_rate_by_parameter[id(parameter)] == pytest.approx(1e-5)
+        for parameter in backbone.blocks[3].parameters()
+    )
+    assert {group["group_name"] for group in groups} >= {
+        "backbone_default",
+        "backbone_block_2",
+        "backbone_block_3",
+        "custom_head",
+    }
+
+
 def test_backbone_warmup_freezes_weights_and_bn_running_statistics() -> None:
     model = build_model()
     backbone = model.backbone
