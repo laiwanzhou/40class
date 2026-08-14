@@ -1,0 +1,91 @@
+input_manifest: D:\work\2026.7.14_kaggle\datasets\Small-Model-Track\roi640_depth_ordinal_256\combined_frame_manifest.csv
+split_path: metadata/splits/fold_0.json
+output_root: outputs/x3d_s_ir_context_fold0_dev
+input_view: ir_context_path
+num_classes: 40
+embedding_dim: 256
+dropout: 0.25
+seed: 20260715
+device: cuda
+pretrained: true
+
+development_partition:
+  train_user_ids: [user1, user2, user3, user5, user6, user7, user8, user9, user16, user18, user19, user20]
+  validation_user_ids: [user21, user22]
+
+temporal:
+  local_frames: 13
+  target_window_frames: 32
+  max_clips: 8
+  train_views_per_window: 1
+  val_views_per_window: 1
+  aggregation: mean_probability
+
+loader:
+  max_trials_per_batch: 2
+  max_valid_clips_per_batch: 8
+  num_workers: 0
+
+backbone_bn:
+  update_running_stats: false
+  train_affine_after_unfreeze: true
+
+roi:
+  keypoint_threshold: 0.25
+  context_padding: 0.22
+  context_quantile: 0.95
+  minimum_context_side_ratio: 0.45
+  local_padding: 0.12
+  duplicate_iou_threshold: 0.70
+  interaction:
+    keypoint_threshold: 0.25
+    projection_alpha: 0.55
+    long_axis_scale: 0.65
+    short_axis_scale: 0.45
+    wrist_fallback_person_width: 0.35
+    minimum_pixel_side: 48.0
+    merge_iou_threshold: 0.30
+    merge_projected_distance: 0.60
+    merge_wrist_distance: 0.70
+    merge_elbow_distance: 0.80
+    merge_wide_wrist_distance: 1.20
+    two_hand_horizontal_padding: 0.30
+    two_hand_top_padding: 0.10
+    two_hand_bottom_padding: 0.45
+    hand_head_distance: 0.90
+
+optimizer:
+  backbone_lr: 0.00001
+  head_lr: 0.0003
+  weight_decay: 0.05
+  gradient_accumulation: 4
+  gradient_clip: 1.0
+
+training:
+  epochs: 20
+  scheduler_horizon_epochs: 20
+  warmup_epochs: 5
+  unfrozen_backbone_blocks: 2
+  label_smoothing: 0.10
+  patience: 8
+  early_stopping_enabled: true
+
+augmentation:
+  brightness: [0.85, 1.15]
+  contrast: [0.85, 1.15]
+  gamma: [0.85, 1.15]
+  noise_std_max: 0.025
+  blur_probability: 0.20
+  blur_kernel_size: 3
+  blur_sigma: [0.10, 1.20]
+
+amp:
+  enabled: true
+  dtype: bfloat16
+
+size_gate:
+  internal_limit_bytes: 95000000
+
+deployment_artifacts:
+  yolo_checkpoint: D:\work\2026.7.14_kaggle\40class\yolo11n-pose.pt
+  phase0_probe: reports/x3d_s_environment_probe.json
