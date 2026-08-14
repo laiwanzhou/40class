@@ -1,0 +1,197 @@
+{
+  "schema_version": 1,
+  "role": "train12_val2_partial1_matched_report",
+  "unbiased_oof": false,
+  "run_id": "x3d_s_ir_context_train12_val2_partial1_seed20260715",
+  "decision": "human_review_regression",
+  "interpretation": "Matched capacity ablation against partial2. Only the number of unfrozen X3D backbone blocks changes from two to one.",
+  "split": {
+    "train_user_ids": [
+      "user1",
+      "user2",
+      "user3",
+      "user5",
+      "user6",
+      "user7",
+      "user8",
+      "user9",
+      "user16",
+      "user18",
+      "user19",
+      "user20"
+    ],
+    "validation_user_ids": [
+      "user21",
+      "user22"
+    ],
+    "train_trial_count": 1996,
+    "validation_trial_count": 324,
+    "validation_observed_class_count": 36,
+    "validation_missing_class_ids": [
+      25,
+      26,
+      33,
+      35
+    ],
+    "macro_f1_class_labels": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39
+    ],
+    "development_split_sha256": "1449061901831eb57ab6a9db8e1101ac6754905f304e0e747ddd33c3e1f53064"
+  },
+  "metrics": {
+    "sample_count": 324,
+    "accuracy": 0.5030864197530864,
+    "macro_f1": 0.39994031135700553,
+    "worst_user_accuracy": 0.45112781954887216,
+    "worst_user_id": "user21",
+    "per_user_accuracy": {
+      "user21": 0.45112781954887216,
+      "user22": 0.5392670157068062
+    },
+    "duration_buckets": {
+      "<=13": {
+        "sample_count": 118,
+        "accuracy": 0.4745762711864407,
+        "macro_f1": 0.23824342324342324
+      },
+      "14-32": {
+        "sample_count": 145,
+        "accuracy": 0.5310344827586206,
+        "macro_f1": 0.3746805714065776
+      },
+      "33-64": {
+        "sample_count": 47,
+        "accuracy": 0.5106382978723404,
+        "macro_f1": 0.2685389610389611
+      },
+      ">64": {
+        "sample_count": 14,
+        "accuracy": 0.42857142857142855,
+        "macro_f1": 0.05928571428571429
+      }
+    }
+  },
+  "selected_epoch": 13,
+  "epochs_completed": 20,
+  "training_log_at_selected_epoch": {
+    "train_accuracy": 0.9228456913827656,
+    "train_macro_f1": 0.92636358186394,
+    "val_accuracy": 0.5030864197530864,
+    "val_macro_f1": 0.3999403113570055,
+    "train_minus_val_accuracy": 0.4197592716296792
+  },
+  "best_macro_f1_checkpoint": {
+    "epoch": 13,
+    "accuracy": 0.5030864197530864,
+    "macro_f1": 0.39994031135700553
+  },
+  "unfrozen_backbone_blocks": 1,
+  "trainable_backbone_parameters": 968544,
+  "full_temporal_coverage": {
+    "train_clip_keep_fraction": 1.0,
+    "validation_clip_keep_fraction": 1.0,
+    "aggregation": "mean_probability"
+  },
+  "artifacts": {
+    "prediction_archive": "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\x3d_s_ir_context_train12_val2_dev\\x3d_s_ir_context_train12_val2_partial1_seed20260715\\val_predictions_best_accuracy.npz",
+    "prediction_archive_sha256": "4f5d000a57dabdf3fb19f2aeb5347b5ad2413f51e01f16498e2afc4f5b1e61a0",
+    "checkpoint": "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\x3d_s_ir_context_train12_val2_dev\\x3d_s_ir_context_train12_val2_partial1_seed20260715\\best_accuracy.pt",
+    "checkpoint_sha256": "648ca801dfb93c1887c8bb573f523f558a33a35dd2d1b799219f1c27be40206e",
+    "resolved_config_sha256": "f2399b06c5507f0270e79f7304e273b40c47c2e32ff13fd3836e4779205cf935"
+  },
+  "canonical_artifact_sha256_after": {
+    "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\metadata\\splits\\train14_oof_3fold.json": "2a0dde67ced6f40cf3a163f63d545f1e3cde3545b6ee0eb0291cf1c52c38ea76",
+    "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\x3d_s_ir_context_oof\\x3d_s_ir_context_adaptive_oof_strict_v3_seed20260715\\fold_0\\formal_outer_refit.pt": "2962631e48541730cd80e347dff588c4122c58263600ab0d0d63207392b36d7a",
+    "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\x3d_s_ir_context_oof\\x3d_s_ir_context_adaptive_oof_strict_v3_seed20260715\\fold_0\\formal_outer_predictions.npz": "18266310ad2706468d07ecd1a10bbd74b3d59d8f0c7d6cf9911ceaf8cf6ff648",
+    "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\x3d_s_ir_evidence\\ir_x3d_s_k400_pure\\oof_evidence.npz": "98517ac3785ab55647b6e8da4e27d31b8096a6115f1cfde9f2607ec861987f21",
+    "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\reports\\x3d_s_phase5_evidence_summary.json": "4df0fcccdeba4d3183307c24eb807efdf66d040b3d8c7eec35d8fde3e9bf8423"
+  },
+  "canonical_artifacts_unchanged": true,
+  "matched_partial2_reference": {
+    "run_id": "x3d_s_ir_context_train12_val2_partial2_seed20260715",
+    "metrics": {
+      "accuracy": 0.5524691358024691,
+      "macro_f1": 0.41865149855281436,
+      "worst_user_accuracy": 0.45864661654135336
+    },
+    "report_path": "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\reports\\x3d_s_train12_val2_partial2_report.json",
+    "report_sha256": "1dbd73f19c61703039cc5ef00dd30bd1863d99248db7f3c00686e562f7bd179b",
+    "prediction_sha256": "c7871e61239e6d755f5c89136fa6723418e059ce9a09b04261794450c6c44b9a"
+  },
+  "matched_delta": {
+    "accuracy": -0.04938271604938271,
+    "macro_f1": -0.01871118719580883,
+    "worst_user_accuracy": -0.007518796992481203
+  },
+  "per_user_accuracy_delta": {
+    "user21": -0.007518796992481203,
+    "user22": -0.07853403141361259
+  },
+  "duration_accuracy_delta": {
+    "<=13": -0.042372881355932146,
+    "14-32": -0.04137931034482767,
+    "33-64": -0.042553191489361764,
+    ">64": -0.21428571428571436
+  },
+  "matched_prediction_diagnostics": {
+    "sample_alignment_exact": true,
+    "prediction_disagreement_count": 94,
+    "prediction_disagreement_fraction": 0.29012345679012347,
+    "candidate_only_correct": 14,
+    "reference_only_correct": 30,
+    "both_wrong": 131,
+    "candidate_confidence": {
+      "mean_all": 0.6391978045116065,
+      "mean_correct": 0.7653364399424717,
+      "mean_wrong": 0.5114922295101714,
+      "nll": 1.95414112368383
+    },
+    "reference_confidence": {
+      "mean_all": 0.6614607302791984,
+      "mean_correct": 0.7875164824327568,
+      "mean_wrong": 0.5058470776206676,
+      "nll": 1.6551265459407816
+    }
+  },
+  "human_review_floor": 0.5324691358024691,
+  "automatic_next_experiment_permitted": false
+}

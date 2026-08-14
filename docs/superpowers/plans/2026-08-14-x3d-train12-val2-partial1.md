@@ -10,17 +10,17 @@
 - [x] Confirm RED before the partial1 config exists.
 - [x] Create the partial1 YAML and preregistration record.
 - [x] Run focused tests and structured config comparison.
-- [ ] Commit and push before any full-run result exists.
+- [x] Commit and push before any full-run result exists.
 
 ## Task 2: Verify runtime behavior
 
-- [ ] Run protected CUDA smoke through the train12/val2 runner.
-- [ ] Require full temporal coverage, exactly 968,544 trainable backbone parameters after warmup, finite block5/head gradients, and unchanged canonical hashes.
+- [x] Run protected CUDA smoke through the train12/val2 runner.
+- [x] Require full temporal coverage, exactly 968,544 trainable backbone parameters after warmup, finite block5/head gradients, and unchanged canonical hashes.
 
 ## Task 3: Execute and report
 
-- [ ] Run the frozen 20-epoch candidate with seed 20260715.
-- [ ] Preserve checkpoints and stop for human review if the frozen Accuracy regression rule is crossed.
-- [ ] Independently recompute fixed-40 metrics, per-user, duration, confidence, and train-validation gap.
-- [ ] Compare only against matched partial2 and apply the frozen decision contract.
-- [ ] Run full verification, commit, push, and update the single handoff.
+- [x] Run the frozen 20-epoch candidate with seed 20260715.
+- [x] Preserve checkpoints and stop for human review if the frozen Accuracy regression rule is crossed.
+- [x] Independently recompute fixed-40 metrics, per-user, duration, confidence, and train-validation gap.
+- [x] Compare only against matched partial2 and apply the frozen decision contract.
+- [x] Run full verification, commit, push, and update the single handoff.
