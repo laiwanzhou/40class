@@ -25,4 +25,4 @@
 - [x] Independently compare trial, user, duration, confidence, and train-gap metrics against partial2.
 - [x] Apply the frozen decision rule; preserve artifacts on human-review regression.
 - [x] Run full verification.
-- [ ] Commit, push, and update the single handoff.
+- [x] Commit, push, and update the single handoff.
