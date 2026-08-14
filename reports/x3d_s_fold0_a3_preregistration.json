@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "registered_at": "2026-08-14",
+  "role": "fold0_development_tuning_preregistration",
+  "candidate": "A3",
+  "unbiased_oof": false,
+  "parent_candidate": "A2",
+  "fold": 0,
+  "seed": 20260715,
+  "run_id": "x3d_s_ir_context_fold0_dev_a3_seed20260715",
+  "single_variable_change": {
+    "field": "augmentation.photometric_ranges",
+    "a2": [0.9, 1.1],
+    "a3": [0.85, 1.15],
+    "applies_to": ["brightness", "contrast", "gamma"]
+  },
+  "fixed_from_a2": {
+    "warmup_epochs": 2,
+    "full_backbone_unfreeze": true,
+    "backbone_lr": 0.00003,
+    "head_lr": 0.0003,
+    "label_smoothing": 0.0,
+    "noise_std_max": 0.0,
+    "blur_probability": 0.0,
+    "epochs_maximum": 20,
+    "scheduler_horizon_epochs": 20,
+    "macro_f1_patience": 8
+  },
+  "success_gate": {
+    "accuracy_minimum": 0.63,
+    "macro_f1_minimum": 0.52,
+    "worst_user_accuracy_minimum": 0.5338
+  },
+  "parent_regression_guard": {
+    "a2_accuracy": 0.6075,
+    "maximum_absolute_accuracy_regression": 0.02,
+    "action": "interrupt_after_checkpoint_review_and_preserve_all_artifacts"
+  },
+  "forbidden": [
+    "a2_artifact_mutation",
+    "canonical_phase4_or_phase5_mutation",
+    "heldout4_access",
+    "competition_test_access",
+    "automatic_artifact_deletion",
+    "automatic_a4_launch"
+  ]
+}
