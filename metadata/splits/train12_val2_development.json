@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "role": "shared_expert_development_split",
+  "name": "train12_val2_user21_user22",
+  "development_only": true,
+  "group_field": "user_id",
+  "label_field": "class_id",
+  "train_user_ids": [
+    "user1", "user2", "user3", "user5", "user6", "user7",
+    "user8", "user9", "user16", "user18", "user19", "user20"
+  ],
+  "validation_user_ids": ["user21", "user22"],
+  "ir_audit": {
+    "train_usable_trials": 1996,
+    "validation_usable_trials": 324,
+    "train_class_count": 40,
+    "validation_class_count": 36,
+    "validation_missing_class_ids": [25, 26, 33, 35]
+  },
+  "metric_policy": {
+    "num_classes": 40,
+    "macro_f1_labels": "0..39 including zero-support validation classes",
+    "worst_user_population": ["user21", "user22"]
+  },
+  "boundary": "Use for model development and selection. Strict OOF and heldout evidence protocols remain separate."
+}

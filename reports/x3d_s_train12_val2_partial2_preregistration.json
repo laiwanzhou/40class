@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "registered_at": "2026-08-14",
+  "role": "train12_val2_development_tuning_preregistration",
+  "candidate": "train12_val2_partial2",
+  "unbiased_oof": false,
+  "development_split": "metadata/splits/train12_val2_development.json",
+  "seed": 20260715,
+  "run_id": "x3d_s_ir_context_train12_val2_partial2_seed20260715",
+  "model_intervention": {
+    "field": "training.unfrozen_backbone_blocks",
+    "value": 2,
+    "meaning": "after two head-only warmup epochs, train only the final two X3D backbone blocks"
+  },
+  "fixed_recipe": {
+    "train_clip_keep_fraction": 1.0,
+    "validation_clip_keep_fraction": 1.0,
+    "local_frames": 13,
+    "target_window_frames": 32,
+    "max_clips": 8,
+    "aggregation": "mean_probability",
+    "warmup_epochs": 2,
+    "backbone_lr": 0.00003,
+    "head_lr": 0.0003,
+    "label_smoothing": 0.0,
+    "photometric_ranges": [0.9, 1.1],
+    "noise_std_max": 0.0,
+    "blur_probability": 0.0,
+    "epochs_maximum": 20,
+    "scheduler_horizon_epochs": 20,
+    "macro_f1_patience": 8,
+    "backbone_bn_running_stats_frozen": true
+  },
+  "metric_contract": {
+    "accuracy": "324 usable-IR trials from user21/user22",
+    "macro_f1": "fixed labels 0..39; absent validation classes receive zero F1",
+    "worst_user_accuracy": "minimum of user21 and user22 Accuracy",
+    "checkpoint_objective": "Accuracy then Macro-F1 then earlier epoch"
+  },
+  "comparison_boundary": {
+    "fold0_a2_a4_metrics_are_not_matched": true,
+    "matched_full_backbone_train12_val2_baseline_exists": false,
+    "interpretation": "standalone development result; causal benefit of partial unfreezing requires a future matched full-backbone run on the same split"
+  },
+  "forbidden": [
+    "clip_dropout",
+    "motion_peak_sampling",
+    "heldout4_access",
+    "competition_test_access",
+    "canonical_phase4_or_phase5_mutation",
+    "automatic_artifact_deletion"
+  ]
+}
