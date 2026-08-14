@@ -1,0 +1,149 @@
+{
+  "schema_version": 1,
+  "role": "train12_val2_development_tuning_report",
+  "unbiased_oof": false,
+  "run_id": "x3d_s_ir_context_train12_val2_partial2_seed20260715",
+  "decision": "freeze_result_no_matched_baseline_claim",
+  "interpretation": "Standalone partial-backbone result on the frozen shared development split. No matched full-backbone run exists on this split, so the effect of partial unfreezing is not causally identified.",
+  "split": {
+    "train_user_ids": [
+      "user1",
+      "user2",
+      "user3",
+      "user5",
+      "user6",
+      "user7",
+      "user8",
+      "user9",
+      "user16",
+      "user18",
+      "user19",
+      "user20"
+    ],
+    "validation_user_ids": [
+      "user21",
+      "user22"
+    ],
+    "train_trial_count": 1996,
+    "validation_trial_count": 324,
+    "validation_observed_class_count": 36,
+    "validation_missing_class_ids": [
+      25,
+      26,
+      33,
+      35
+    ],
+    "macro_f1_class_labels": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39
+    ],
+    "development_split_sha256": "1449061901831eb57ab6a9db8e1101ac6754905f304e0e747ddd33c3e1f53064"
+  },
+  "metrics": {
+    "sample_count": 324,
+    "accuracy": 0.5524691358024691,
+    "macro_f1": 0.41865149855281436,
+    "worst_user_accuracy": 0.45864661654135336,
+    "worst_user_id": "user21",
+    "per_user_accuracy": {
+      "user21": 0.45864661654135336,
+      "user22": 0.6178010471204188
+    },
+    "duration_buckets": {
+      "<=13": {
+        "sample_count": 118,
+        "accuracy": 0.5169491525423728,
+        "macro_f1": 0.26012862137862136
+      },
+      "14-32": {
+        "sample_count": 145,
+        "accuracy": 0.5724137931034483,
+        "macro_f1": 0.4010808962279551
+      },
+      "33-64": {
+        "sample_count": 47,
+        "accuracy": 0.5531914893617021,
+        "macro_f1": 0.2980952380952381
+      },
+      ">64": {
+        "sample_count": 14,
+        "accuracy": 0.6428571428571429,
+        "macro_f1": 0.06999999999999999
+      }
+    }
+  },
+  "selected_epoch": 10,
+  "epochs_completed": 20,
+  "training_log_at_selected_epoch": {
+    "train_accuracy": 0.8897795591182365,
+    "train_macro_f1": 0.8869468523459247,
+    "val_accuracy": 0.5524691358024691,
+    "val_macro_f1": 0.4186514985528143,
+    "train_minus_val_accuracy": 0.3373104233157673
+  },
+  "best_macro_f1_checkpoint": {
+    "epoch": 19,
+    "accuracy": 0.5462962962962963,
+    "macro_f1": 0.4374545849206665
+  },
+  "unfrozen_backbone_blocks": 2,
+  "trainable_backbone_parameters": 2315984,
+  "full_temporal_coverage": {
+    "train_clip_keep_fraction": 1.0,
+    "validation_clip_keep_fraction": 1.0,
+    "aggregation": "mean_probability"
+  },
+  "artifacts": {
+    "prediction_archive": "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\x3d_s_ir_context_train12_val2_dev\\x3d_s_ir_context_train12_val2_partial2_seed20260715\\val_predictions_best_accuracy.npz",
+    "prediction_archive_sha256": "c7871e61239e6d755f5c89136fa6723418e059ce9a09b04261794450c6c44b9a",
+    "checkpoint": "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\x3d_s_ir_context_train12_val2_dev\\x3d_s_ir_context_train12_val2_partial2_seed20260715\\best_accuracy.pt",
+    "checkpoint_sha256": "8434c91d9e1b49f23ef914f21422c6d0620daf7d37af03c3031e4172d48fde26",
+    "resolved_config_sha256": "9a4b694aa4c32d98e75f1063e05959faf966032807cb7ff0ee16192f3a8d6d6c"
+  },
+  "canonical_artifact_sha256_after": {
+    "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\metadata\\splits\\train14_oof_3fold.json": "2a0dde67ced6f40cf3a163f63d545f1e3cde3545b6ee0eb0291cf1c52c38ea76",
+    "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\x3d_s_ir_context_oof\\x3d_s_ir_context_adaptive_oof_strict_v3_seed20260715\\fold_0\\formal_outer_refit.pt": "2962631e48541730cd80e347dff588c4122c58263600ab0d0d63207392b36d7a",
+    "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\x3d_s_ir_context_oof\\x3d_s_ir_context_adaptive_oof_strict_v3_seed20260715\\fold_0\\formal_outer_predictions.npz": "18266310ad2706468d07ecd1a10bbd74b3d59d8f0c7d6cf9911ceaf8cf6ff648",
+    "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\x3d_s_ir_evidence\\ir_x3d_s_k400_pure\\oof_evidence.npz": "98517ac3785ab55647b6e8da4e27d31b8096a6115f1cfde9f2607ec861987f21",
+    "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\reports\\x3d_s_phase5_evidence_summary.json": "4df0fcccdeba4d3183307c24eb807efdf66d040b3d8c7eec35d8fde3e9bf8423"
+  },
+  "canonical_artifacts_unchanged": true
+}

@@ -31,9 +31,9 @@
 - Consumes: `metadata/splits/train12_val2_development.json` and an experiment YAML.
 - Produces: effective resolved config with actual user ownership, provenance, checkpoints, and predictions under `outputs/x3d_s_ir_context_train12_val2_dev`.
 
-- [ ] Write failing tests for exact user ownership, split disjointness, resolved-config replacement, and protected output root.
-- [ ] Confirm RED due to the missing runner.
-- [ ] Implement the runner and rerun focused tests.
+- [x] Write failing tests for exact user ownership, split disjointness, resolved-config replacement, and protected output root.
+- [x] Confirm RED due to the missing runner.
+- [x] Implement the runner and rerun focused tests.
 
 ### Task 2: Partial-Backbone Experiment Freeze
 
@@ -45,8 +45,8 @@
 - Consumes: the protected runner.
 - Produces: one frozen candidate with full temporal coverage and `unfrozen_backbone_blocks: 2`.
 
-- [ ] Verify the config has no clip-dropout field and preserves the A2 recipe except split/output ownership and unfreeze depth.
-- [ ] Commit and push the preregistration before GPU results exist.
+- [x] Verify the config has no clip-dropout field and preserves the A2 recipe except split/output ownership and unfreeze depth.
+- [x] Commit and push the preregistration before GPU results exist.
 
 ### Task 3: Execute and Report
 
@@ -59,7 +59,7 @@
 - Consumes: frozen candidate artifacts.
 - Produces: trial Accuracy, fixed-40-class Macro-F1, per-user/worst-user and duration metrics, training gap, hashes, and a frozen decision.
 
-- [ ] Run focused/full tests and CUDA smoke.
-- [ ] Run the 20-epoch candidate and retain all checkpoints.
-- [ ] Independently recompute metrics and verify actual split ownership.
-- [ ] Verify, commit, push, and update the handoff.
+- [x] Run focused/full tests and CUDA smoke.
+- [x] Run the 20-epoch candidate and retain all checkpoints.
+- [x] Independently recompute metrics and verify actual split ownership.
+- [x] Verify, commit, push, and update the handoff.

@@ -12,7 +12,7 @@ The following are frozen above all modality-specific model choices:
 
 1. Canonical population is the 3,036-trial sparse union in `metadata/manifest.csv`; never reduce the program to the 2,748 all-six intersection.
 2. Trial identity is canonical `sample_id`; user identity is canonical `user_id`; class order is fixed to `0..39` and must share one `class_map_hash`.
-3. The outer development protocol remains 14 train users plus 4 sealed held-out users. All train-14 expert development reuses the exact persisted Phase 4 `metadata/splits/train14_oof_3fold.json` assignment and its hash.
+3. The outer scientific protocol remains 14 train users plus 4 sealed held-out users. Iterative model-family and hyperparameter development for every later expert uses the frozen shared split `metadata/splits/train12_val2_development.json`: 12 development-train users and validation users exactly `user21,user22`. The former X3D fold0 split is retired for new tuning. Once a candidate recipe is frozen, formal train-14 evidence must still reuse the exact persisted Phase 4 `metadata/splits/train14_oof_3fold.json` assignment and its hash; the shared 12/2 score is development evidence, not a substitute for OOF.
 4. `present`, `usable`, and label-free `quality` are distinct. Fusion availability is exactly `usable`; a missing or unusable modality never deletes the canonical trial row.
 5. Every retained expert must produce leakage-free train-14 OOF evidence and a structurally label-free held-out evidence archive before fusion development.
 6. The complete inference package must remain below the internal ceiling of `95,000,000` serialized bytes, counting each inference-time learned artifact exactly once.
@@ -32,7 +32,7 @@ These roles describe the native information each expert should preserve. They ar
 | IMU | inertial-dynamics expert | compact RF primary; small neural temporal candidate only if justified | bilateral wrist/ankle/waist acceleration, angular motion, rhythm, intensity |
 | Radar | point-space / motion expert | raw point-set frame encoder (PointNet-style) + masked temporal model | point geometry, range, radial velocity, spatial dynamics |
 
-Model families may change after controlled train-14 experiments, but external evidence identity, class order, OOF lineage, availability semantics, and byte accounting may not change.
+Model families may change after controlled shared-12/2 development experiments followed by frozen-recipe train-14 OOF evaluation, but external evidence identity, class order, OOF lineage, availability semantics, and byte accounting may not change.
 
 ## 3. 40-action capability-map evidence hierarchy
 

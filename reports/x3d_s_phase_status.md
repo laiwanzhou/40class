@@ -182,3 +182,11 @@ Passed on 2026-08-11. All Task 5 steps are complete and the end-to-end implement
 - The replacement fresh fold0 fixed-10-epoch sanity check produced Accuracy `0.283750`, Macro-F1 `0.173536`, and worst-user Accuracy `0.237569` on the same 800 outer-validation trials. Canonical X3D fold0 produced `0.571250 / 0.486918 / 0.533835`, leading by `0.287500 / 0.313382 / 0.296266`. The baseline is far below the frozen `0.53` anomaly threshold, so no fold1/2 baseline or paired bootstrap was run.
 - Phase 4 decision: `competition-retained; full matched primary rule not evaluated`. This is an explicit compute-budget competition decision, not a claim that the original three-fold paired-bootstrap primary criterion passed. No held-out-4 labels or predictions were accessed.
 - Canonical duration Accuracy is `0.540541` (`<=13`), `0.587364` (`14-32`), `0.575503` (`33-64`), and `0.474359` (`>64`). The weak longest bucket remains a deferred temporal-follow-up risk but does not block Phase 5 registration.
+
+## Post-Phase-5 Shared Development Split
+
+- New tuning no longer uses the former X3D fold0 population. The shared development split is frozen in `metadata/splits/train12_val2_development.json`: 1,996 usable-IR trials from 12 train users and 324 usable-IR trials from validation users `user21,user22`.
+- Validation observes 36 classes and misses class IDs `25,26,33,35`; every report still computes Macro-F1 over fixed labels `0..39`.
+- This 12/2 split is the common iterative development and hyperparameter-selection population for later modality experts. It does not replace strict train-14 OOF evidence, nested fusion evaluation, or the sealed heldout-4 gate.
+- The first full-temporal-coverage partial-backbone X3D-S candidate trained only the final two backbone blocks after warmup. Its best-Accuracy checkpoint was epoch 10 at Accuracy `0.552469`, fixed-40 Macro-F1 `0.418651`, and worst-user Accuracy `0.458647`; train Accuracy was `0.889780`, leaving a `0.337310` train-to-validation gap.
+- The result is frozen as standalone development evidence. Because there is no matched full-backbone run on the same 12/2 split, it does not causally establish that partial unfreezing is better or worse than full unfreezing. Canonical Phase 4/5 evidence remains unchanged.
