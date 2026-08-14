@@ -15,7 +15,42 @@ from src.data.x3d_clip_dataset import (
     adaptive_clip_count,
     collate_x3d_clips,
     partition_trial_windows,
+    select_training_window_indices,
 )
+
+
+@pytest.mark.parametrize(
+    ("num_windows", "expected_count"),
+    [(1, 1), (2, 1), (3, 2), (8, 4)],
+)
+def test_training_window_selection_keeps_ceil_half_in_temporal_order(
+    num_windows: int, expected_count: int
+) -> None:
+    selected = select_training_window_indices(
+        num_windows,
+        keep_fraction=0.5,
+        generator=torch.Generator().manual_seed(17),
+    )
+
+    assert len(selected) == expected_count
+    assert selected == sorted(selected)
+    assert len(set(selected)) == expected_count
+    assert all(0 <= index < num_windows for index in selected)
+
+
+def test_training_window_selection_changes_with_generator_seed() -> None:
+    first = select_training_window_indices(
+        8,
+        keep_fraction=0.5,
+        generator=torch.Generator().manual_seed(1),
+    )
+    second = select_training_window_indices(
+        8,
+        keep_fraction=0.5,
+        generator=torch.Generator().manual_seed(2),
+    )
+
+    assert first != second
 
 
 def fixture_manifest(
@@ -141,6 +176,44 @@ def test_236_frame_trial_uses_eight_local_windows(tmp_path: Path) -> None:
     assert bounds[-1][1] == 236
     for (start, end), indices in zip(bounds, item["source_indices"][:, 0]):
         assert all(start <= index < end for index in indices.tolist())
+
+
+def test_training_clip_dropout_keeps_half_and_changes_windows_by_epoch(
+    tmp_path: Path,
+) -> None:
+    dataset = X3DClipDataset(
+        fixture_manifest(tmp_path, primary_frames=236),
+        split="train",
+        training=True,
+        train_clip_keep_fraction=0.5,
+        seed=29,
+    )
+
+    dataset.set_epoch(3)
+    first = dataset[0]
+    dataset.set_epoch(4)
+    changed = dataset[0]
+
+    assert dataset.num_clips[0] == 4
+    assert first["num_clips"] == 4
+    assert first["window_bounds"].shape == (4, 2)
+    assert first["window_bounds"].tolist() == sorted(first["window_bounds"].tolist())
+    assert first["window_bounds"].tolist() != changed["window_bounds"].tolist()
+
+
+def test_validation_ignores_training_clip_dropout_fraction(tmp_path: Path) -> None:
+    dataset = X3DClipDataset(
+        fixture_manifest(tmp_path, primary_frames=236, split="val"),
+        split="val",
+        training=False,
+        train_clip_keep_fraction=0.5,
+    )
+
+    item = dataset[0]
+
+    assert dataset.num_clips[0] == 8
+    assert item["num_clips"] == 8
+    assert item["window_bounds"].shape == (8, 2)
 
 
 def test_training_sampling_is_epoch_deterministic(tmp_path: Path) -> None:

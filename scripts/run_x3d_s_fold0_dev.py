@@ -70,6 +70,18 @@ def validate_dev_contract(*, output_root: Path, run_id: str, seed: int) -> None:
         raise ValueError(f"Fold0 development is frozen to seed {CANONICAL_SEED}")
 
 
+def dataset_temporal_kwargs(
+    config: Mapping[str, Any], *, training: bool
+) -> dict[str, float]:
+    temporal = config.get("temporal", {})
+    if not isinstance(temporal, Mapping):
+        raise ValueError("temporal config must be a mapping")
+    keep_fraction = float(temporal.get("train_clip_keep_fraction", 1.0))
+    if not 0.0 < keep_fraction <= 1.0:
+        raise ValueError("temporal.train_clip_keep_fraction must be in (0, 1]")
+    return {"train_clip_keep_fraction": keep_fraction if training else 1.0}
+
+
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Run protected development-only X3D-S tuning on frozen fold 0"
@@ -120,6 +132,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         training=True,
         augmentation_config=augmentation_config,
         seed=CANONICAL_SEED,
+        **dataset_temporal_kwargs(config, training=True),
     )
     validation_dataset = X3DClipDataset(
         partition_manifest,
@@ -127,6 +140,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         training=False,
         augmentation_config=augmentation_config,
         seed=CANONICAL_SEED,
+        **dataset_temporal_kwargs(config, training=False),
     )
 
     run_directory = trainer.prepare_run_directory(output_root, str(args.run_id))
@@ -150,6 +164,15 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "worst_user_accuracy_minimum": 0.5338,
         },
         "smoke_test": bool(args.smoke_test),
+        "temporal_training_policy": {
+            "train_clip_keep_fraction": dataset_temporal_kwargs(
+                config, training=True
+            )["train_clip_keep_fraction"],
+            "validation_clip_keep_fraction": 1.0,
+            "selection_count_rule": "ceil(K * train_clip_keep_fraction)",
+            "selection_changes_by_epoch": True,
+            "selected_windows_remain_chronological": True,
+        },
     }
     provenance_path = run_directory / "development_provenance.json"
     provenance_path.write_text(json.dumps(provenance, indent=2) + "\n", encoding="utf-8")

@@ -9,9 +9,21 @@ from scripts.run_x3d_s_fold0_dev import (
     CANONICAL_SEED,
     DEV_OUTPUT_ROOT,
     collect_canonical_artifact_hashes,
+    dataset_temporal_kwargs,
     select_fold0,
     validate_dev_contract,
 )
+
+
+def test_a4_temporal_keep_fraction_applies_only_to_training_dataset() -> None:
+    config = {"temporal": {"train_clip_keep_fraction": 0.5}}
+
+    assert dataset_temporal_kwargs(config, training=True) == {
+        "train_clip_keep_fraction": 0.5
+    }
+    assert dataset_temporal_kwargs(config, training=False) == {
+        "train_clip_keep_fraction": 1.0
+    }
 
 
 def _assignment() -> dict[str, object]:

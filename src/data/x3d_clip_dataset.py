@@ -140,6 +140,21 @@ def partition_trial_windows(
     return windows
 
 
+def select_training_window_indices(
+    num_windows: int,
+    *,
+    keep_fraction: float,
+    generator: torch.Generator,
+) -> list[int]:
+    if num_windows <= 0:
+        raise ValueError("num_windows must be positive")
+    if not 0.0 < keep_fraction <= 1.0:
+        raise ValueError("keep_fraction must be in (0, 1]")
+    keep_count = max(1, math.ceil(num_windows * keep_fraction))
+    selected = torch.randperm(num_windows, generator=generator)[:keep_count].tolist()
+    return sorted(int(index) for index in selected)
+
+
 def stratified_temporal_indices(
     start: int,
     end: int,
@@ -336,6 +351,7 @@ class X3DClipDataset(Dataset[X3DClipSample]):
         training: bool,
         augmentation_enabled: bool = True,
         augmentation_config: Mapping[str, object] | IRAugmentationConfig | None = None,
+        train_clip_keep_fraction: float = 1.0,
         seed: int = 20260715,
     ) -> None:
         if split not in {"train", "val"}:
@@ -376,6 +392,11 @@ class X3DClipDataset(Dataset[X3DClipSample]):
         )
         self.seed = int(seed)
         self.epoch = 0
+        if not 0.0 < float(train_clip_keep_fraction) <= 1.0:
+            raise ValueError("train_clip_keep_fraction must be in (0, 1]")
+        self.train_clip_keep_fraction = (
+            float(train_clip_keep_fraction) if self.training else 1.0
+        )
 
         selected = frame[frame["split"].astype(str) == split].copy()
         if selected.empty:
@@ -401,7 +422,10 @@ class X3DClipDataset(Dataset[X3DClipSample]):
             self.samples.append(ordered)
             self.sample_ids.append(str(sample_id))
             self.lengths.append(len(ordered))
-            self.num_clips.append(adaptive_clip_count(len(ordered)))
+            full_clip_count = adaptive_clip_count(len(ordered))
+            self.num_clips.append(
+                max(1, math.ceil(full_clip_count * self.train_clip_keep_fraction))
+            )
 
     def __len__(self) -> int:
         return len(self.samples)
@@ -418,15 +442,30 @@ class X3DClipDataset(Dataset[X3DClipSample]):
         )
         return torch.Generator().manual_seed(derived_seed)
 
+    def _window_selection_generator(self, dataset_index: int) -> torch.Generator:
+        derived_seed = (
+            self.seed + self.epoch * 1_000_003 + dataset_index * 10_007 + 97_003
+        )
+        return torch.Generator().manual_seed(derived_seed)
+
     def __getitem__(self, index: int) -> X3DClipSample:
         frame = self.samples[index]
         num_frames = len(frame)
         windows = partition_trial_windows(num_frames)
+        if self.training and self.train_clip_keep_fraction < 1.0:
+            selected_window_indices = select_training_window_indices(
+                len(windows),
+                keep_fraction=self.train_clip_keep_fraction,
+                generator=self._window_selection_generator(index),
+            )
+            windows = [windows[window_index] for window_index in selected_window_indices]
+        else:
+            selected_window_indices = list(range(len(windows)))
         clips: list[torch.Tensor] = []
         selected_indices: list[torch.Tensor] = []
         clip_unique_fractions: list[float] = []
         image_cache: dict[int, torch.Tensor] = {}
-        for window_index, (start, end) in enumerate(windows):
+        for window_index, (start, end) in zip(selected_window_indices, windows):
             generator = self._generator(index, window_index)
             indices = stratified_temporal_indices(
                 start,
