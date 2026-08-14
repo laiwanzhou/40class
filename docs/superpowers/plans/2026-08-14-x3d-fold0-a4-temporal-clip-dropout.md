@@ -28,10 +28,10 @@
 - Consumes: adaptive windows from `partition_trial_windows()`.
 - Produces: `select_training_window_indices(num_windows, keep_fraction, generator) -> list[int]` and dataset argument `train_clip_keep_fraction: float = 1.0`.
 
-- [ ] Add failing tests proving `K=1` remains one, `K=2` retains one, `K=8` retains four, selections change across epochs, selected windows stay ordered, and validation retains all windows.
-- [ ] Run the focused tests and confirm they fail because the new API does not exist.
-- [ ] Implement deterministic selection and apply it only to training datasets.
-- [ ] Run focused and existing dataset/trainer contract tests.
+- [x] Add failing tests proving `K=1` remains one, `K=2` retains one, `K=8` retains four, selections change across epochs, selected windows stay ordered, and validation retains all windows.
+- [x] Run the focused tests and confirm they fail because the new API does not exist.
+- [x] Implement deterministic selection and apply it only to training datasets.
+- [x] Run focused and existing dataset/trainer contract tests.
 
 ### Task 2: A4-T Experiment Freeze
 
@@ -45,10 +45,10 @@
 - Consumes: `temporal.train_clip_keep_fraction` from the resolved config.
 - Produces: a protected development run whose provenance records the A4-T temporal policy.
 
-- [ ] Add a failing runner contract test proving only the training dataset receives `0.5` while validation receives `1.0`.
-- [ ] Thread the frozen temporal field into dataset construction and provenance.
-- [ ] Verify a structured A2/A4-T config comparison has exactly one behavioral difference.
-- [ ] Run fold0 development and trainer contract tests.
+- [x] Add a failing runner contract test proving only the training dataset receives `0.5` while validation receives `1.0`.
+- [x] Thread the frozen temporal field into dataset construction and provenance.
+- [x] Verify a structured A2/A4-T config comparison has exactly one behavioral difference.
+- [x] Run fold0 development and trainer contract tests.
 
 ### Task 3: Execute and Freeze A4-T
 
@@ -61,7 +61,7 @@
 - Consumes: frozen A4-T config and fold assignment.
 - Produces: retained checkpoint, predictions, independent metrics, comparison with A2, and artifact hashes.
 
-- [ ] Run the CUDA smoke test and verify gradients plus canonical/A2 artifact hashes.
-- [ ] Run the complete 20-epoch fold0 experiment.
-- [ ] Recompute all frozen metrics independently and compare with A2.
-- [ ] Apply target and regression rules, retain every artifact, verify, commit, and push.
+- [x] Run the CUDA smoke test and verify gradients plus canonical/A2 artifact hashes.
+- [x] Run the complete 20-epoch fold0 experiment.
+- [x] Recompute all frozen metrics independently and compare with A2.
+- [x] Apply target and regression rules, retain every artifact, verify, commit, and push.
