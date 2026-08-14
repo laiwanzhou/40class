@@ -10,6 +10,10 @@ import pandas as pd
 
 from src.engine.metrics import classification_metrics
 import src.train_x3d_s_visual_expert as trainer
+from scripts.run_x3d_s_fold0_dev import (
+    CANONICAL_ARTIFACTS,
+    collect_canonical_artifact_hashes,
+)
 
 
 TARGET = {
@@ -91,7 +95,7 @@ def build_report(run_directory: Path) -> dict[str, Any]:
     summary_path = run_directory / "run_summary.json"
     archive_path = run_directory / "val_predictions_best_accuracy.npz"
     history_path = run_directory / "history.csv"
-    for path in (provenance_path, summary_path, archive_path, history_path):
+    for path in (provenance_path, archive_path, history_path):
         if not path.is_file():
             raise FileNotFoundError(path)
     provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
@@ -99,21 +103,52 @@ def build_report(run_directory: Path) -> dict[str, Any]:
         raise ValueError("Run is not registered as fold0 development tuning")
     if provenance.get("unbiased_oof") is not False:
         raise ValueError("Development report must never claim unbiased OOF status")
-    summary = json.loads(summary_path.read_text(encoding="utf-8"))
     metrics = recompute_metrics(archive_path)
-    selected_epoch = int(summary["best_accuracy"]["epoch"])
     history = pd.read_csv(history_path)
+    if summary_path.is_file():
+        summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        selected_epoch = int(summary["best_accuracy"]["epoch"])
+        run_status = "completed"
+    else:
+        ranked = history.sort_values(
+            ["val_accuracy", "val_macro_f1", "epoch"],
+            ascending=[False, False, True],
+        )
+        selected_epoch = int(ranked.iloc[0]["epoch"])
+        config_path = run_directory / "resolved_config.yaml"
+        if not config_path.is_file():
+            raise FileNotFoundError(config_path)
+        import yaml
+
+        config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+        summary = {
+            "resolved_config_sha256": trainer.resolved_config_sha256(config),
+            "unfrozen_backbone_blocks": config["training"].get(
+                "unfrozen_backbone_blocks"
+            ),
+            "trainable_backbone_parameters_last_epoch": int(
+                history.iloc[-1]["trainable_backbone_parameters"]
+            ),
+        }
+        run_status = "interrupted_by_regression_guard"
     selected = history.loc[history["epoch"].astype(int) == selected_epoch]
     if len(selected) != 1:
         raise ValueError("Selected checkpoint epoch is absent or duplicated in history")
     selected_row = selected.iloc[0]
     decision = evaluate_candidate(metrics, CANONICAL_BASELINE)
+    canonical_after = collect_canonical_artifact_hashes(CANONICAL_ARTIFACTS)
+    canonical_unchanged = (
+        canonical_after == provenance.get("canonical_artifact_sha256_before")
+    )
+    if not canonical_unchanged:
+        raise RuntimeError("Canonical Phase 4/5 artifacts changed during development run")
     return {
         "schema_version": 1,
         "role": "fold0_development_tuning_report",
         "unbiased_oof": False,
         "run_id": run_directory.name,
         "decision": decision,
+        "run_status": run_status,
         "metrics": metrics,
         "target": TARGET,
         "target_gap": {
@@ -142,9 +177,8 @@ def build_report(run_directory: Path) -> dict[str, Any]:
             "checkpoint_sha256": trainer._sha256_file(run_directory / "best_accuracy.pt"),
             "resolved_config_sha256": summary["resolved_config_sha256"],
         },
-        "canonical_artifacts_unchanged": provenance.get(
-            "canonical_artifacts_unchanged"
-        ),
+        "canonical_artifact_sha256_after": canonical_after,
+        "canonical_artifacts_unchanged": canonical_unchanged,
     }
 
 
