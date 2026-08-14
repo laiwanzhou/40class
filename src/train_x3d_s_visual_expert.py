@@ -686,6 +686,9 @@ def finalize_train14(
                 "learning_rates_by_scope": json.dumps(
                     _learning_rates_by_scope(optimizer), sort_keys=True
                 ),
+                "active_learning_rates_by_scope": json.dumps(
+                    _learning_rates_by_scope(optimizer, active_only=True), sort_keys=True
+                ),
                 "processed_clips_per_second": last_outcome.metrics[
                     "processed_clips_per_second"
                 ],
@@ -1269,6 +1272,9 @@ def _history_row(
         "learning_rates_by_scope": json.dumps(
             _learning_rates_by_scope(optimizer), sort_keys=True
         ),
+        "active_learning_rates_by_scope": json.dumps(
+            _learning_rates_by_scope(optimizer, active_only=True), sort_keys=True
+        ),
         "epoch_seconds": epoch_seconds,
         "train_processed_clips_per_second": train_metrics["processed_clips_per_second"],
         "val_processed_clips_per_second": validation_metrics["processed_clips_per_second"],
@@ -1313,9 +1319,15 @@ def _serializable_backbone_block_lrs(config: Mapping[str, Any]) -> dict[str, flo
     return {str(index): learning_rate for index, learning_rate in sorted(resolved.items())}
 
 
-def _learning_rates_by_scope(optimizer: torch.optim.Optimizer) -> dict[str, float]:
+def _learning_rates_by_scope(
+    optimizer: torch.optim.Optimizer, *, active_only: bool = False
+) -> dict[str, float]:
     result: dict[str, float] = {}
     for index, group in enumerate(optimizer.param_groups):
+        if active_only and not any(
+            bool(parameter.requires_grad) for parameter in group["params"]
+        ):
+            continue
         scope = str(group.get("group_name", f"group_{index}"))
         learning_rate = float(group["lr"])
         previous = result.setdefault(scope, learning_rate)
@@ -1327,11 +1339,18 @@ def _learning_rates_by_scope(optimizer: torch.optim.Optimizer) -> dict[str, floa
 def _maximum_learning_rate(
     optimizer: torch.optim.Optimizer, *, scope_prefix: str
 ) -> float:
+    scoped_learning_rates = _learning_rates_by_scope(optimizer, active_only=True)
     matching = [
         learning_rate
-        for scope, learning_rate in _learning_rates_by_scope(optimizer).items()
+        for scope, learning_rate in scoped_learning_rates.items()
         if scope.startswith(scope_prefix)
     ]
+    if not matching:
+        matching = [
+            learning_rate
+            for scope, learning_rate in _learning_rates_by_scope(optimizer).items()
+            if scope.startswith(scope_prefix)
+        ]
     if not matching:
         raise RuntimeError(f"Optimizer has no learning-rate scope matching {scope_prefix}")
     return max(matching)

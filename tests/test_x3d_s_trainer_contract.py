@@ -38,6 +38,8 @@ from src.train_x3d_s_visual_expert import (
     validate_user_partition,
     _formal_refit_config,
     _length_bucket,
+    _learning_rates_by_scope,
+    _maximum_learning_rate,
     _warmup_cosine_multiplier,
 )
 
@@ -333,6 +335,30 @@ def test_config_accepts_exact_lrs_for_unfrozen_x3d_blocks(tmp_path: Path) -> Non
     config["optimizer"]["backbone_block_lrs"] = {4: -1.0, 5: 1e-5}
     with pytest.raises(ValueError, match="positive"):
         validate_config(config)
+
+
+def test_learning_rate_audit_distinguishes_active_and_frozen_scopes() -> None:
+    frozen = nn.Parameter(torch.ones(1), requires_grad=False)
+    block4 = nn.Parameter(torch.ones(1))
+    block5 = nn.Parameter(torch.ones(1))
+    head = nn.Parameter(torch.ones(1))
+    optimizer = torch.optim.SGD(
+        [
+            {"params": [frozen], "lr": 3e-5, "group_name": "backbone_default"},
+            {"params": [block4], "lr": 3e-6, "group_name": "backbone_block_4"},
+            {"params": [block5], "lr": 1e-5, "group_name": "backbone_block_5"},
+            {"params": [head], "lr": 3e-4, "group_name": "custom_head"},
+        ]
+    )
+
+    assert _learning_rates_by_scope(optimizer, active_only=True) == {
+        "backbone_block_4": pytest.approx(3e-6),
+        "backbone_block_5": pytest.approx(1e-5),
+        "custom_head": pytest.approx(3e-4),
+    }
+    assert _maximum_learning_rate(optimizer, scope_prefix="backbone_") == pytest.approx(
+        1e-5
+    )
 
 
 def test_user_partition_rejects_heldout_and_overlap() -> None:
