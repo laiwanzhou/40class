@@ -52,10 +52,19 @@ The official X3D feature backbone's internal `Dropout(p=0.5)` remains unchanged 
 
 ## Fixed Matched Recipe
 
-Relative to `x3d_s_ir_context_train12_val2_partial2_seed20260715`, freeze all non-head behavior:
+The original `user21,user22` validation split lacks four classes and is not authoritative for this experiment. Use the newly frozen `metadata/splits/train12_val2_user6_user7_development.json`, selected from the official train14 users using manifest structure only before any Direct-Head result:
 
-- development split: `metadata/splits/train12_val2_development.json`;
-- train users: the frozen 12-user partition; validation users: `user21,user22`;
+- train users: `user1,user2,user3,user5,user8,user9,user16,user18,user19,user20,user21,user22`;
+- validation users: `user6,user7`;
+- sealed heldout users: `user4,user17,user23,user24`;
+- usable IR populations: 1,935 train trials and 385 validation trials;
+- both train and validation cover all 40 classes; validation minimum class support is 2;
+- among all 91 two-user pairs inside official train14, `user6,user7` is the unique pair with full 40-class usable-IR validation coverage while the remaining 12-user train population also covers all 40 classes.
+
+First rerun the unchanged partial2 architecture/recipe on this split. That result becomes the sole matched reference for Direct-Head. Relative to this new partial2 reference, freeze all non-head behavior:
+
+- development split: `metadata/splits/train12_val2_user6_user7_development.json`;
+- train and validation users: the exact populations above;
 - seed: `20260715`;
 - K400 pretrained X3D-S and blocks0-3 frozen;
 - block4 and block5 trainable after the same two head-only warmup epochs;
@@ -70,7 +79,7 @@ Relative to `x3d_s_ir_context_train12_val2_partial2_seed20260715`, freeze all no
 - 20-epoch maximum and deterministic validation unchanged;
 - early stopping reuses the existing `best_macro_f1` comparator and patience 8: higher fixed-40 Macro-F1 wins, with Accuracy breaking a Macro-F1 tie and resetting patience;
 - formal comparison uses `best_accuracy.pt`, selected by Accuracy, then fixed-40 Macro-F1, then earlier epoch;
-- worst-user Accuracy is `min(user21 Accuracy, user22 Accuracy)`.
+- worst-user Accuracy is `min(user6 Accuracy, user7 Accuracy)`.
 
 No L2-SP, EMA, user-adversarial loss, stronger augmentation, temporal change, additional seed, or other regularizer belongs to this candidate.
 
@@ -97,10 +106,10 @@ Tests must prove:
 Use a new run ID and output directory, provisionally:
 
 ```text
-x3d_s_ir_context_train12_val2_direct_head1_seed20260715
+x3d_s_ir_context_train12_val2_user6_user7_direct_head1_seed20260715
 ```
 
-Pre-register and push the config, implementation, tests, and experiment manifest before the formal result exists. Run one CUDA smoke, then the frozen 20-epoch train12/val2 experiment. Do not access heldout4 or competition test and do not mutate canonical OOF/Phase 5 evidence.
+Execute in two write-once generations. Generation R reruns unchanged partial2 on the new split and freezes its result/report without inspecting or implementing a Direct-Head result. Generation D then pre-registers and pushes the Direct-Head config, implementation, tests, matched reference hashes, and experiment manifest before the Direct-Head formal result exists. Run one Direct-Head CUDA smoke, then the frozen 20-epoch Direct-Head experiment. Do not access heldout4 or competition test and do not mutate canonical OOF/Phase 5 evidence.
 
 The preregistration and result report must record the actual direct-head parameter count, checkpoint bytes, prediction/archive bytes, peak CUDA allocation, and provisional route size. The larger 2048D evidence archive is an expected resource change; it is not a model-size regression and does not alter the `<95 MB` deployment gate calculation.
 
@@ -111,24 +120,19 @@ In addition to the frozen validation decision metrics, report these mechanism di
 - training-log Accuracy and Macro-F1 at the selected epoch;
 - train-to-validation Accuracy and Macro-F1 gaps;
 - actual custom-head and total trainable parameter counts;
-- per-user Accuracy for user21 and user22 and matched deltas versus partial2;
+- per-user Accuracy for user6 and user7 and matched deltas versus the new-split partial2 reference;
 - duration-bucket Accuracy/Macro-F1 and matched deltas for `<=13`, `14-32`, `33-64`, and `>64`;
 - validation NLL, wrong-prediction confidence, prediction disagreement, candidate-only correct, and partial2-only correct counts;
 - direct classifier parameter drift from its seeded initialization, reported descriptively because it has no K400 semantic anchor.
 
 ## Decision Rule
 
-Matched reference is partial2:
-
-- Accuracy `0.5524691358`;
-- Macro-F1 `0.4186514986`;
-- worst-user Accuracy `0.4586466165`;
-- mandatory human-review Accuracy floor `0.5324691358`.
+Matched reference is the unchanged partial2 rerun on `train12_val2_user6_user7`. Its observed Accuracy, Macro-F1, worst-user Accuracy, artifact hashes, and selected epoch are frozen in the Direct-Head preregistration before any Direct-Head formal result. The mandatory human-review floor is defined before results as `new_partial2_reference_accuracy - 0.02`.
 
 Classify the result as:
 
-- **preferred** only when Accuracy, Macro-F1, and worst-user Accuracy are all no worse than partial2 and at least one strictly improves;
-- **human_review_regression** when Accuracy is below `0.5324691358`; preserve every checkpoint, prediction, log, history, manifest, and report, then stop;
+- **preferred** only when Accuracy, Macro-F1, and worst-user Accuracy are all no worse than the new-split partial2 reference and at least one strictly improves;
+- **human_review_regression** when Accuracy is more than 0.02 below the new-split partial2 reference; preserve every checkpoint, prediction, log, history, manifest, and report, then stop;
 - **non_winning_ablation** otherwise; preserve the result and do not automatically start another IR experiment.
 
 The aspirational range `0.58-0.60` is descriptive, not a pass threshold. Diagnostic train-gap, resource, disagreement, duration, and drift measurements cannot promote or reject the candidate. This development result cannot replace strict train-14 OOF evidence regardless of score.

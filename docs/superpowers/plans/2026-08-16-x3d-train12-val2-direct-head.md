@@ -2,17 +2,20 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Implement, pre-register, smoke-test, and run one matched Direct-Head X3D-S experiment on the frozen train12/val2 split.
+**Goal:** Establish an unchanged partial2 reference and then implement, pre-register, smoke-test, and run one matched Direct-Head X3D-S experiment on the frozen `12 train / user6-user7 val / 4 heldout` split.
 
-**Architecture:** Preserve the legacy projected head as the default module/state-dict layout. Add a `direct` head that classifies unchanged 2048D X3D outputs through `Dropout(0.25) -> Linear(2048,40)` and aggregates the pre-custom-dropout features into the required 2048D trial embedding. Extend trainer/archive/resource metadata without changing canonical configs or evidence.
+**Architecture:** First rerun the unchanged partial2 recipe on the new full-40-class validation split and freeze that result as the sole matched reference. Preserve the legacy projected head as the default module/state-dict layout, then add a `direct` head that classifies unchanged 2048D X3D outputs through `Dropout(0.25) -> Linear(2048,40)` and aggregates the pre-custom-dropout features into the required 2048D trial embedding. Extend trainer/archive/resource metadata without changing canonical configs or evidence.
 
 **Tech Stack:** Python 3.12, PyTorch 2.7, PyTorchVideo X3D-S, NumPy, pandas, scikit-learn, PyYAML, pytest, CUDA BF16.
 
 ## Global Constraints
 
-- Authority: `docs/superpowers/specs/2026-08-16-x3d-train12-val2-direct-head-design.md` and final review decision `APPROVED`.
+- Authority: `docs/superpowers/specs/2026-08-16-x3d-train12-val2-direct-head-design.md`; the head design has final review decision `APPROVED`, and the `user6,user7` split amendment is explicitly user-approved.
 - Branch: `test/x3d-fold0-generalization`; do not create or switch branches.
-- Split: `metadata/splits/train12_val2_development.json`; seed `20260715`; no additional seed.
+- Split: `metadata/splits/train12_val2_user6_user7_development.json`; seed `20260715`; no additional seed.
+- Train12: `user1,user2,user3,user5,user8,user9,user16,user18,user19,user20,user21,user22`; val2: `user6,user7`; sealed heldout4: `user4,user17,user23,user24`.
+- The split contains 1935 usable-IR train trials and 385 usable-IR validation trials; both populations cover all 40 classes.
+- Generation R must rerun the unchanged partial2 recipe on this split and freeze its report before Generation D implements or preregisters Direct-Head.
 - Official X3D feature backbone, including internal `Dropout(p=0.5)`, remains unchanged.
 - Direct path: `unchanged 2048D X3D output -> custom Dropout(0.25) -> Linear(2048,40)`.
 - Direct runtime embedding: normalized trial mean of valid unchanged-X3D outputs before custom dropout; shape `[N,2048]`.
@@ -22,8 +25,92 @@
 - Photometric `[0.9,1.1]`; no noise, blur, label smoothing, EMA, or user-adversarial loss.
 - `best_accuracy.pt`: Accuracy, fixed-40 Macro-F1, earlier epoch. Early stop: existing `best_macro_f1`, Accuracy tie-break, patience 8.
 - Legacy exact-output compatibility is evaluated under `model.eval()` with identical inputs and masks.
-- Human-review floor: Accuracy `<0.5324691358`; preserve all artifacts and stop. Never auto-delete.
+- Human-review floor: Direct-Head Accuracy `< new-split partial2 reference Accuracy - 0.02`; bind the resulting numeric threshold in Generation D preregistration, preserve all artifacts, and stop. Never auto-delete.
 - Do not access heldout4/test or mutate canonical Phase 4/5 artifacts.
+
+---
+
+### Task 0: Freeze The New Split And Generate Its Partial2 Reference
+
+**Files:**
+- Create: `metadata/splits/train12_val2_user6_user7_development.json`
+- Create: `configs/experiments/x3d_s_ir_context_train12_val2_user6_user7_partial2.yaml`
+- Create: `reports/x3d_s_train12_val2_user6_user7_partial2_preregistration.json`
+- Create: `reports/x3d_s_train12_val2_user6_user7_partial2_report.json`
+- Create: `reports/x3d_s_train12_val2_user6_user7_partial2_report.md`
+- Modify: `scripts/run_x3d_s_train12_val2_dev.py`
+- Modify: `scripts/report_x3d_s_train12_val2_dev.py`
+- Modify: `tests/test_x3d_s_train12_val2_dev.py`
+- Modify: `reports/x3d_s_phase_status.md`
+
+**Interfaces:**
+- Consumes: frozen official train14 manifest, unchanged partial2 config, protected development runner, and standalone reporter.
+- Produces: a named split profile, an unchanged partial2 run on that profile, and a write-once matched-reference report used by all later tasks.
+
+- [ ] **Step 1: Write failing named-split contract tests**
+
+Add fixtures for both historical `train12_val2_development.json` and new `train12_val2_user6_user7_development.json`. Require the runner to accept only an explicitly supported profile whose exact train/validation/heldout users match the file; reject swapped users, overlaps, non-train14 development users, missing heldout users, and mismatched audit counts. Require the reporter to derive its expected validation users from frozen run provenance instead of importing the historical `user21,user22` constant.
+
+- [ ] **Step 2: Run RED**
+
+```powershell
+D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest tests/test_x3d_s_train12_val2_dev.py -q
+```
+
+Expected: fail because the runner and reporter currently hard-code the historical split.
+
+- [ ] **Step 3: Implement protected named split profiles**
+
+In `scripts/run_x3d_s_train12_val2_dev.py`, replace the single expected-user constants with immutable profiles keyed by split `name`. Validate exact user tuples, disjoint roles, `development_only: true`, 40-class metric policy, and the new profile's audit values `1935/385/40/40`. Keep the historical profile valid for existing artifacts. In `scripts/report_x3d_s_train12_val2_dev.py`, read the split path/hash and validation users from run provenance and require exact agreement with the supplied reference/candidate artifacts.
+
+- [ ] **Step 4: Run GREEN and independently audit the split**
+
+```powershell
+D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest tests/test_x3d_s_train12_val2_dev.py -q
+D:\Anaconda\envs\pyTorch2.7\python.exe -c "import json; p=json.load(open('metadata/splits/train12_val2_user6_user7_development.json')); assert len(p['train_user_ids'])==12 and p['validation_user_ids']==['user6','user7'] and len(p['heldout_user_ids'])==4 and not (set(p['train_user_ids']) & set(p['validation_user_ids']) or set(p['train_user_ids']) & set(p['heldout_user_ids']) or set(p['validation_user_ids']) & set(p['heldout_user_ids'])); assert p['ir_audit']['train_class_count']==p['ir_audit']['validation_class_count']==40; print('PASS')"
+```
+
+- [ ] **Step 5: Freeze the unchanged partial2 config and preregistration**
+
+Copy the existing partial2 config without changing model, optimizer, augmentation, temporal sampling, warmup, scheduler, checkpoint selection, or seed. Change only the split identity/output naming needed for `train12_val2_user6_user7`. Create a preregistration that binds SHA-256 for the new split, config, parent partial2 config, canonical artifacts, and sealed heldout boundary; state that no Direct-Head result or implementation is used in Generation R.
+
+- [ ] **Step 6: Commit and push Generation R before training**
+
+```powershell
+git add metadata/splits/train12_val2_user6_user7_development.json configs/experiments/x3d_s_ir_context_train12_val2_user6_user7_partial2.yaml reports/x3d_s_train12_val2_user6_user7_partial2_preregistration.json scripts/run_x3d_s_train12_val2_dev.py scripts/report_x3d_s_train12_val2_dev.py tests/test_x3d_s_train12_val2_dev.py reports/x3d_s_phase_status.md docs/superpowers/specs/2026-08-16-x3d-train12-val2-direct-head-design.md docs/superpowers/plans/2026-08-16-x3d-train12-val2-direct-head.md
+git commit -m "Preregister user6-user7 partial2 reference"
+git push origin test/x3d-fold0-generalization
+```
+
+- [ ] **Step 7: Run the unchanged partial2 reference exactly once**
+
+```powershell
+$env:CUBLAS_WORKSPACE_CONFIG=":4096:8"
+D:\Anaconda\envs\pyTorch2.7\python.exe -m scripts.run_x3d_s_train12_val2_dev `
+  --config configs/experiments/x3d_s_ir_context_train12_val2_user6_user7_partial2.yaml `
+  --development-split metadata/splits/train12_val2_user6_user7_development.json `
+  --run-id x3d_s_ir_context_train12_val2_user6_user7_partial2_seed20260715 `
+  --seed 20260715
+```
+
+Do not inspect heldout4/test, change the recipe, or launch Direct-Head.
+
+- [ ] **Step 8: Generate and freeze the matched reference**
+
+Generate `reports/x3d_s_train12_val2_user6_user7_partial2_report.{json,md}` from the best-Accuracy checkpoint and deterministic validation prediction. Record Accuracy, fixed-40 Macro-F1, `min(user6 Accuracy,user7 Accuracy)`, selected epoch, train metrics, resources, config/split/checkpoint/prediction hashes, and the numeric Direct-Head human-review floor `reference_accuracy - 0.02`.
+
+- [ ] **Step 9: Verify, commit, and push the reference result**
+
+```powershell
+D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest tests/test_x3d_s_train12_val2_dev.py -q
+D:\Anaconda\envs\pyTorch2.7\python.exe -m compileall -q scripts tests
+git diff --check
+git add reports/x3d_s_train12_val2_user6_user7_partial2_report.json reports/x3d_s_train12_val2_user6_user7_partial2_report.md reports/x3d_s_phase_status.md
+git commit -m "Freeze user6-user7 partial2 reference"
+git push origin test/x3d-fold0-generalization
+```
+
+Verify local/origin/remote SHA equality and preserve all reference outputs. Only after this commit may Task 1 begin.
 
 ---
 
@@ -251,14 +338,14 @@ git commit -m "Audit Direct-Head training evidence"
 ### Task 3: Frozen Config, Preregistration, And Reporter
 
 **Files:**
-- Create: `configs/experiments/x3d_s_ir_context_train12_val2_direct_head1.yaml`
-- Create: `reports/x3d_s_train12_val2_direct_head1_preregistration.json`
-- Create: `scripts/report_x3d_s_train12_val2_direct_head1.py`
+- Create: `configs/experiments/x3d_s_ir_context_train12_val2_user6_user7_direct_head1.yaml`
+- Create: `reports/x3d_s_train12_val2_user6_user7_direct_head1_preregistration.json`
+- Create: `scripts/report_x3d_s_train12_val2_user6_user7_direct_head1.py`
 - Create: `tests/test_x3d_s_direct_head1_experiment.py`
 - Modify: `reports/x3d_s_phase_status.md`
 
 **Interfaces:**
-- Consumes: partial2 config/report/run and protected train12/val2 runner.
+- Consumes: the frozen new-split partial2 config/report/run from Task 0 and the protected named-split runner.
 - Produces: frozen candidate, immutable manifest, and `build_report(...) -> dict[str, Any]`.
 
 - [ ] **Step 1: Write failing candidate-isolation tests**
@@ -277,7 +364,7 @@ Also assert no block LR, backbone/head LR `3e-5/3e-4`, warmup 2, horizon 20, ful
 
 ```python
 assert evaluate_direct_head_candidate(
-    {"accuracy": 0.5324, "macro_f1": 0.50, "worst_user_accuracy": 0.50}, ref
+    {**ref, "accuracy": ref["accuracy"] - 0.020001}, ref
 ) == "human_review_regression"
 assert evaluate_direct_head_candidate({**ref, "accuracy": 0.56}, ref) == "preferred"
 assert evaluate_direct_head_candidate(ref, ref) == "non_winning_ablation"
@@ -293,7 +380,7 @@ D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest tests/test_x3d_s_direct_head1_e
 
 - [ ] **Step 4: Create the exact candidate config**
 
-Copy partial2 and change only:
+Copy `x3d_s_ir_context_train12_val2_user6_user7_partial2.yaml` and change only:
 
 ```yaml
 head_type: direct
@@ -302,7 +389,7 @@ embedding_dim: 2048
 
 - [ ] **Step 5: Create immutable preregistration**
 
-Record candidate/parent/run ID/seed, expected classifier parameters `81960`, three-way decision, non-decision diagnostics, and forbidden actions. Bind SHA-256 for config, split, partial2 report/checkpoint/prediction, canonical artifacts, approved spec, and all review records.
+Record candidate/parent/run ID/seed, expected classifier parameters `81960`, the frozen numeric human-review floor from Task 0, three-way decision, non-decision diagnostics, and forbidden actions. Bind SHA-256 for config, new split, new-split partial2 report/checkpoint/prediction, canonical artifacts, approved spec, and all review records. Reject the historical `user21,user22` partial2 report as a matched reference.
 
 - [ ] **Step 6: Implement the matched reporter**
 
@@ -312,7 +399,7 @@ Reuse `build_standalone_report` and `_matched_prediction_diagnostics`. Rebuild t
 
 ```powershell
 D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest tests/test_x3d_s_direct_head1_experiment.py tests/test_x3d_s_train12_val2_dev.py -q
-D:\Anaconda\envs\pyTorch2.7\python.exe -c "import yaml; from src.train_x3d_s_visual_expert import validate_config; c=yaml.safe_load(open('configs/experiments/x3d_s_ir_context_train12_val2_direct_head1.yaml', encoding='utf-8')); validate_config(c); print('PASS')"
+D:\Anaconda\envs\pyTorch2.7\python.exe -c "import yaml; from src.train_x3d_s_visual_expert import validate_config; c=yaml.safe_load(open('configs/experiments/x3d_s_ir_context_train12_val2_user6_user7_direct_head1.yaml', encoding='utf-8')); validate_config(c); print('PASS')"
 ```
 
 - [ ] **Step 8: Record pre-result state and verify**
@@ -322,7 +409,7 @@ Append preregistered/no-result/sealed-evidence status. Run full pytest, `git dif
 - [ ] **Step 9: Commit and push before any result**
 
 ```powershell
-git add configs/experiments/x3d_s_ir_context_train12_val2_direct_head1.yaml reports/x3d_s_train12_val2_direct_head1_preregistration.json scripts/report_x3d_s_train12_val2_direct_head1.py tests/test_x3d_s_direct_head1_experiment.py reports/x3d_s_phase_status.md docs/superpowers/plans/2026-08-16-x3d-train12-val2-direct-head.md docs/superpowers/specs/2026-08-16-x3d-train12-val2-direct-head-design.md docs/superpowers/reviews/2026-08-16-x3d-direct-head-spec-final-review.md
+git add configs/experiments/x3d_s_ir_context_train12_val2_user6_user7_direct_head1.yaml reports/x3d_s_train12_val2_user6_user7_direct_head1_preregistration.json scripts/report_x3d_s_train12_val2_user6_user7_direct_head1.py tests/test_x3d_s_direct_head1_experiment.py reports/x3d_s_phase_status.md docs/superpowers/plans/2026-08-16-x3d-train12-val2-direct-head.md docs/superpowers/specs/2026-08-16-x3d-train12-val2-direct-head-design.md docs/superpowers/reviews/2026-08-16-x3d-direct-head-spec-final-review.md
 git commit -m "Preregister Direct-Head X3D experiment"
 git push origin test/x3d-fold0-generalization
 ```
@@ -334,7 +421,7 @@ Verify local/origin/remote SHA equality before smoke with `git rev-parse HEAD`, 
 ### Task 4: CUDA Smoke And Contract Audit
 
 **Files:**
-- Create: `reports/x3d_s_train12_val2_direct_head1_smoke_audit.json`
+- Create: `reports/x3d_s_train12_val2_user6_user7_direct_head1_smoke_audit.json`
 - Modify: `reports/x3d_s_phase_status.md`
 
 - [ ] **Step 1: Launch protected smoke**
@@ -342,9 +429,9 @@ Verify local/origin/remote SHA equality before smoke with `git rev-parse HEAD`, 
 ```powershell
 $env:CUBLAS_WORKSPACE_CONFIG=":4096:8"
 D:\Anaconda\envs\pyTorch2.7\python.exe -m scripts.run_x3d_s_train12_val2_dev `
-  --config configs/experiments/x3d_s_ir_context_train12_val2_direct_head1.yaml `
-  --development-split metadata/splits/train12_val2_development.json `
-  --run-id x3d_s_ir_context_train12_val2_direct_head1_smoke_20260816 `
+  --config configs/experiments/x3d_s_ir_context_train12_val2_user6_user7_direct_head1.yaml `
+  --development-split metadata/splits/train12_val2_user6_user7_development.json `
+  --run-id x3d_s_ir_context_train12_val2_user6_user7_direct_head1_smoke_20260816 `
   --seed 20260715 --smoke-test
 ```
 
@@ -359,7 +446,7 @@ Run focused tests, JSON parse, strict checkpoint reload through `_build_model(re
 - [ ] **Step 4: Commit and push smoke evidence**
 
 ```powershell
-git add reports/x3d_s_train12_val2_direct_head1_smoke_audit.json reports/x3d_s_phase_status.md
+git add reports/x3d_s_train12_val2_user6_user7_direct_head1_smoke_audit.json reports/x3d_s_phase_status.md
 git commit -m "Verify Direct-Head CUDA smoke"
 git push origin test/x3d-fold0-generalization
 ```
@@ -371,8 +458,8 @@ Do not track smoke outputs.
 ### Task 5: Formal Training, Matched Decision, And Freeze
 
 **Files:**
-- Create: `reports/x3d_s_train12_val2_direct_head1_report.json`
-- Create: `reports/x3d_s_train12_val2_direct_head1_report.md`
+- Create: `reports/x3d_s_train12_val2_user6_user7_direct_head1_report.json`
+- Create: `reports/x3d_s_train12_val2_user6_user7_direct_head1_report.md`
 - Modify: `reports/x3d_s_phase_status.md`
 - Modify: `docs/superpowers/plans/2026-08-16-x3d-train12-val2-direct-head.md`
 - Update external: `C:\Users\LaiWanzhou\AppData\Local\Temp\x3d_adaptive_multiclip_handoff.md`
@@ -382,9 +469,9 @@ Do not track smoke outputs.
 ```powershell
 $env:CUBLAS_WORKSPACE_CONFIG=":4096:8"
 D:\Anaconda\envs\pyTorch2.7\python.exe -m scripts.run_x3d_s_train12_val2_dev `
-  --config configs/experiments/x3d_s_ir_context_train12_val2_direct_head1.yaml `
-  --development-split metadata/splits/train12_val2_development.json `
-  --run-id x3d_s_ir_context_train12_val2_direct_head1_seed20260715 `
+  --config configs/experiments/x3d_s_ir_context_train12_val2_user6_user7_direct_head1.yaml `
+  --development-split metadata/splits/train12_val2_user6_user7_development.json `
+  --run-id x3d_s_ir_context_train12_val2_user6_user7_direct_head1_seed20260715 `
   --seed 20260715
 ```
 
@@ -392,15 +479,15 @@ Do not change seed, LR, epochs, patience, augmentation, or run ID after launch.
 
 - [ ] **Step 2: Preserve artifacts under the frozen stop rule**
 
-Allow the existing checkpoint/early-stop contract to finish. If completed Accuracy is below `0.5324691358`, classify `human_review_regression`, preserve everything, and stop after reporting. Never delete or launch follow-up work.
+Allow the existing checkpoint/early-stop contract to finish. If completed Accuracy is below the numeric `new_partial2_reference_accuracy - 0.02` threshold frozen in Task 3 preregistration, classify `human_review_regression`, preserve everything, and stop after reporting. Never delete or launch follow-up work.
 
 - [ ] **Step 3: Generate independent matched report**
 
 ```powershell
-D:\Anaconda\envs\pyTorch2.7\python.exe -m scripts.report_x3d_s_train12_val2_direct_head1 `
-  --run-directory outputs/x3d_s_ir_context_train12_val2_dev/x3d_s_ir_context_train12_val2_direct_head1_seed20260715 `
-  --reference-report reports/x3d_s_train12_val2_partial2_report.json `
-  --reference-run-directory outputs/x3d_s_ir_context_train12_val2_dev/x3d_s_ir_context_train12_val2_partial2_seed20260715
+D:\Anaconda\envs\pyTorch2.7\python.exe -m scripts.report_x3d_s_train12_val2_user6_user7_direct_head1 `
+  --run-directory outputs/x3d_s_ir_context_train12_val2_dev/x3d_s_ir_context_train12_val2_user6_user7_direct_head1_seed20260715 `
+  --reference-report reports/x3d_s_train12_val2_user6_user7_partial2_report.json `
+  --reference-run-directory outputs/x3d_s_ir_context_train12_val2_dev/x3d_s_ir_context_train12_val2_user6_user7_partial2_seed20260715
 ```
 
 Require exact sample/label/user/duration alignment before deltas.
@@ -426,7 +513,7 @@ Record selected epoch, primary metrics, train gaps, user/duration deltas, disagr
 - [ ] **Step 7: Commit, push, and verify remote**
 
 ```powershell
-git add reports/x3d_s_train12_val2_direct_head1_report.json reports/x3d_s_train12_val2_direct_head1_report.md reports/x3d_s_phase_status.md docs/superpowers/plans/2026-08-16-x3d-train12-val2-direct-head.md
+git add reports/x3d_s_train12_val2_user6_user7_direct_head1_report.json reports/x3d_s_train12_val2_user6_user7_direct_head1_report.md reports/x3d_s_phase_status.md docs/superpowers/plans/2026-08-16-x3d-train12-val2-direct-head.md
 git commit -m "Record Direct-Head X3D result"
 git push origin test/x3d-fold0-generalization
 ```
