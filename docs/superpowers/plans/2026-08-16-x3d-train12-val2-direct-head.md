@@ -74,7 +74,7 @@ D:\Anaconda\envs\pyTorch2.7\python.exe -c "import json; p=json.load(open('metada
 
 Copy the existing partial2 config without changing model, optimizer, augmentation, temporal sampling, warmup, scheduler, checkpoint selection, or seed. Change only the split identity/output naming needed for `train12_val2_user6_user7`. Create a preregistration that binds SHA-256 for the new split, config, parent partial2 config, canonical artifacts, and sealed heldout boundary; state that no Direct-Head result or implementation is used in Generation R.
 
-- [ ] **Step 6: Commit and push Generation R before training**
+- [x] **Step 6: Commit and push Generation R before training**
 
 ```powershell
 git add metadata/splits/train12_val2_user6_user7_development.json configs/experiments/x3d_s_ir_context_train12_val2_user6_user7_partial2.yaml reports/x3d_s_train12_val2_user6_user7_partial2_preregistration.json scripts/run_x3d_s_train12_val2_dev.py scripts/report_x3d_s_train12_val2_dev.py tests/test_x3d_s_train12_val2_dev.py reports/x3d_s_phase_status.md docs/superpowers/specs/2026-08-16-x3d-train12-val2-direct-head-design.md docs/superpowers/plans/2026-08-16-x3d-train12-val2-direct-head.md
