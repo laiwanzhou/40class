@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "registered_at": "2026-08-16",
+  "role": "train12_val2_direct_head_preregistration",
+  "generation": "D",
+  "candidate": "train12_val2_user6_user7_direct_head1",
+  "parent_candidate": "train12_val2_user6_user7_partial2",
+  "run_id": "x3d_s_ir_context_train12_val2_user6_user7_direct_head1_seed20260715",
+  "seed": 20260715,
+  "unbiased_oof": false,
+  "formal_result_accessed_before_registration": false,
+  "intervention": {
+    "type": "composite_head_replacement",
+    "from": "2048-to-256 projector, dropout, and 256-to-40 classifier",
+    "to": "dropout and direct 2048-to-40 classifier",
+    "head_type": "direct",
+    "embedding_dim": 2048
+  },
+  "expected_custom_head_parameter_count": 81960,
+  "matched_reference": {
+    "run_id": "x3d_s_ir_context_train12_val2_user6_user7_partial2_seed20260715",
+    "validation_user_ids": [
+      "user6",
+      "user7"
+    ],
+    "validation_trial_count": 385,
+    "validation_class_count": 40,
+    "selected_epoch": 14,
+    "accuracy": 0.5324675324675324,
+    "macro_f1": 0.42157462519220035,
+    "worst_user_accuracy": 0.5323383084577115
+  },
+  "human_review_accuracy_floor": 0.5124675324675324,
+  "decision_contract": {
+    "human_review_regression": "candidate Accuracy is more than 0.02 below matched-reference Accuracy; preserve every artifact and stop for human review",
+    "preferred": "Accuracy, Macro-F1, and worst-user Accuracy are all no worse than the matched reference and at least one strictly improves",
+    "non_winning_ablation": "all other outcomes; preserve the result and do not automatically start another IR experiment"
+  },
+  "non_decision_diagnostics": [
+    "train_to_validation_accuracy_gap",
+    "train_to_validation_macro_f1_gap",
+    "per_user_accuracy_and_macro_f1_delta",
+    "duration_accuracy_and_macro_f1_delta",
+    "validation_nll_and_wrong_prediction_confidence",
+    "prediction_disagreement_and_unique_correct_counts",
+    "direct_classifier_relative_l2_drift_from_seeded_initialization",
+    "checkpoint_prediction_archive_route_and_peak_cuda_bytes"
+  ],
+  "historical_user21_user22_report_is_matched_reference": false,
+  "bound_sha256": {
+    "candidate_config": "8750dce618d5172f7cd333e4f3b1cd193a56cfffe06d361381b465e3b6002fa0",
+    "parent_user6_user7_partial2_config": "ce1a408215110da8c934a2b3281aaa6a6f5f0090ac7d038fdd9fbb37b3775a24",
+    "development_split": "c65c4826bfdd2d16796021abfccd6b1ece0ef7fb0ec786b19cc62cb60e5e57ca",
+    "matched_reference_report": "73d44094e0a419e474c5f7f5d611f169555b908a6640c30e59b4d2115ab59957",
+    "matched_reference_checkpoint": "b78b8de08811a3cd00e08be1a79e659864e0d1ddd6f9b44a486c5af930ea928a",
+    "matched_reference_prediction": "4994d51fd828e70516cde7ca3b5b5b3b269a4261ad74cbb6e548d67c029876da",
+    "canonical_assignment": "2a0dde67ced6f40cf3a163f63d545f1e3cde3545b6ee0eb0291cf1c52c38ea76",
+    "canonical_fold0_checkpoint": "2962631e48541730cd80e347dff588c4122c58263600ab0d0d63207392b36d7a",
+    "canonical_fold0_prediction": "18266310ad2706468d07ecd1a10bbd74b3d59d8f0c7d6cf9911ceaf8cf6ff648",
+    "canonical_phase5_oof_evidence": "98517ac3785ab55647b6e8da4e27d31b8096a6115f1cfde9f2607ec861987f21",
+    "canonical_phase5_summary": "4df0fcccdeba4d3183307c24eb807efdf66d040b3d8c7eec35d8fde3e9bf8423",
+    "approved_design_spec": "8d1a45c6e4a8566e5f1523c79c3b667527fc5f1878b7c0b3caef6f1428b07e78",
+    "review_initial": "9b9c3676f2ff6eaaad56bd076f97bab04dbe735e0ad75643f48807e1cb1a2087",
+    "review_second": "54cdeb746a4b3a445b96c0bfb45a1bf1eb6270af48d56955483966f603154407",
+    "review_final": "c89e680814ce34c586bcddad8079a1195410aab196724ce19df2c3bf41e958b3"
+  },
+  "bound_paths": {
+    "candidate_config": "configs/experiments/x3d_s_ir_context_train12_val2_user6_user7_direct_head1.yaml",
+    "parent_user6_user7_partial2_config": "configs/experiments/x3d_s_ir_context_train12_val2_user6_user7_partial2.yaml",
+    "development_split": "metadata/splits/train12_val2_user6_user7_development.json",
+    "matched_reference_report": "reports/x3d_s_train12_val2_user6_user7_partial2_report.json",
+    "matched_reference_checkpoint": "outputs/x3d_s_ir_context_train12_val2_dev/x3d_s_ir_context_train12_val2_user6_user7_partial2_seed20260715/best_accuracy.pt",
+    "matched_reference_prediction": "outputs/x3d_s_ir_context_train12_val2_dev/x3d_s_ir_context_train12_val2_user6_user7_partial2_seed20260715/val_predictions_best_accuracy.npz",
+    "canonical_assignment": "metadata/splits/train14_oof_3fold.json",
+    "canonical_fold0_checkpoint": "outputs/x3d_s_ir_context_oof/x3d_s_ir_context_adaptive_oof_strict_v3_seed20260715/fold_0/formal_outer_refit.pt",
+    "canonical_fold0_prediction": "outputs/x3d_s_ir_context_oof/x3d_s_ir_context_adaptive_oof_strict_v3_seed20260715/fold_0/formal_outer_predictions.npz",
+    "canonical_phase5_oof_evidence": "outputs/x3d_s_ir_evidence/ir_x3d_s_k400_pure/oof_evidence.npz",
+    "canonical_phase5_summary": "reports/x3d_s_phase5_evidence_summary.json",
+    "approved_design_spec": "docs/superpowers/specs/2026-08-16-x3d-train12-val2-direct-head-design.md",
+    "review_initial": "docs/superpowers/reviews/2026-08-16-x3d-direct-head-spec-review.md",
+    "review_second": "docs/superpowers/reviews/2026-08-16-x3d-direct-head-spec-second-review.md",
+    "review_final": "docs/superpowers/reviews/2026-08-16-x3d-direct-head-spec-final-review.md"
+  },
+  "forbidden": [
+    "recipe_change_beyond_head_type_and_embedding_dim",
+    "historical_user21_user22_report_as_matched_reference",
+    "additional_seed",
+    "heldout4_access",
+    "competition_test_access",
+    "canonical_phase4_or_phase5_mutation",
+    "automatic_follow_up_ir_experiment",
+    "automatic_artifact_deletion"
+  ]
+}

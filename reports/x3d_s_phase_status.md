@@ -214,3 +214,12 @@ Passed on 2026-08-11. All Task 5 steps are complete and the end-to-end implement
 - Best-Accuracy checkpoint SHA-256: `b78b8de08811a3cd00e08be1a79e659864e0d1ddd6f9b44a486c5af930ea928a`. Prediction archive SHA-256: `4994d51fd828e70516cde7ca3b5b5b3b269a4261ad74cbb6e548d67c029876da`.
 - Reference report: `reports/x3d_s_train12_val2_user6_user7_partial2_report.{json,md}`. Decision: `freeze_matched_reference_for_direct_head`. Canonical Phase 4/5 artifacts remain unchanged; heldout4/test were not accessed.
 - Non-decision context: canonical train-14 OOF Accuracy for the same validation users was `0.482587` on user6 and `0.505435` on user7, or `0.493506` combined. The new partial2 reference is therefore `+0.038961` above that same-user historical OOF subset. The approximately `0.61` A2/A4-T scores used a different five-user fold0 development population and must not be interpreted as a matched regression.
+
+## Direct-Head Generation D Preregistration
+
+- Generation D is preregistered on the frozen `12 train / user6-user7 val / 4 heldout` development split at seed `20260715`; no Direct-Head formal or smoke result was accessed before this freeze.
+- The sole architecture intervention is a composite-head replacement: the learned `2048 -> 256` projector plus classifier becomes dropout plus a direct `2048 -> 40` classifier. The expected custom-head parameter count is `81,960`; all temporal, augmentation, optimizer, BN, scheduler, checkpoint-selection, and split fields remain matched to Generation R.
+- The sole matched reference is `reports/x3d_s_train12_val2_user6_user7_partial2_report.json` at Accuracy `0.532467532`, Macro-F1 `0.421574625`, and worst-user Accuracy `0.532338308`. Historical `user21,user22` evidence is explicitly ineligible as the matched reference.
+- The frozen human-review Accuracy floor is `0.512467532`. The three decisions are `preferred`, `human_review_regression`, and `non_winning_ablation`; diagnostics cannot promote or reject the candidate.
+- Candidate config, new split, matched reference report/checkpoint/prediction, canonical Phase 4/5 artifacts, approved design spec, and all three review records are SHA-bound in `reports/x3d_s_train12_val2_user6_user7_direct_head1_preregistration.json`.
+- Pre-result run ID: `x3d_s_ir_context_train12_val2_user6_user7_direct_head1_seed20260715`. Status: preregistered, no result. Heldout4/test remain sealed, and no follow-up IR experiment or artifact deletion is automatic.

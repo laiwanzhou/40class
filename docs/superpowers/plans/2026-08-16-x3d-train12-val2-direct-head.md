@@ -348,7 +348,7 @@ git commit -m "Audit Direct-Head training evidence"
 - Consumes: the frozen new-split partial2 config/report/run from Task 0 and the protected named-split runner.
 - Produces: frozen candidate, immutable manifest, and `build_report(...) -> dict[str, Any]`.
 
-- [ ] **Step 1: Write failing candidate-isolation tests**
+- [x] **Step 1: Write failing candidate-isolation tests**
 
 ```python
 assert candidate["head_type"] == "direct"
@@ -360,7 +360,7 @@ assert candidate == partial2
 
 Also assert no block LR, backbone/head LR `3e-5/3e-4`, warmup 2, horizon 20, full coverage, and protected output root.
 
-- [ ] **Step 2: Write failing decision/report tests**
+- [x] **Step 2: Write failing decision/report tests**
 
 ```python
 assert evaluate_direct_head_candidate(
@@ -372,13 +372,13 @@ assert evaluate_direct_head_candidate(ref, ref) == "non_winning_ablation"
 
 Synthetic aligned artifacts must yield train Accuracy/Macro-F1 gaps, per-user and duration Accuracy/Macro-F1 deltas, NLL/disagreement, direct classifier drift, head parameters, checkpoint/archive/route/CUDA bytes, `head_type=direct`, and embedding 2048.
 
-- [ ] **Step 3: Run RED**
+- [x] **Step 3: Run RED**
 
 ```powershell
 D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest tests/test_x3d_s_direct_head1_experiment.py -q
 ```
 
-- [ ] **Step 4: Create the exact candidate config**
+- [x] **Step 4: Create the exact candidate config**
 
 Copy `x3d_s_ir_context_train12_val2_user6_user7_partial2.yaml` and change only:
 
@@ -387,26 +387,26 @@ head_type: direct
 embedding_dim: 2048
 ```
 
-- [ ] **Step 5: Create immutable preregistration**
+- [x] **Step 5: Create immutable preregistration**
 
 Record candidate/parent/run ID/seed, expected classifier parameters `81960`, the frozen numeric human-review floor from Task 0, three-way decision, non-decision diagnostics, and forbidden actions. Bind SHA-256 for config, new split, new-split partial2 report/checkpoint/prediction, canonical artifacts, approved spec, and all review records. Reject the historical `user21,user22` partial2 report as a matched reference.
 
-- [ ] **Step 6: Implement the matched reporter**
+- [x] **Step 6: Implement the matched reporter**
 
 Reuse `build_standalone_report` and `_matched_prediction_diagnostics`. Rebuild the seeded Direct model and calculate relative L2 drift for its classifier versus its own initialization; do not compare differently shaped partial2 classifier tensors. Emit JSON/Markdown and state that this is a composite head replacement.
 
-- [ ] **Step 7: Run GREEN and validate config**
+- [x] **Step 7: Run GREEN and validate config**
 
 ```powershell
 D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest tests/test_x3d_s_direct_head1_experiment.py tests/test_x3d_s_train12_val2_dev.py -q
 D:\Anaconda\envs\pyTorch2.7\python.exe -c "import yaml; from src.train_x3d_s_visual_expert import validate_config; c=yaml.safe_load(open('configs/experiments/x3d_s_ir_context_train12_val2_user6_user7_direct_head1.yaml', encoding='utf-8')); validate_config(c); print('PASS')"
 ```
 
-- [ ] **Step 8: Record pre-result state and verify**
+- [x] **Step 8: Record pre-result state and verify**
 
 Append preregistered/no-result/sealed-evidence status. Run full pytest, `git diff --check`, JSON parsing, and config hash checks.
 
-- [ ] **Step 9: Commit and push before any result**
+- [x] **Step 9: Commit and push before any result**
 
 ```powershell
 git add configs/experiments/x3d_s_ir_context_train12_val2_user6_user7_direct_head1.yaml reports/x3d_s_train12_val2_user6_user7_direct_head1_preregistration.json scripts/report_x3d_s_train12_val2_user6_user7_direct_head1.py tests/test_x3d_s_direct_head1_experiment.py reports/x3d_s_phase_status.md docs/superpowers/plans/2026-08-16-x3d-train12-val2-direct-head.md docs/superpowers/specs/2026-08-16-x3d-train12-val2-direct-head-design.md docs/superpowers/reviews/2026-08-16-x3d-direct-head-spec-final-review.md
