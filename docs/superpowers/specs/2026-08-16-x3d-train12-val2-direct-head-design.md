@@ -40,10 +40,15 @@ This is one clean composite head replacement, not a parameter-count-only ablatio
 For `ExpertOutput`, define the direct embedding exactly as:
 
 ```text
-L2Normalize(mean(valid per-clip pre-dropout 2048D backbone features))
+L2Normalize(
+    mean(
+        valid per-clip outputs of the unchanged X3D feature backbone,
+        before the new custom-head Dropout(0.25)
+    )
+)
 ```
 
-Dropout applies only to the classifier path and cannot affect the stored embedding. `ExpertOutput.embedding` remains a required runtime tensor; it is optional only in the sense that first-generation fusion/evidence consumers may ignore it. The 2048D embedding does not enter the six-modal anchor or residual mixer, whose frozen boundary remains logits/probabilities plus availability and quality. Its dimension is candidate metadata, not a claim that heterogeneous experts share a coordinate system.
+The official X3D feature backbone's internal `Dropout(p=0.5)` remains unchanged from partial2; the implementation must not remove, bypass, or relocate it. Only the new custom-head `Dropout(0.25)` is excluded from the embedding path. Prediction/archive inference always uses `model.eval()`, so saved embeddings are deterministic. `ExpertOutput.embedding` remains a required runtime tensor; it is optional only in the sense that first-generation fusion/evidence consumers may ignore it. The 2048D embedding does not enter the six-modal anchor or residual mixer, whose frozen boundary remains logits/probabilities plus availability and quality. Its dimension is candidate metadata, not a claim that heterogeneous experts share a coordinate system.
 
 ## Fixed Matched Recipe
 
@@ -61,8 +66,9 @@ Relative to `x3d_s_ir_context_train12_val2_partial2_seed20260715`, freeze all no
 - 13 frames per local window, target window 32, maximum eight clips;
 - mean-probability trial aggregation and equal-trial NLL unchanged;
 - brightness/contrast/gamma `[0.9,1.1]`, no noise, no blur, no label smoothing;
-- 20-epoch horizon and deterministic validation unchanged;
-- early stopping remains fixed-40 Macro-F1 patience 8;
+- use the identical partial2 two-epoch warmup plus cosine schedule over `scheduler_horizon_epochs: 20` for every optimizer group;
+- 20-epoch maximum and deterministic validation unchanged;
+- early stopping reuses the existing `best_macro_f1` comparator and patience 8: higher fixed-40 Macro-F1 wins, with Accuracy breaking a Macro-F1 tie and resetting patience;
 - formal comparison uses `best_accuracy.pt`, selected by Accuracy, then fixed-40 Macro-F1, then earlier epoch;
 - worst-user Accuracy is `min(user21 Accuracy, user22 Accuracy)`.
 
@@ -76,10 +82,11 @@ Tests must prove:
 
 - default projected-head construction and output shapes remain unchanged;
 - direct-head logits are `[N,40]` and required runtime embeddings are `[N,2048]`;
-- direct embedding equals the normalized mean of valid pre-dropout per-clip backbone features and is invariant to classifier-path dropout;
+- direct embedding equals the normalized mean of valid outputs from the unchanged X3D feature backbone before the new custom-head dropout; the official backbone-internal dropout remains present;
+- with fixed backbone outputs, changing only the custom-head dropout state cannot alter the direct embedding;
 - padded clips still cannot affect outputs;
 - optimizer grouping assigns the direct classifier to the custom-head LR/decay policy;
-- a legacy config with no `head_type` constructs the projected head, loads a projected checkpoint with `strict=True`, and reproduces its output exactly;
+- a legacy config with no `head_type` constructs the projected head, loads a projected checkpoint with `strict=True`, and reproduces its output exactly under `model.eval()` with identical inputs and masks;
 - resolved config, run summary, checkpoint provenance, prediction archive, and report identify the head type and embedding dimension;
 - a CUDA smoke produces finite block4/block5/direct-classifier gradients and preserves full temporal coverage;
 - smoke records the `[N,2048]` archive shape, peak CUDA allocation, checkpoint bytes, archive bytes, and provisional route bytes;
