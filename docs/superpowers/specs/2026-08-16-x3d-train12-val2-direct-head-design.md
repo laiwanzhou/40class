@@ -1,16 +1,16 @@
 # X3D Train12/Val2 Direct-Head Design
 
-**Status:** User-approved direction on 2026-08-16; implementation and training remain gated on review of this written contract.
+**Status:** User-approved direction and user-approved independent-review amendments on 2026-08-16. Implementation and training remain gated on final review of this amended written contract.
 
 ## Question
 
-Does the randomly initialized nonlinear `2048 -> 256 -> 40` custom head contribute materially to cross-user overfitting, while the K400 X3D block4/block5 adaptation remains useful?
+Does replacing the complete randomly initialized nonlinear `2048 -> 256 -> 40` projected head with a direct K400-feature classifier improve cross-user generalization while retaining useful block4/block5 adaptation?
 
 ## Evidence
 
 The matched partial1 experiment froze block4 and reduced Accuracy by `0.049383` relative to partial2. The matched layerwise-LR1 experiment retained block4/block5 but reduced their K400-relative parameter drift by about 83% and 52%; Accuracy still fell by `0.030864`, while embedding-head and classifier drift increased by about 11% and 13%. Layerwise-LR1 reached train Accuracy `0.937876` with validation Accuracy `0.521605`.
 
-These results reject further backbone-only restriction as the first response. The next isolated mechanism is custom-head capacity.
+These results reject further backbone-only restriction as the first response. The next isolated component is the complete custom-head architecture.
 
 ## Single Model Intervention
 
@@ -35,7 +35,15 @@ with:
 
 The direct classifier has about 81,960 trainable parameters instead of about 535,336 custom-head parameters. The classifier remains randomly initialized under seed `20260715`.
 
-For `ExpertOutput`, the candidate emits the L2-normalized 2048D pooled trial feature as its optional embedding. This does not enter the first-generation six-modal anchor or residual mixer, whose frozen boundary remains logits/probabilities plus availability and quality. The embedding dimension is candidate metadata, not a requirement that heterogeneous experts share a coordinate system.
+This is one clean composite head replacement, not a parameter-count-only ablation: it simultaneously removes the learned projection, LayerNorm, GELU, and 256D classifier input. Any result may be attributed only to the projected nonlinear head as a whole.
+
+For `ExpertOutput`, define the direct embedding exactly as:
+
+```text
+L2Normalize(mean(valid per-clip pre-dropout 2048D backbone features))
+```
+
+Dropout applies only to the classifier path and cannot affect the stored embedding. `ExpertOutput.embedding` remains a required runtime tensor; it is optional only in the sense that first-generation fusion/evidence consumers may ignore it. The 2048D embedding does not enter the six-modal anchor or residual mixer, whose frozen boundary remains logits/probabilities plus availability and quality. Its dimension is candidate metadata, not a claim that heterogeneous experts share a coordinate system.
 
 ## Fixed Matched Recipe
 
@@ -53,7 +61,10 @@ Relative to `x3d_s_ir_context_train12_val2_partial2_seed20260715`, freeze all no
 - 13 frames per local window, target window 32, maximum eight clips;
 - mean-probability trial aggregation and equal-trial NLL unchanged;
 - brightness/contrast/gamma `[0.9,1.1]`, no noise, no blur, no label smoothing;
-- 20-epoch horizon, scheduler, patience, checkpoint selection, and deterministic validation unchanged.
+- 20-epoch horizon and deterministic validation unchanged;
+- early stopping remains fixed-40 Macro-F1 patience 8;
+- formal comparison uses `best_accuracy.pt`, selected by Accuracy, then fixed-40 Macro-F1, then earlier epoch;
+- worst-user Accuracy is `min(user21 Accuracy, user22 Accuracy)`.
 
 No L2-SP, EMA, user-adversarial loss, stronger augmentation, temporal change, additional seed, or other regularizer belongs to this candidate.
 
@@ -64,11 +75,14 @@ Add an explicit configurable head type while preserving the existing projected h
 Tests must prove:
 
 - default projected-head construction and output shapes remain unchanged;
-- direct-head logits are `[N,40]` and optional embeddings are `[N,2048]`;
+- direct-head logits are `[N,40]` and required runtime embeddings are `[N,2048]`;
+- direct embedding equals the normalized mean of valid pre-dropout per-clip backbone features and is invariant to classifier-path dropout;
 - padded clips still cannot affect outputs;
 - optimizer grouping assigns the direct classifier to the custom-head LR/decay policy;
-- resolved config, run summary, checkpoint provenance, and report identify the head type;
+- a legacy config with no `head_type` constructs the projected head, loads a projected checkpoint with `strict=True`, and reproduces its output exactly;
+- resolved config, run summary, checkpoint provenance, prediction archive, and report identify the head type and embedding dimension;
 - a CUDA smoke produces finite block4/block5/direct-classifier gradients and preserves full temporal coverage;
+- smoke records the `[N,2048]` archive shape, peak CUDA allocation, checkpoint bytes, archive bytes, and provisional route bytes;
 - canonical Phase 4/5 hashes remain unchanged.
 
 ## Execution And Isolation
@@ -80,6 +94,20 @@ x3d_s_ir_context_train12_val2_direct_head1_seed20260715
 ```
 
 Pre-register and push the config, implementation, tests, and experiment manifest before the formal result exists. Run one CUDA smoke, then the frozen 20-epoch train12/val2 experiment. Do not access heldout4 or competition test and do not mutate canonical OOF/Phase 5 evidence.
+
+The preregistration and result report must record the actual direct-head parameter count, checkpoint bytes, prediction/archive bytes, peak CUDA allocation, and provisional route size. The larger 2048D evidence archive is an expected resource change; it is not a model-size regression and does not alter the `<95 MB` deployment gate calculation.
+
+## Diagnostic Reporting
+
+In addition to the frozen validation decision metrics, report these mechanism diagnostics without using them for promotion or checkpoint selection:
+
+- training-log Accuracy and Macro-F1 at the selected epoch;
+- train-to-validation Accuracy and Macro-F1 gaps;
+- actual custom-head and total trainable parameter counts;
+- per-user Accuracy for user21 and user22 and matched deltas versus partial2;
+- duration-bucket Accuracy/Macro-F1 and matched deltas for `<=13`, `14-32`, `33-64`, and `>64`;
+- validation NLL, wrong-prediction confidence, prediction disagreement, candidate-only correct, and partial2-only correct counts;
+- direct classifier parameter drift from its seeded initialization, reported descriptively because it has no K400 semantic anchor.
 
 ## Decision Rule
 
@@ -96,7 +124,7 @@ Classify the result as:
 - **human_review_regression** when Accuracy is below `0.5324691358`; preserve every checkpoint, prediction, log, history, manifest, and report, then stop;
 - **non_winning_ablation** otherwise; preserve the result and do not automatically start another IR experiment.
 
-The aspirational range `0.58-0.60` is descriptive, not a pass threshold. This development result cannot replace strict train-14 OOF evidence regardless of score.
+The aspirational range `0.58-0.60` is descriptive, not a pass threshold. Diagnostic train-gap, resource, disagreement, duration, and drift measurements cannot promote or reject the candidate. This development result cannot replace strict train-14 OOF evidence regardless of score.
 
 ## Non-Goals
 
