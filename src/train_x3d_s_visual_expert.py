@@ -196,6 +196,7 @@ def run_model_epoch(
     latency_buckets: dict[str, list[float]] = {}
     backbone_received_finite_gradient = False
     head_received_finite_gradient = False
+    gradient_scopes_with_finite_nonzero: dict[str, bool] = {}
     accumulated_trial_count = 0
 
     context = torch.enable_grad if training else torch.inference_mode
@@ -254,6 +255,16 @@ def run_model_epoch(
                         for name, parameter in named_parameters
                         if not name.startswith("backbone.")
                     )
+                    scoped_parameters: dict[str, list[torch.nn.Parameter]] = {}
+                    for name, parameter in named_parameters:
+                        scope = _gradient_scope(name)
+                        if scope is not None:
+                            scoped_parameters.setdefault(scope, []).append(parameter)
+                    for scope, parameters in scoped_parameters.items():
+                        gradient_scopes_with_finite_nonzero[scope] = (
+                            gradient_scopes_with_finite_nonzero.get(scope, False)
+                            or _received_finite_gradient(iter(parameters))
+                        )
                     torch.nn.utils.clip_grad_norm_(model.parameters(), gradient_clip)
                     optimizer.step()
                     optimizer.zero_grad(set_to_none=True)
@@ -313,6 +324,9 @@ def run_model_epoch(
             },
             "backbone_received_finite_gradient": backbone_received_finite_gradient,
             "head_received_finite_gradient": head_received_finite_gradient,
+            "gradient_scopes_with_finite_nonzero": dict(
+                sorted(gradient_scopes_with_finite_nonzero.items())
+            ),
         }
     )
     return EpochOutcome(metrics=metrics, predictions=prediction_result)
@@ -343,8 +357,15 @@ def _trial_nll_loss(
     return losses
 
 
-def save_prediction_archive(path: Path, result: TrialPredictionResult) -> None:
+def save_prediction_archive(
+    path: Path,
+    result: TrialPredictionResult,
+    *,
+    head_type: str = "projected",
+) -> None:
     result.validate()
+    if head_type not in {"projected", "direct"}:
+        raise ValueError("head_type must be projected or direct")
     path.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(
         path,
@@ -359,6 +380,8 @@ def save_prediction_archive(path: Path, result: TrialPredictionResult) -> None:
         class_map_hash=np.asarray(result.class_map_hash, dtype=np.str_),
         num_frames=result.num_frames.detach().cpu().numpy().astype(np.int64),
         num_clips=result.num_clips.detach().cpu().numpy().astype(np.int64),
+        head_type=np.asarray(head_type, dtype=np.str_),
+        embedding_dim=np.asarray(result.output.embedding.shape[1], dtype=np.int64),
     )
 
 
@@ -514,6 +537,7 @@ def train_partition(
                 save_prediction_archive(
                     run_directory / f"val_predictions_{checkpoint_name}.npz",
                     validation_outcome.predictions,
+                    head_type=_resolved_head_type(config),
                 )
                 _save_per_class_metrics(
                     run_directory / f"per_class_{checkpoint_name}.csv",
@@ -532,6 +556,10 @@ def train_partition(
 
     checkpoint_bytes = {
         name: (run_directory / f"{name}.pt").stat().st_size
+        for name in ("best_accuracy", "best_macro_f1")
+    }
+    prediction_archive_bytes = {
+        name: (run_directory / f"val_predictions_{name}.npz").stat().st_size
         for name in ("best_accuracy", "best_macro_f1")
     }
     yolo_path_value = _mapping(config, "deployment_artifacts").get("yolo_checkpoint")
@@ -560,6 +588,7 @@ def train_partition(
         "best_accuracy": best_records["best_accuracy"],
         "best_macro_f1": best_records["best_macro_f1"],
         "checkpoint_bytes": checkpoint_bytes,
+        "prediction_archive_bytes": prediction_archive_bytes,
         "yolo_checkpoint_bytes": yolo_bytes,
         "ir_route_serialized_weight_subtotal": route_bytes,
         "internal_size_limit_bytes": size_limit,
@@ -577,6 +606,9 @@ def train_partition(
             int(row["epoch"]) > warmup_epochs
             and bool(row["train_backbone_received_finite_gradient"])
             for row in history
+        ),
+        "gradient_scopes_with_finite_nonzero": _merge_history_gradient_scopes(
+            history
         ),
         "processed_clips_per_second": history[-1]["train_processed_clips_per_second"],
         "trial_latency_ms_by_length_bucket": validation_outcome.metrics[
@@ -836,6 +868,7 @@ def train_strict_oof_partition(
     save_prediction_archive(
         run_directory / "formal_outer_predictions.npz",
         formal_outcome.predictions,
+        head_type=_resolved_head_type(formal_config),
     )
     _save_per_class_metrics(
         run_directory / "formal_outer_per_class.csv",
@@ -940,7 +973,9 @@ def refit_strict_oof_partition(
         max_batches=max_val_batches,
     )
     save_prediction_archive(
-        run_directory / "formal_outer_predictions.npz", formal_outcome.predictions
+        run_directory / "formal_outer_predictions.npz",
+        formal_outcome.predictions,
+        head_type=_resolved_head_type(formal_config),
     )
     _save_per_class_metrics(
         run_directory / "formal_outer_per_class.csv",
@@ -976,10 +1011,23 @@ def refit_strict_oof_partition(
     return summary
 
 
+def _resolved_head_type(config: Mapping[str, Any]) -> str:
+    head_type = str(config.get("head_type", "projected"))
+    if head_type not in {"projected", "direct"}:
+        raise ValueError("head_type must be projected or direct")
+    return head_type
+
+
 def validate_config(config: Mapping[str, Any]) -> None:
     model_family = str(config.get("model_family", "x3d_s"))
     if model_family not in {"x3d_s", "mobilenet_v3_small_tcn"}:
         raise ValueError("model_family must be x3d_s or mobilenet_v3_small_tcn")
+    head_type = _resolved_head_type(config)
+    if head_type == "direct":
+        if model_family != "x3d_s":
+            raise ValueError("direct head is only supported for x3d_s")
+        if int(config.get("embedding_dim", 0)) != 2048:
+            raise ValueError("direct head embedding_dim must be 2048")
     if config.get("input_view") != "ir_context_path":
         raise ValueError("First-run input_view must be ir_context_path")
     if config.get("num_classes") != 40:
@@ -1185,6 +1233,32 @@ def _received_finite_gradient(parameters: Iterator[torch.nn.Parameter]) -> bool:
     )
 
 
+def _gradient_scope(parameter_name: str) -> str | None:
+    if parameter_name.startswith("classifier."):
+        return "classifier"
+    prefix = "backbone.blocks."
+    if parameter_name.startswith(prefix):
+        remainder = parameter_name[len(prefix):]
+        block_index = remainder.split(".", 1)[0]
+        if block_index.isdigit():
+            return f"backbone_block_{int(block_index)}"
+    return None
+
+
+def _merge_history_gradient_scopes(
+    history: Sequence[Mapping[str, Any]],
+) -> dict[str, bool]:
+    merged: dict[str, bool] = {}
+    for row in history:
+        raw = row.get("train_gradient_scopes_with_finite_nonzero", "{}")
+        scopes = json.loads(raw) if isinstance(raw, str) else raw
+        if not isinstance(scopes, Mapping):
+            raise ValueError("Gradient scope history must be a mapping")
+        for scope, value in scopes.items():
+            merged[str(scope)] = merged.get(str(scope), False) or bool(value)
+    return dict(sorted(merged.items()))
+
+
 def _epoch_metrics(result: TrialPredictionResult, loss: float) -> dict[str, Any]:
     labels = result.labels.numpy()
     predictions = result.output.main_logits.argmax(dim=1).numpy()
@@ -1259,6 +1333,9 @@ def _history_row(
             "backbone_received_finite_gradient"
         ],
         "train_head_received_finite_gradient": train_metrics["head_received_finite_gradient"],
+        "train_gradient_scopes_with_finite_nonzero": json.dumps(
+            train_metrics["gradient_scopes_with_finite_nonzero"], sort_keys=True
+        ),
         "val_loss": validation_metrics["loss"],
         "val_accuracy": validation_metrics["accuracy"],
         "val_macro_f1": validation_metrics["macro_f1"],
@@ -1371,6 +1448,7 @@ def _save_checkpoint(
             "model_state_dict": model.state_dict(),
             "num_classes": int(config["num_classes"]),
             "embedding_dim": int(config["embedding_dim"]),
+            "head_type": _resolved_head_type(config),
             "backbone_bn": dict(_mapping(config, "backbone_bn")),
         },
         path,
@@ -1631,6 +1709,7 @@ def _build_model(config: Mapping[str, Any]) -> torch.nn.Module:
         num_classes=int(config["num_classes"]),
         embedding_dim=int(config["embedding_dim"]),
         dropout=float(config["dropout"]),
+        head_type=_resolved_head_type(config),
         update_backbone_bn_running_stats=bool(
             _mapping(config, "backbone_bn")["update_running_stats"]
         ),
@@ -1694,6 +1773,15 @@ def _resource_manifest(
     x3d_probe = components.get("x3d_s", {}) if isinstance(components, Mapping) else {}
     is_x3d = not hasattr(model, "source_weight_sha256")
     return {
+        "head_type": _resolved_head_type(config),
+        "embedding_dim": int(
+            getattr(model, "output_embedding_dim", config["embedding_dim"])
+        ),
+        "custom_head_parameter_count": sum(
+            parameter.numel()
+            for name, parameter in model.named_parameters()
+            if not name.startswith("backbone.")
+        ),
         "parameter_count": sum(parameter.numel() for parameter in model.parameters()),
         "trainable_parameter_count": sum(
             parameter.numel() for parameter in model.parameters() if parameter.requires_grad

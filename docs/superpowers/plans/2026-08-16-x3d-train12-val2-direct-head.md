@@ -240,7 +240,7 @@ git commit -m "Add compatible X3D Direct-Head mode"
 - Consumes: model `.head_type` and `.output_embedding_dim`.
 - Produces: `_resolved_head_type(config) -> str`, checkpoint/summary/archive metadata, resource counts, archive byte counts, and scoped gradient evidence.
 
-- [ ] **Step 1: Write failing config/build tests**
+- [x] **Step 1: Write failing config/build tests**
 
 ```python
 legacy = minimal_config()
@@ -255,7 +255,7 @@ assert _build_model(direct).head_type == "direct"
 
 Reject Direct-Head for non-X3D models, `embedding_dim != 2048`, and unknown strings.
 
-- [ ] **Step 2: Write failing provenance/resource tests**
+- [x] **Step 2: Write failing provenance/resource tests**
 
 Require checkpoint, archive, and summary evidence:
 
@@ -270,7 +270,7 @@ assert summary["prediction_archive_bytes"]["best_accuracy"] > 0
 
 The projected fixture without `head_type` must remain valid.
 
-- [ ] **Step 3: Write the failing scoped-gradient test**
+- [x] **Step 3: Write the failing scoped-gradient test**
 
 Run one optimizer step with final two `BlockBackbone` blocks trainable:
 
@@ -281,13 +281,13 @@ assert scopes["backbone_block_3"] is True
 assert scopes["classifier"] is True
 ```
 
-- [ ] **Step 4: Run RED**
+- [x] **Step 4: Run RED**
 
 ```powershell
 D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest tests/test_x3d_s_trainer_contract.py -q
 ```
 
-- [ ] **Step 5: Implement head resolution and metadata**
+- [x] **Step 5: Implement head resolution and metadata**
 
 ```python
 def _resolved_head_type(config: Mapping[str, Any]) -> str:
@@ -299,7 +299,7 @@ def _resolved_head_type(config: Mapping[str, Any]) -> str:
 
 Validate Direct-Head only for X3D and embedding 2048. Pass it from `_build_model`. Add it to `_save_checkpoint`, run summary, and `_resource_manifest`.
 
-- [ ] **Step 6: Implement archive/resource evidence**
+- [x] **Step 6: Implement archive/resource evidence**
 
 Change the compatible API:
 
@@ -321,11 +321,11 @@ Save scalar `head_type` and `embedding_dim`. Pass the resolved type at trainer c
 
 Archive bytes do not enter the serialized route subtotal.
 
-- [ ] **Step 7: Implement scoped finite nonzero gradients**
+- [x] **Step 7: Implement scoped finite nonzero gradients**
 
 Before gradient clipping, OR finite nonzero evidence for `backbone.blocks.<index>.` and `classifier.` parameters into `gradient_scopes_with_finite_nonzero`. Return it in epoch metrics and write sorted JSON in `_history_row`; retain aggregate flags.
 
-- [ ] **Step 8: Run GREEN and commit**
+- [x] **Step 8: Run GREEN and commit**
 
 ```powershell
 D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest tests/test_x3d_s_trainer_contract.py tests/test_x3d_s_visual_expert.py tests/test_x3d_s_train12_val2_dev.py -q

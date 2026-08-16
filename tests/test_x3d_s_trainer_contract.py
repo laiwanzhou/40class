@@ -57,12 +57,58 @@ class TinyTrainerBackbone(nn.Module):
         return self.pool(torch.relu(self.bn(self.conv(clips)))).flatten(1)
 
 
+class WideTrainerBackbone(nn.Module):
+    output_dim = 2048
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.scale = nn.Parameter(torch.linspace(0.5, 1.5, self.output_dim))
+
+    def forward(self, clips: torch.Tensor) -> torch.Tensor:
+        pooled = clips.mean(dim=(1, 2, 3, 4)).unsqueeze(1)
+        return pooled * self.scale.unsqueeze(0)
+
+
+class BlockTrainerBackbone(nn.Module):
+    output_dim = 3
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.blocks = nn.ModuleList(
+            [
+                nn.Sequential(
+                    nn.Conv3d(3, 3, kernel_size=1, bias=False),
+                    nn.BatchNorm3d(3),
+                    nn.ReLU(),
+                )
+                for _ in range(4)
+            ]
+        )
+        self.pool = nn.AdaptiveAvgPool3d(1)
+
+    def forward(self, clips: torch.Tensor) -> torch.Tensor:
+        for block in self.blocks:
+            clips = block(clips)
+        return self.pool(clips).flatten(1)
+
+
 def tiny_trainer_model() -> X3DSVisualExpert:
     return X3DSVisualExpert(
         backbone=TinyTrainerBackbone(),
         num_classes=40,
         embedding_dim=8,
         dropout=0.0,
+        update_backbone_bn_running_stats=False,
+    )
+
+
+def direct_trainer_model() -> X3DSVisualExpert:
+    return X3DSVisualExpert(
+        backbone=WideTrainerBackbone(),
+        num_classes=40,
+        embedding_dim=2048,
+        dropout=0.25,
+        head_type="direct",
         update_backbone_bn_running_stats=False,
     )
 
@@ -280,6 +326,33 @@ def test_prediction_archive_contains_fusion_contract_fields(tmp_path: Path) -> N
         } <= set(data.files)
         assert data["logits"].shape == (3, 40)
         assert data["embeddings"].shape == (3, 256)
+        assert data["head_type"].item() == "projected"
+        assert int(data["embedding_dim"].item()) == 256
+
+
+def test_direct_prediction_archive_records_head_and_embedding_dimension(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "direct_predictions.npz"
+    result = fixture_prediction_result()
+    direct_result = TrialPredictionResult(
+        **{
+            **result.__dict__,
+            "output": ExpertOutput(
+                **{
+                    **result.output.__dict__,
+                    "embedding": torch.randn(3, 2048),
+                }
+            ),
+        }
+    )
+
+    save_prediction_archive(path, direct_result, head_type="direct")
+
+    with np.load(path, allow_pickle=False) as data:
+        assert data["head_type"].item() == "direct"
+        assert int(data["embedding_dim"].item()) == 2048
+        assert data["embeddings"].shape == (3, 2048)
 
 
 def test_prediction_result_rejects_duplicate_sample_ids() -> None:
@@ -300,6 +373,50 @@ def test_config_freezes_first_run_temporal_and_bn_policy(tmp_path: Path) -> None
 
     with pytest.raises(ValueError, match="running stats"):
         validate_config(config)
+
+
+def test_head_type_defaults_to_projected_and_direct_requires_x3d_2048(
+    tmp_path: Path,
+) -> None:
+    config = fixed_config(tmp_path)
+    validate_config(config)
+    assert trainer_module._resolved_head_type(config) == "projected"
+
+    direct = fixed_config(tmp_path)
+    direct["head_type"] = "direct"
+    direct["embedding_dim"] = 2048
+    validate_config(direct)
+    assert trainer_module._resolved_head_type(direct) == "direct"
+
+    wrong_dimension = {**direct, "embedding_dim": 256}
+    with pytest.raises(ValueError, match="embedding_dim must be 2048"):
+        validate_config(wrong_dimension)
+
+    wrong_family = {**direct, "model_family": "mobilenet_v3_small_tcn"}
+    with pytest.raises(ValueError, match="only supported for x3d_s"):
+        validate_config(wrong_family)
+
+    unknown = {**config, "head_type": "unknown"}
+    with pytest.raises(ValueError, match="head_type"):
+        validate_config(unknown)
+
+
+def test_build_model_passes_direct_head_type(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    config = fixed_config(tmp_path)
+    config["head_type"] = "direct"
+    config["embedding_dim"] = 2048
+    config["dropout"] = 0.25
+    monkeypatch.setattr(
+        trainer_module,
+        "build_x3d_s_feature_backbone",
+        lambda *, pretrained: WideTrainerBackbone(),
+    )
+
+    model = trainer_module._build_model(config)
+
+    assert isinstance(model, X3DSVisualExpert)
+    assert model.head_type == "direct"
+    assert model.output_embedding_dim == 2048
 
 
 def test_config_accepts_bounded_partial_unfreeze_policy(tmp_path: Path) -> None:
@@ -644,6 +761,32 @@ def test_train_epoch_updates_head_without_updating_bn_running_stats() -> None:
     torch.testing.assert_close(backbone.bn.running_mean, running_mean_before, atol=0.0, rtol=0.0)
 
 
+def test_train_epoch_records_scoped_block_and_classifier_gradients() -> None:
+    model = X3DSVisualExpert(
+        backbone=BlockTrainerBackbone(),
+        num_classes=40,
+        embedding_dim=16,
+        dropout=0.0,
+    )
+    model.set_backbone_trainable(True, last_blocks=2)
+    optimizer = torch.optim.AdamW(model.parameter_groups(3e-5, 3e-4, 0.05))
+
+    outcome = run_model_epoch(
+        model,
+        [model_batch("scoped")],
+        device=torch.device("cpu"),
+        optimizer=optimizer,
+        gradient_accumulation=1,
+        gradient_clip=1.0,
+        amp_enabled=False,
+    )
+
+    scopes = outcome.metrics["gradient_scopes_with_finite_nonzero"]
+    assert scopes["backbone_block_2"] is True
+    assert scopes["backbone_block_3"] is True
+    assert scopes["classifier"] is True
+
+
 def test_train_partition_writes_checkpoints_archives_and_summary(tmp_path: Path) -> None:
     config = fixed_config(tmp_path)
     config["training"] = {"epochs": 1, "warmup_epochs": 2, "patience": 8}
@@ -679,8 +822,57 @@ def test_train_partition_writes_checkpoints_archives_and_summary(tmp_path: Path)
         assert (run_directory / name).is_file(), name
     saved_summary = json.loads((run_directory / "run_summary.json").read_text(encoding="utf-8"))
     assert saved_summary == summary
+    checkpoint = torch.load(
+        run_directory / "best_accuracy.pt", map_location="cpu", weights_only=False
+    )
+    assert checkpoint["head_type"] == "projected"
+    assert checkpoint["embedding_dim"] == 256
+    assert summary["head_type"] == "projected"
+    assert summary["embedding_dim"] == 8
+    assert summary["prediction_archive_bytes"]["best_accuracy"] > 0
     assert summary["ir_route_provisional_size_gate_passed"] is True
     assert summary["best_accuracy"]["epoch"] == 1
+
+
+def test_direct_partition_records_checkpoint_archive_and_resource_metadata(
+    tmp_path: Path,
+) -> None:
+    config = fixed_config(tmp_path)
+    config["head_type"] = "direct"
+    config["embedding_dim"] = 2048
+    config["training"] = {"epochs": 1, "warmup_epochs": 2, "patience": 8}
+    config["amp"] = {"enabled": False, "dtype": "bfloat16"}
+    config["deployment_artifacts"] = {"yolo_checkpoint": None}
+    run_directory = tmp_path / "direct-partition"
+    run_directory.mkdir()
+
+    summary = train_partition(
+        model=direct_trainer_model(),
+        train_dataset=TinyTrialDataset("direct-train", 2),
+        validation_dataset=TinyTrialDataset("direct-val", 2),
+        config=config,
+        run_directory=run_directory,
+        device=torch.device("cpu"),
+        max_train_batches=1,
+        max_val_batches=1,
+    )
+
+    checkpoint = torch.load(
+        run_directory / "best_accuracy.pt", map_location="cpu", weights_only=False
+    )
+    assert checkpoint["head_type"] == "direct"
+    assert checkpoint["embedding_dim"] == 2048
+    assert summary["head_type"] == "direct"
+    assert summary["embedding_dim"] == 2048
+    assert summary["custom_head_parameter_count"] == 2048 * 40 + 40
+    assert summary["prediction_archive_bytes"]["best_accuracy"] > 0
+    history = pd.read_csv(run_directory / "history.csv")
+    scopes = json.loads(history.iloc[0]["train_gradient_scopes_with_finite_nonzero"])
+    assert scopes["classifier"] is True
+    assert summary["gradient_scopes_with_finite_nonzero"]["classifier"] is True
+    with np.load(run_directory / "val_predictions_best_accuracy.npz") as archive:
+        assert archive["head_type"].item() == "direct"
+        assert int(archive["embedding_dim"].item()) == 2048
 
 
 def test_train_partition_records_backbone_gradient_after_epoch_three(tmp_path: Path) -> None:
