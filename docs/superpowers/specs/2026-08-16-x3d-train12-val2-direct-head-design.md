@@ -1,6 +1,6 @@
 # X3D Train12/Val2 Direct-Head Design
 
-**Status:** User-approved direction and user-approved independent-review amendments on 2026-08-16. Implementation and training remain gated on final review of this amended written contract.
+**Status:** Approved for implementation planning on 2026-08-16 after three independent reviews; the final review decision is `APPROVED`.
 
 ## Question
 
