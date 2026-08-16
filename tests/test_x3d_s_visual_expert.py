@@ -44,13 +44,15 @@ class BlockBackbone(nn.Module):
         return self.pool(clips).flatten(1)
 
 
-def build_model() -> X3DSVisualExpert:
+def build_model(*, head_type: str = "projected") -> X3DSVisualExpert:
     torch.manual_seed(7)
+    embedding_dim = 8 if head_type == "direct" else 16
     return X3DSVisualExpert(
         backbone=TinyBackbone(),
         num_classes=40,
-        embedding_dim=16,
+        embedding_dim=embedding_dim,
         dropout=0.0,
+        head_type=head_type,
         update_backbone_bn_running_stats=False,
     )
 
@@ -80,8 +82,9 @@ def test_x3d_visual_expert_emits_standard_expert_output() -> None:
     assert output.availability is inputs["availability"]
 
 
-def test_padded_clip_values_cannot_change_trial_output() -> None:
-    model = build_model().eval()
+@pytest.mark.parametrize("head_type", ["projected", "direct"])
+def test_padded_clip_values_cannot_change_trial_output(head_type: str) -> None:
+    model = build_model(head_type=head_type).eval()
     inputs = fixture_inputs()
     first = model(**inputs)
     changed = inputs["clips"].clone()
@@ -91,6 +94,98 @@ def test_padded_clip_values_cannot_change_trial_output() -> None:
 
     torch.testing.assert_close(first.main_logits, second.main_logits)
     torch.testing.assert_close(first.embedding, second.embedding)
+
+
+def test_direct_head_emits_backbone_dimensional_embedding_and_logits() -> None:
+    model = X3DSVisualExpert(
+        backbone=TinyBackbone(),
+        num_classes=40,
+        embedding_dim=8,
+        dropout=0.25,
+        head_type="direct",
+    ).eval()
+
+    output = model(**fixture_inputs())
+
+    assert model.head_type == "direct"
+    assert model.output_embedding_dim == 8
+    assert isinstance(model.embedding_head, nn.Identity)
+    assert isinstance(model.direct_classifier_dropout, nn.Dropout)
+    assert model.direct_classifier_dropout.p == pytest.approx(0.25)
+    assert model.classifier.in_features == 8
+    assert output.main_logits.shape == (2, 40)
+    assert output.embedding.shape == (2, 8)
+
+
+def test_direct_head_dropout_changes_logits_but_not_runtime_embedding() -> None:
+    class AddOne(nn.Module):
+        def forward(self, value: torch.Tensor) -> torch.Tensor:
+            return value + 1.0
+
+    model = build_model(head_type="direct").eval()
+    inputs = fixture_inputs()
+    baseline = model(**inputs)
+
+    model.direct_classifier_dropout = AddOne()
+    changed = model(**inputs)
+
+    torch.testing.assert_close(changed.embedding, baseline.embedding, atol=0.0, rtol=0.0)
+    assert not torch.equal(changed.main_logits, baseline.main_logits)
+
+
+@pytest.mark.parametrize(
+    ("head_type", "embedding_dim", "message"),
+    [
+        ("direct", 16, "backbone output_dim"),
+        ("unknown", 8, "head_type"),
+    ],
+)
+def test_invalid_head_contract_is_rejected(
+    head_type: str, embedding_dim: int, message: str
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        X3DSVisualExpert(
+            backbone=TinyBackbone(),
+            num_classes=40,
+            embedding_dim=embedding_dim,
+            dropout=0.25,
+            head_type=head_type,
+        )
+
+
+def test_explicit_projected_head_strict_loads_legacy_state_and_matches_exactly() -> None:
+    torch.manual_seed(91)
+    legacy = X3DSVisualExpert(
+        backbone=TinyBackbone(), num_classes=40, embedding_dim=16, dropout=0.25
+    )
+    torch.manual_seed(91)
+    explicit = X3DSVisualExpert(
+        backbone=TinyBackbone(),
+        num_classes=40,
+        embedding_dim=16,
+        dropout=0.25,
+        head_type="projected",
+    )
+
+    load_result = explicit.load_state_dict(legacy.state_dict(), strict=True)
+    assert load_result.missing_keys == []
+    assert load_result.unexpected_keys == []
+    assert tuple(explicit.state_dict()) == tuple(legacy.state_dict())
+    assert explicit.head_type == "projected"
+    assert explicit.output_embedding_dim == 16
+
+    torch.manual_seed(13)
+    inputs = fixture_inputs()
+    legacy.eval()
+    explicit.eval()
+    legacy_output = legacy(**inputs)
+    explicit_output = explicit(**inputs)
+    torch.testing.assert_close(
+        legacy_output.main_logits, explicit_output.main_logits, atol=0.0, rtol=0.0
+    )
+    torch.testing.assert_close(
+        legacy_output.embedding, explicit_output.embedding, atol=0.0, rtol=0.0
+    )
 
 
 def test_trial_with_zero_valid_clips_is_rejected() -> None:

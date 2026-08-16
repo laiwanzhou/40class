@@ -43,6 +43,7 @@ class X3DSVisualExpert(nn.Module):
         embedding_dim: int = 256,
         dropout: float = 0.25,
         backbone_dim: int | None = None,
+        head_type: str = "projected",
         update_backbone_bn_running_stats: bool = False,
     ) -> None:
         super().__init__()
@@ -55,13 +56,28 @@ class X3DSVisualExpert(nn.Module):
             raise ValueError("dropout must lie in [0, 1)")
 
         self.backbone = backbone
-        self.embedding_head = nn.Sequential(
-            nn.Linear(resolved_backbone_dim, embedding_dim),
-            nn.LayerNorm(embedding_dim),
-            nn.GELU(),
-            nn.Dropout(dropout),
-        )
-        self.classifier = nn.Linear(embedding_dim, num_classes)
+        self.head_type = str(head_type)
+        if self.head_type == "projected":
+            self.embedding_head = nn.Sequential(
+                nn.Linear(resolved_backbone_dim, embedding_dim),
+                nn.LayerNorm(embedding_dim),
+                nn.GELU(),
+                nn.Dropout(dropout),
+            )
+            self.direct_classifier_dropout = nn.Identity()
+            classifier_dim = embedding_dim
+        elif self.head_type == "direct":
+            if embedding_dim != resolved_backbone_dim:
+                raise ValueError(
+                    "direct head embedding_dim must equal the backbone output_dim"
+                )
+            self.embedding_head = nn.Identity()
+            self.direct_classifier_dropout = nn.Dropout(dropout)
+            classifier_dim = resolved_backbone_dim
+        else:
+            raise ValueError("head_type must be projected or direct")
+        self.output_embedding_dim = classifier_dim
+        self.classifier = nn.Linear(classifier_dim, num_classes)
         self.update_backbone_bn_running_stats = update_backbone_bn_running_stats
         self._backbone_trainable = True
         self._frozen_backbone_blocks: tuple[nn.Module, ...] = ()
@@ -179,7 +195,12 @@ class X3DSVisualExpert(nn.Module):
         valid_clips = clips[clip_mask]
         clip_features = self._pool_backbone_output(self.backbone(valid_clips))
         clip_embeddings = self.embedding_head(clip_features)
-        clip_logits = self.classifier(clip_embeddings)
+        classifier_input = (
+            self.direct_classifier_dropout(clip_features)
+            if self.head_type == "direct"
+            else clip_embeddings
+        )
+        clip_logits = self.classifier(classifier_input)
 
         batch_size, num_clips = clip_mask.shape
         trial_indices = (

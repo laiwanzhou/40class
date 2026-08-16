@@ -124,7 +124,7 @@ Verify local/origin/remote SHA equality and preserve all reference outputs. Only
 - Consumes: existing `X3DSVisualExpert(...)` and `ExpertOutput`.
 - Produces: `X3DSVisualExpert(..., head_type: str = "projected")`, `.head_type`, and `.output_embedding_dim`.
 
-- [ ] **Step 1: Write failing construction and shape tests**
+- [x] **Step 1: Write failing construction and shape tests**
 
 ```python
 direct = X3DSVisualExpert(
@@ -141,7 +141,7 @@ assert output.embedding.shape == (2, 8)
 
 Reject `direct` when `embedding_dim != backbone.output_dim`; reject unknown head types.
 
-- [ ] **Step 2: Write the failing embedding-boundary and padding tests**
+- [x] **Step 2: Write the failing embedding-boundary and padding tests**
 
 Replace only the custom dropout with a deterministic transform:
 
@@ -159,7 +159,7 @@ assert not torch.equal(changed.main_logits, baseline.main_logits)
 
 Parametrize the existing padded-clip invariance test over `projected` and `direct`.
 
-- [ ] **Step 3: Write the failing legacy strict-load test**
+- [x] **Step 3: Write the failing legacy strict-load test**
 
 Create an implicit legacy model and explicit projected model under the same seed:
 
@@ -174,7 +174,7 @@ torch.testing.assert_close(
 )
 ```
 
-- [ ] **Step 4: Run RED**
+- [x] **Step 4: Run RED**
 
 ```powershell
 D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest tests/test_x3d_s_visual_expert.py -q
@@ -182,7 +182,7 @@ D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest tests/test_x3d_s_visual_expert.
 
 Expected: fail because `head_type` and `direct_classifier_dropout` do not exist.
 
-- [ ] **Step 5: Implement the dual-head model**
+- [x] **Step 5: Implement the dual-head model**
 
 Keep projected modules unchanged and add:
 
@@ -220,7 +220,7 @@ clip_logits = self.classifier(classifier_input)
 
 Continue mean aggregation and L2 normalization of `clip_embeddings`. Do not modify `build_x3d_s_feature_backbone`.
 
-- [ ] **Step 6: Run GREEN and commit**
+- [x] **Step 6: Run GREEN and commit**
 
 ```powershell
 D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest tests/test_x3d_s_visual_expert.py tests/test_expert_contract.py -q
