@@ -201,3 +201,10 @@ Passed on 2026-08-11. All Task 5 steps are complete and the end-to-end implement
 - Relative L2 drift from the same seeded K400 initialization confirms that the intervention operated as intended: block4 drift falls from `0.003632` to `0.000618` (ratio `0.170`) and block5 from `0.008501` to `0.004070` (ratio `0.479`). However, embedding-head drift rises from `0.471703` to `0.522514` and classifier drift from `1.027802` to `1.166021`. Backbone drift alone is therefore not the dominant overfitting mechanism; reducing only backbone LR shifts or leaves substantial memorization in the custom head.
 - Preserve the complete layerwise_lr1 smoke and formal artifacts for human review. Do not automatically launch backbone-only L2-SP or any further IR experiment. Canonical Phase 4/5 evidence and sealed heldout4/test remain untouched. Authoritative result: `reports/x3d_s_train12_val2_layerwise_lr1_report.{json,md}`.
 - Fresh result verification: report regeneration was byte-deterministic, report/preregistration/deletion-audit JSON parsed, partial1 output directories remained absent, no layerwise training process remained, compileall passed, `git diff --check` passed, and the complete repository suite passed 189 tests in 77.22 seconds.
+
+## User6/User7 Matched Reference Generation
+
+- Generation R is preregistered for the explicitly approved `12 train / user6-user7 val / 4 heldout` development split. The 1,935 usable-IR train trials and 385 validation trials each cover all 40 classes; heldout users `user4,user17,user23,user24` remain sealed.
+- The run will repeat the unchanged partial2 architecture and recipe at seed `20260715`. Its best-Accuracy checkpoint and deterministic validation prediction will become the sole matched reference for Direct-Head.
+- Direct-Head implementation/result access, heldout4/test access, recipe changes, extra seeds, canonical Phase 4/5 mutation, and automatic artifact deletion are forbidden during Generation R.
+- Pre-result run ID: `x3d_s_ir_context_train12_val2_user6_user7_partial2_seed20260715`. Status: preregistered, no result.

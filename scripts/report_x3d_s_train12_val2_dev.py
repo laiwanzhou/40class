@@ -16,26 +16,31 @@ from scripts.run_x3d_s_fold0_dev import (
 import src.train_x3d_s_visual_expert as trainer
 
 
-EXPECTED_VALIDATION_USERS = ("user21", "user22")
-EXPECTED_VALIDATION_TRIALS = 324
-EXPECTED_MISSING_CLASS_IDS = (25, 26, 33, 35)
-
-
 def validate_prediction_population(
-    user_ids: np.ndarray, sample_ids: np.ndarray
+    user_ids: np.ndarray,
+    sample_ids: np.ndarray,
+    *,
+    expected_validation_users: tuple[str, ...],
+    expected_validation_trials: int,
 ) -> None:
-    if len(sample_ids) != EXPECTED_VALIDATION_TRIALS:
+    if len(sample_ids) != expected_validation_trials:
         raise ValueError(
-            f"Prediction archive must contain exactly {EXPECTED_VALIDATION_TRIALS} trials"
+            f"Prediction archive must contain exactly {expected_validation_trials} trials"
         )
     if len(set(sample_ids.astype(str).tolist())) != len(sample_ids):
         raise ValueError("Prediction archive contains duplicate sample IDs")
     actual_users = tuple(sorted(set(user_ids.astype(str).tolist())))
-    if actual_users != EXPECTED_VALIDATION_USERS:
+    if actual_users != tuple(sorted(expected_validation_users)):
         raise ValueError("Prediction archive must contain the exact frozen validation users")
 
 
-def _load_prediction_contract(archive_path: Path) -> tuple[np.ndarray, np.ndarray]:
+def _load_prediction_contract(
+    archive_path: Path,
+    *,
+    expected_validation_users: tuple[str, ...],
+    expected_validation_trials: int,
+    expected_missing_class_ids: tuple[int, ...],
+) -> tuple[np.ndarray, np.ndarray]:
     with np.load(archive_path, allow_pickle=False) as archive:
         required = {"labels", "user_ids", "sample_ids"}
         missing = required - set(archive.files)
@@ -44,12 +49,17 @@ def _load_prediction_contract(archive_path: Path) -> tuple[np.ndarray, np.ndarra
         labels = archive["labels"].astype(np.int64)
         user_ids = archive["user_ids"].astype(str)
         sample_ids = archive["sample_ids"].astype(str)
-    validate_prediction_population(user_ids, sample_ids)
+    validate_prediction_population(
+        user_ids,
+        sample_ids,
+        expected_validation_users=expected_validation_users,
+        expected_validation_trials=expected_validation_trials,
+    )
     observed = set(labels.tolist())
     missing_classes = tuple(class_id for class_id in range(40) if class_id not in observed)
-    if missing_classes != EXPECTED_MISSING_CLASS_IDS:
+    if missing_classes != expected_missing_class_ids:
         raise ValueError(
-            f"Validation missing classes changed: expected {EXPECTED_MISSING_CLASS_IDS}, "
+            f"Validation missing classes changed: expected {expected_missing_class_ids}, "
             f"got {missing_classes}"
         )
     return user_ids, sample_ids
@@ -77,10 +87,26 @@ def build_report(run_directory: Path) -> dict[str, Any]:
         raise ValueError("Run is not registered as train12/val2 development tuning")
     if provenance.get("unbiased_oof") is not False:
         raise ValueError("Development evidence must never claim unbiased OOF status")
-    if tuple(provenance.get("validation_user_ids", ())) != EXPECTED_VALIDATION_USERS:
-        raise ValueError("Provenance validation users do not match the frozen split")
+    expected_users = tuple(str(user) for user in provenance.get("validation_user_ids", ()))
+    expected_trials = int(provenance.get("validation_trial_count", -1))
+    expected_missing = tuple(
+        int(class_id) for class_id in provenance.get("validation_missing_class_ids", ())
+    )
+    if len(expected_users) != 2 or expected_trials <= 0:
+        raise ValueError("Provenance does not define a valid frozen validation population")
+    if provenance.get("development_split_name") == "train12_val2_user6_user7":
+        split_path = Path(str(provenance.get("development_split_path", "")))
+        if not split_path.is_file():
+            raise FileNotFoundError(split_path)
+        if trainer._sha256_file(split_path) != provenance.get("development_split_sha256"):
+            raise ValueError("Development split hash differs from run provenance")
 
-    _load_prediction_contract(archive_path)
+    _load_prediction_contract(
+        archive_path,
+        expected_validation_users=expected_users,
+        expected_validation_trials=expected_trials,
+        expected_missing_class_ids=expected_missing,
+    )
     metrics = recompute_metrics(archive_path)
     history = pd.read_csv(history_path)
     selected_epoch = int(summary["best_accuracy"]["epoch"])
@@ -115,7 +141,7 @@ def build_report(run_directory: Path) -> dict[str, Any]:
             "train_trial_count": int(provenance["train_trial_count"]),
             "validation_trial_count": int(provenance["validation_trial_count"]),
             "validation_observed_class_count": int(provenance["validation_class_count"]),
-            "validation_missing_class_ids": list(EXPECTED_MISSING_CLASS_IDS),
+            "validation_missing_class_ids": list(expected_missing),
             "macro_f1_class_labels": list(range(40)),
             "development_split_sha256": provenance["development_split_sha256"],
         },
@@ -154,7 +180,7 @@ def render_markdown(report: Mapping[str, Any]) -> str:
     lines = [
         "# X3D-S Train12/Val2 Partial-Backbone Result",
         "",
-        "> Development-only evidence on user21/user22. This is not unbiased OOF, does not replace Phase 4/5 evidence, and is not matched to the former fold0 experiments.",
+        f"> Development-only evidence on {', '.join(split['validation_user_ids'])}. This is not unbiased OOF, does not replace Phase 4/5 evidence, and is not matched to the former fold0 experiments.",
         "",
         f"Decision: `{report['decision']}`",
         "",
@@ -169,7 +195,8 @@ def render_markdown(report: Mapping[str, Any]) -> str:
         f"| Train Accuracy at selected epoch | {training['train_accuracy']:.6f} |",
         f"| Train minus validation Accuracy | {training['train_minus_val_accuracy']:.6f} |",
         "",
-        "Validation contains 324 usable-IR trials across 36 observed classes. "
+        f"Validation contains {split['validation_trial_count']} usable-IR trials across "
+        f"{split['validation_observed_class_count']} observed classes. "
         f"Missing class IDs are `{split['validation_missing_class_ids']}` and contribute zero to fixed-40 Macro-F1.",
         "",
         "## Per User",

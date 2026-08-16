@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any, Mapping
 
 import pandas as pd
@@ -19,26 +20,80 @@ import src.train_x3d_s_visual_expert as trainer
 
 
 DEV_OUTPUT_ROOT = Path("outputs/x3d_s_ir_context_train12_val2_dev")
-EXPECTED_TRAIN_USERS = (
-    "user1", "user2", "user3", "user5", "user6", "user7",
-    "user8", "user9", "user16", "user18", "user19", "user20",
-)
-EXPECTED_VALIDATION_USERS = ("user21", "user22")
+SPLIT_PROFILES = MappingProxyType({
+    "train12_val2_user21_user22": {
+        "train_user_ids": (
+            "user1", "user2", "user3", "user5", "user6", "user7",
+            "user8", "user9", "user16", "user18", "user19", "user20",
+        ),
+        "validation_user_ids": ("user21", "user22"),
+        "heldout_user_ids": None,
+        "ir_audit": {
+            "train_usable_trials": 1996,
+            "validation_usable_trials": 324,
+            "train_class_count": 40,
+            "validation_class_count": 36,
+            "validation_missing_class_ids": (25, 26, 33, 35),
+        },
+    },
+    "train12_val2_user6_user7": {
+        "train_user_ids": (
+            "user1", "user2", "user3", "user5", "user8", "user9",
+            "user16", "user18", "user19", "user20", "user21", "user22",
+        ),
+        "validation_user_ids": ("user6", "user7"),
+        "heldout_user_ids": ("user4", "user17", "user23", "user24"),
+        "ir_audit": {
+            "train_usable_trials": 1935,
+            "validation_usable_trials": 385,
+            "train_class_count": 40,
+            "validation_class_count": 40,
+            "validation_missing_class_ids": (),
+            "validation_minimum_class_support": 2,
+        },
+    },
+})
 
 
 def validate_split_contract(
     split: Mapping[str, Any],
 ) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    name = str(split.get("name", ""))
+    if name not in SPLIT_PROFILES:
+        raise ValueError("Development split must use a registered named profile")
+    profile = SPLIT_PROFILES[name]
     train = tuple(str(user) for user in split.get("train_user_ids", ()))
     validation = tuple(str(user) for user in split.get("validation_user_ids", ()))
-    if train != EXPECTED_TRAIN_USERS or validation != EXPECTED_VALIDATION_USERS:
+    if (
+        train != profile["train_user_ids"]
+        or validation != profile["validation_user_ids"]
+    ):
         raise ValueError("Development split must match the exact frozen train12/val2 users")
+    expected_heldout = profile["heldout_user_ids"]
+    if expected_heldout is not None:
+        heldout = tuple(str(user) for user in split.get("heldout_user_ids", ()))
+        if heldout != expected_heldout:
+            raise ValueError("Development split heldout users changed")
     if not bool(split.get("development_only", False)):
         raise ValueError("Development split must be explicitly development_only")
     metric_policy = split.get("metric_policy", {})
     if not isinstance(metric_policy, Mapping) or int(metric_policy.get("num_classes", -1)) != 40:
         raise ValueError("Development split must freeze the 40-class metric policy")
-    if set(train) & set(validation):
+    if expected_heldout is not None and tuple(
+        str(user) for user in metric_policy.get("worst_user_population", ())
+    ) != validation:
+        raise ValueError("Development split worst-user population changed")
+    audit = split.get("ir_audit", {})
+    if not isinstance(audit, Mapping):
+        raise ValueError("Development split IR audit must be a mapping")
+    normalized_audit = {
+        key: tuple(value) if key == "validation_missing_class_ids" else value
+        for key, value in audit.items()
+    }
+    if normalized_audit != profile["ir_audit"]:
+        raise ValueError("Development split IR audit changed")
+    heldout_set = set(expected_heldout or ())
+    if set(train) & set(validation) or set(train) & heldout_set or set(validation) & heldout_set:
         raise ValueError("Development split users must be disjoint")
     return train, validation
 
@@ -56,6 +111,7 @@ def resolve_effective_config(
     train, validation = validate_split_contract(split)
     resolved = dict(config)
     resolved["seed"] = int(seed)
+    resolved["development_split_name"] = str(split["name"])
     resolved["development_partition"] = {
         "train_user_ids": list(train),
         "validation_user_ids": list(validation),
@@ -121,6 +177,11 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     )
     if set(train_dataset.sample_ids) & set(validation_dataset.sample_ids):
         raise RuntimeError("Train12/val2 trial ownership overlaps")
+    audit = split["ir_audit"]
+    if len(train_dataset) != int(audit["train_usable_trials"]):
+        raise RuntimeError("Train trial count differs from frozen split IR audit")
+    if len(validation_dataset) != int(audit["validation_usable_trials"]):
+        raise RuntimeError("Validation trial count differs from frozen split IR audit")
 
     run_directory = trainer.prepare_run_directory(DEV_OUTPUT_ROOT, str(args.run_id))
     (run_directory / "resolved_config.yaml").write_text(
@@ -132,13 +193,16 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "unbiased_oof": False,
         "canonical_evidence_mutation_permitted": False,
         "seed": CANONICAL_SEED,
+        "development_split_name": str(split["name"]),
+        "development_split_path": str(args.development_split.resolve()),
         "train_user_ids": partition["train_user_ids"],
         "validation_user_ids": partition["validation_user_ids"],
+        "heldout_user_ids": list(split.get("heldout_user_ids", ())),
         "train_trial_count": len(train_dataset),
         "validation_trial_count": len(validation_dataset),
-        "train_class_count": 40,
-        "validation_class_count": 36,
-        "validation_missing_class_ids": [25, 26, 33, 35],
+        "train_class_count": int(audit["train_class_count"]),
+        "validation_class_count": int(audit["validation_class_count"]),
+        "validation_missing_class_ids": list(audit["validation_missing_class_ids"]),
         "development_split_sha256": trainer._sha256_file(args.development_split),
         "resolved_config_sha256": trainer.resolved_config_sha256(config),
         "temporal_training_policy": {

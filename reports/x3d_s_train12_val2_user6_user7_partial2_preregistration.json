@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "registered_at": "2026-08-16",
+  "role": "train12_val2_matched_reference_preregistration",
+  "generation": "R",
+  "candidate": "train12_val2_user6_user7_partial2",
+  "parent_candidate": "train12_val2_partial2",
+  "unbiased_oof": false,
+  "development_split": "metadata/splits/train12_val2_user6_user7_development.json",
+  "seed": 20260715,
+  "run_id": "x3d_s_ir_context_train12_val2_user6_user7_partial2_seed20260715",
+  "direct_head_implementation_permitted": false,
+  "direct_head_result_inspected": false,
+  "model_intervention": {
+    "field": "development_partition",
+    "value": "12 train / user6-user7 val / 4 heldout",
+    "meaning": "rerun the unchanged partial2 model and training recipe on the unique full-40-class two-user validation split"
+  },
+  "fixed_recipe": {
+    "architecture": "legacy projected X3D-S head",
+    "embedding_dim": 256,
+    "train_clip_keep_fraction": 1.0,
+    "validation_clip_keep_fraction": 1.0,
+    "local_frames": 13,
+    "target_window_frames": 32,
+    "max_clips": 8,
+    "aggregation": "mean_probability",
+    "warmup_epochs": 2,
+    "unfrozen_backbone_blocks": 2,
+    "backbone_lr": 0.00003,
+    "head_lr": 0.0003,
+    "weight_decay": 0.05,
+    "label_smoothing": 0.0,
+    "photometric_ranges": [0.9, 1.1],
+    "noise_std_max": 0.0,
+    "blur_probability": 0.0,
+    "epochs_maximum": 20,
+    "scheduler_horizon_epochs": 20,
+    "macro_f1_patience": 8,
+    "backbone_bn_running_stats_frozen": true
+  },
+  "metric_contract": {
+    "accuracy": "385 usable-IR trials from user6/user7",
+    "macro_f1": "fixed labels 0..39; all 40 classes observed",
+    "worst_user_accuracy": "minimum of user6 and user7 Accuracy",
+    "checkpoint_objective": "Accuracy then Macro-F1 then earlier epoch"
+  },
+  "reference_freeze_contract": {
+    "best_accuracy_checkpoint_becomes_direct_head_reference": true,
+    "direct_head_human_review_floor": "reference_accuracy - 0.02",
+    "reference_must_be_committed_and_pushed_before_generation_d": true
+  },
+  "bound_sha256": {
+    "config": "ce1a408215110da8c934a2b3281aaa6a6f5f0090ac7d038fdd9fbb37b3775a24",
+    "parent_partial2_config": "909343ef87086d746bd085ab6bb98bc603c54c7334e4d9e6b75c8824ac585b9d",
+    "development_split": "c65c4826bfdd2d16796021abfccd6b1ece0ef7fb0ec786b19cc62cb60e5e57ca",
+    "canonical_assignment": "2a0dde67ced6f40cf3a163f63d545f1e3cde3545b6ee0eb0291cf1c52c38ea76",
+    "canonical_phase5_oof_evidence": "98517ac3785ab55647b6e8da4e27d31b8096a6115f1cfde9f2607ec861987f21",
+    "direct_head_design_spec": "8d1a45c6e4a8566e5f1523c79c3b667527fc5f1878b7c0b3caef6f1428b07e78"
+  },
+  "forbidden": [
+    "direct_head_implementation_before_reference_freeze",
+    "direct_head_result_access",
+    "recipe_change",
+    "additional_seed",
+    "heldout4_access",
+    "competition_test_access",
+    "canonical_phase4_or_phase5_mutation",
+    "automatic_artifact_deletion"
+  ]
+}

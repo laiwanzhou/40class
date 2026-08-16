@@ -47,11 +47,11 @@
 - Consumes: frozen official train14 manifest, unchanged partial2 config, protected development runner, and standalone reporter.
 - Produces: a named split profile, an unchanged partial2 run on that profile, and a write-once matched-reference report used by all later tasks.
 
-- [ ] **Step 1: Write failing named-split contract tests**
+- [x] **Step 1: Write failing named-split contract tests**
 
 Add fixtures for both historical `train12_val2_development.json` and new `train12_val2_user6_user7_development.json`. Require the runner to accept only an explicitly supported profile whose exact train/validation/heldout users match the file; reject swapped users, overlaps, non-train14 development users, missing heldout users, and mismatched audit counts. Require the reporter to derive its expected validation users from frozen run provenance instead of importing the historical `user21,user22` constant.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 ```powershell
 D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest tests/test_x3d_s_train12_val2_dev.py -q
@@ -59,18 +59,18 @@ D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest tests/test_x3d_s_train12_val2_d
 
 Expected: fail because the runner and reporter currently hard-code the historical split.
 
-- [ ] **Step 3: Implement protected named split profiles**
+- [x] **Step 3: Implement protected named split profiles**
 
 In `scripts/run_x3d_s_train12_val2_dev.py`, replace the single expected-user constants with immutable profiles keyed by split `name`. Validate exact user tuples, disjoint roles, `development_only: true`, 40-class metric policy, and the new profile's audit values `1935/385/40/40`. Keep the historical profile valid for existing artifacts. In `scripts/report_x3d_s_train12_val2_dev.py`, read the split path/hash and validation users from run provenance and require exact agreement with the supplied reference/candidate artifacts.
 
-- [ ] **Step 4: Run GREEN and independently audit the split**
+- [x] **Step 4: Run GREEN and independently audit the split**
 
 ```powershell
 D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest tests/test_x3d_s_train12_val2_dev.py -q
 D:\Anaconda\envs\pyTorch2.7\python.exe -c "import json; p=json.load(open('metadata/splits/train12_val2_user6_user7_development.json')); assert len(p['train_user_ids'])==12 and p['validation_user_ids']==['user6','user7'] and len(p['heldout_user_ids'])==4 and not (set(p['train_user_ids']) & set(p['validation_user_ids']) or set(p['train_user_ids']) & set(p['heldout_user_ids']) or set(p['validation_user_ids']) & set(p['heldout_user_ids'])); assert p['ir_audit']['train_class_count']==p['ir_audit']['validation_class_count']==40; print('PASS')"
 ```
 
-- [ ] **Step 5: Freeze the unchanged partial2 config and preregistration**
+- [x] **Step 5: Freeze the unchanged partial2 config and preregistration**
 
 Copy the existing partial2 config without changing model, optimizer, augmentation, temporal sampling, warmup, scheduler, checkpoint selection, or seed. Change only the split identity/output naming needed for `train12_val2_user6_user7`. Create a preregistration that binds SHA-256 for the new split, config, parent partial2 config, canonical artifacts, and sealed heldout boundary; state that no Direct-Head result or implementation is used in Generation R.
 
