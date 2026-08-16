@@ -82,7 +82,7 @@ git commit -m "Preregister user6-user7 partial2 reference"
 git push origin test/x3d-fold0-generalization
 ```
 
-- [ ] **Step 7: Run the unchanged partial2 reference exactly once**
+- [x] **Step 7: Run the unchanged partial2 reference exactly once**
 
 ```powershell
 $env:CUBLAS_WORKSPACE_CONFIG=":4096:8"
@@ -95,11 +95,11 @@ D:\Anaconda\envs\pyTorch2.7\python.exe -m scripts.run_x3d_s_train12_val2_dev `
 
 Do not inspect heldout4/test, change the recipe, or launch Direct-Head.
 
-- [ ] **Step 8: Generate and freeze the matched reference**
+- [x] **Step 8: Generate and freeze the matched reference**
 
 Generate `reports/x3d_s_train12_val2_user6_user7_partial2_report.{json,md}` from the best-Accuracy checkpoint and deterministic validation prediction. Record Accuracy, fixed-40 Macro-F1, `min(user6 Accuracy,user7 Accuracy)`, selected epoch, train metrics, resources, config/split/checkpoint/prediction hashes, and the numeric Direct-Head human-review floor `reference_accuracy - 0.02`.
 
-- [ ] **Step 9: Verify, commit, and push the reference result**
+- [x] **Step 9: Verify, commit, and push the reference result**
 
 ```powershell
 D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest tests/test_x3d_s_train12_val2_dev.py -q

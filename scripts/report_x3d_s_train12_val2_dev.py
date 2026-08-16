@@ -16,6 +16,31 @@ from scripts.run_x3d_s_fold0_dev import (
 import src.train_x3d_s_visual_expert as trainer
 
 
+def resolve_report_contract(
+    split_name: str, *, reference_accuracy: float
+) -> dict[str, Any]:
+    if split_name == "train12_val2_user6_user7":
+        return {
+            "role": "train12_val2_matched_reference_report",
+            "decision": "freeze_matched_reference_for_direct_head",
+            "direct_head_human_review_accuracy_floor": float(reference_accuracy) - 0.02,
+            "interpretation": (
+                "Unchanged partial2 result on the frozen user6/user7 development split; "
+                "this is the sole matched reference for Direct-Head Generation D."
+            ),
+        }
+    return {
+        "role": "train12_val2_development_tuning_report",
+        "decision": "freeze_result_no_matched_baseline_claim",
+        "direct_head_human_review_accuracy_floor": None,
+        "interpretation": (
+            "Standalone partial-backbone result on the frozen shared development split. "
+            "No matched full-backbone run exists on this split, so the effect of partial "
+            "unfreezing is not causally identified."
+        ),
+    }
+
+
 def validate_prediction_population(
     user_ids: np.ndarray,
     sample_ids: np.ndarray,
@@ -108,6 +133,10 @@ def build_report(run_directory: Path) -> dict[str, Any]:
         expected_missing_class_ids=expected_missing,
     )
     metrics = recompute_metrics(archive_path)
+    report_contract = resolve_report_contract(
+        str(provenance.get("development_split_name", "train12_val2_user21_user22")),
+        reference_accuracy=float(metrics["accuracy"]),
+    )
     history = pd.read_csv(history_path)
     selected_epoch = int(summary["best_accuracy"]["epoch"])
     selected_rows = history.loc[history["epoch"].astype(int) == selected_epoch]
@@ -126,15 +155,14 @@ def build_report(run_directory: Path) -> dict[str, Any]:
     train_accuracy = float(selected["train_accuracy"])
     return {
         "schema_version": 1,
-        "role": "train12_val2_development_tuning_report",
+        "role": report_contract["role"],
         "unbiased_oof": False,
         "run_id": run_directory.name,
-        "decision": "freeze_result_no_matched_baseline_claim",
-        "interpretation": (
-            "Standalone partial-backbone result on the frozen shared development split. "
-            "No matched full-backbone run exists on this split, so the effect of partial "
-            "unfreezing is not causally identified."
-        ),
+        "decision": report_contract["decision"],
+        "interpretation": report_contract["interpretation"],
+        "direct_head_human_review_accuracy_floor": report_contract[
+            "direct_head_human_review_accuracy_floor"
+        ],
         "split": {
             "train_user_ids": provenance["train_user_ids"],
             "validation_user_ids": provenance["validation_user_ids"],
@@ -167,6 +195,22 @@ def build_report(run_directory: Path) -> dict[str, Any]:
             "checkpoint": str(checkpoint_path.resolve()),
             "checkpoint_sha256": trainer._sha256_file(checkpoint_path),
             "resolved_config_sha256": summary["resolved_config_sha256"],
+            "development_split": provenance.get("development_split_path"),
+            "development_split_sha256": provenance["development_split_sha256"],
+        },
+        "resources": {
+            "parameter_count": int(summary["parameter_count"]),
+            "trainable_parameter_count": int(summary["trainable_parameter_count"]),
+            "checkpoint_bytes": int(summary["checkpoint_bytes"]["best_accuracy"]),
+            "prediction_archive_bytes": int(archive_path.stat().st_size),
+            "peak_cuda_memory_bytes": int(summary["peak_cuda_memory_bytes"]),
+            "ir_route_serialized_weight_subtotal": int(
+                summary["ir_route_serialized_weight_subtotal"]
+            ),
+            "internal_size_limit_bytes": int(summary["internal_size_limit_bytes"]),
+            "ir_route_provisional_size_gate_passed": bool(
+                summary["ir_route_provisional_size_gate_passed"]
+            ),
         },
         "canonical_artifact_sha256_after": canonical_after,
         "canonical_artifacts_unchanged": True,
@@ -178,7 +222,11 @@ def render_markdown(report: Mapping[str, Any]) -> str:
     training = report["training_log_at_selected_epoch"]
     split = report["split"]
     lines = [
-        "# X3D-S Train12/Val2 Partial-Backbone Result",
+        (
+            "# X3D-S User6/User7 Partial2 Matched Reference"
+            if report["role"] == "train12_val2_matched_reference_report"
+            else "# X3D-S Train12/Val2 Partial-Backbone Result"
+        ),
         "",
         f"> Development-only evidence on {', '.join(split['validation_user_ids'])}. This is not unbiased OOF, does not replace Phase 4/5 evidence, and is not matched to the former fold0 experiments.",
         "",
@@ -223,6 +271,17 @@ def render_markdown(report: Mapping[str, Any]) -> str:
             "The selected checkpoint still has a substantial train-to-validation gap, so this intervention does not by itself resolve cross-user overfitting.",
         ]
     )
+    if report["direct_head_human_review_accuracy_floor"] is not None:
+        lines.extend(
+            [
+                "",
+                "## Direct-Head Boundary",
+                "",
+                "This report is the sole matched reference for Generation D. The frozen "
+                "human-review Accuracy floor is "
+                f"`{report['direct_head_human_review_accuracy_floor']:.12f}`.",
+            ]
+        )
     return "\n".join(lines) + "\n"
 
 

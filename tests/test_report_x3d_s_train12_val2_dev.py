@@ -3,6 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+import scripts.report_x3d_s_train12_val2_dev as reporter
 from scripts.report_x3d_s_train12_val2_dev import (
     validate_prediction_population,
 )
@@ -63,3 +64,31 @@ def test_prediction_population_rejects_duplicate_or_wrong_count() -> None:
             expected_validation_users=("user21", "user22"),
             expected_validation_trials=324,
         )
+
+
+def test_user6_user7_report_contract_freezes_matched_reference() -> None:
+    contract = reporter.resolve_report_contract(
+        "train12_val2_user6_user7", reference_accuracy=0.5324675324675324
+    )
+
+    assert contract == {
+        "role": "train12_val2_matched_reference_report",
+        "decision": "freeze_matched_reference_for_direct_head",
+        "direct_head_human_review_accuracy_floor": pytest.approx(
+            0.5124675324675324
+        ),
+        "interpretation": (
+            "Unchanged partial2 result on the frozen user6/user7 development split; "
+            "this is the sole matched reference for Direct-Head Generation D."
+        ),
+    }
+
+
+def test_historical_report_contract_remains_standalone() -> None:
+    contract = reporter.resolve_report_contract(
+        "train12_val2_user21_user22", reference_accuracy=0.5524691358
+    )
+
+    assert contract["role"] == "train12_val2_development_tuning_report"
+    assert contract["decision"] == "freeze_result_no_matched_baseline_claim"
+    assert contract["direct_head_human_review_accuracy_floor"] is None
