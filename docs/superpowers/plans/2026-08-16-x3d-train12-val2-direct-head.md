@@ -424,7 +424,7 @@ Verify local/origin/remote SHA equality before smoke with `git rev-parse HEAD`, 
 - Create: `reports/x3d_s_train12_val2_user6_user7_direct_head1_smoke_audit.json`
 - Modify: `reports/x3d_s_phase_status.md`
 
-- [ ] **Step 1: Launch protected smoke**
+- [x] **Step 1: Launch protected smoke**
 
 ```powershell
 $env:CUBLAS_WORKSPACE_CONFIG=":4096:8"
@@ -435,15 +435,15 @@ D:\Anaconda\envs\pyTorch2.7\python.exe -m scripts.run_x3d_s_train12_val2_dev `
   --seed 20260715 --smoke-test
 ```
 
-- [ ] **Step 2: Audit smoke artifacts**
+- [x] **Step 2: Audit smoke artifacts**
 
 Require Direct-Head, embedding 2048, head parameters 81960, trainable backbone 2315984, block4/block5/classifier finite gradients, clip keep 1.0, `[N,2048]` archive, positive resource bytes, route `<95000000`, and unchanged canonical hashes.
 
-- [ ] **Step 3: Verify smoke and handle the gate**
+- [x] **Step 3: Verify smoke and handle the gate**
 
 Run focused tests, JSON parse, strict checkpoint reload through `_build_model(resolved_config)`, finite archive checks, compileall, and `git diff --check`. On any failure preserve smoke and stop; on pass record exact hashes/resources.
 
-- [ ] **Step 4: Commit and push smoke evidence**
+- [x] **Step 4: Commit and push smoke evidence**
 
 ```powershell
 git add reports/x3d_s_train12_val2_user6_user7_direct_head1_smoke_audit.json reports/x3d_s_phase_status.md

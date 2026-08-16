@@ -1,0 +1,132 @@
+{
+  "schema_version": 1,
+  "audited_at": "2026-08-16",
+  "role": "train12_val2_direct_head_cuda_smoke_audit",
+  "status": "passed",
+  "run_id": "x3d_s_ir_context_train12_val2_user6_user7_direct_head1_smoke_20260816",
+  "seed": 20260715,
+  "pre_result_commit": "b69789e80ded90bcbae7fbb48785e77000dd1d92",
+  "formal_training_started": false,
+  "smoke_contract": {
+    "epochs_completed": 2,
+    "scheduler_horizon_epochs": 2,
+    "early_stopping_enabled": false,
+    "train_batches_per_epoch_maximum": 1,
+    "validation_batches_per_epoch_maximum": 1,
+    "resolved_config_sha256": "e541df282e8a3d172c167005a8d5805c655a97660b47f65c4fe17e495b004cbe",
+    "resolved_config_file_sha256": "cbe75c74f480edb2e2bc3124eae54f15a0cb314af3aa0c6f2dc9c313d55263a6"
+  },
+  "population": {
+    "train_user_count": 12,
+    "validation_user_ids": [
+      "user6",
+      "user7"
+    ],
+    "heldout_user_ids": [
+      "user4",
+      "user17",
+      "user23",
+      "user24"
+    ],
+    "train_usable_ir_trials": 1935,
+    "validation_usable_ir_trials": 385,
+    "train_class_count": 40,
+    "validation_class_count": 40,
+    "train_clip_keep_fraction": 1.0,
+    "validation_clip_keep_fraction": 1.0,
+    "train_validation_overlap": false
+  },
+  "model_contract": {
+    "head_type": "direct",
+    "embedding_dim": 2048,
+    "custom_head_parameter_count": 81960,
+    "parameter_count": 3056634,
+    "trainable_parameter_count": 2397944,
+    "trainable_backbone_parameters_after_unfreeze": 2315984,
+    "strict_checkpoint_reload": true,
+    "checkpoint_head_type": "direct",
+    "checkpoint_embedding_dim": 2048
+  },
+  "gradient_contract": {
+    "measured_before_clipping": true,
+    "head_gradient_verified": true,
+    "backbone_gradient_verified_after_unfreeze": true,
+    "finite_nonzero_scopes": {
+      "backbone_block_4": true,
+      "backbone_block_5": true,
+      "classifier": true
+    },
+    "frozen_scopes": {
+      "backbone_block_0": false,
+      "backbone_block_1": false,
+      "backbone_block_2": false,
+      "backbone_block_3": false
+    }
+  },
+  "archive_contract": {
+    "best_accuracy": {
+      "rows": 2,
+      "logits_shape": [
+        2,
+        40
+      ],
+      "embeddings_shape": [
+        2,
+        2048
+      ],
+      "finite": true,
+      "bytes": 10547,
+      "sha256": "c36758a1775b2c40ea8f873e6ea5802e273a69e5030380de673a161c2eef73a9"
+    },
+    "best_macro_f1": {
+      "rows": 2,
+      "logits_shape": [
+        2,
+        40
+      ],
+      "embeddings_shape": [
+        2,
+        2048
+      ],
+      "finite": true,
+      "bytes": 10547,
+      "sha256": "c36758a1775b2c40ea8f873e6ea5802e273a69e5030380de673a161c2eef73a9"
+    }
+  },
+  "resources": {
+    "best_accuracy_checkpoint_bytes": 12573743,
+    "best_macro_f1_checkpoint_bytes": 12573743,
+    "state_dict_bytes": 12569881,
+    "custom_head_bytes": 329765,
+    "yolo_checkpoint_bytes": 6255593,
+    "ir_route_serialized_weight_subtotal": 18829336,
+    "internal_size_limit_bytes": 95000000,
+    "ir_route_provisional_size_gate_passed": true,
+    "peak_cuda_memory_bytes": 260064768
+  },
+  "artifact_sha256": {
+    "best_accuracy_checkpoint": "195e93390d86965240a172d3293514a1ebe6845d6d71e00b9ce86f4065fd2442",
+    "best_macro_f1_checkpoint": "be31bc44b679b4588a254585df77005225c3a1eebde0179ff0d3257e0d86d964",
+    "development_provenance": "011c6d8d6111084868b51211e2006bc14ff426cf82ff28d5fe4959b53e69fef5",
+    "history": "0fab59fc3b204eb72a93f9f868abe1a1d84156799770f1c3fff53de021c1929e",
+    "run_summary": "3a747fa0ef06b98bc90b9dbb750c7f8c07a151bde0bd76f2d980fe620950db9e",
+    "best_accuracy_prediction": "c36758a1775b2c40ea8f873e6ea5802e273a69e5030380de673a161c2eef73a9",
+    "best_macro_f1_prediction": "c36758a1775b2c40ea8f873e6ea5802e273a69e5030380de673a161c2eef73a9"
+  },
+  "canonical_artifact_sha256": {
+    "assignment": "2a0dde67ced6f40cf3a163f63d545f1e3cde3545b6ee0eb0291cf1c52c38ea76",
+    "fold0_checkpoint": "2962631e48541730cd80e347dff588c4122c58263600ab0d0d63207392b36d7a",
+    "fold0_prediction": "18266310ad2706468d07ecd1a10bbd74b3d59d8f0c7d6cf9911ceaf8cf6ff648",
+    "phase5_oof_evidence": "98517ac3785ab55647b6e8da4e27d31b8096a6115f1cfde9f2607ec861987f21",
+    "phase5_summary": "4df0fcccdeba4d3183307c24eb807efdf66d040b3d8c7eec35d8fde3e9bf8423"
+  },
+  "canonical_artifacts_unchanged": true,
+  "warnings": [
+    "PyTorch reported that avg_pool3d_backward_cuda lacks a deterministic implementation while deterministic algorithms were enabled in warn-only mode; this is an existing runtime limitation and did not invalidate finite-gradient or artifact-contract checks."
+  ],
+  "gate": {
+    "passed": true,
+    "formal_generation_d_permitted": true,
+    "automatic_artifact_deletion_permitted": false
+  }
+}
