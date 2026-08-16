@@ -464,7 +464,7 @@ Do not track smoke outputs.
 - Modify: `docs/superpowers/plans/2026-08-16-x3d-train12-val2-direct-head.md`
 - Update external: `C:\Users\LaiWanzhou\AppData\Local\Temp\x3d_adaptive_multiclip_handoff.md`
 
-- [ ] **Step 1: Launch formal candidate exactly once**
+- [x] **Step 1: Launch formal candidate exactly once**
 
 ```powershell
 $env:CUBLAS_WORKSPACE_CONFIG=":4096:8"
@@ -477,11 +477,11 @@ D:\Anaconda\envs\pyTorch2.7\python.exe -m scripts.run_x3d_s_train12_val2_dev `
 
 Do not change seed, LR, epochs, patience, augmentation, or run ID after launch.
 
-- [ ] **Step 2: Preserve artifacts under the frozen stop rule**
+- [x] **Step 2: Preserve artifacts under the frozen stop rule**
 
 Allow the existing checkpoint/early-stop contract to finish. If completed Accuracy is below the numeric `new_partial2_reference_accuracy - 0.02` threshold frozen in Task 3 preregistration, classify `human_review_regression`, preserve everything, and stop after reporting. Never delete or launch follow-up work.
 
-- [ ] **Step 3: Generate independent matched report**
+- [x] **Step 3: Generate independent matched report**
 
 ```powershell
 D:\Anaconda\envs\pyTorch2.7\python.exe -m scripts.report_x3d_s_train12_val2_user6_user7_direct_head1 `
@@ -492,11 +492,11 @@ D:\Anaconda\envs\pyTorch2.7\python.exe -m scripts.report_x3d_s_train12_val2_user
 
 Require exact sample/label/user/duration alignment before deltas.
 
-- [ ] **Step 4: Apply exactly one decision**
+- [x] **Step 4: Apply exactly one decision**
 
 Record only `preferred`, `human_review_regression`, or `non_winning_ablation`. Diagnostics and the aspirational `0.58-0.60` range cannot change it.
 
-- [ ] **Step 5: Run fresh final verification**
+- [x] **Step 5: Run fresh final verification**
 
 ```powershell
 D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest -q
@@ -506,11 +506,11 @@ git diff --check
 
 Regenerate report twice with identical SHA; parse new JSON; verify no training process; verify no heldout/test access; verify canonical and partial2 hashes unchanged.
 
-- [ ] **Step 6: Update status, plan, and handoff**
+- [x] **Step 6: Update status, plan, and handoff**
 
 Record selected epoch, primary metrics, train gaps, user/duration deltas, disagreement/NLL, classifier drift, parameters, resource bytes, hashes, decision, and exact next action.
 
-- [ ] **Step 7: Commit, push, and verify remote**
+- [x] **Step 7: Commit, push, and verify remote**
 
 ```powershell
 git add reports/x3d_s_train12_val2_user6_user7_direct_head1_report.json reports/x3d_s_train12_val2_user6_user7_direct_head1_report.md reports/x3d_s_phase_status.md docs/superpowers/plans/2026-08-16-x3d-train12-val2-direct-head.md
