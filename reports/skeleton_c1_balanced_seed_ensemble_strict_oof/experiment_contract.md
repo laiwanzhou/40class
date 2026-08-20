@@ -32,4 +32,3 @@ E2-v1 replaces E1 only if all conditions hold:
 4. Macro-F1 improves in at least two of three outer folds.
 
 Per-user, per-class, class-support-bucket, Accuracy bootstrap, and McNemar results are diagnostics. No outer-fold result gates execution of later folds.
-

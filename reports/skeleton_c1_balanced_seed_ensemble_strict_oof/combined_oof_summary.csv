@@ -1,0 +1,2 @@
+﻿representation,samples,accuracy,macro_f1_40class,weighted_f1
+E2_c1_tcn_inverse_sqrt_balanced_3seed_probability_ensemble,2341,0.40794532251174714,0.3236394052084106,0.398975948810739
