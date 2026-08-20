@@ -1029,6 +1029,35 @@ def _resolved_temporal_sampling_mode(config: Mapping[str, Any]) -> str:
     return mode
 
 
+def _resolved_spatial_crop_mode(config: Mapping[str, Any]) -> str:
+    spatial = config.get("spatial_input", {})
+    if not isinstance(spatial, Mapping):
+        raise ValueError("spatial_input must be a mapping")
+    mode = str(spatial.get("crop_mode", "precomputed_moving_context"))
+    if mode not in {"precomputed_moving_context", "fixed_trial_person_context"}:
+        raise ValueError(
+            "spatial_input.crop_mode must be precomputed_moving_context or "
+            "fixed_trial_person_context"
+        )
+    return mode
+
+
+def _dataset_spatial_input_kwargs(config: Mapping[str, Any]) -> dict[str, Any]:
+    mode = _resolved_spatial_crop_mode(config)
+    if mode == "precomputed_moving_context":
+        return {"spatial_crop_mode": mode}
+    spatial = _mapping(config, "spatial_input")
+    return {
+        "spatial_crop_mode": mode,
+        "pose_cache_path": Path(str(spatial["pose_cache"])),
+        "fixed_context_detection_frames": int(spatial["detection_frames"]),
+        "fixed_context_crop_margin": float(spatial["crop_margin"]),
+        "fixed_context_minimum_side_fraction": float(
+            spatial["minimum_side_fraction"]
+        ),
+    }
+
+
 def validate_config(config: Mapping[str, Any]) -> None:
     model_family = str(config.get("model_family", "x3d_s"))
     if model_family not in {"x3d_s", "mobilenet_v3_small_tcn"}:
@@ -1045,6 +1074,19 @@ def validate_config(config: Mapping[str, Any]) -> None:
         raise ValueError("num_classes must be 40")
     temporal = _mapping(config, "temporal")
     _resolved_temporal_sampling_mode(config)
+    spatial_mode = _resolved_spatial_crop_mode(config)
+    if spatial_mode == "fixed_trial_person_context":
+        spatial = _mapping(config, "spatial_input")
+        if not Path(str(spatial.get("pose_cache", ""))).is_file():
+            raise ValueError("fixed spatial input requires an existing pose cache")
+        if int(spatial.get("detection_frames", 0)) != 8:
+            raise ValueError("fixed spatial input must use eight detection frames")
+        if float(spatial.get("crop_margin", 0.0)) != 1.4:
+            raise ValueError("fixed spatial input crop_margin must be 1.4")
+        if float(spatial.get("minimum_side_fraction", 0.0)) != 0.35:
+            raise ValueError("fixed spatial input minimum_side_fraction must be 0.35")
+        if spatial.get("full_frame_fallback") is not False:
+            raise ValueError("fixed spatial input must forbid full-frame fallback")
     expected_temporal = {
         "local_frames": 13,
         "target_window_frames": 32,
@@ -1561,6 +1603,7 @@ def run(args: argparse.Namespace) -> None:
             split="train",
             training=True,
             temporal_sampling_mode=_resolved_temporal_sampling_mode(config),
+            **_dataset_spatial_input_kwargs(config),
             seed=int(config["seed"]),
         )
         model = _build_model(config)
@@ -1634,6 +1677,7 @@ def run(args: argparse.Namespace) -> None:
             split="train",
             training=True,
             temporal_sampling_mode=_resolved_temporal_sampling_mode(config),
+            **_dataset_spatial_input_kwargs(config),
             seed=int(config["seed"]),
         )
         validation_dataset = X3DClipDataset(
@@ -1641,6 +1685,7 @@ def run(args: argparse.Namespace) -> None:
             split="val",
             training=False,
             temporal_sampling_mode=_resolved_temporal_sampling_mode(config),
+            **_dataset_spatial_input_kwargs(config),
             seed=int(config["seed"]),
         )
         if assignment is not None:
@@ -1668,6 +1713,7 @@ def run(args: argparse.Namespace) -> None:
                 split="train",
                 training=True,
                 temporal_sampling_mode=_resolved_temporal_sampling_mode(config),
+                **_dataset_spatial_input_kwargs(config),
                 seed=int(config["seed"]),
             )
             inner_validation_dataset = X3DClipDataset(
@@ -1675,6 +1721,7 @@ def run(args: argparse.Namespace) -> None:
                 split="val",
                 training=False,
                 temporal_sampling_mode=_resolved_temporal_sampling_mode(config),
+                **_dataset_spatial_input_kwargs(config),
                 seed=int(config["seed"]),
             )
             summary = train_strict_oof_partition(

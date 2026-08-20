@@ -1,0 +1,106 @@
+{
+  "schema_version": 1,
+  "registered_at": "2026-08-20",
+  "role": "train12_val2_spatial_ablation_preregistration",
+  "candidate": "x3d_s_ir_context_single13_fixed_trial_context",
+  "parent_candidate": "x3d_s_ir_context_single13_global",
+  "run_id": "x3d_s_ir_context_train12_val2_user6_user7_single13_fixed_context_seed20260715",
+  "development_only": true,
+  "unbiased_oof": false,
+  "approved_post_freeze_exception": true,
+  "approved_formal_training_ordinal": 1,
+  "approved_formal_training_total": 2,
+  "seed": 20260715,
+  "development_split": "metadata/splits/train12_val2_user6_user7_development.json",
+  "population": {
+    "train_user_ids": [
+      "user1", "user2", "user3", "user5", "user8", "user9",
+      "user16", "user18", "user19", "user20", "user21", "user22"
+    ],
+    "validation_user_ids": ["user6", "user7"],
+    "heldout_user_ids": ["user4", "user17", "user23", "user24"],
+    "train_usable_ir_trials": 1935,
+    "validation_usable_ir_trials": 385,
+    "train_class_count": 40,
+    "validation_class_count": 40
+  },
+  "sole_intervention": {
+    "field": "spatial_input.crop_mode",
+    "reference": "precomputed_moving_context",
+    "candidate": "fixed_trial_person_context",
+    "pose_source": "frozen selected-person pose-track cache",
+    "endpoint_uniform_probe_count": 8,
+    "crop_margin": 1.4,
+    "minimum_side_fraction_of_long_frame_axis": 0.35,
+    "full_frame_fallback": false,
+    "resize": "PIL Lanczos 256x256 before unchanged X3D transforms"
+  },
+  "matched_reference": {
+    "run_id": "x3d_s_ir_context_train12_val2_user6_user7_single13_global_seed20260715",
+    "accuracy": 0.522077922077922,
+    "macro_f1": 0.41144521588444183,
+    "worst_user_accuracy": 0.5024875621890548,
+    "selected_epoch": 7
+  },
+  "pretraining_spatial_audit": {
+    "fallback_count": 0,
+    "train": {
+      "trials": 1935,
+      "classes": 40,
+      "area_fraction_mean": 0.4745760059749433,
+      "area_fraction_p50": 0.4815197288990021,
+      "area_fraction_p90": 0.7855061769485474,
+      "area_fraction_min": 0.10364621132612228,
+      "area_fraction_max": 1.0
+    },
+    "validation": {
+      "trials": 385,
+      "classes": 40,
+      "area_fraction_mean": 0.5114826227163339,
+      "area_fraction_p50": 0.4515518248081207,
+      "area_fraction_p90": 0.7775589227676392,
+      "area_fraction_min": 0.16333332657814026,
+      "area_fraction_max": 1.0
+    }
+  },
+  "metric_contract": {
+    "primary": "trial-level Accuracy on 385 user6/user7 usable-IR trials",
+    "secondary": "Macro-F1 over fixed labels 0..39",
+    "guardrail": "minimum user6/user7 Accuracy",
+    "checkpoint_objective": "Accuracy then Macro-F1 then earlier epoch",
+    "human_review_accuracy_floor": 0.502077922077922
+  },
+  "decision_contract": {
+    "preferred_spatial_candidate": "Accuracy > 0.522077922077922, Macro-F1 >= 0.4014452158844418, worst-user Accuracy >= 0.4824875621890548",
+    "non_winning_ablation": "preferred rule not met and Accuracy >= 0.502077922077922",
+    "human_review_regression": "Accuracy < 0.502077922077922; preserve artifacts and stop"
+  },
+  "forbidden": [
+    "depth_color_input",
+    "heldout4_access",
+    "competition_test_access",
+    "canonical_phase4_or_phase5_mutation",
+    "additional_seed",
+    "motion_peak_sampling",
+    "extra_temporal_views",
+    "test_time_augmentation",
+    "full_frame_fallback",
+    "automatic_artifact_deletion",
+    "automatic_second_formal_training_launch"
+  ],
+  "bound_sha256": {
+    "candidate_config": "c38839488b537df478e6029d08515e45909674746d19790d1889fd89434d084f",
+    "reference_config": "ba1095d128043293985d28cf2bce29e23d783bf1290a468c324921b761430127",
+    "development_split": "c65c4826bfdd2d16796021abfccd6b1ece0ef7fb0ec786b19cc62cb60e5e57ca",
+    "reference_report": "9a33d41529487b76b3c72e62ae3ccf9ca9b237f5a45e44473de7b7f530724369",
+    "reference_checkpoint": "2830be4c2ee442b70461fd3074b76d95d70670fb8436cefce564fc2f44b32bf8",
+    "reference_predictions": "abac0ba2287908c37b1ea668be7cf7aec24a9387aef5f1dc4e791291c7ebfa85",
+    "pose_cache": "239f2b88cb2a481e3fefbae3dd6390d6c9c21c5ee73df38b29adc7cd9b0b624d",
+    "canonical_assignment": "2a0dde67ced6f40cf3a163f63d545f1e3cde3545b6ee0eb0291cf1c52c38ea76",
+    "canonical_phase5_oof_evidence": "98517ac3785ab55647b6e8da4e27d31b8096a6115f1cfde9f2607ec861987f21",
+    "experiment_plan": "00ffdb227b1f9ce3604b288819571f43bf2bbcd46247cc7ff504fdac7108e2f3",
+    "dataset_implementation": "8dff90d87f0d2d60221fa87000f6f212d6b2bf54d5ad14fd9964141d82a5b86d",
+    "trainer_implementation": "ad1710484d9ded14a930ce2fc9faf17c30a4960a0c353d912963aa19ef258d1c",
+    "protected_runner": "c3dc9bf1e6038a9d22cb28449c937552d7f6d84a08bddcf1492cb7ed9bfc186e"
+  }
+}

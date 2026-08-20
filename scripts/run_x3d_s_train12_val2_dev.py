@@ -166,6 +166,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         augmentation_config=augmentation,
         train_clip_keep_fraction=1.0,
         temporal_sampling_mode=trainer._resolved_temporal_sampling_mode(config),
+        **trainer._dataset_spatial_input_kwargs(config),
         seed=CANONICAL_SEED,
     )
     validation_dataset = X3DClipDataset(
@@ -175,6 +176,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         augmentation_config=augmentation,
         train_clip_keep_fraction=1.0,
         temporal_sampling_mode=trainer._resolved_temporal_sampling_mode(config),
+        **trainer._dataset_spatial_input_kwargs(config),
         seed=CANONICAL_SEED,
     )
     if set(train_dataset.sample_ids) & set(validation_dataset.sample_ids):
@@ -189,6 +191,12 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     (run_directory / "resolved_config.yaml").write_text(
         yaml.safe_dump(config, sort_keys=False), encoding="utf-8"
     )
+    spatial_input_policy = dict(config.get("spatial_input", {}))
+    pose_cache_path = spatial_input_policy.get("pose_cache")
+    if pose_cache_path is not None:
+        spatial_input_policy["pose_cache_sha256"] = trainer._sha256_file(
+            Path(str(pose_cache_path))
+        )
     provenance = {
         "schema_version": 1,
         "role": "train12_val2_development_tuning",
@@ -213,6 +221,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "validation_clip_keep_fraction": 1.0,
             "aggregation": "mean_probability",
         },
+        "spatial_input_policy": spatial_input_policy,
         "canonical_artifact_sha256_before": canonical_before,
         "smoke_test": bool(args.smoke_test),
     }

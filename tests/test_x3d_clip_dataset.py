@@ -8,15 +8,53 @@ import pandas as pd
 import pytest
 import torch
 
+import src.data.x3d_clip_dataset as x3d_clip_dataset
 from src.data.x3d_clip_dataset import (
     IRAugmentationConfig,
     X3DClipDataset,
+    endpoint_uniform_indices,
+    fixed_trial_person_context_box,
     _transform_clip_frames,
     adaptive_clip_count,
     collate_x3d_clips,
     partition_trial_windows,
     select_training_window_indices,
 )
+
+
+def test_endpoint_uniform_indices_match_eight_probe_contract() -> None:
+    assert endpoint_uniform_indices(1, count=8).tolist() == [0]
+    assert endpoint_uniform_indices(13, count=8).tolist() == [0, 2, 3, 5, 7, 9, 10, 12]
+    assert endpoint_uniform_indices(236, count=8).tolist() == [0, 34, 67, 101, 134, 168, 201, 235]
+
+
+def test_fixed_trial_person_context_box_uses_probe_union_and_not_unprobed_outlier() -> None:
+    boxes = np.full((13, 4), np.nan, dtype=np.float32)
+    boxes[0] = [100.0, 80.0, 200.0, 280.0]
+    boxes[2] = [120.0, 70.0, 240.0, 300.0]
+    boxes[6] = [0.0, 0.0, 640.0, 480.0]
+    boxes[12] = [110.0, 90.0, 220.0, 290.0]
+
+    box = fixed_trial_person_context_box(boxes, width=640, height=480)
+
+    np.testing.assert_allclose(box, [9.0, 24.0, 331.0, 346.0], atol=1e-5)
+
+
+def test_fixed_trial_person_context_box_applies_minimum_side_and_boundary_clamp() -> None:
+    boxes = np.full((20, 4), np.nan, dtype=np.float32)
+    boxes[0] = [2.0, 2.0, 22.0, 42.0]
+    boxes[-1] = [4.0, 4.0, 24.0, 44.0]
+
+    box = fixed_trial_person_context_box(boxes, width=640, height=480)
+
+    np.testing.assert_allclose(box, [0.0, 0.0, 125.0, 135.0], atol=1e-5)
+
+
+def test_fixed_trial_person_context_box_forbids_full_frame_fallback() -> None:
+    boxes = np.full((16, 4), np.nan, dtype=np.float32)
+
+    with pytest.raises(ValueError, match="no valid pose probe"):
+        fixed_trial_person_context_box(boxes, width=640, height=480)
 
 
 @pytest.mark.parametrize(
@@ -83,6 +121,41 @@ def fixture_manifest(
     return pd.DataFrame(rows)
 
 
+def add_fixed_context_sources_and_cache(
+    frame: pd.DataFrame, tmp_path: Path
+) -> tuple[pd.DataFrame, Path]:
+    enriched = frame.copy()
+    enriched["source_ir_path"] = enriched["ir_context_path"]
+    sample_ids: list[str] = []
+    frame_keys: list[str] = []
+    boxes: list[list[float]] = []
+    source_depth_paths: list[str] = []
+    for row in enriched.itertuples(index=False):
+        key = f"{row.sample_id}_{row.source_frame_index:04d}"
+        sample_ids.append(str(row.sample_id))
+        frame_keys.append(key)
+        boxes.append(
+            [
+                40.0 + row.source_frame_index,
+                30.0,
+                180.0 + row.source_frame_index,
+                230.0,
+            ]
+        )
+        source_depth_paths.append(str(tmp_path / f"Depth_{key}_Color.png"))
+    enriched["source_depth_path"] = source_depth_paths
+    pose_cache = tmp_path / "pose_cache.npz"
+    np.savez_compressed(
+        pose_cache,
+        sample_ids=np.asarray(sample_ids),
+        frame_keys=np.asarray(frame_keys),
+        bbox_xyxy=np.asarray(boxes, dtype=np.float32),
+        keypoints_xy=np.zeros((len(boxes), 17, 2), dtype=np.float32),
+        keypoints_confidence=np.ones((len(boxes), 17), dtype=np.float32),
+    )
+    return enriched, pose_cache
+
+
 @pytest.mark.parametrize(
     ("length", "expected"),
     [(1, 1), (13, 1), (32, 1), (33, 2), (64, 2), (65, 3), (236, 8)],
@@ -118,6 +191,36 @@ def test_dataset_groups_complete_trials_and_preserves_frame_order(tmp_path: Path
     assert item["num_frames"] == 3
     assert item["num_clips"] == 1
     assert item["class_map_hash"] == dataset.class_map_hash
+
+
+def test_fixed_context_dataset_reuses_one_trial_box_for_all_sampled_frames(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest, pose_cache = add_fixed_context_sources_and_cache(
+        fixture_manifest(tmp_path, primary_frames=20, split="val"), tmp_path
+    )
+    observed_boxes: list[np.ndarray] = []
+
+    def fake_read(_path: str | Path, box: np.ndarray) -> torch.Tensor:
+        observed_boxes.append(box.copy())
+        return torch.zeros((1, 256, 256), dtype=torch.float32)
+
+    monkeypatch.setattr(x3d_clip_dataset, "_read_fixed_context_gray_tensor", fake_read)
+    dataset = X3DClipDataset(
+        manifest,
+        split="val",
+        training=False,
+        temporal_sampling_mode="global_single_clip",
+        spatial_crop_mode="fixed_trial_person_context",
+        pose_cache_path=pose_cache,
+    )
+
+    item = dataset[0]
+
+    assert item["num_clips"] == 1
+    assert observed_boxes
+    for observed in observed_boxes:
+        np.testing.assert_array_equal(observed, dataset.fixed_context_boxes[0])
 
 
 def test_dataset_normalizes_singleton_channel_grayscale_decode(

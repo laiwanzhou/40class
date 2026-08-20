@@ -216,6 +216,35 @@ def test_user6_user7_single13_changes_only_temporal_sampling_mode() -> None:
     assert candidate == reference
 
 
+def test_user6_user7_single13_fixed_context_changes_only_spatial_input() -> None:
+    reference = yaml.safe_load(
+        Path(
+            "configs/experiments/"
+            "x3d_s_ir_context_train12_val2_user6_user7_single13_global.yaml"
+        ).read_text(encoding="utf-8")
+    )
+    candidate = yaml.safe_load(
+        Path(
+            "configs/experiments/"
+            "x3d_s_ir_context_train12_val2_user6_user7_single13_fixed_context.yaml"
+        ).read_text(encoding="utf-8")
+    )
+
+    assert candidate["spatial_input"] == {
+        "crop_mode": "fixed_trial_person_context",
+        "pose_cache": (
+            "D:\\work\\2026.7.14_kaggle\\40class\\outputs\\"
+            "depth_ir_person_crop_40class_fold0\\person_crop_pose_tracks.npz"
+        ),
+        "detection_frames": 8,
+        "crop_margin": 1.4,
+        "minimum_side_fraction": 0.35,
+        "full_frame_fallback": False,
+    }
+    candidate.pop("spatial_input")
+    assert candidate == reference
+
+
 def test_user6_user7_single13_preregistration_freezes_single_variable() -> None:
     preregistration = json.loads(
         Path(
@@ -246,6 +275,27 @@ def test_user6_user7_single13_preregistration_freezes_single_variable() -> None:
     assert all(
         len(value) == 64 for value in preregistration["bound_sha256"].values()
     )
+
+
+def test_user6_user7_fixed_context_preregistration_freezes_spatial_only() -> None:
+    preregistration = json.loads(
+        Path(
+            "reports/"
+            "x3d_s_train12_val2_user6_user7_single13_fixed_context_preregistration.json"
+        ).read_text(encoding="utf-8")
+    )
+
+    assert preregistration["approved_formal_training_ordinal"] == 1
+    assert preregistration["approved_formal_training_total"] == 2
+    assert preregistration["sole_intervention"]["field"] == "spatial_input.crop_mode"
+    assert preregistration["sole_intervention"]["endpoint_uniform_probe_count"] == 8
+    assert preregistration["sole_intervention"]["full_frame_fallback"] is False
+    assert preregistration["pretraining_spatial_audit"]["fallback_count"] == 0
+    assert preregistration["matched_reference"]["accuracy"] == pytest.approx(
+        0.522077922077922
+    )
+    assert "automatic_second_formal_training_launch" in preregistration["forbidden"]
+    assert all(len(value) == 64 for value in preregistration["bound_sha256"].values())
 
 
 def test_user6_user7_partial2_preregistration_freezes_generation_r() -> None:

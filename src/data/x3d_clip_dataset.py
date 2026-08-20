@@ -10,11 +10,13 @@ import cv2
 import numpy as np
 import pandas as pd
 import torch
+from PIL import Image
 from torch.utils.data import Dataset
 from torchvision.transforms import functional as transform_functional
 from torchvision.transforms.functional import InterpolationMode
 
 from src.data.ir_primary_full_sequence_dataset import class_map_hash
+from src.data.pose_roi_dataset import PoseTrackCache, depth_frame_key
 
 
 LOCAL_FRAMES = 13
@@ -118,6 +120,60 @@ def adaptive_clip_count(
     return min(max_clips, max(1, math.ceil(num_frames / target_window_frames)))
 
 
+def endpoint_uniform_indices(num_frames: int, *, count: int = 8) -> np.ndarray:
+    if num_frames <= 0:
+        raise ValueError("num_frames must be positive")
+    if count <= 0:
+        raise ValueError("count must be positive")
+    return np.unique(
+        np.rint(np.linspace(0, num_frames - 1, min(count, num_frames))).astype(np.int64)
+    )
+
+
+def fixed_trial_person_context_box(
+    person_boxes: np.ndarray,
+    *,
+    width: int,
+    height: int,
+    detection_frames: int = 8,
+    crop_margin: float = 1.4,
+    minimum_side_fraction: float = 0.35,
+) -> np.ndarray:
+    if person_boxes.ndim != 2 or person_boxes.shape[1] != 4:
+        raise ValueError("person_boxes must have shape [T,4]")
+    if width <= 0 or height <= 0:
+        raise ValueError("frame dimensions must be positive")
+    if crop_margin <= 0.0 or not 0.0 < minimum_side_fraction <= 1.0:
+        raise ValueError("fixed-context crop parameters are invalid")
+
+    probes = person_boxes[endpoint_uniform_indices(len(person_boxes), count=detection_frames)]
+    valid = (
+        np.isfinite(probes).all(axis=1)
+        & (probes[:, 2] > probes[:, 0])
+        & (probes[:, 3] > probes[:, 1])
+    )
+    if not valid.any():
+        raise ValueError("fixed trial context has no valid pose probe; full-frame fallback forbidden")
+    selected = probes[valid]
+    x1 = float(selected[:, 0].min())
+    y1 = float(selected[:, 1].min())
+    x2 = float(selected[:, 2].max())
+    y2 = float(selected[:, 3].max())
+    side = max(x2 - x1, y2 - y1) * crop_margin
+    side = max(side, minimum_side_fraction * max(width, height))
+    center_x = (x1 + x2) / 2.0
+    center_y = (y1 + y2) / 2.0
+    return np.asarray(
+        [
+            max(0.0, center_x - side / 2.0),
+            max(0.0, center_y - side / 2.0),
+            min(float(width), center_x + side / 2.0),
+            min(float(height), center_y + side / 2.0),
+        ],
+        dtype=np.float32,
+    )
+
+
 def partition_trial_windows(
     num_frames: int,
     *,
@@ -194,6 +250,16 @@ def _read_gray_tensor(path: str | Path) -> torch.Tensor:
     if image.ndim != 2:
         raise ValueError(f"Expected grayscale image at {path}, got shape {image.shape}")
     return torch.from_numpy(image.copy()).unsqueeze(0).to(torch.float32).div_(255.0)
+
+
+def _read_fixed_context_gray_tensor(
+    path: str | Path, box_xyxy: np.ndarray
+) -> torch.Tensor:
+    with Image.open(path) as image:
+        crop = image.convert("L").crop(tuple(float(value) for value in box_xyxy))
+        resized = crop.resize((256, 256), resample=Image.Resampling.LANCZOS)
+        array = np.asarray(resized, dtype=np.uint8)
+    return torch.from_numpy(array.copy()).unsqueeze(0).to(torch.float32).div_(255.0)
 
 
 def _random_resized_crop_parameters(
@@ -353,6 +419,11 @@ class X3DClipDataset(Dataset[X3DClipSample]):
         augmentation_config: Mapping[str, object] | IRAugmentationConfig | None = None,
         train_clip_keep_fraction: float = 1.0,
         temporal_sampling_mode: str = "adaptive_local_windows",
+        spatial_crop_mode: str = "precomputed_moving_context",
+        pose_cache_path: str | Path | None = None,
+        fixed_context_detection_frames: int = 8,
+        fixed_context_crop_margin: float = 1.4,
+        fixed_context_minimum_side_fraction: float = 0.35,
         seed: int = 20260715,
     ) -> None:
         if split not in {"train", "val"}:
@@ -402,6 +473,15 @@ class X3DClipDataset(Dataset[X3DClipSample]):
                 "global_single_clip"
             )
         self.temporal_sampling_mode = str(temporal_sampling_mode)
+        if spatial_crop_mode not in {
+            "precomputed_moving_context",
+            "fixed_trial_person_context",
+        }:
+            raise ValueError(
+                "spatial_crop_mode must be precomputed_moving_context or "
+                "fixed_trial_person_context"
+            )
+        self.spatial_crop_mode = str(spatial_crop_mode)
         if not 0.0 < float(train_clip_keep_fraction) <= 1.0:
             raise ValueError("train_clip_keep_fraction must be in (0, 1]")
         if self.temporal_sampling_mode == "global_single_clip" and float(
@@ -417,13 +497,28 @@ class X3DClipDataset(Dataset[X3DClipSample]):
         selected = frame[frame["split"].astype(str) == split].copy()
         if selected.empty:
             raise ValueError(f"Manifest has no samples for split {split}")
+        path_column = (
+            "source_ir_path"
+            if self.spatial_crop_mode == "fixed_trial_person_context"
+            else "ir_context_path"
+        )
+        if path_column not in selected or selected[path_column].isnull().any():
+            raise ValueError(f"Fixed spatial input requires non-null {path_column}")
         missing_paths = [
-            path for path in selected["ir_context_path"].astype(str).unique() if not Path(path).is_file()
+            path for path in selected[path_column].astype(str).unique() if not Path(path).is_file()
         ]
         if missing_paths:
-            raise ValueError(f"Selected IR context image does not exist: {missing_paths[0]}")
+            raise ValueError(f"Selected IR image does not exist: {missing_paths[0]}")
+        pose_cache: PoseTrackCache | None = None
+        if self.spatial_crop_mode == "fixed_trial_person_context":
+            if "source_depth_path" not in selected or selected["source_depth_path"].isnull().any():
+                raise ValueError("Fixed spatial input requires non-null source_depth_path")
+            if pose_cache_path is None or not Path(pose_cache_path).is_file():
+                raise ValueError("Fixed spatial input requires an existing pose cache")
+            pose_cache = PoseTrackCache(Path(pose_cache_path))
 
         self.samples: list[pd.DataFrame] = []
+        self.fixed_context_boxes: list[np.ndarray | None] = []
         self.sample_ids: list[str] = []
         self.lengths: list[int] = []
         self.num_clips: list[int] = []
@@ -435,7 +530,25 @@ class X3DClipDataset(Dataset[X3DClipSample]):
             for field in ("class_id", "action_name", "user_id"):
                 if ordered[field].nunique() != 1:
                     raise ValueError(f"Inconsistent {field} within sample {sample_id}")
+            fixed_box: np.ndarray | None = None
+            if pose_cache is not None:
+                with Image.open(str(ordered.iloc[0]["source_ir_path"])) as image:
+                    width, height = image.size
+                depth_paths = [Path(value) for value in ordered["source_depth_path"].astype(str)]
+                for depth_path in depth_paths:
+                    pose_cache.validate_frame(str(sample_id), depth_path, width, height)
+                frame_keys = [depth_frame_key(path) for path in depth_paths]
+                person_boxes, _, _ = pose_cache.trial_arrays(str(sample_id), frame_keys)
+                fixed_box = fixed_trial_person_context_box(
+                    person_boxes,
+                    width=width,
+                    height=height,
+                    detection_frames=int(fixed_context_detection_frames),
+                    crop_margin=float(fixed_context_crop_margin),
+                    minimum_side_fraction=float(fixed_context_minimum_side_fraction),
+                )
             self.samples.append(ordered)
+            self.fixed_context_boxes.append(fixed_box)
             self.sample_ids.append(str(sample_id))
             self.lengths.append(len(ordered))
             full_clip_count = (
@@ -502,9 +615,16 @@ class X3DClipDataset(Dataset[X3DClipSample]):
             temporal_frames: list[torch.Tensor] = []
             for source_index in indices.tolist():
                 if source_index not in image_cache:
-                    image_cache[source_index] = _read_gray_tensor(
-                        frame.iloc[source_index]["ir_context_path"]
-                    )
+                    if self.spatial_crop_mode == "fixed_trial_person_context":
+                        box = self.fixed_context_boxes[index]
+                        assert box is not None
+                        image_cache[source_index] = _read_fixed_context_gray_tensor(
+                            frame.iloc[source_index]["source_ir_path"], box
+                        )
+                    else:
+                        image_cache[source_index] = _read_gray_tensor(
+                            frame.iloc[source_index]["ir_context_path"]
+                        )
                 temporal_frames.append(image_cache[source_index])
             clip = _transform_clip_frames(
                 temporal_frames,
