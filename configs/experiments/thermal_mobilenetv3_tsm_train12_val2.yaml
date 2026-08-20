@@ -1,9 +1,19 @@
 stage: thermal_mobilenet_matched_control
-status: preregistered_authorized_not_started
-training_authorized: true
+status: stopped_after_epoch14_by_human_decision_analysis_complete
+training_authorized: false
 authorization: explicit_user_instruction_2026_08_20_18_11
 causal_control_only: true
 promotion_authorized: false
+resume_authorized: false
+epochs_completed: 14
+best_epoch: 12
+best_validation_accuracy: 0.2864721485411141
+best_validation_macro_f1: 0.2136970780299044
+best_validation_worst_user_accuracy: 0.2512820512820513
+zero_recall_class_count: 17
+matched_10x_activation_event: false
+automatic_promotion_authorized: false
+formal_retention_requires_shared_train14_oof: true
 num_classes: 40
 seed: 20260715
 

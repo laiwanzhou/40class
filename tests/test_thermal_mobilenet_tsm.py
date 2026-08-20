@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
 
 import torch
 
@@ -69,7 +70,7 @@ def test_mobilenet_matched_config_freezes_full_recipe_and_route() -> None:
         / "configs/experiments/thermal_mobilenetv3_tsm_train12_val2.yaml"
     ).read_text(encoding="utf-8")
 
-    assert "status: preregistered_authorized_not_started" in text
+    assert "status: stopped_after_epoch14_by_human_decision_analysis_complete" in text
     assert "route: full_frame" in text
     assert "epochs: 30" in text
     assert "hard_stop_epoch: 30" in text
@@ -82,3 +83,34 @@ def test_mobilenet_matched_config_freezes_full_recipe_and_route() -> None:
     assert "yolo_crop: false" in text
     assert "classifier_structure_matches_iformer_t: true" in text
     assert "promotion_authorized: false" in text
+
+
+def test_stopped_audit_preserves_scope_integrity_and_no_promotion() -> None:
+    report = json.loads(
+        (
+            PROJECT_ROOT
+            / "reports/thermal_mobilenetv3_tsm_epoch14_stopped_audit.json"
+        ).read_text(encoding="utf-8")
+    )
+
+    assert report["stop_assessment"]["epochs_completed"] == 14
+    assert report["stop_assessment"]["later_best_cannot_be_excluded"] is True
+    assert report["best_checkpoint"]["epoch"] == 12
+    assert report["stability"]["state_unchanged"] is True
+    assert report["stability"]["matched_pairs"][
+        "hooks_preserved_logits_and_embeddings_exactly"
+    ] is True
+    assert all(
+        not report["stability"]["matched_pairs"]["comparisons"][precision][
+            "aggregate"
+        ]["feature_or_embedding_10x_event"]
+        for precision in ("fp32", "bfloat16")
+    )
+    assert report["conclusion"]["automatic_promotion_authorized"] is False
+    assert report["conclusion"]["training_remains_stopped"] is True
+    assert report["safety"]["analysis_training_performed"] is False
+    assert report["safety"]["backward_called"] is False
+    assert report["safety"]["optimizer_created"] is False
+    assert report["safety"]["restart_stopped"] is True
+    assert report["safety"]["heldout_labels_accessed"] is False
+    assert report["safety"]["yolo_crop_used"] is False
