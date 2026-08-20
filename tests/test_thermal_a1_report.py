@@ -29,6 +29,6 @@ def test_a1_report_records_zero_training_and_locked_next_gate() -> None:
 def test_a1_report_source_hashes_match_committed_inputs() -> None:
     payload = json.loads(REPORT.read_text(encoding="utf-8"))
 
-    for relative_path, expected in payload["source_sha256"].items():
+    for relative_path, expected in payload["current_source_sha256"].items():
         digest = hashlib.sha256((ROOT / relative_path).read_bytes()).hexdigest()
         assert digest == expected

@@ -30,19 +30,19 @@ def test_validate_only_reports_gate_without_model_or_output_directory(tmp_path: 
         text=True,
     )
 
-    assert '"training_authorized": false' in result.stdout
+    assert '"training_authorized": true' in result.stdout
     assert '"status": "validated_not_started"' in result.stdout
     assert list(tmp_path.iterdir()) == []
 
 
-def test_cli_refuses_training_before_creating_output(tmp_path: Path) -> None:
+def test_cli_refuses_wrong_token_before_creating_output(tmp_path: Path) -> None:
     with pytest.raises(TrainingAuthorizationError):
         main(
             [
                 "--config",
                 str(CONFIG),
                 "--authorize-training",
-                "thermal-a-direct",
+                "wrong-token",
                 "--output-root",
                 str(tmp_path),
             ]

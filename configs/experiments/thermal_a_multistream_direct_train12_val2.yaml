@@ -2,8 +2,14 @@ schema_version: 1
 experiment_id: thermal_a_multistream_direct_train12_val2
 route: a_multistream
 objective: direct
-training_authorized: false
+training_authorized: true
 authorization_token: thermal-a-direct
+authorization:
+  approved_on: '2026-08-21'
+  approval_text: A2pass的话，请进行A3
+  route_b_report_verified: false
+  route_b_report_waived_by_user: true
+  runtime_gate_passed: true
 
 student:
   contract_id: thermal_multistream_x3d_xs_v1

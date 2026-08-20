@@ -160,10 +160,17 @@ def validate_workflow(workflow: Mapping[str, Any]) -> list[str]:
 
     external_gates = _mapping(workflow.get("external_gates"))
     direct_status = _mapping(stage_by_id.get("a3_direct_training")).get("status")
-    if direct_status in {"in_progress", "completed"} and not external_gates.get(
-        "route_b_report_verified", False
+    route_b_verified = external_gates.get("route_b_report_verified", False) is True
+    route_b_waived = external_gates.get("route_b_report_waived_by_user", False) is True
+    if route_b_waived and not (
+        external_gates.get("route_b_report_waiver_approved_on")
+        and external_gates.get("route_b_report_waiver_approval_text")
     ):
-        errors.append("A-direct requires the Route B report under the parent plan")
+        errors.append("Route B waiver requires auditable user approval")
+    if direct_status in {"in_progress", "completed"} and not (
+        route_b_verified or route_b_waived
+    ):
+        errors.append("A-direct requires Route B verification or explicit user waiver")
 
     deployment = _mapping(workflow.get("deployment"))
     if deployment.get("limit_bytes_exclusive") != 95_000_000:

@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "status": "complete",
+  "canonical_trials": 2427,
+  "usable_trials": 2299,
+  "cached_unique_frames": 86307,
+  "valid_pose_frames": 70193,
+  "failed_pose_frames": 16114,
+  "cache_path": "D:\\work\\2026.7.14_kaggle\\40class-thermal-route-a-workflow\\metadata\\thermal\\thermal_v2_pose_cache.npz",
+  "cache_bytes": 14265822,
+  "cache_sha256": "12f207354d05e8db6ccc08da032b8bd896adbc017e791b0dba6623d11f875aae",
+  "context_sha256": "685840e2aa5e551950e38220ff815b1ffffeb252fd90be73977b94ebdd2d9d87",
+  "yolo_weights_sha256": "869e83fcdffdc7371fa4e34cd8e51c838cc729571d1635e5141e3075e9319dc0",
+  "splits": [
+    "train12",
+    "val_user6_user7"
+  ],
+  "sample_selection": "three_normalized_time_windows_16_frames_unique_keys",
+  "heldout4_labels_read": false,
+  "competition_test_read": false,
+  "ir_depth_inputs_read": false
+}

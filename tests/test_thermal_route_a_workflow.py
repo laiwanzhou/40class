@@ -50,20 +50,23 @@ def load_workflow() -> dict:
     return payload
 
 
-def test_committed_route_a_workflow_is_valid_and_blocks_a3() -> None:
+def test_committed_route_a_workflow_is_valid_and_authorizes_a3() -> None:
     validator = load_validator()
     workflow = load_workflow()
 
     assert validator.validate_workflow(workflow) == []
     assert tuple(stage["id"] for stage in workflow["stages"]) == EXPECTED_STAGE_ORDER
     assert validator.next_action(workflow) == "a3_direct_training"
-    assert workflow["status"] == "a2_complete_a3_blocked"
+    assert workflow["status"] == "a3_prerequisites_in_progress"
     assert workflow["stages"][0]["status"] == "completed"
     assert workflow["stages"][1]["status"] == "completed"
     assert workflow["stages"][2]["status"] == "completed"
     assert all(stage["status"] == "pending" for stage in workflow["stages"][3:])
     assert workflow["external_gates"]["route_b_report_verified"] is False
-    assert not workflow["authorization"]["a_direct_training"]
+    assert workflow["external_gates"]["route_b_report_waived_by_user"] is True
+    assert workflow["authorization"]["a_direct_training"] is True
+    assert workflow["authorization"]["a_direct_approved_on"] == "2026-08-21"
+    assert workflow["authorization"]["a_direct_approval_text"] == "A2pass的话，请进行A3"
     assert not workflow["authorization"]["a_kd_training"]
     assert RUNBOOK_PATH.is_file()
     assert A1_REPORT_PATH.is_file()
@@ -119,9 +122,29 @@ def test_training_stage_cannot_start_without_explicit_authorization() -> None:
         stage["status"] = "completed"
     unauthorized["stages"][3]["status"] = "in_progress"
     unauthorized["current_stage"] = "a3_direct_training"
+    unauthorized["authorization"]["a_direct_training"] = False
 
     errors = validator.validate_workflow(unauthorized)
     assert "a3_direct_training requires explicit authorization" in errors
+
+
+def test_route_b_may_only_be_waived_with_auditable_user_approval() -> None:
+    validator = load_validator()
+    workflow = load_workflow()
+    started = copy.deepcopy(workflow)
+    started["stages"][3]["status"] = "in_progress"
+
+    assert validator.validate_workflow(started) == []
+
+    missing_audit = copy.deepcopy(started)
+    missing_audit["external_gates"]["route_b_report_waiver_approval_text"] = ""
+    errors = validator.validate_workflow(missing_audit)
+    assert "Route B waiver requires auditable user approval" in errors
+
+    no_gate = copy.deepcopy(started)
+    no_gate["external_gates"]["route_b_report_waived_by_user"] = False
+    errors = validator.validate_workflow(no_gate)
+    assert "A-direct requires Route B verification or explicit user waiver" in errors
 
 
 @pytest.mark.parametrize(

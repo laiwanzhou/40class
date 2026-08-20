@@ -162,6 +162,8 @@ def fixed_label_metrics(
     if logits.shape != (len(labels), 40) or users.shape != labels.shape:
         raise ValueError("prediction archive must contain N x 40 logits and N users")
     predictions = logits.argmax(axis=1)
+    shifted = logits - logits.max(axis=1, keepdims=True)
+    log_probabilities = shifted - np.log(np.exp(shifted).sum(axis=1, keepdims=True))
     matrix = confusion_matrix(labels, predictions, labels=np.arange(40))
     totals = matrix.sum(axis=1)
     recalls = np.divide(
@@ -176,6 +178,7 @@ def fixed_label_metrics(
     }
     return {
         "accuracy": float(accuracy_score(labels, predictions)),
+        "nll": float(-log_probabilities[np.arange(len(labels)), labels].mean()),
         "macro_f1": float(
             f1_score(
                 labels,
@@ -299,10 +302,13 @@ def run_generation2_epoch(
         for batch in loader:
             labels = batch["label"].to(device, non_blocking=True)
             eligible = batch["loss_eligible"].to(device, non_blocking=True).bool()
+            if not bool(eligible.any()):
+                batches += 1
+                continue
             with torch.autocast(
                 device_type=device.type,
                 dtype=torch.bfloat16,
-                enabled=device.type == "cuda",
+                enabled=training and device.type == "cuda",
             ):
                 output = _forward_generation2(model, batch, config["route"], device)
                 loss = compute_generation2_loss(
@@ -385,6 +391,7 @@ def collect_generation2_predictions(
     logits: list[np.ndarray] = []
     availability: list[np.ndarray] = []
     quality: list[np.ndarray] = []
+    stream_norms: list[np.ndarray] = []
     with torch.inference_mode():
         for batch in loader:
             eligible = batch["loss_eligible"].bool().cpu().numpy()
@@ -397,6 +404,8 @@ def collect_generation2_predictions(
             logits.append(output["logits"].float().cpu().numpy()[eligible])
             availability.append(output["availability"].cpu().numpy()[eligible])
             quality.append(output["quality"].float().cpu().numpy()[eligible])
+            if "stream_norms" in output:
+                stream_norms.append(output["stream_norms"].float().cpu().numpy()[eligible])
     if not labels:
         raise ValueError("loader produced no prediction batches")
     archive = {
@@ -407,6 +416,8 @@ def collect_generation2_predictions(
         "availability": np.concatenate(availability),
         "quality": np.concatenate(quality),
     }
+    if stream_norms:
+        archive["stream_norms"] = np.concatenate(stream_norms)
     archive["predictions"] = archive["logits"].argmax(axis=1)
     archive["metrics"] = fixed_label_metrics(
         labels=archive["labels"], logits=archive["logits"], users=archive["users"]

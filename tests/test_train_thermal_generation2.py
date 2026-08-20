@@ -27,11 +27,15 @@ BASELINE_CONFIG = ROOT / "configs/experiments/thermal_b_x3d_xs_train12_val2.yaml
 DIRECT_CONFIG = ROOT / "configs/experiments/thermal_a_multistream_direct_train12_val2.yaml"
 
 
-@pytest.mark.parametrize("path", (BASELINE_CONFIG, DIRECT_CONFIG))
-def test_frozen_config_is_random_fixed_and_unauthorized(path: Path) -> None:
+@pytest.mark.parametrize(
+    ("path", "authorized"), ((BASELINE_CONFIG, False), (DIRECT_CONFIG, True))
+)
+def test_frozen_config_is_random_fixed_and_explicitly_authorized(
+    path: Path, authorized: bool
+) -> None:
     config = load_generation2_config(path)
 
-    assert config["training_authorized"] is False
+    assert config["training_authorized"] is authorized
     assert config["student"]["initialization"] == "random"
     assert config["student"]["pretrained"] is False
     assert config["data"]["development_split"] == (
@@ -60,12 +64,12 @@ def test_frozen_config_is_random_fixed_and_unauthorized(path: Path) -> None:
 def test_authorization_requires_config_flag_and_exact_token() -> None:
     config = load_generation2_config(DIRECT_CONFIG)
 
+    denied = dict(config, training_authorized=False)
     with pytest.raises(TrainingAuthorizationError):
-        require_training_authorization(config, token="thermal-a-direct")
-    approved = dict(config, training_authorized=True)
+        require_training_authorization(denied, token="thermal-a-direct")
     with pytest.raises(TrainingAuthorizationError):
-        require_training_authorization(approved, token="wrong-token")
-    require_training_authorization(approved, token="thermal-a-direct")
+        require_training_authorization(config, token="wrong-token")
+    require_training_authorization(config, token="thermal-a-direct")
 
 
 def test_masked_direct_and_kd_losses_share_hard_label_term() -> None:
@@ -200,3 +204,26 @@ def test_epoch_core_is_deterministic_masked_and_archive_ready() -> None:
     assert archive["logits"].shape == (1, 40)
     assert archive["availability"].shape == (1, 4)
     assert archive["quality"].shape == (1, 8)
+
+
+def test_epoch_skips_fully_ineligible_batch_without_optimizer_step() -> None:
+    config = load_generation2_config(DIRECT_CONFIG)
+    config["optimization"]["physical_batch_trials"] = 1
+    config["optimization"]["effective_batch_trials"] = 1
+    model = TinyGeneration2()
+    optimizer, scheduler = build_optimizer_and_scheduler(model, config=config, steps_per_epoch=1)
+    unavailable = tiny_batch()
+    unavailable["loss_eligible"] = torch.tensor([False, False])
+
+    metrics = run_generation2_epoch(
+        model=model,
+        loader=[unavailable, tiny_batch()],
+        config=config,
+        device=torch.device("cpu"),
+        optimizer=optimizer,
+        scheduler=scheduler,
+    )
+
+    assert metrics["batches"] == 2
+    assert metrics["eligible_samples"] == 1
+    assert metrics["optimizer_steps"] == 1

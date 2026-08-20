@@ -1,6 +1,6 @@
 # Thermal Route A Operational Workflow
 
-**Status:** A2 complete; A3 blocked by Route B, pose cache, and explicit training authorization. This runbook does not authorize training.
+**Status:** A2 complete; A3 explicitly authorized on 2026-08-21. Route B remains unverified and is recorded as user-waived, the full pose cache is complete, and formal training waits only for an uncontended GPU preflight.
 
 **Branch:** `experiment/thermal-route-a-workflow`
 
@@ -129,6 +129,8 @@ No pretrained student tensor is allowed. A-direct and A-KD must match in archite
 - A0-A2 completed.
 - Route B report verified as required by the parent plan.
 - `authorization.a_direct_training: true` after a new explicit human approval.
+
+**Approved exception (2026-08-21):** The user explicitly requested A3 after A2 passed, with Route B still reported as missing. The workflow records this as a Route B prerequisite waiver, not as Route B verification. Exact approval text: `A2pass的话，请进行A3`.
 
 **Frozen run:** seed `20260715`, AdamW, LR `3e-4`, weight decay `0.05`, three warmup epochs, cosine schedule, 50-epoch hard cap, no resume or extension, and checkpoint selection by fixed-label Macro-F1 then Accuracy, worst-user Accuracy, and lower epoch.
 

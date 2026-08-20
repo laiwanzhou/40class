@@ -69,6 +69,20 @@
     "configs/experiments/thermal_b_x3d_xs_train12_val2.yaml": "0e3f94473cbdce4fe1e231bc00d5dfd24ca95ef06604f2ae622505fe6f72ee7e",
     "configs/experiments/thermal_a_multistream_direct_train12_val2.yaml": "0f116b1e734c72153f2ac610f7771c92f05ef44fd998ad3d51f7f805385c206d"
   },
+  "current_a3_state": {
+    "formal_cli_execution": "unlocked_after_a2_pass_and_explicit_a3_authorization",
+    "training_authorized": true,
+    "pose_cache_status": "complete_86307_unique_sampled_frames",
+    "pose_cache_sha256": "12f207354d05e8db6ccc08da032b8bd896adbc017e791b0dba6623d11f875aae"
+  },
+  "current_source_sha256": {
+    "src/models/thermal_x3d_xs.py": "51e80e476bc4df6eb6063de73c090da0fe9bee02b94bd6060fcfed71cac8680c",
+    "src/models/thermal_multistream.py": "1c4e160cf6ce1bd21ed7f7f3d7060e426599af21bf7eccd58a9d4a925c1d310b",
+    "src/train_thermal_generation2.py": "f0b78c19c37a4abaeab4daa86c06307c5a3164b86089dbc7d01b4290b98da1a0",
+    "scripts/run_thermal_generation2.py": "82c57363f4ea2fd589e7aa41a2912f42167d6d55c5ae04914c16691166f43230",
+    "configs/experiments/thermal_b_x3d_xs_train12_val2.yaml": "0e3f94473cbdce4fe1e231bc00d5dfd24ca95ef06604f2ae622505fe6f72ee7e",
+    "configs/experiments/thermal_a_multistream_direct_train12_val2.yaml": "e8f0cf32c66cb98d0b74accf1538dc0b8dad2628f12b9d2dc6f84300215b206e"
+  },
   "evidence_boundary": {
     "heldout4_labels_read": false,
     "competition_test_read": false,

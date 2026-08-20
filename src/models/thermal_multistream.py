@@ -205,4 +205,13 @@ class ThermalMultiStreamStudent(nn.Module):
             "embedding": embedding,
             "availability": availability,
             "quality": quality,
+            "stream_norms": torch.stack(
+                (
+                    full_feature.norm(dim=1),
+                    crop_feature.norm(dim=1),
+                    motion_feature.norm(dim=1),
+                    pose_feature.norm(dim=1),
+                ),
+                dim=1,
+            ),
         }
