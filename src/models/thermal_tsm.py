@@ -1,0 +1,103 @@
+from __future__ import annotations
+
+from collections.abc import Iterable
+
+import torch
+from torch import nn
+from torchvision.models import MobileNet_V3_Small_Weights, mobilenet_v3_small
+
+
+class TemporalShift(nn.Module):
+    """Parameter-free TSM on explicit [batch, time, channel, height, width]."""
+
+    def __init__(self, num_segments: int = 16, fold_div: int = 8) -> None:
+        super().__init__()
+        if num_segments < 1 or fold_div < 1:
+            raise ValueError("num_segments and fold_div must be positive")
+        self.num_segments = num_segments
+        self.fold_div = fold_div
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if x.ndim != 5:
+            raise ValueError("TemporalShift expects [B,T,C,H,W]")
+        if x.shape[1] != self.num_segments:
+            raise ValueError(
+                f"Expected num_segments={self.num_segments}, received T={x.shape[1]}"
+            )
+        fold = x.shape[2] // self.fold_div
+        if fold == 0:
+            return x
+
+        shifted = torch.zeros_like(x)
+        shifted[:, :-1, :fold] = x[:, 1:, :fold]
+        shifted[:, 1:, fold : 2 * fold] = x[:, :-1, fold : 2 * fold]
+        shifted[:, :, 2 * fold :] = x[:, :, 2 * fold :]
+        return shifted
+
+
+class MobileNetV3SmallTSM(nn.Module):
+    """MobileNetV3-Small with TSM before selected spatial feature blocks."""
+
+    def __init__(
+        self,
+        *,
+        weights: MobileNet_V3_Small_Weights | None,
+        num_classes: int = 40,
+        num_segments: int = 16,
+        fold_div: int = 8,
+        shift_before_blocks: Iterable[int] = (1, 3, 6, 9),
+        backbone: nn.Module | None = None,
+    ) -> None:
+        super().__init__()
+        if num_classes != 40:
+            raise ValueError("Thermal expert head must have exactly 40 classes")
+        base = backbone if backbone is not None else mobilenet_v3_small(weights=weights)
+        if not hasattr(base, "features") or not hasattr(base, "classifier"):
+            raise TypeError("Expected a torchvision MobileNetV3 backbone")
+
+        in_features = int(base.classifier[-1].in_features)
+        base.classifier[-1] = nn.Linear(in_features, num_classes)
+        self.features = base.features
+        self.avgpool = base.avgpool
+        self.classifier = base.classifier
+        self.num_classes = num_classes
+        self.num_segments = num_segments
+        self.shift_before_blocks = frozenset(int(index) for index in shift_before_blocks)
+        invalid = self.shift_before_blocks.difference(range(len(self.features)))
+        if invalid:
+            raise ValueError(f"Invalid MobileNet feature block indices: {sorted(invalid)}")
+        self.temporal_shift = TemporalShift(num_segments, fold_div)
+
+    def _shift_flat_features(
+        self, features: torch.Tensor, batch_size: int
+    ) -> torch.Tensor:
+        shape = features.shape
+        explicit = features.reshape(
+            batch_size, self.num_segments, shape[1], shape[2], shape[3]
+        )
+        return self.temporal_shift(explicit).reshape(shape)
+
+    def forward(self, clips: torch.Tensor) -> torch.Tensor:
+        if clips.ndim != 5 or clips.shape[1:] != (
+            self.num_segments,
+            3,
+            224,
+            224,
+        ):
+            raise ValueError(
+                "MobileNetV3SmallTSM expects [B,16,3,224,224] "
+                f"for this contract, received {tuple(clips.shape)}"
+            )
+        batch_size = clips.shape[0]
+        x = clips.reshape(batch_size * self.num_segments, 3, 224, 224)
+        for index, block in enumerate(self.features):
+            if index in self.shift_before_blocks:
+                x = self._shift_flat_features(x, batch_size)
+            x = block(x)
+        x = self.avgpool(x)
+        x = torch.flatten(x, 1)
+        x = x.reshape(batch_size, self.num_segments, -1).mean(dim=1)
+        logits = self.classifier(x)
+        if logits.shape != (batch_size, self.num_classes):
+            raise RuntimeError(f"Unexpected classifier output shape: {tuple(logits.shape)}")
+        return logits

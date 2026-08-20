@@ -86,15 +86,15 @@ Rendered background and endpoint diagnostics found weak auto-scale indications o
 - Create: `reports/thermal_backbone_environment_probe.json`
 - Test: `tests/test_thermal_backbone_environment.py`
 
-- [ ] Write tests that reject random or partially loaded pretrained state dictionaries, non-40-class heads, non-finite `[2,40]` forward output, unrecorded source/license/hash, and any provisional complete-package estimate `>=95,000,000` bytes.
-- [ ] Run the tests and verify RED because the probe and loaders do not exist.
-- [ ] Implement iFormer-T and iFormer-S loaders from one reviewed upstream implementation. Record source URL, exact source revision, weight URL, weight SHA-256, license, missing/unexpected keys, serialized bytes, FP32 parameter bytes, and whether pretrained weights loaded before replacing the classifier.
-- [ ] Implement the torchvision pretrained MobileNetV3-Small control loader with the same provenance fields.
-- [ ] Insert TSM before the selected spatial stages with `num_segments=16` and `fold_div=8`; verify temporal shifts cross segment boundaries and never cross trial boundaries.
-- [ ] Inventory frozen IR/X3D, shared YOLO, every already-retained expert, calibration/fusion upper bounds, and each Thermal candidate. Count deployable files once.
-- [ ] Permit iFormer-S config creation only when both its loading audit passes and its provisional exact-package estimate is below 95,000,000 bytes with at least 2,000,000 bytes unallocated headroom.
-- [ ] Run `D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest tests/test_thermal_backbone_environment.py -q` and require PASS.
-- [ ] Run `D:\Anaconda\envs\pyTorch2.7\python.exe -m scripts.probe_thermal_backbones` and require finite outputs, pretrained hashes, exact byte ledger, iFormer-T/control eligibility, and an explicit iFormer-S eligible/ineligible result.
+- [x] Write tests that reject random or partially loaded pretrained state dictionaries, non-40-class heads, non-finite `[2,40]` forward output, unrecorded source/license/hash, and any provisional complete-package estimate `>=95,000,000` bytes.
+- [x] Run the tests and verify RED because the probe and loaders do not exist.
+- [x] Audit the reviewed official Sail-SG implementation at revision `725d8e7f455b5e17be20788b9bcd6c6c505c4be0`. It publishes iFormer-S/B/L only, so iFormer-T is blocked as undefined rather than replaced by an invented architecture. iFormer-S loaded strictly with zero missing/unexpected keys before its 40-class head replacement.
+- [x] Implement the torchvision pretrained MobileNetV3-Small control loader with source, revision, code-license scope, weight-terms caveat, URL, hash, strict-loading, and byte provenance.
+- [x] Insert TSM before selected MobileNet spatial stages with `num_segments=16` and `fold_div=8`; verify shifts cross segment boundaries and never cross trial boundaries. iFormer-T TSM/forward is not fabricated after its source gate failed.
+- [x] Inventory frozen IR/X3D, shared YOLO, current retained scope, calibration/fusion upper bound, and each Thermal candidate. Count deployable files once.
+- [x] Apply the iFormer-S conditional gate. Its loading audit passes, but the provisional package is `101,776,957` bytes, so no iFormer-S config or runtime is created.
+- [x] Run `D:\Anaconda\envs\pyTorch2.7\python.exe -m pytest tests/test_thermal_backbone_environment.py -q` and require PASS.
+- [x] Run `D:\Anaconda\envs\pyTorch2.7\python.exe -m scripts.probe_thermal_backbones`; MobileNet produces finite `[2,40]`, iFormer-T is source-ineligible, and iFormer-S is budget-ineligible.
 
 ## Task 2: Implement Thermal input and localization contracts
 
@@ -116,6 +116,8 @@ Rendered background and endpoint diagnostics found weak auto-scale indications o
 - [ ] Run both new test files and require PASS. Human authorization is still required before Task 3.
 
 ## Task 3: Train the primary iFormer-T + TSM development candidate
+
+**T1-B split freeze (2026-08-20):** Keep the original train12/user6-user7 split and its source file unchanged. The Thermal-only sidecar is `reports/thermal_train12_val2_split_sidecar_audit.json`: among all 91 two-user pairs, only user6+user7 gives 40-class Thermal-usable coverage on both validation and remaining-train12 sides. Checkpoint selection uses combined user6+user7 Macro-F1 with labels fixed to `0..39`, then Accuracy, then worst-user Accuracy, then lower epoch. Report user6/user7 Accuracy and fixed-label Macro-F1 separately without treating a user's absent classes as model zero capability. Ten validation classes have at most three usable trials; do not retune architecture from one or two such errors. Final retention remains controlled by shared train-14 OOF. This freeze does not authorize training, and Task 3 remains blocked until the undefined iFormer-T identity is resolved or the plan is explicitly amended.
 
 **Files:**
 - Create: `src/models/thermal_iformer_tsm.py`
