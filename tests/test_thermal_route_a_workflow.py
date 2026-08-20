@@ -49,15 +49,16 @@ def load_workflow() -> dict:
     return payload
 
 
-def test_committed_route_a_workflow_is_valid_and_not_started() -> None:
+def test_committed_route_a_workflow_is_valid_and_waiting_for_a0_review() -> None:
     validator = load_validator()
     workflow = load_workflow()
 
     assert validator.validate_workflow(workflow) == []
     assert tuple(stage["id"] for stage in workflow["stages"]) == EXPECTED_STAGE_ORDER
     assert validator.next_action(workflow) == "a0_input_audit"
-    assert workflow["status"] == "preregistered_not_started"
-    assert all(stage["status"] == "pending" for stage in workflow["stages"])
+    assert workflow["status"] == "a0_pending_human_montage_approval"
+    assert workflow["stages"][0]["status"] == "in_progress"
+    assert all(stage["status"] == "pending" for stage in workflow["stages"][1:])
     assert not workflow["authorization"]["a_direct_training"]
     assert not workflow["authorization"]["a_kd_training"]
     assert RUNBOOK_PATH.is_file()

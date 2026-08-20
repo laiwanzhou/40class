@@ -1,6 +1,6 @@
 # Thermal Route A Operational Workflow
 
-**Status:** Preregistered and not started. This runbook does not authorize training.
+**Status:** A0 machine audit complete; independent human montage approval pending. This runbook does not authorize training.
 
 **Branch:** `experiment/thermal-route-a-workflow`
 
@@ -39,7 +39,7 @@ D:\Anaconda\envs\pyTorch2.7\python.exe -m scripts.validate_thermal_route_a_workf
 
 The command is read-only. It prints JSON containing `valid`, `status`, `next_action`, and `errors`. A valid initial workflow reports `next_action: a0_input_audit`.
 
-Only the current stage may move to `in_progress`. A stage moves to `completed` only after every listed completion artifact exists and its focused tests pass. Then set `current_stage` to the first incomplete stage. Never mark several stages complete in one retrospective edit.
+Only the current stage may move to `in_progress`. A stage moves to `completed` only after every listed completion artifact exists, its focused tests pass, and any required manual review is recorded. Then set `current_stage` to the first incomplete stage. Never mark several stages complete in one retrospective edit.
 
 Training stages additionally require the named authorization boolean to be set true with the exact human approval recorded in the corresponding experiment config and report. Approval of this workflow or the parent plan is not training approval.
 
@@ -58,6 +58,17 @@ Both variants use `thermal_multistream_x3d_xs_v1`:
 No pretrained student tensor is allowed. A-direct and A-KD must match in architecture, initialization seed, sample order, augmentations, optimizer, learning-rate schedule, batch semantics, checkpoint ranking, and epoch cap. The only permitted difference is the teacher-logit KL term declared in the YAML.
 
 ## A0: Input audit
+
+**Current checkpoint (2026-08-20):** The zero-training machine audit and six montage pages exist. The workflow remains on A0 because `manual_montage_review.approved` is false. Independent human approval is required before A0 can complete or A1 can start.
+
+**Current artifacts:**
+
+- `reports/thermal_v2_input_audit.md`
+- `reports/thermal_v2_input_audit.json`
+- `reports/thermal_v2_input_montages/`
+- `metadata/thermal/thermal_v2_train12_normalization.json`
+- `metadata/thermal/thermal_v2_trial_context.jsonl`
+- `metadata/thermal/thermal_v2_trial_context_summary.json`
 
 **Purpose:** Freeze the actual Thermal tensors before model work.
 

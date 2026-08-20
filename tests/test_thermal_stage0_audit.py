@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 
 from scripts.audit_thermal_stage0 import (
+    _pearson_correlation,
     audit_trial_images,
     classify_thermal_rendering,
     estimate_motion_alignment,
@@ -87,6 +88,14 @@ def test_empty_trial_directory_is_present_but_not_decodable_or_usable(
     assert result["directory_present"] is True
     assert result["decodable"] is False
     assert result["usable"] is False
+
+
+def test_pearson_correlation_avoids_blas_and_handles_degenerate_input() -> None:
+    values = np.asarray([0.0, 1.0, 2.0, 4.0], dtype=np.float64)
+
+    assert _pearson_correlation(values, values) == pytest.approx(1.0)
+    assert _pearson_correlation(values, -values) == pytest.approx(-1.0)
+    assert _pearson_correlation(values, np.ones_like(values)) is None
 
 
 def test_motion_alignment_recovers_synthetic_normalized_offset() -> None:

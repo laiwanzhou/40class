@@ -1,6 +1,6 @@
 schema_version: 1
 workflow_id: thermal_route_a_generation2
-status: preregistered_not_started
+status: a0_pending_human_montage_approval
 current_stage: a0_input_audit
 
 authority:
@@ -126,7 +126,7 @@ deployment:
 
 stages:
   - id: a0_input_audit
-    status: pending
+    status: in_progress
     requires: []
     formal_training: false
     human_approval_required_to_start: false

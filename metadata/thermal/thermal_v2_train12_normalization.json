@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "artifact": "thermal_v2_train12_rgb_normalization",
+  "fit_population": "train12_only",
+  "fit_user_ids": [
+    "user1",
+    "user16",
+    "user18",
+    "user19",
+    "user2",
+    "user20",
+    "user21",
+    "user22",
+    "user3",
+    "user5",
+    "user8",
+    "user9"
+  ],
+  "canonical_train12_trials": 2039,
+  "sampled_usable_trials": 1922,
+  "skipped_unavailable_trials": 117,
+  "decoded_sample_frames": 5712,
+  "pixel_count": 146227200,
+  "rgb_mean": [
+    0.6677977762218014,
+    0.2642016758744894,
+    0.3548692698442481
+  ],
+  "rgb_std": [
+    0.24659209711299557,
+    0.23712366371061488,
+    0.21979727234388996
+  ],
+  "sample_policy": "unique nearest frames at normalized times 0.25, 0.50, 0.75 per usable train12 trial",
+  "resize_short_side": 176,
+  "center_crop_size": 160,
+  "source_t0_report_sha256": "81f3c471a4094007bd5c993993b5c0eb609ba5e7a731caf01055122a30d7eaa7",
+  "development_split_sha256": "c65c4826bfdd2d16796021abfccd6b1ece0ef7fb0ec786b19cc62cb60e5e57ca",
+  "sample_ids_sha256": "9bdef411623bb66283ab9a58df93e96736244139f57da24f6ccd5d40eadce7f3",
+  "script_sha256": "1a74bc815e1579ae55cfe169c44ce937ac7d16456c523079faf27b77d6db5be4",
+  "forbidden_access": {
+    "heldout4_labels": false,
+    "competition_test": false,
+    "quarantined_evidence": false,
+    "ir_or_depth_inputs": false
+  },
+  "artifact_sha256": "d02811eabeea3457e862ce8c372e7e633eaec5b996c12d6a276fb02bb457fcf4"
+}

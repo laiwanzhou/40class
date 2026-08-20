@@ -1,0 +1,508 @@
+{
+  "schema_version": 1,
+  "artifact": "thermal_v2_fixed_trial_context",
+  "canonical_trials": 2427,
+  "usable_trials": 2299,
+  "context_available_trials": 2207,
+  "context_availability_rate_over_usable": 0.9599826011309265,
+  "fallback_reason_counts": {
+    "insufficient_detection_hits": 53,
+    "no_detection": 39,
+    "thermal_unavailable": 128
+  },
+  "detection_hit_ratio": {
+    "min": 0.0,
+    "p25": 0.75,
+    "median": 1.0,
+    "p75": 1.0,
+    "p95": 1.0,
+    "max": 1.0,
+    "mean": 0.8204535098075768
+  },
+  "median_confidence": {
+    "min": 0.25462664663791656,
+    "p25": 0.4660084471106529,
+    "median": 0.6007420420646667,
+    "p75": 0.7259675413370132,
+    "p95": 0.8404417246580124,
+    "max": 0.9228205680847168,
+    "mean": 0.5964662546505473
+  },
+  "bbox_area_ratio": {
+    "min": 0.16333333333333336,
+    "p25": 0.6216471354166666,
+    "median": 0.75,
+    "p75": 0.75,
+    "p95": 0.75,
+    "max": 0.75,
+    "mean": 0.6590230894124754
+  },
+  "by_development_split": [
+    {
+      "development_split": "train12",
+      "canonical_trials": 2039,
+      "usable_trials": 1922,
+      "context_available_trials": 1840,
+      "context_availability_rate_over_usable": 0.9573361082206036
+    },
+    {
+      "development_split": "val_user6_user7",
+      "canonical_trials": 388,
+      "usable_trials": 377,
+      "context_available_trials": 367,
+      "context_availability_rate_over_usable": 0.9734748010610079
+    }
+  ],
+  "by_user": [
+    {
+      "user_id": "user1",
+      "canonical_trials": 153,
+      "usable_trials": 151,
+      "context_available_trials": 145,
+      "context_availability_rate_over_usable": 0.9602649006622517
+    },
+    {
+      "user_id": "user16",
+      "canonical_trials": 186,
+      "usable_trials": 185,
+      "context_available_trials": 179,
+      "context_availability_rate_over_usable": 0.9675675675675676
+    },
+    {
+      "user_id": "user18",
+      "canonical_trials": 179,
+      "usable_trials": 177,
+      "context_available_trials": 169,
+      "context_availability_rate_over_usable": 0.9548022598870056
+    },
+    {
+      "user_id": "user19",
+      "canonical_trials": 188,
+      "usable_trials": 183,
+      "context_available_trials": 175,
+      "context_availability_rate_over_usable": 0.9562841530054644
+    },
+    {
+      "user_id": "user2",
+      "canonical_trials": 168,
+      "usable_trials": 95,
+      "context_available_trials": 92,
+      "context_availability_rate_over_usable": 0.968421052631579
+    },
+    {
+      "user_id": "user20",
+      "canonical_trials": 159,
+      "usable_trials": 159,
+      "context_available_trials": 152,
+      "context_availability_rate_over_usable": 0.9559748427672956
+    },
+    {
+      "user_id": "user21",
+      "canonical_trials": 133,
+      "usable_trials": 132,
+      "context_available_trials": 126,
+      "context_availability_rate_over_usable": 0.9545454545454546
+    },
+    {
+      "user_id": "user22",
+      "canonical_trials": 194,
+      "usable_trials": 182,
+      "context_available_trials": 180,
+      "context_availability_rate_over_usable": 0.989010989010989
+    },
+    {
+      "user_id": "user3",
+      "canonical_trials": 163,
+      "usable_trials": 154,
+      "context_available_trials": 150,
+      "context_availability_rate_over_usable": 0.974025974025974
+    },
+    {
+      "user_id": "user5",
+      "canonical_trials": 160,
+      "usable_trials": 155,
+      "context_available_trials": 149,
+      "context_availability_rate_over_usable": 0.9612903225806452
+    },
+    {
+      "user_id": "user6",
+      "canonical_trials": 203,
+      "usable_trials": 195,
+      "context_available_trials": 193,
+      "context_availability_rate_over_usable": 0.9897435897435898
+    },
+    {
+      "user_id": "user7",
+      "canonical_trials": 185,
+      "usable_trials": 182,
+      "context_available_trials": 174,
+      "context_availability_rate_over_usable": 0.9560439560439561
+    },
+    {
+      "user_id": "user8",
+      "canonical_trials": 169,
+      "usable_trials": 163,
+      "context_available_trials": 148,
+      "context_availability_rate_over_usable": 0.9079754601226994
+    },
+    {
+      "user_id": "user9",
+      "canonical_trials": 187,
+      "usable_trials": 186,
+      "context_available_trials": 175,
+      "context_availability_rate_over_usable": 0.9408602150537635
+    }
+  ],
+  "by_class": [
+    {
+      "class_id": "0",
+      "canonical_trials": 32,
+      "usable_trials": 29,
+      "context_available_trials": 28,
+      "context_availability_rate_over_usable": 0.9655172413793104
+    },
+    {
+      "class_id": "1",
+      "canonical_trials": 36,
+      "usable_trials": 36,
+      "context_available_trials": 36,
+      "context_availability_rate_over_usable": 1.0
+    },
+    {
+      "class_id": "10",
+      "canonical_trials": 103,
+      "usable_trials": 103,
+      "context_available_trials": 99,
+      "context_availability_rate_over_usable": 0.9611650485436893
+    },
+    {
+      "class_id": "11",
+      "canonical_trials": 88,
+      "usable_trials": 86,
+      "context_available_trials": 84,
+      "context_availability_rate_over_usable": 0.9767441860465116
+    },
+    {
+      "class_id": "12",
+      "canonical_trials": 54,
+      "usable_trials": 48,
+      "context_available_trials": 48,
+      "context_availability_rate_over_usable": 1.0
+    },
+    {
+      "class_id": "13",
+      "canonical_trials": 50,
+      "usable_trials": 47,
+      "context_available_trials": 41,
+      "context_availability_rate_over_usable": 0.8723404255319149
+    },
+    {
+      "class_id": "14",
+      "canonical_trials": 29,
+      "usable_trials": 27,
+      "context_available_trials": 26,
+      "context_availability_rate_over_usable": 0.9629629629629629
+    },
+    {
+      "class_id": "15",
+      "canonical_trials": 45,
+      "usable_trials": 44,
+      "context_available_trials": 39,
+      "context_availability_rate_over_usable": 0.8863636363636364
+    },
+    {
+      "class_id": "16",
+      "canonical_trials": 15,
+      "usable_trials": 15,
+      "context_available_trials": 15,
+      "context_availability_rate_over_usable": 1.0
+    },
+    {
+      "class_id": "17",
+      "canonical_trials": 69,
+      "usable_trials": 67,
+      "context_available_trials": 62,
+      "context_availability_rate_over_usable": 0.9253731343283582
+    },
+    {
+      "class_id": "18",
+      "canonical_trials": 28,
+      "usable_trials": 28,
+      "context_available_trials": 27,
+      "context_availability_rate_over_usable": 0.9642857142857143
+    },
+    {
+      "class_id": "19",
+      "canonical_trials": 35,
+      "usable_trials": 34,
+      "context_available_trials": 34,
+      "context_availability_rate_over_usable": 1.0
+    },
+    {
+      "class_id": "2",
+      "canonical_trials": 48,
+      "usable_trials": 45,
+      "context_available_trials": 44,
+      "context_availability_rate_over_usable": 0.9777777777777777
+    },
+    {
+      "class_id": "20",
+      "canonical_trials": 84,
+      "usable_trials": 81,
+      "context_available_trials": 78,
+      "context_availability_rate_over_usable": 0.9629629629629629
+    },
+    {
+      "class_id": "21",
+      "canonical_trials": 67,
+      "usable_trials": 65,
+      "context_available_trials": 59,
+      "context_availability_rate_over_usable": 0.9076923076923077
+    },
+    {
+      "class_id": "22",
+      "canonical_trials": 50,
+      "usable_trials": 50,
+      "context_available_trials": 42,
+      "context_availability_rate_over_usable": 0.84
+    },
+    {
+      "class_id": "23",
+      "canonical_trials": 58,
+      "usable_trials": 57,
+      "context_available_trials": 56,
+      "context_availability_rate_over_usable": 0.9824561403508771
+    },
+    {
+      "class_id": "24",
+      "canonical_trials": 32,
+      "usable_trials": 29,
+      "context_available_trials": 29,
+      "context_availability_rate_over_usable": 1.0
+    },
+    {
+      "class_id": "25",
+      "canonical_trials": 6,
+      "usable_trials": 6,
+      "context_available_trials": 6,
+      "context_availability_rate_over_usable": 1.0
+    },
+    {
+      "class_id": "26",
+      "canonical_trials": 28,
+      "usable_trials": 28,
+      "context_available_trials": 23,
+      "context_availability_rate_over_usable": 0.8214285714285714
+    },
+    {
+      "class_id": "27",
+      "canonical_trials": 27,
+      "usable_trials": 27,
+      "context_available_trials": 23,
+      "context_availability_rate_over_usable": 0.8518518518518519
+    },
+    {
+      "class_id": "28",
+      "canonical_trials": 26,
+      "usable_trials": 26,
+      "context_available_trials": 26,
+      "context_availability_rate_over_usable": 1.0
+    },
+    {
+      "class_id": "29",
+      "canonical_trials": 62,
+      "usable_trials": 61,
+      "context_available_trials": 60,
+      "context_availability_rate_over_usable": 0.9836065573770492
+    },
+    {
+      "class_id": "3",
+      "canonical_trials": 30,
+      "usable_trials": 30,
+      "context_available_trials": 29,
+      "context_availability_rate_over_usable": 0.9666666666666667
+    },
+    {
+      "class_id": "30",
+      "canonical_trials": 38,
+      "usable_trials": 38,
+      "context_available_trials": 38,
+      "context_availability_rate_over_usable": 1.0
+    },
+    {
+      "class_id": "31",
+      "canonical_trials": 70,
+      "usable_trials": 55,
+      "context_available_trials": 55,
+      "context_availability_rate_over_usable": 1.0
+    },
+    {
+      "class_id": "32",
+      "canonical_trials": 70,
+      "usable_trials": 61,
+      "context_available_trials": 60,
+      "context_availability_rate_over_usable": 0.9836065573770492
+    },
+    {
+      "class_id": "33",
+      "canonical_trials": 33,
+      "usable_trials": 33,
+      "context_available_trials": 27,
+      "context_availability_rate_over_usable": 0.8181818181818182
+    },
+    {
+      "class_id": "34",
+      "canonical_trials": 116,
+      "usable_trials": 102,
+      "context_available_trials": 101,
+      "context_availability_rate_over_usable": 0.9901960784313726
+    },
+    {
+      "class_id": "35",
+      "canonical_trials": 21,
+      "usable_trials": 20,
+      "context_available_trials": 20,
+      "context_availability_rate_over_usable": 1.0
+    },
+    {
+      "class_id": "36",
+      "canonical_trials": 294,
+      "usable_trials": 261,
+      "context_available_trials": 250,
+      "context_availability_rate_over_usable": 0.9578544061302682
+    },
+    {
+      "class_id": "37",
+      "canonical_trials": 54,
+      "usable_trials": 51,
+      "context_available_trials": 51,
+      "context_availability_rate_over_usable": 1.0
+    },
+    {
+      "class_id": "38",
+      "canonical_trials": 56,
+      "usable_trials": 50,
+      "context_available_trials": 50,
+      "context_availability_rate_over_usable": 1.0
+    },
+    {
+      "class_id": "39",
+      "canonical_trials": 42,
+      "usable_trials": 39,
+      "context_available_trials": 39,
+      "context_availability_rate_over_usable": 1.0
+    },
+    {
+      "class_id": "4",
+      "canonical_trials": 60,
+      "usable_trials": 56,
+      "context_available_trials": 55,
+      "context_availability_rate_over_usable": 0.9821428571428571
+    },
+    {
+      "class_id": "5",
+      "canonical_trials": 42,
+      "usable_trials": 39,
+      "context_available_trials": 39,
+      "context_availability_rate_over_usable": 1.0
+    },
+    {
+      "class_id": "6",
+      "canonical_trials": 107,
+      "usable_trials": 107,
+      "context_available_trials": 100,
+      "context_availability_rate_over_usable": 0.9345794392523364
+    },
+    {
+      "class_id": "7",
+      "canonical_trials": 123,
+      "usable_trials": 122,
+      "context_available_trials": 120,
+      "context_availability_rate_over_usable": 0.9836065573770492
+    },
+    {
+      "class_id": "8",
+      "canonical_trials": 83,
+      "usable_trials": 80,
+      "context_available_trials": 79,
+      "context_availability_rate_over_usable": 0.9875
+    },
+    {
+      "class_id": "9",
+      "canonical_trials": 116,
+      "usable_trials": 116,
+      "context_available_trials": 109,
+      "context_availability_rate_over_usable": 0.9396551724137931
+    }
+  ],
+  "by_duration_bucket": [
+    {
+      "duration_bucket": "2_to_8",
+      "canonical_trials": 40,
+      "usable_trials": 40,
+      "context_available_trials": 36,
+      "context_availability_rate_over_usable": 0.9
+    },
+    {
+      "duration_bucket": "33_to_96",
+      "canonical_trials": 1181,
+      "usable_trials": 1181,
+      "context_available_trials": 1136,
+      "context_availability_rate_over_usable": 0.9618966977138018
+    },
+    {
+      "duration_bucket": "9_to_32",
+      "canonical_trials": 543,
+      "usable_trials": 543,
+      "context_available_trials": 519,
+      "context_availability_rate_over_usable": 0.9558011049723757
+    },
+    {
+      "duration_bucket": "missing_or_unusable",
+      "canonical_trials": 128,
+      "usable_trials": 0,
+      "context_available_trials": 0,
+      "context_availability_rate_over_usable": 0.0
+    },
+    {
+      "duration_bucket": "over_96",
+      "canonical_trials": 512,
+      "usable_trials": 512,
+      "context_available_trials": 494,
+      "context_availability_rate_over_usable": 0.96484375
+    },
+    {
+      "duration_bucket": "single_frame",
+      "canonical_trials": 23,
+      "usable_trials": 23,
+      "context_available_trials": 22,
+      "context_availability_rate_over_usable": 0.9565217391304348
+    }
+  ],
+  "policy": {
+    "probe_count": 8,
+    "confidence_threshold": 0.25,
+    "expansion": 1.4,
+    "minimum_side_ratio": 0.35,
+    "minimum_hits_singleton": 1,
+    "minimum_hits_other": 2,
+    "fixed_box_for_complete_trial": true,
+    "imports_ir_bbox": false,
+    "uses_motion_peak_sampling": false
+  },
+  "yolo": {
+    "model": "YOLO11n-pose",
+    "weights_bytes": 6255593,
+    "weights_sha256": "869e83fcdffdc7371fa4e34cd8e51c838cc729571d1635e5141e3075e9319dc0",
+    "imgsz": 640
+  },
+  "source_t0_report_sha256": "81f3c471a4094007bd5c993993b5c0eb609ba5e7a731caf01055122a30d7eaa7",
+  "forbidden_access": {
+    "heldout4_labels": false,
+    "competition_test": false,
+    "quarantined_evidence": false,
+    "ir_or_depth_inputs_indices_or_boxes": false
+  },
+  "records_jsonl_sha256": "685840e2aa5e551950e38220ff815b1ffffeb252fd90be73977b94ebdd2d9d87",
+  "artifact_sha256": "4eb3cf05420c6e02310f5a62cfbe4db4085fec5d2f70f25dbcfd40052f40ef7d"
+}

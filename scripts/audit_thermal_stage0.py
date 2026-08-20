@@ -266,6 +266,24 @@ def _dtw_distance(left: np.ndarray, right: np.ndarray) -> float:
     return float(costs[-1, -1] / max(len(left), len(right)))
 
 
+def _pearson_correlation(left: np.ndarray, right: np.ndarray) -> float | None:
+    if left.shape != right.shape or left.ndim != 1 or left.size < 2:
+        raise ValueError("correlation inputs must be matching one-dimensional arrays")
+    left_mean = math.fsum(float(value) for value in left) / left.size
+    right_mean = math.fsum(float(value) for value in right) / right.size
+    centered = tuple(
+        (float(left_value) - left_mean, float(right_value) - right_mean)
+        for left_value, right_value in zip(left, right, strict=True)
+    )
+    numerator = math.fsum(left_value * right_value for left_value, right_value in centered)
+    left_energy = math.fsum(left_value * left_value for left_value, _ in centered)
+    right_energy = math.fsum(right_value * right_value for _, right_value in centered)
+    denominator = math.sqrt(left_energy * right_energy)
+    if denominator < 1e-20:
+        return None
+    return max(-1.0, min(1.0, numerator / denominator))
+
+
 def estimate_motion_alignment(reference: np.ndarray, candidate: np.ndarray) -> dict[str, Any]:
     reference = np.asarray(reference, dtype=np.float64)
     candidate = np.asarray(candidate, dtype=np.float64)
@@ -282,10 +300,9 @@ def estimate_motion_alignment(reference: np.ndarray, candidate: np.ndarray) -> d
                 continue
             aligned = np.interp(source_times[valid], candidate_grid, candidate)
             ref = reference[valid]
-            if float(np.std(ref)) < 1e-10 or float(np.std(aligned)) < 1e-10:
+            correlation = _pearson_correlation(ref, aligned)
+            if correlation is None:
                 correlation = -1.0
-            else:
-                correlation = float(np.corrcoef(ref, aligned)[0, 1])
             score = correlation - 0.05 * abs(math.log(scale)) - 0.02 * abs(offset)
             if best is None or score > best[0]:
                 best = (score, float(offset), float(scale), aligned)
@@ -296,11 +313,7 @@ def estimate_motion_alignment(reference: np.ndarray, candidate: np.ndarray) -> d
     valid = (source_times >= 0.0) & (source_times <= 1.0)
     aligned = np.interp(source_times[valid], candidate_grid, candidate)
     ref = reference[valid]
-    correlation = (
-        None
-        if float(np.std(ref)) < 1e-10 or float(np.std(aligned)) < 1e-10
-        else float(np.corrcoef(ref, aligned)[0, 1])
-    )
+    correlation = _pearson_correlation(ref, aligned)
     return {
         "offset": offset,
         "scale": scale,
