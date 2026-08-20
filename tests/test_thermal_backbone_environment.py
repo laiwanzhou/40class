@@ -254,7 +254,7 @@ def test_qualified_iformer_t_is_paused_only_on_t1b_branch() -> None:
     assert iformer_config["stage"] == "thermal_t1b_development"
     assert (
         iformer_config["status"]
-        == "t1b2_zero_training_trace_complete_waiting_human_decision"
+        == "t1b3_zero_training_attribution_complete_waiting_human_decision"
     )
     assert iformer_config["training_authorized"] is False
     assert iformer_config["resume_requires_new_human_approval"] is True
@@ -263,6 +263,10 @@ def test_qualified_iformer_t_is_paused_only_on_t1b_branch() -> None:
     assert iformer_config["t1b2"]["state_dict_or_bn_buffer_updated"] is False
     assert iformer_config["t1b2"]["epoch18_resume_authorized"] is False
     assert iformer_config["t1b2"]["head_change_authorized"] is False
+    assert iformer_config["t1b3"]["pretrained_spike_present"] is False
+    assert iformer_config["t1b3"]["residual_skip_alignment_cause"] is False
+    assert iformer_config["t1b3"]["epoch18_resume_authorized"] is False
+    assert iformer_config["t1b3"]["single_variable_experiment_authorized"] is False
     assert iformer_config["num_classes"] == 40
     assert iformer_config["backbone"]["family"] == "ChuanyangZheng_iFormer_t"
     assert iformer_config["backbone"]["source_revision"] == IFORMER_REVISION

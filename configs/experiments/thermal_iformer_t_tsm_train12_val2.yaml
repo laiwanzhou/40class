@@ -1,5 +1,5 @@
 stage: thermal_t1b_development
-status: t1b2_zero_training_trace_complete_waiting_human_decision
+status: t1b3_zero_training_attribution_complete_waiting_human_decision
 training_authorized: false
 authorization_history:
   started: "Explicit user instruction in the 2026-08-20 Thermal task"
@@ -20,6 +20,18 @@ t1b2:
   first_group_amplification_bfloat16: spatial.backbone.stages.2.5
   epoch18_resume_authorized: false
   head_change_authorized: false
+t1b3:
+  training_performed: false
+  epoch16_checkpoint_modified: false
+  pretrained_or_epoch16_state_updated: false
+  spike_cohort_count: 23
+  class36_spike_count: 12
+  attribution: finetuning_induced_convolution_branch_amplification_with_extreme_tail
+  pretrained_spike_present: false
+  residual_skip_alignment_cause: false
+  dominant_segment_pattern: mostly_distributed_with_single_or_few_segment_tail
+  epoch18_resume_authorized: false
+  single_variable_experiment_authorized: false
 num_classes: 40
 seed: 20260715
 
