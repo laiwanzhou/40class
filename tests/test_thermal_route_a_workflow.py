@@ -50,17 +50,19 @@ def load_workflow() -> dict:
     return payload
 
 
-def test_committed_route_a_workflow_is_valid_and_waiting_for_a2() -> None:
+def test_committed_route_a_workflow_is_valid_and_blocks_a3() -> None:
     validator = load_validator()
     workflow = load_workflow()
 
     assert validator.validate_workflow(workflow) == []
     assert tuple(stage["id"] for stage in workflow["stages"]) == EXPECTED_STAGE_ORDER
-    assert validator.next_action(workflow) == "a2_runtime_probe"
-    assert workflow["status"] == "a1_complete_a2_not_started"
+    assert validator.next_action(workflow) == "a3_direct_training"
+    assert workflow["status"] == "a2_complete_a3_blocked"
     assert workflow["stages"][0]["status"] == "completed"
     assert workflow["stages"][1]["status"] == "completed"
-    assert all(stage["status"] == "pending" for stage in workflow["stages"][2:])
+    assert workflow["stages"][2]["status"] == "completed"
+    assert all(stage["status"] == "pending" for stage in workflow["stages"][3:])
+    assert workflow["external_gates"]["route_b_report_verified"] is False
     assert not workflow["authorization"]["a_direct_training"]
     assert not workflow["authorization"]["a_kd_training"]
     assert RUNBOOK_PATH.is_file()

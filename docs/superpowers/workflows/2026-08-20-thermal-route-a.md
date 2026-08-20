@@ -1,6 +1,6 @@
 # Thermal Route A Operational Workflow
 
-**Status:** A1 complete; A2 runtime probe not started. This runbook does not authorize training.
+**Status:** A2 complete; A3 blocked by Route B, pose cache, and explicit training authorization. This runbook does not authorize training.
 
 **Branch:** `experiment/thermal-route-a-workflow`
 
@@ -102,6 +102,8 @@ No pretrained student tensor is allowed. A-direct and A-KD must match in archite
 **Stop:** Any hidden pretrained student load, architecture divergence between variants, or non-finite unavailable path.
 
 ## A2: Runtime probe
+
+**Completed checkpoint (2026-08-21):** B and A both passed physical batch 2 / effective batch 8 on the reference RTX 5060 Laptop GPU. A peaked at 2,770.52 MiB allocated and its complete-package proxy was 21,327,781 bytes. See `reports/thermal_generation2_environment_probe.{md,json}`. Model latency excludes online YOLO preprocessing.
 
 **Purpose:** Establish whether the fixed student fits the reference RTX 5060 Laptop GPU before training.
 

@@ -241,14 +241,14 @@ def build_pose_lookup(
     return lookup, len(jobs)
 
 
-def audit_trial_tensors(
+def build_trial_tensors(
     record: dict[str, Any],
     *,
     data_root: Path,
     pose_lookup: dict[tuple[str, int], tuple[torch.Tensor | None, torch.Tensor | None]],
     mean: torch.Tensor,
     std: torch.Tensor,
-) -> dict[str, Any]:
+) -> dict[str, torch.Tensor]:
     import torch
 
     from src.data.thermal_v2_features import (
@@ -301,6 +301,26 @@ def audit_trial_tensors(
             build_quality_vector(record, flat_indices, flat_pose_mask), dtype=torch.float32
         ),
     }
+    return tensors
+
+
+def audit_trial_tensors(
+    record: dict[str, Any],
+    *,
+    data_root: Path,
+    pose_lookup: dict[tuple[str, int], tuple[torch.Tensor | None, torch.Tensor | None]],
+    mean: torch.Tensor,
+    std: torch.Tensor,
+) -> dict[str, Any]:
+    import torch
+
+    tensors = build_trial_tensors(
+        record,
+        data_root=data_root,
+        pose_lookup=pose_lookup,
+        mean=mean,
+        std=std,
+    )
     return {
         "sample_id": record["sample_id"],
         "class_id": int(record["class_id"]),
@@ -312,8 +332,8 @@ def audit_trial_tensors(
         ),
         "availability": tensors["availability"].tolist(),
         "quality": tensors["quality"].tolist(),
-        "pose_valid_steps": sum(flat_pose_mask),
-        "sampled_steps": len(flat_pose_mask),
+        "pose_valid_steps": int(tensors["pose_mask"].sum().item()),
+        "sampled_steps": tensors["pose_mask"].numel(),
     }
 
 

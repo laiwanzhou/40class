@@ -1,7 +1,7 @@
 schema_version: 1
 workflow_id: thermal_route_a_generation2
-status: a1_complete_a2_not_started
-current_stage: a2_runtime_probe
+status: a2_complete_a3_blocked
+current_stage: a3_direct_training
 
 authority:
   main_commit: 66c1b5754d5b397033b861888aeec4dae22cd61c
@@ -146,12 +146,13 @@ stages:
       - src/train_thermal_generation2.py
       - reports/thermal_a1_student_implementation.json
   - id: a2_runtime_probe
-    status: pending
+    status: completed
     requires: [a0_input_audit, a1_student_implementation]
     formal_training: false
     human_approval_required_to_start: false
     completion_evidence:
       - reports/thermal_generation2_environment_probe.json
+      - reports/thermal_generation2_environment_probe.md
   - id: a3_direct_training
     status: pending
     requires: [a2_runtime_probe]

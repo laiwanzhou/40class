@@ -1,0 +1,260 @@
+{
+  "schema_version": 1,
+  "stage": "A2",
+  "status": "passed",
+  "zero_formal_training": true,
+  "throwaway_optimizer_steps": 2,
+  "hardware": {
+    "gpu_name": "NVIDIA GeForce RTX 5060 Laptop GPU",
+    "total_vram_mib": 8150.5625,
+    "driver_version": "610.62",
+    "torch": "2.7.0+cu128",
+    "cuda": "12.8"
+  },
+  "provenance": {
+    "repository_head_at_probe": "c1d140b696d6bcefa31d623ce7e71f9a4fd4e320",
+    "probe_script_sha256": "76761dd4b3750634f39bf00ef79e4f1bee2ee9af29caaca709b40ba7911823e4",
+    "config_sha256": {
+      "thermal_b_x3d_xs_train12_val2": "0e3f94473cbdce4fe1e231bc00d5dfd24ca95ef06604f2ae622505fe6f72ee7e",
+      "thermal_a_multistream_direct_train12_val2": "0f116b1e734c72153f2ac610f7771c92f05ef44fd998ad3d51f7f805385c206d"
+    },
+    "context_sha256": "685840e2aa5e551950e38220ff815b1ffffeb252fd90be73977b94ebdd2d9d87",
+    "normalization_sha256": "80b42658f4a1cc2b277a59ab600e454ebc1f66d1d4c95c80cf574e0c54e0794b",
+    "yolo_weights_sha256": "869e83fcdffdc7371fa4e34cd8e51c838cc729571d1635e5141e3075e9319dc0"
+  },
+  "measurement_scope": {
+    "latency": "model_only_preprocessed_tensors",
+    "online_yolo_latency_measured": false,
+    "train_smoke_effective_batch": "repeated_real_probe_trials_for_memory_only"
+  },
+  "input_contract": {
+    "real_thermal_trials": 2,
+    "sample_ids": [
+      "train__c00__user16__1-1-1",
+      "train__c00__user16__1-1-2"
+    ],
+    "pose_frame_jobs": 94,
+    "pose_available_trials": 2,
+    "labels_or_metrics_used_for_selection": false,
+    "source_partition": "train12",
+    "forbidden_evidence_read": false
+  },
+  "models": {
+    "b_x3d_xs": {
+      "parameters": 3056634,
+      "state_dict_proxy": {
+        "bytes": 12570073,
+        "sha256": "37958c0303065986a7b9d2ae2251fe8f43bfe7d09d269e9477098dd583b641e4"
+      },
+      "physical_batch_trials": 2,
+      "fp32_inference": {
+        "output_shape": [
+          2,
+          40
+        ],
+        "finite": true,
+        "peak_allocated_mib": 228.609375,
+        "peak_reserved_mib": 260.0,
+        "latency": {
+          "median_ms_per_trial": 17.51834999959101,
+          "p95_ms_per_trial": 25.51800000037474,
+          "iterations": 7
+        }
+      },
+      "bfloat16_train_smoke": {
+        "finite": true,
+        "optimizer_steps": 1,
+        "accumulation_steps": 4,
+        "effective_batch_trials": 8,
+        "seconds_per_optimizer_step": 0.9080104999993637,
+        "peak_allocated_mib": 1423.056640625,
+        "peak_reserved_mib": 1538.0,
+        "persistent_checkpoint_written": false
+      },
+      "deployment": {
+        "state_dict_bytes": 12570073,
+        "file_ledger": {
+          "items": [
+            {
+              "path": "D:\\work\\2026.7.14_kaggle\\40class-thermal-route-a-workflow\\src\\models\\thermal_x3d_xs.py",
+              "sha256": "51e80e476bc4df6eb6063de73c090da0fe9bee02b94bd6060fcfed71cac8680c",
+              "bytes": 3803,
+              "counted": true
+            },
+            {
+              "path": "D:\\work\\2026.7.14_kaggle\\40class-thermal-route-a-workflow\\src\\data\\thermal_v2_sampling.py",
+              "sha256": "706e5c0977a94d70a9c3cc9f625365616cc9658b3e347f6103bfa44606df3938",
+              "bytes": 1859,
+              "counted": true
+            },
+            {
+              "path": "D:\\work\\2026.7.14_kaggle\\40class-thermal-route-a-workflow\\metadata\\thermal\\thermal_v2_train12_normalization.json",
+              "sha256": "80b42658f4a1cc2b277a59ab600e454ebc1f66d1d4c95c80cf574e0c54e0794b",
+              "bytes": 1483,
+              "counted": true
+            }
+          ],
+          "unique_sha256_count": 3,
+          "unique_bytes": 7145
+        },
+        "complete_package_bytes": 12577218,
+        "limit_bytes_exclusive": 95000000,
+        "pretrained_student_weights": false,
+        "teacher_assets": []
+      },
+      "gates": {
+        "finite": true,
+        "vram": true,
+        "deployment": true
+      }
+    },
+    "a_multistream": {
+      "parameters": 3669874,
+      "state_dict_proxy": {
+        "bytes": 15049075,
+        "sha256": "890afa60a8608c543a305681f888f6168f9f59d39412fb0a2108352e316e5dc5"
+      },
+      "physical_batch_trials": 2,
+      "fp32_inference": {
+        "output_shape": [
+          2,
+          40
+        ],
+        "finite": true,
+        "peak_allocated_mib": 263.26611328125,
+        "peak_reserved_mib": 306.0,
+        "latency": {
+          "median_ms_per_trial": 30.53890000046522,
+          "p95_ms_per_trial": 31.952100000125938,
+          "iterations": 7
+        }
+      },
+      "bfloat16_train_smoke": {
+        "finite": true,
+        "optimizer_steps": 1,
+        "accumulation_steps": 4,
+        "effective_batch_trials": 8,
+        "seconds_per_optimizer_step": 1.2971081000032427,
+        "peak_allocated_mib": 2770.52099609375,
+        "peak_reserved_mib": 2902.0,
+        "persistent_checkpoint_written": false
+      },
+      "deployment": {
+        "state_dict_bytes": 15049075,
+        "file_ledger": {
+          "items": [
+            {
+              "path": "D:\\work\\2026.7.14_kaggle\\40class-thermal-route-a-workflow\\src\\models\\thermal_x3d_xs.py",
+              "sha256": "51e80e476bc4df6eb6063de73c090da0fe9bee02b94bd6060fcfed71cac8680c",
+              "bytes": 3803,
+              "counted": true
+            },
+            {
+              "path": "D:\\work\\2026.7.14_kaggle\\40class-thermal-route-a-workflow\\src\\models\\thermal_multistream.py",
+              "sha256": "1b3105e83d17139ac6351a2d1c8a218440eb88dc2213950fb07ae7752fabbd99",
+              "bytes": 8411,
+              "counted": true
+            },
+            {
+              "path": "D:\\work\\2026.7.14_kaggle\\40class-thermal-route-a-workflow\\src\\data\\thermal_v2_features.py",
+              "sha256": "ed678f5c978687abf40522011da0556183559ace086297cf2286c5cfc6ed3b94",
+              "bytes": 2345,
+              "counted": true
+            },
+            {
+              "path": "D:\\work\\2026.7.14_kaggle\\40class-thermal-route-a-workflow\\src\\data\\thermal_v2_sampling.py",
+              "sha256": "706e5c0977a94d70a9c3cc9f625365616cc9658b3e347f6103bfa44606df3938",
+              "bytes": 1859,
+              "counted": true
+            },
+            {
+              "path": "D:\\work\\2026.7.14_kaggle\\40class-thermal-route-a-workflow\\src\\roi\\thermal_trial_context.py",
+              "sha256": "6c2769b6feb4ddb25872550e5c54499ad6de88f43b9faff8d7f46e3e7ed74182",
+              "bytes": 5212,
+              "counted": true
+            },
+            {
+              "path": "D:\\work\\2026.7.14_kaggle\\40class-thermal-route-a-workflow\\metadata\\thermal\\thermal_v2_train12_normalization.json",
+              "sha256": "80b42658f4a1cc2b277a59ab600e454ebc1f66d1d4c95c80cf574e0c54e0794b",
+              "bytes": 1483,
+              "counted": true
+            },
+            {
+              "path": "D:\\work\\2026.7.14_kaggle\\40class\\yolo11n-pose.pt",
+              "sha256": "869e83fcdffdc7371fa4e34cd8e51c838cc729571d1635e5141e3075e9319dc0",
+              "bytes": 6255593,
+              "counted": true
+            }
+          ],
+          "unique_sha256_count": 7,
+          "unique_bytes": 6278706
+        },
+        "complete_package_bytes": 21327781,
+        "limit_bytes_exclusive": 95000000,
+        "pretrained_student_weights": false,
+        "teacher_assets": []
+      },
+      "gates": {
+        "finite": true,
+        "vram": true,
+        "deployment": true
+      }
+    }
+  },
+  "projected_training_time": {
+    "b_x3d_xs": {
+      "estimated_hours": 3.039312923608981,
+      "steps_per_epoch": 241,
+      "epochs": 50,
+      "basis": "measured",
+      "note": "single A2 optimizer step"
+    },
+    "a_direct": {
+      "estimated_hours": 4.341709056955299,
+      "steps_per_epoch": 241,
+      "epochs": 50,
+      "basis": "measured",
+      "note": "single A2 optimizer step"
+    },
+    "a_kd": {
+      "estimated_hours": 4.428543238094405,
+      "steps_per_epoch": 241,
+      "epochs": 50,
+      "basis": "heuristic",
+      "note": "A step plus small KL overhead"
+    },
+    "c1_r2plus1d18": {
+      "estimated_hours": 13.025127170865895,
+      "steps_per_epoch": 241,
+      "epochs": 30,
+      "basis": "heuristic",
+      "note": "unmeasured 5x A-step multiplier; Route C must probe independently"
+    },
+    "c2_videomae_s": {
+      "estimated_hours": 26.05025434173179,
+      "steps_per_epoch": 241,
+      "epochs": 30,
+      "basis": "heuristic",
+      "note": "conditional unmeasured 10x A-step multiplier; Route C must probe independently"
+    }
+  },
+  "gates": {
+    "peak_allocated_mib_max_exclusive": 7300.0,
+    "complete_package_bytes_max_exclusive": 95000000,
+    "all_models_passed": true
+  },
+  "evidence_boundary": {
+    "heldout4_labels_read": false,
+    "competition_test_read": false,
+    "quarantined_evidence_read": false,
+    "ir_depth_inputs_read": false,
+    "ir_x3d_modified": false,
+    "persistent_learned_weights_written": false
+  },
+  "a3_prerequisites": {
+    "route_b_report_verified": false,
+    "full_pose_cache_present": false,
+    "a_direct_training_authorized": false
+  },
+  "next_action": "route_b_and_pose_cache_before_a3_authorization"
+}
