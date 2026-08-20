@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "role": "post_result_ordinal_motion_adapter_diagnostics",
+  "run_id": "x3d_s_ir_ordinal_motion_adapter_train12_val2_user6_user7_single13_fixed_context_workers4_seed20260715",
+  "development_only": true,
+  "selected_epoch": 9,
+  "epochs_completed": 17,
+  "runtime_seconds": 5736.257458799999,
+  "selected_epoch_training": {
+    "train_accuracy": 0.8976744186046511,
+    "train_macro_f1": 0.899483645144979,
+    "train_to_validation_accuracy_gap": 0.3496224705527031
+  },
+  "prediction_overlap": {
+    "absolute_depth_anchor": {
+      "prediction_agreement": 0.7818181818181819,
+      "motion_only_correct": 16,
+      "anchor_only_correct": 16,
+      "both_correct": 195,
+      "both_wrong": 158,
+      "oracle_accuracy": 0.5896103896103896
+    },
+    "fixed_context_ir": {
+      "prediction_agreement": 0.8077922077922078,
+      "motion_only_correct": 18,
+      "ir_only_correct": 14,
+      "both_correct": 193,
+      "both_wrong": 160,
+      "oracle_accuracy": 0.5844155844155844
+    },
+    "expanded_raw_four_channel_stem": {
+      "prediction_agreement": 0.535064935064935,
+      "motion_only_correct": 65,
+      "raw4_only_correct": 30,
+      "both_correct": 146,
+      "both_wrong": 144,
+      "oracle_accuracy": 0.625974025974026
+    }
+  },
+  "largest_class_recall_gains_vs_anchor": [
+    {"class_id": 26, "class_name": "Play_games", "support": 2, "delta": 0.5},
+    {"class_id": 23, "class_name": "Listen_to_music_with_headphones", "support": 9, "delta": 0.3333333333333333},
+    {"class_id": 3, "class_name": "Take_off_clothes", "support": 6, "delta": 0.3333333333333333},
+    {"class_id": 35, "class_name": "Do_lunges", "support": 3, "delta": 0.3333333333333333},
+    {"class_id": 2, "class_name": "Comb_hair", "support": 5, "delta": 0.19999999999999996},
+    {"class_id": 37, "class_name": "Take_medicine", "support": 6, "delta": 0.16666666666666666},
+    {"class_id": 6, "class_name": "Drink_water", "support": 15, "delta": 0.13333333333333341}
+  ],
+  "largest_class_recall_losses_vs_anchor": [
+    {"class_id": 17, "class_name": "Tap_the_keyboard", "support": 7, "delta": -0.2857142857142857},
+    {"class_id": 10, "class_name": "Stir_drinks", "support": 18, "delta": -0.2222222222222222},
+    {"class_id": 21, "class_name": "Read_documents", "support": 9, "delta": -0.2222222222222222},
+    {"class_id": 13, "class_name": "Mop_the_floor", "support": 6, "delta": -0.16666666666666663},
+    {"class_id": 24, "class_name": "Use_a_mobile_phone", "support": 9, "delta": -0.1111111111111111},
+    {"class_id": 15, "class_name": "Wipe_windows_and_tables", "support": 10, "delta": -0.09999999999999998}
+  ],
+  "interpretation": {
+    "primary": "The explicit ordinal-motion representation ties the matched absolute-Depth anchor in Accuracy and substantially improves Macro-F1, but it does not reach the 0.63 stability-review gate.",
+    "generalization": "The 0.349622 selected-epoch train-to-validation Accuracy gap shows that dense motion features change the validation error distribution but do not solve X3D cross-subject overfitting.",
+    "complementarity": "Equal motion-only and anchor-only correct counts plus 0.589610 pair-oracle Accuracy show real but modest complementary evidence.",
+    "decision_scope": "Diagnostic only. No extra seed, fold, heldout4 access, automatic stability work, or canonical Phase 4/5 mutation is authorized."
+  },
+  "artifact_sha256": {
+    "best_accuracy_checkpoint": "2006dd3d8a09ede3ec4f1153840d93c055c33e068c38a0a3e8e805a27325b9b8",
+    "best_accuracy_predictions": "ad5a28593c1a804c294635d47c41791c163c5ca2c59f17d94cf6c2cc6239d27c",
+    "history": "eef45be03e499d67ac878fb1f337e189fecd7786e6da558698bcba7a2b9fe549",
+    "run_summary": "8ecba986042ef0353f1a9a4d824602e9d9d508fa27079d5cf5d62df7736cfab2",
+    "result_report_json": "63f7f2e30de67f304fc39c9e5e894be85ae8b6f84f9fc51e00754885e0543c8f",
+    "result_report_markdown": "d1ea556757b297519d5cabcae509313130cd2b997375ffa3edbcb9bf2c72a457"
+  }
+}

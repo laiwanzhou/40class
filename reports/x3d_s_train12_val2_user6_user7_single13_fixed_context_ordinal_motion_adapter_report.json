@@ -1,0 +1,189 @@
+{
+  "schema_version": 1,
+  "role": "train12_val2_ordinal_motion_adapter_report",
+  "unbiased_oof": false,
+  "run_id": "x3d_s_ir_ordinal_motion_adapter_train12_val2_user6_user7_single13_fixed_context_workers4_seed20260715",
+  "decision": "non_winning_ablation",
+  "interpretation": "Depth is represented only by fixed-context aligned ordinal relative displacement, source-time-normalized velocity, and motion magnitude. The unchanged repeated-IR path remains exact at initialization and Depth enters through the zero-initialized nine-parameter residual adapter.",
+  "direct_head_human_review_accuracy_floor": 0.528051948051948,
+  "split": {
+    "train_user_ids": [
+      "user1",
+      "user2",
+      "user3",
+      "user5",
+      "user8",
+      "user9",
+      "user16",
+      "user18",
+      "user19",
+      "user20",
+      "user21",
+      "user22"
+    ],
+    "validation_user_ids": [
+      "user6",
+      "user7"
+    ],
+    "train_trial_count": 1935,
+    "validation_trial_count": 385,
+    "validation_observed_class_count": 40,
+    "validation_missing_class_ids": [],
+    "macro_f1_class_labels": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39
+    ],
+    "development_split_sha256": "c65c4826bfdd2d16796021abfccd6b1ece0ef7fb0ec786b19cc62cb60e5e57ca"
+  },
+  "metrics": {
+    "sample_count": 385,
+    "accuracy": 0.548051948051948,
+    "macro_f1": 0.46204103981646155,
+    "worst_user_accuracy": 0.5422885572139303,
+    "worst_user_id": "user6",
+    "per_user_accuracy": {
+      "user6": 0.5422885572139303,
+      "user7": 0.5543478260869565
+    },
+    "duration_buckets": {
+      "<=13": {
+        "sample_count": 85,
+        "accuracy": 0.5529411764705883,
+        "macro_f1": 0.21913156288156282
+      },
+      "14-32": {
+        "sample_count": 168,
+        "accuracy": 0.5595238095238095,
+        "macro_f1": 0.42731588479983856
+      },
+      "33-64": {
+        "sample_count": 105,
+        "accuracy": 0.5428571428571428,
+        "macro_f1": 0.3944734432234432
+      },
+      ">64": {
+        "sample_count": 27,
+        "accuracy": 0.48148148148148145,
+        "macro_f1": 0.13055555555555554
+      }
+    }
+  },
+  "selected_epoch": 9,
+  "epochs_completed": 17,
+  "training_log_at_selected_epoch": {
+    "train_accuracy": 0.8976744186046511,
+    "train_macro_f1": 0.899483645144979,
+    "val_accuracy": 0.548051948051948,
+    "val_macro_f1": 0.4620410398164615,
+    "train_minus_val_accuracy": 0.3496224705527031
+  },
+  "best_macro_f1_checkpoint": {
+    "epoch": 9,
+    "accuracy": 0.548051948051948,
+    "macro_f1": 0.46204103981646155
+  },
+  "unfrozen_backbone_blocks": 2,
+  "trainable_backbone_parameters": 2315984,
+  "full_temporal_coverage": {
+    "sampling_mode": "global_single_clip",
+    "train_clip_keep_fraction": 1.0,
+    "validation_clip_keep_fraction": 1.0,
+    "aggregation": "mean_probability"
+  },
+  "artifacts": {
+    "prediction_archive": "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\x3d_s_ir_context_train12_val2_dev\\x3d_s_ir_ordinal_motion_adapter_train12_val2_user6_user7_single13_fixed_context_workers4_seed20260715\\val_predictions_best_accuracy.npz",
+    "prediction_archive_sha256": "ad5a28593c1a804c294635d47c41791c163c5ca2c59f17d94cf6c2cc6239d27c",
+    "checkpoint": "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\x3d_s_ir_context_train12_val2_dev\\x3d_s_ir_ordinal_motion_adapter_train12_val2_user6_user7_single13_fixed_context_workers4_seed20260715\\best_accuracy.pt",
+    "checkpoint_sha256": "2006dd3d8a09ede3ec4f1153840d93c055c33e068c38a0a3e8e805a27325b9b8",
+    "resolved_config_sha256": "3bbc0fbbafd6d12df41265eb20efa36b2a8437d513c3cad895776fab36205983",
+    "development_split": "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\metadata\\splits\\train12_val2_user6_user7_development.json",
+    "development_split_sha256": "c65c4826bfdd2d16796021abfccd6b1ece0ef7fb0ec786b19cc62cb60e5e57ca"
+  },
+  "resources": {
+    "parameter_count": 3510019,
+    "trainable_parameter_count": 2851329,
+    "checkpoint_bytes": 14389123,
+    "prediction_archive_bytes": 411367,
+    "peak_cuda_memory_bytes": 649753600,
+    "ir_route_serialized_weight_subtotal": 20644716,
+    "internal_size_limit_bytes": 95000000,
+    "ir_route_provisional_size_gate_passed": true
+  },
+  "canonical_artifact_sha256_after": {
+    "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\metadata\\splits\\train14_oof_3fold.json": "2a0dde67ced6f40cf3a163f63d545f1e3cde3545b6ee0eb0291cf1c52c38ea76",
+    "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\x3d_s_ir_context_oof\\x3d_s_ir_context_adaptive_oof_strict_v3_seed20260715\\fold_0\\formal_outer_refit.pt": "2962631e48541730cd80e347dff588c4122c58263600ab0d0d63207392b36d7a",
+    "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\x3d_s_ir_context_oof\\x3d_s_ir_context_adaptive_oof_strict_v3_seed20260715\\fold_0\\formal_outer_predictions.npz": "18266310ad2706468d07ecd1a10bbd74b3d59d8f0c7d6cf9911ceaf8cf6ff648",
+    "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\x3d_s_ir_evidence\\ir_x3d_s_k400_pure\\oof_evidence.npz": "98517ac3785ab55647b6e8da4e27d31b8096a6115f1cfde9f2607ec861987f21",
+    "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\reports\\x3d_s_phase5_evidence_summary.json": "4df0fcccdeba4d3183307c24eb807efdf66d040b3d8c7eec35d8fde3e9bf8423"
+  },
+  "canonical_artifacts_unchanged": true,
+  "matched_anchor_reference": {
+    "run_id": "x3d_s_ir_anchored_depth_adapter_train12_val2_user6_user7_single13_fixed_context_workers4_seed20260715",
+    "accuracy": 0.548051948051948,
+    "macro_f1": 0.4330774727821246,
+    "worst_user_accuracy": 0.5434782608695652
+  },
+  "matched_ir_reference": {
+    "run_id": "x3d_s_ir_context_train12_val2_user6_user7_single13_fixed_context_seed20260715",
+    "accuracy": 0.5376623376623376,
+    "macro_f1": 0.4275141328945328,
+    "worst_user_accuracy": 0.5174129353233831
+  },
+  "failed_expanded_stem_reference": {
+    "run_id": "x3d_s_ir_depth4_train12_val2_user6_user7_single13_fixed_context_workers4_seed20260715",
+    "accuracy": 0.45714285714285713,
+    "macro_f1": 0.35535251791744926,
+    "worst_user_accuracy": 0.42786069651741293
+  },
+  "stability_review_accuracy_gate": 0.63,
+  "stability_work_automatically_authorized": false,
+  "human_review_accuracy_floor": 0.528051948051948,
+  "metric_delta_vs_anchor": {
+    "accuracy": 0.0,
+    "macro_f1": 0.028963567034336946,
+    "worst_user_accuracy": -0.0011897036556348661
+  },
+  "metric_delta_vs_ir": {
+    "accuracy": 0.010389610389610393,
+    "macro_f1": 0.03452690692192878,
+    "worst_user_accuracy": 0.02487562189054726
+  }
+}
