@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "amended_at": "2026-08-20",
+  "role": "ir_depth4_loader_throughput_protocol_amendment",
+  "manual_user_authorization": true,
+  "reason": "The initial workers=0 run was CPU input-pipeline limited. Its first epoch took 296.387068 seconds while sampled GPU utilization was generally 6-17 percent.",
+  "scientific_intervention_changed": false,
+  "unchanged_contract": [
+    "train12_user_population",
+    "user6_user7_validation_population",
+    "seed_20260715",
+    "global_single_13_frame_clip",
+    "fixed_trial_person_context_box",
+    "depth_rgb_plus_ir_gray_channels",
+    "sample_order_and_epoch_derived_augmentation_via_nonpersistent_workers",
+    "model_and_stem_initialization",
+    "optimizer_scheduler_loss_and_checkpoint_objective"
+  ],
+  "preferred_num_workers": 4,
+  "fallback_num_workers": 2,
+  "fallback_requires_failed_memory_smoke": true,
+  "loader_contract": {
+    "persistent_workers": false,
+    "prefetch_factor": 2,
+    "multiprocessing_context": "spawn",
+    "worker_torch_threads": 1,
+    "pin_memory_on_cuda": true
+  },
+  "memory_smoke_gate": {
+    "minimum_system_available_gib": 4.0,
+    "requires_zero_memory_errors": true,
+    "requires_zero_worker_crashes": true,
+    "requires_cuda_smoke_completion": true,
+    "records_root_and_descendant_peak_working_set": true
+  },
+  "formal_training_launch_authorized_after_passing_smoke": true,
+  "aborted_workers0_run": {
+    "run_id": "x3d_s_ir_depth4_train12_val2_user6_user7_single13_fixed_context_seed20260715",
+    "status": "aborted_after_manual_loader_amendment",
+    "completed_epochs": 1,
+    "epoch_1_seconds": 296.387068,
+    "eligible_as_formal_result": false,
+    "artifacts_preserved": true
+  },
+  "replacement_run_id": "x3d_s_ir_depth4_train12_val2_user6_user7_single13_fixed_context_workers4_seed20260715",
+  "forbidden": [
+    "workers2_fallback_without_failed_workers4_memory_smoke",
+    "formal_launch_before_memory_smoke_pass",
+    "three_fold_training",
+    "additional_seed",
+    "heldout4_access",
+    "competition_test_access",
+    "automatic_artifact_deletion"
+  ],
+  "bound_sha256": {
+    "original_candidate_config": "39a3bb7902746f9b8c375625dd2e489136923f2cd2832aa41c233c6eaf67ded2",
+    "workers4_candidate_config": "3dc43208219b3411b32d39b6ccb089736ca6815df9f694049bd966f452272339",
+    "original_preregistration": "0c0ed5f78c020614261d23a4a86c6008a64f5ecdd48db811d2923db4f39791e6",
+    "experiment_plan": "ca287c448cdd4ee954aba693fd7c99e6e3a13a46ca86b1f9955cb1908c7beb99",
+    "trainer_implementation": "5422d141259a5365d31da7d402a7d8e4b9501fc6385c5c62762c75739b7b48c7",
+    "development_split": "c65c4826bfdd2d16796021abfccd6b1ece0ef7fb0ec786b19cc62cb60e5e57ca",
+    "result_reporter": "bb4d6b06f9a754c727fedfda267fe7dd521de300505377b9ff0d71759d702c25",
+    "workers4_memory_smoke": "b5dca27d616e29bca06c15a05372e377f5108575e9d51ae6d364b6de3ca98c99"
+  }
+}

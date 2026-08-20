@@ -272,6 +272,33 @@ def test_ir_depth4_candidate_retains_single13_fixed_context_and_changes_input_on
     assert candidate == reference
 
 
+def test_ir_depth4_workers4_config_is_loader_only_operational_amendment() -> None:
+    reference = yaml.safe_load(
+        Path(
+            "configs/experiments/"
+            "x3d_s_ir_depth4_train12_val2_user6_user7_single13_fixed_context.yaml"
+        ).read_text(encoding="utf-8")
+    )
+    candidate = yaml.safe_load(
+        Path(
+            "configs/experiments/"
+            "x3d_s_ir_depth4_train12_val2_user6_user7_single13_fixed_context_workers4.yaml"
+        ).read_text(encoding="utf-8")
+    )
+
+    assert candidate["loader"] == {
+        "max_trials_per_batch": 2,
+        "max_valid_clips_per_batch": 8,
+        "num_workers": 4,
+        "persistent_workers": False,
+        "prefetch_factor": 2,
+        "multiprocessing_context": "spawn",
+        "worker_torch_threads": 1,
+    }
+    candidate["loader"] = reference["loader"]
+    assert candidate == reference
+
+
 def test_user6_user7_single13_preregistration_freezes_single_variable() -> None:
     preregistration = json.loads(
         Path(
@@ -347,6 +374,37 @@ def test_ir_depth4_preregistration_locks_point63_stability_gate() -> None:
     assert "three_fold_training" in preregistration["forbidden"]
     assert "additional_seed" in preregistration["forbidden"]
     assert all(len(value) == 64 for value in preregistration["bound_sha256"].values())
+
+
+def test_ir_depth4_workers4_amendment_is_manual_and_forbids_automatic_fallback() -> None:
+    amendment = json.loads(
+        Path(
+            "reports/"
+            "x3d_s_train12_val2_user6_user7_single13_fixed_context_ir_depth4_"
+            "loader_amendment.json"
+        ).read_text(encoding="utf-8")
+    )
+
+    assert amendment["manual_user_authorization"] is True
+    assert amendment["preferred_num_workers"] == 4
+    assert amendment["fallback_num_workers"] == 2
+    assert amendment["fallback_requires_failed_memory_smoke"] is True
+    assert amendment["scientific_intervention_changed"] is False
+    assert amendment["aborted_workers0_run"]["completed_epochs"] == 1
+    assert amendment["memory_smoke_gate"]["minimum_system_available_gib"] == 4.0
+    assert amendment["formal_training_launch_authorized_after_passing_smoke"] is True
+
+    smoke = json.loads(
+        Path(
+            "reports/"
+            "x3d_s_train12_val2_user6_user7_single13_fixed_context_ir_depth4_"
+            "workers4_memory_smoke.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert smoke["decision"] == "pass_workers4_nonpersistent"
+    assert smoke["exit_code"] == 0
+    assert smoke["minimum_system_available_gib"] >= 4.0
+    assert smoke["fallback_to_workers2_required"] is False
 
 
 def test_user6_user7_partial2_preregistration_freezes_generation_r() -> None:

@@ -15,6 +15,15 @@ REFERENCE = {
     "worst_user_accuracy": 0.5174129353233831,
 }
 STABILITY_REVIEW_ACCURACY_GATE = 0.63
+LOADER_AMENDMENT = {
+    "manual_user_authorization": True,
+    "num_workers": 4,
+    "persistent_workers": False,
+    "memory_smoke_decision": "pass_workers4_nonpersistent",
+    "peak_root_and_descendant_working_set_gib": 5.683,
+    "minimum_system_available_gib": 13.342,
+    "fallback_to_workers2_required": False,
+}
 
 
 def decision(metrics: Mapping[str, Any]) -> str:
@@ -49,6 +58,7 @@ def build_report(run_directory: Path) -> dict[str, Any]:
             "matched_reference": dict(REFERENCE),
             "stability_review_accuracy_gate": STABILITY_REVIEW_ACCURACY_GATE,
             "stability_work_automatically_authorized": False,
+            "loader_protocol_amendment": dict(LOADER_AMENDMENT),
             "metric_delta": {
                 "accuracy": float(metrics["accuracy"]) - REFERENCE["accuracy"],
                 "macro_f1": float(metrics["macro_f1"]) - REFERENCE["macro_f1"],
@@ -81,6 +91,8 @@ def render_markdown(report: Mapping[str, Any]) -> str:
             f"Selected epoch: `{report['selected_epoch']}` of `{report['epochs_completed']}`. Train-minus-validation Accuracy gap: `{training['train_minus_val_accuracy']:.6f}`.",
             "",
             f"The frozen eligibility gate for a separately approved stability review is Accuracy >= `{report['stability_review_accuracy_gate']:.2f}`.",
+            "",
+            "The four-worker non-persistent loader was manually authorized after the original workers=0 run completed one CPU-limited epoch. A CUDA memory smoke passed with 13.342 GiB minimum system memory available; this operational amendment did not change the scientific intervention.",
             "",
             report["interpretation"],
             "",

@@ -6,6 +6,24 @@
 - Development-only, single-seed experiment on the frozen
   `train12 / user6-user7 val2 / heldout4` partition.
 - No three-fold or multi-seed stability experiment is authorized here.
+- A user-authorized operational amendment replaces `num_workers=0` with a
+  memory-gated `num_workers=4` loader after the initial run completed one slow
+  epoch. This changes input throughput only, not sample ownership, sampling,
+  augmentation, model, optimization, metrics, or the scientific intervention.
+- Before the replacement formal run, execute a CUDA smoke test with four
+  non-persistent spawn workers, prefetch factor two, and one Torch CPU thread
+  per worker. Non-persistent workers are required because epoch-derived dataset
+  augmentation must observe each main-process `set_epoch` update. Require at
+  least 4 GiB system memory to remain available throughout.
+  If and only if that smoke fails the memory gate or raises a worker-memory
+  error, create an equivalent two-worker config and repeat the smoke. A passing
+  smoke authorizes the replacement formal run with that worker count.
+
+The final four-worker non-persistent CUDA smoke passed: root plus descendant
+peak working set was 5.683 GiB, minimum remaining system memory was 13.342 GiB,
+peak GPU memory was 1258 MiB, and the process exited successfully. The earlier
+persistent-worker capacity probe was superseded because it could not preserve
+epoch-derived augmentation. The two-worker fallback is not required.
 - Parent result: `x3d_s_ir_context_train12_val2_user6_user7_single13_fixed_context_seed20260715`.
 
 ## Question

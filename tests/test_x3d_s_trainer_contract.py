@@ -250,6 +250,37 @@ def fixed_config(tmp_path: Path) -> dict[str, object]:
     }
 
 
+def test_validate_config_accepts_bounded_spawn_workers(tmp_path: Path) -> None:
+    config = fixed_config(tmp_path)
+    config["loader"] = {
+        "max_trials_per_batch": 2,
+        "max_valid_clips_per_batch": 8,
+        "num_workers": 4,
+        "persistent_workers": False,
+        "prefetch_factor": 2,
+        "multiprocessing_context": "spawn",
+        "worker_torch_threads": 1,
+    }
+
+    validate_config(config)
+
+
+def test_validate_config_rejects_unsafe_multiworker_settings(tmp_path: Path) -> None:
+    config = fixed_config(tmp_path)
+    config["loader"] = {
+        "max_trials_per_batch": 2,
+        "max_valid_clips_per_batch": 8,
+        "num_workers": 4,
+        "persistent_workers": False,
+        "prefetch_factor": 2,
+        "multiprocessing_context": "spawn",
+        "worker_torch_threads": 2,
+    }
+
+    with pytest.raises(ValueError, match="one Torch CPU thread"):
+        validate_config(config)
+
+
 def fixture_prediction_result() -> TrialPredictionResult:
     rows = 3
     return TrialPredictionResult(

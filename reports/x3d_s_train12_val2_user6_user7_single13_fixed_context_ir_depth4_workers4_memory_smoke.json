@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-08-20",
+  "role": "ir_depth4_workers4_nonpersistent_cuda_memory_smoke",
+  "run_id": "x3d_s_ir_depth4_train12_val2_user6_user7_single13_fixed_context_workers4_nonpersistent_memory_smoke_seed20260715",
+  "seed": 20260715,
+  "num_workers": 4,
+  "persistent_workers": false,
+  "prefetch_factor": 2,
+  "multiprocessing_context": "spawn",
+  "worker_torch_threads": 1,
+  "smoke_test": true,
+  "exit_code": 0,
+  "peak_root_and_descendant_working_set_gib": 5.683,
+  "minimum_system_available_gib": 13.342,
+  "minimum_required_system_available_gib": 4.0,
+  "maximum_gpu_memory_mib": 1258,
+  "memory_error": false,
+  "worker_crash": false,
+  "deterministic_warning_only": "avg_pool3d_backward_cuda has no deterministic implementation",
+  "decision": "pass_workers4_nonpersistent",
+  "fallback_to_workers2_required": false,
+  "formal_training_authorized": true,
+  "superseded_preliminary_probe": {
+    "persistent_workers": true,
+    "exit_code": 0,
+    "peak_root_and_descendant_working_set_gib": 8.438,
+    "minimum_system_available_gib": 10.890,
+    "reason_superseded": "Persistent worker dataset copies do not observe main-process set_epoch updates."
+  }
+}

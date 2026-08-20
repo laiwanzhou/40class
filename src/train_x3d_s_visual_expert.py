@@ -76,6 +76,35 @@ class EpochOutcome:
     predictions: TrialPredictionResult
 
 
+def _seed_data_loader_worker(_worker_id: int) -> None:
+    worker_seed = torch.initial_seed() % (2**32)
+    random.seed(worker_seed)
+    np.random.seed(worker_seed)
+    torch.set_num_threads(1)
+
+
+def _data_loader_runtime_kwargs(
+    loader_config: Mapping[str, Any],
+    *,
+    device: torch.device,
+    seed: int,
+) -> dict[str, Any]:
+    num_workers = int(loader_config["num_workers"])
+    kwargs: dict[str, Any] = {
+        "num_workers": num_workers,
+        "pin_memory": device.type == "cuda",
+        "generator": torch.Generator().manual_seed(seed),
+    }
+    if num_workers > 0:
+        kwargs.update(
+            persistent_workers=bool(loader_config["persistent_workers"]),
+            prefetch_factor=int(loader_config["prefetch_factor"]),
+            multiprocessing_context=str(loader_config["multiprocessing_context"]),
+            worker_init_fn=_seed_data_loader_worker,
+        )
+    return kwargs
+
+
 class ClipBudgetBatchSampler(Sampler[list[int]]):
     def __init__(
         self,
@@ -421,15 +450,13 @@ def train_partition(
         train_dataset,
         batch_sampler=train_sampler,
         collate_fn=collate_x3d_clips,
-        num_workers=int(loader_config["num_workers"]),
-        pin_memory=device.type == "cuda",
+        **_data_loader_runtime_kwargs(loader_config, device=device, seed=seed),
     )
     validation_loader = DataLoader(
         validation_dataset,
         batch_sampler=validation_sampler,
         collate_fn=collate_x3d_clips,
-        num_workers=int(loader_config["num_workers"]),
-        pin_memory=device.type == "cuda",
+        **_data_loader_runtime_kwargs(loader_config, device=device, seed=seed + 1),
     )
 
     model.to(device)
@@ -648,8 +675,7 @@ def finalize_train14(
         train_dataset,
         batch_sampler=sampler,
         collate_fn=collate_x3d_clips,
-        num_workers=int(loader_config["num_workers"]),
-        pin_memory=device.type == "cuda",
+        **_data_loader_runtime_kwargs(loader_config, device=device, seed=seed),
     )
     model.to(device)
     if device.type == "cuda":
@@ -852,8 +878,11 @@ def train_strict_oof_partition(
         outer_validation_dataset,
         batch_sampler=validation_sampler,
         collate_fn=collate_x3d_clips,
-        num_workers=int(loader_config["num_workers"]),
-        pin_memory=device.type == "cuda",
+        **_data_loader_runtime_kwargs(
+            loader_config,
+            device=device,
+            seed=int(formal_config["seed"]) + 1,
+        ),
     )
     formal_outcome = run_model_epoch(
         formal_model,
@@ -959,8 +988,11 @@ def refit_strict_oof_partition(
         outer_validation_dataset,
         batch_sampler=validation_sampler,
         collate_fn=collate_x3d_clips,
-        num_workers=int(loader_config["num_workers"]),
-        pin_memory=device.type == "cuda",
+        **_data_loader_runtime_kwargs(
+            loader_config,
+            device=device,
+            seed=int(formal_config["seed"]) + 1,
+        ),
     )
     formal_outcome = run_model_epoch(
         formal_model,
@@ -1130,8 +1162,20 @@ def validate_config(config: Mapping[str, Any]) -> None:
     loader = _mapping(config, "loader")
     if loader.get("max_trials_per_batch") != 2 or loader.get("max_valid_clips_per_batch") != 8:
         raise ValueError("loader limits must be two trials and eight valid clips")
-    if loader.get("num_workers") != 0:
-        raise ValueError("First-run loader.num_workers must be zero")
+    num_workers = int(loader.get("num_workers", -1))
+    if num_workers not in {0, 2, 4}:
+        raise ValueError("loader.num_workers must be zero, two, or four")
+    if num_workers > 0:
+        if loader.get("persistent_workers") is not False:
+            raise ValueError(
+                "Epoch-derived augmentation requires non-persistent data workers"
+            )
+        if loader.get("prefetch_factor") != 2:
+            raise ValueError("Multiworker loading requires prefetch_factor=2")
+        if loader.get("multiprocessing_context") != "spawn":
+            raise ValueError("Multiworker loading requires Windows-safe spawn context")
+        if loader.get("worker_torch_threads") != 1:
+            raise ValueError("Each data worker must use one Torch CPU thread")
     batch_norm = _mapping(config, "backbone_bn")
     if batch_norm.get("update_running_stats") is not False:
         raise ValueError("First-run backbone BatchNorm running stats must remain frozen")
