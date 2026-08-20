@@ -1,10 +1,16 @@
 stage: thermal_t1b_development
-status: interrupted_after_epoch_17_pending_diagnosis
+status: t1b1_zero_training_diagnostic_complete_root_cause_not_confirmed
 training_authorized: false
 authorization_history:
   started: "Explicit user instruction in the 2026-08-20 Thermal task"
   paused: "Explicit user instruction after epoch 17 due low validation performance"
 resume_requires_new_human_approval: true
+t1b1:
+  training_performed: false
+  epoch16_checkpoint_modified: false
+  classifier_bn_root_cause_confirmed: false
+  bn_free_short_run_authorized: false
+  dominant_followup: upstream_layerwise_embedding_spike_trace
 num_classes: 40
 seed: 20260715
 

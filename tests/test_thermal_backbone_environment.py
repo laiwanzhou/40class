@@ -252,9 +252,14 @@ def test_qualified_iformer_t_is_paused_only_on_t1b_branch() -> None:
     )
     iformer_config = yaml.safe_load(iformer_config_path.read_text(encoding="utf-8"))
     assert iformer_config["stage"] == "thermal_t1b_development"
-    assert iformer_config["status"] == "interrupted_after_epoch_17_pending_diagnosis"
+    assert (
+        iformer_config["status"]
+        == "t1b1_zero_training_diagnostic_complete_root_cause_not_confirmed"
+    )
     assert iformer_config["training_authorized"] is False
     assert iformer_config["resume_requires_new_human_approval"] is True
+    assert iformer_config["t1b1"]["classifier_bn_root_cause_confirmed"] is False
+    assert iformer_config["t1b1"]["bn_free_short_run_authorized"] is False
     assert iformer_config["num_classes"] == 40
     assert iformer_config["backbone"]["family"] == "ChuanyangZheng_iFormer_t"
     assert iformer_config["backbone"]["source_revision"] == IFORMER_REVISION

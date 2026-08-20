@@ -42,3 +42,15 @@ def test_thermal_expert_returns_common_trial_surface() -> None:
     assert output.availability is availability
     assert output.quality is quality
     assert output.quality_mask is quality_mask
+
+
+def test_frame_features_average_exactly_to_trial_features() -> None:
+    spatial = IFormerTSM(backbone=_FakeIFormer()).eval()
+    clips = torch.randn(2, 16, 3, 224, 224)
+
+    with torch.inference_mode():
+        frames = spatial.forward_frame_features(clips)
+        trials = spatial.forward_features(clips)
+
+    assert frames.shape == (2, 16, 32)
+    torch.testing.assert_close(trials, frames.mean(dim=1))
