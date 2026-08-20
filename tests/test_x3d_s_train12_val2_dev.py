@@ -327,6 +327,71 @@ def test_ir_anchored_adapter_config_changes_only_registered_model_intervention()
     assert candidate == reference
 
 
+def test_ordinal_motion_adapter_changes_only_depth_representation() -> None:
+    reference = yaml.safe_load(
+        Path(
+            "configs/experiments/"
+            "x3d_s_ir_anchored_depth_adapter_train12_val2_user6_user7_"
+            "single13_fixed_context_workers4.yaml"
+        ).read_text(encoding="utf-8")
+    )
+    candidate = yaml.safe_load(
+        Path(
+            "configs/experiments/"
+            "x3d_s_ir_ordinal_motion_adapter_train12_val2_user6_user7_"
+            "single13_fixed_context_workers4.yaml"
+        ).read_text(encoding="utf-8")
+    )
+
+    assert candidate["input_view"] == "depth_ordinal_motion_plus_ir_gray"
+    assert candidate["early_fusion"]["channel_order"] == [
+        "depth_relative_displacement",
+        "depth_time_normalized_velocity",
+        "depth_motion_magnitude",
+        "ir_gray",
+    ]
+    assert candidate["depth_motion"] == {
+        "source": "inverse_opencv_jet_ordinal",
+        "reference": "per_pixel_temporal_median",
+        "displacement_scale": "selected_clip_valid_ordinal_iqr_min_8",
+        "velocity_scale": "8_ordinal_levels_per_source_frame",
+        "velocity_timebase": "source_frame_index",
+        "clip_range": [-1.0, 1.0],
+        "invalid_policy": "strict_temporal_intersection_zero_fill",
+    }
+    candidate["input_view"] = reference["input_view"]
+    candidate["early_fusion"]["channel_order"] = reference["early_fusion"][
+        "channel_order"
+    ]
+    candidate.pop("depth_motion")
+    assert candidate == reference
+
+
+def test_ordinal_motion_preregistration_freezes_one_run_and_review_floor() -> None:
+    preregistration = json.loads(
+        Path(
+            "reports/"
+            "x3d_s_train12_val2_user6_user7_single13_fixed_context_"
+            "ordinal_motion_adapter_preregistration.json"
+        ).read_text(encoding="utf-8")
+    )
+
+    assert preregistration["run_id"] == (
+        "x3d_s_ir_ordinal_motion_adapter_train12_val2_user6_user7_"
+        "single13_fixed_context_workers4_seed20260715"
+    )
+    assert preregistration["population"]["validation_user_ids"] == ["user6", "user7"]
+    assert preregistration["metric_contract"]["human_review_accuracy_floor"] == pytest.approx(
+        0.528051948051948
+    )
+    assert preregistration["stability_work_automatically_authorized"] is False
+    assert "heldout4_evaluation" in preregistration["forbidden"]
+    assert len(preregistration["bound_sha256"]) == 11
+    assert all(
+        len(value) == 64 for value in preregistration["bound_sha256"].values()
+    )
+
+
 def test_user6_user7_single13_preregistration_freezes_single_variable() -> None:
     preregistration = json.loads(
         Path(

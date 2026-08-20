@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "registered_at": "2026-08-21",
+  "role": "train12_val2_ordinal_motion_adapter_preregistration",
+  "candidate": "x3d_s_ir_ordinal_motion_adapter",
+  "run_id": "x3d_s_ir_ordinal_motion_adapter_train12_val2_user6_user7_single13_fixed_context_workers4_seed20260715",
+  "development_only": true,
+  "unbiased_oof": false,
+  "approved_post_freeze_exception": true,
+  "seed": 20260715,
+  "development_split": "metadata/splits/train12_val2_user6_user7_development.json",
+  "population": {
+    "train_user_ids": ["user1", "user2", "user3", "user5", "user8", "user9", "user16", "user18", "user19", "user20", "user21", "user22"],
+    "validation_user_ids": ["user6", "user7"],
+    "heldout_user_ids": ["user4", "user17", "user23", "user24"],
+    "train_usable_ir_depth_trials": 1935,
+    "validation_usable_ir_depth_trials": 385,
+    "train_class_count": 40,
+    "validation_class_count": 40
+  },
+  "fixed_conditions": {
+    "temporal_sampling": "one globally stratified 13-frame clip",
+    "spatial_crop": "one fixed trial person-context box shared by IR and Depth",
+    "visual_channels": ["depth_relative_displacement", "depth_time_normalized_velocity", "depth_motion_magnitude", "ir_gray"],
+    "workers": 4,
+    "persistent_workers": false,
+    "unfrozen_backbone_blocks": 2,
+    "training_epochs": 20
+  },
+  "sole_intervention": {
+    "reference": "IR anchor plus absolute Depth RGB residual",
+    "candidate": "IR anchor plus aligned ordinal Depth motion residual",
+    "depth_source": "exact inverse OpenCV JET ordinal at native resolution",
+    "depth_features": ["per-pixel median-relative displacement", "source-frame-time-normalized signed velocity", "absolute velocity"],
+    "adapter": "bias-free zero-initialized Conv3d 3-to-3 kernel-1",
+    "adapter_parameters": 9,
+    "adapter_lr": 0.0003,
+    "initial_depth_sensitivity": 0
+  },
+  "matched_anchor_reference": {
+    "run_id": "x3d_s_ir_anchored_depth_adapter_train12_val2_user6_user7_single13_fixed_context_workers4_seed20260715",
+    "accuracy": 0.548051948051948,
+    "macro_f1": 0.4330774727821246,
+    "worst_user_accuracy": 0.5434782608695652,
+    "selected_epoch": 16
+  },
+  "matched_ir_reference": {
+    "run_id": "x3d_s_ir_context_train12_val2_user6_user7_single13_fixed_context_seed20260715",
+    "accuracy": 0.5376623376623376,
+    "macro_f1": 0.4275141328945328,
+    "worst_user_accuracy": 0.5174129353233831,
+    "selected_epoch": 14
+  },
+  "stability_review_accuracy_gate": 0.63,
+  "stability_work_automatically_authorized": false,
+  "metric_contract": {
+    "primary": "trial-level Accuracy on 385 user6/user7 usable IR+Depth trials",
+    "secondary": "Macro-F1 over fixed labels 0..39",
+    "guardrail": "minimum user6/user7 Accuracy",
+    "checkpoint_objective": "Accuracy then Macro-F1 then earlier epoch",
+    "human_review_accuracy_floor": 0.528051948051948
+  },
+  "forbidden": [
+    "three_fold_training",
+    "additional_seed",
+    "automatic_stability_training",
+    "heldout4_evaluation",
+    "competition_test_access",
+    "canonical_phase4_or_phase5_mutation",
+    "additional_temporal_clip",
+    "moving_spatial_crop",
+    "automatic_artifact_deletion"
+  ],
+  "bound_sha256": {
+    "candidate_config": "263289effb1d6869c65fe8c6e09ba8bb43b5203998c11d9059fecdf07667b395",
+    "development_split": "c65c4826bfdd2d16796021abfccd6b1ece0ef7fb0ec786b19cc62cb60e5e57ca",
+    "dataset_implementation": "65235792f08d42b63501d578e22b95a38a3fe79ecddd0afd6077c53e15212829",
+    "model_and_trainer_implementation": "1c219fcfe1650d3a6c3896e3042dfd4e56b640fe9081992135c8de5c3e097be2",
+    "protected_runner": "c3dc9bf1e6038a9d22cb28449c937552d7f6d84a08bddcf1492cb7ed9bfc186e",
+    "result_reporter": "1883bd8016f16197cd9981e59ab060c22514b0eba59dce2c770cabf7960ae284",
+    "matched_anchor_checkpoint": "3d3339e40610d62d3954a817815a1413634cc6d551d325f6a2dca082af983039",
+    "matched_anchor_predictions": "0f54f5ba1e8186445ff8833be3c428a1d5d9d280d86e62a2d3fc162e3fe8ef4b",
+    "matched_ir_checkpoint": "5faf7ac1aca30bb53313045723823cfe17e2e2d0c92ed9d89e5378e6a4ef7c6d",
+    "matched_ir_predictions": "e8b340099177811c027cb8e7f49e40faf9455cc8b28ef6e75d04ef7680cd1c08",
+    "smoke_summary": "6a11bcbdf071ec840fa87e23c92bbc5574c24e741a3d8a68884ec8da0c721d45"
+  }
+}

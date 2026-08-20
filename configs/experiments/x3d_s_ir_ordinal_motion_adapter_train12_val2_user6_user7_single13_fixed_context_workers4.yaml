@@ -1,0 +1,123 @@
+input_manifest: D:\work\2026.7.14_kaggle\datasets\Small-Model-Track\roi640_depth_ordinal_256\combined_frame_manifest.csv
+split_path: metadata/splits/fold_0.json
+output_root: outputs/x3d_s_ir_context_train12_val2_dev
+input_view: depth_ordinal_motion_plus_ir_gray
+input_channels: 4
+fusion_strategy: ir_anchored_depth_residual
+num_classes: 40
+embedding_dim: 256
+dropout: 0.25
+seed: 20260715
+device: cuda
+pretrained: true
+
+early_fusion:
+  channel_order: [depth_relative_displacement, depth_time_normalized_velocity, depth_motion_magnitude, ir_gray]
+  stem_initialization: standard_k400_rgb_after_ir_anchor_zero_depth_residual
+  synchronized_geometric_transform: true
+  depth_photometric_augmentation: false
+  ir_photometric_augmentation: true
+
+depth_motion:
+  source: inverse_opencv_jet_ordinal
+  reference: per_pixel_temporal_median
+  displacement_scale: selected_clip_valid_ordinal_iqr_min_8
+  velocity_scale: 8_ordinal_levels_per_source_frame
+  velocity_timebase: source_frame_index
+  clip_range: [-1.0, 1.0]
+  invalid_policy: strict_temporal_intersection_zero_fill
+
+development_partition:
+  train_user_ids: [user1, user2, user3, user5, user8, user9, user16, user18, user19, user20, user21, user22]
+  validation_user_ids: [user6, user7]
+
+temporal:
+  local_frames: 13
+  target_window_frames: 32
+  max_clips: 8
+  train_views_per_window: 1
+  val_views_per_window: 1
+  aggregation: mean_probability
+  sampling_mode: global_single_clip
+
+spatial_input:
+  crop_mode: fixed_trial_person_context
+  pose_cache: D:\work\2026.7.14_kaggle\40class\outputs\depth_ir_person_crop_40class_fold0\person_crop_pose_tracks.npz
+  detection_frames: 8
+  crop_margin: 1.4
+  minimum_side_fraction: 0.35
+  full_frame_fallback: false
+
+loader:
+  max_trials_per_batch: 2
+  max_valid_clips_per_batch: 8
+  num_workers: 4
+  persistent_workers: false
+  prefetch_factor: 2
+  multiprocessing_context: spawn
+  worker_torch_threads: 1
+
+backbone_bn:
+  update_running_stats: false
+  train_affine_after_unfreeze: true
+
+roi:
+  keypoint_threshold: 0.25
+  context_padding: 0.22
+  context_quantile: 0.95
+  minimum_context_side_ratio: 0.45
+  local_padding: 0.12
+  duplicate_iou_threshold: 0.70
+  interaction:
+    keypoint_threshold: 0.25
+    projection_alpha: 0.55
+    long_axis_scale: 0.65
+    short_axis_scale: 0.45
+    wrist_fallback_person_width: 0.35
+    minimum_pixel_side: 48.0
+    merge_iou_threshold: 0.30
+    merge_projected_distance: 0.60
+    merge_wrist_distance: 0.70
+    merge_elbow_distance: 0.80
+    merge_wide_wrist_distance: 1.20
+    two_hand_horizontal_padding: 0.30
+    two_hand_top_padding: 0.10
+    two_hand_bottom_padding: 0.45
+    hand_head_distance: 0.90
+
+optimizer:
+  backbone_lr: 0.00003
+  head_lr: 0.0003
+  input_adapter_lr: 0.0003
+  weight_decay: 0.05
+  gradient_accumulation: 4
+  gradient_clip: 1.0
+
+training:
+  epochs: 20
+  scheduler_horizon_epochs: 20
+  warmup_epochs: 2
+  unfrozen_backbone_blocks: 2
+  label_smoothing: 0.0
+  patience: 8
+  early_stopping_enabled: true
+
+augmentation:
+  brightness: [0.90, 1.10]
+  contrast: [0.90, 1.10]
+  gamma: [0.90, 1.10]
+  noise_std_max: 0.0
+  blur_probability: 0.0
+  blur_kernel_size: 3
+  blur_sigma: [0.10, 0.10]
+
+amp:
+  enabled: true
+  dtype: bfloat16
+
+size_gate:
+  internal_limit_bytes: 95000000
+
+deployment_artifacts:
+  yolo_checkpoint: D:\work\2026.7.14_kaggle\40class\yolo11n-pose.pt
+  phase0_probe: reports/x3d_s_environment_probe.json

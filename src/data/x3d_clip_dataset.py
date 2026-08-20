@@ -16,6 +16,7 @@ from torchvision.transforms import functional as transform_functional
 from torchvision.transforms.functional import InterpolationMode
 
 from src.data.ir_primary_full_sequence_dataset import class_map_hash
+from src.data.ordinal_depth import load_depth_color_ordinal
 from src.data.pose_roi_dataset import PoseTrackCache, depth_frame_key
 
 
@@ -287,6 +288,103 @@ def _read_fixed_context_four_channel_tensor(
     return torch.from_numpy(array.copy()).permute(2, 0, 1).to(torch.float32).div_(255.0)
 
 
+def _read_fixed_context_ordinal_tensor(
+    depth_path: str | Path,
+    box_xyxy: np.ndarray,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    decoded = load_depth_color_ordinal(depth_path)
+    crop_box = tuple(float(value) for value in box_xyxy)
+    weighted = Image.fromarray(
+        decoded.values.astype(np.float32) * decoded.pixel_valid.astype(np.float32),
+        mode="F",
+    ).crop(crop_box).resize((256, 256), resample=Image.Resampling.BILINEAR)
+    coverage = Image.fromarray(decoded.pixel_valid.astype(np.float32), mode="F").crop(
+        crop_box
+    ).resize((256, 256), resample=Image.Resampling.BILINEAR)
+    output_valid = Image.fromarray(
+        decoded.pixel_valid.astype(np.uint8) * 255,
+        mode="L",
+    ).crop(crop_box).resize((256, 256), resample=Image.Resampling.NEAREST)
+    numerator = np.asarray(weighted, dtype=np.float32)
+    denominator = np.asarray(coverage, dtype=np.float32)
+    valid = np.asarray(output_valid, dtype=np.uint8) > 0
+    values = np.divide(
+        numerator,
+        np.maximum(denominator, 1e-6),
+        out=np.zeros_like(numerator),
+        where=denominator > 1e-6,
+    )
+    values[~valid] = 0.0
+    return torch.from_numpy(values.copy()), torch.from_numpy(valid.copy())
+
+
+def ordinal_depth_motion_channels(
+    values: torch.Tensor,
+    pixel_valid: torch.Tensor,
+    source_indices: torch.Tensor,
+) -> torch.Tensor:
+    """Build dense relative-displacement, velocity, and motion-energy maps."""
+    if values.ndim != 3 or pixel_valid.shape != values.shape:
+        raise ValueError("ordinal values and pixel_valid must be matching [T,H,W] tensors")
+    if source_indices.ndim != 1 or source_indices.shape[0] != values.shape[0]:
+        raise ValueError("source_indices must contain one index per ordinal frame")
+    if values.shape[0] == 0:
+        raise ValueError("ordinal motion requires at least one frame")
+    if pixel_valid.dtype != torch.bool:
+        raise TypeError("pixel_valid must be boolean")
+    indices = source_indices.to(dtype=torch.float32, device=values.device)
+    if torch.any(indices[1:] < indices[:-1]):
+        raise ValueError("source_indices must be non-decreasing")
+
+    depth = values.to(torch.float32)
+    valid = pixel_valid & torch.isfinite(depth)
+    valid_values = depth[valid]
+    if valid_values.numel() == 0:
+        return depth.new_zeros((depth.shape[0], 3, *depth.shape[1:]))
+    q25, q75 = torch.quantile(valid_values, torch.tensor([0.25, 0.75], device=depth.device))
+    scale = torch.clamp(q75 - q25, min=8.0)
+
+    nan_depth = torch.where(valid, depth, torch.full_like(depth, float("nan")))
+    reference = torch.nanmedian(nan_depth, dim=0).values
+    reference_valid = torch.isfinite(reference)
+    reference = torch.nan_to_num(reference, nan=0.0)
+    displacement_valid = valid & reference_valid.unsqueeze(0)
+    displacement = torch.where(
+        displacement_valid,
+        ((depth - reference.unsqueeze(0)) / scale).clamp(-1.0, 1.0),
+        torch.zeros_like(depth),
+    )
+
+    velocity = torch.zeros_like(depth)
+    frame_count = depth.shape[0]
+    for position in range(frame_count):
+        previous = position - 1
+        while previous >= 0 and indices[previous] == indices[position]:
+            previous -= 1
+        following = position + 1
+        while following < frame_count and indices[following] == indices[position]:
+            following += 1
+        if previous >= 0 and following < frame_count:
+            left, right = previous, following
+        elif following < frame_count:
+            left, right = position, following
+        elif previous >= 0:
+            left, right = previous, position
+        else:
+            continue
+        delta_frames = indices[right] - indices[left]
+        if delta_frames <= 0:
+            continue
+        velocity_valid = valid[position] & valid[left] & valid[right] & reference_valid
+        difference = (depth[right] - depth[left]) / delta_frames / 8.0
+        velocity[position] = torch.where(
+            velocity_valid,
+            difference.clamp(-1.0, 1.0),
+            torch.zeros_like(difference),
+        )
+    return torch.stack((displacement, velocity, velocity.abs()), dim=1)
+
+
 def _random_resized_crop_parameters(
     height: int,
     width: int,
@@ -335,6 +433,7 @@ def _transform_clip_frames(
     training: bool,
     generator: torch.Generator,
     augmentation: IRAugmentationConfig | None = None,
+    four_channel_semantics: str = "depth_rgb_ir",
 ) -> torch.Tensor:
     if not frames:
         raise ValueError("A clip must contain at least one frame")
@@ -396,10 +495,24 @@ def _transform_clip_frames(
             for frame in transformed
         ]
     elif channels == 4:
-        normalized = [
-            transform_functional.normalize(frame, FOUR_CHANNEL_MEAN, FOUR_CHANNEL_STD)
-            for frame in transformed
-        ]
+        if four_channel_semantics == "depth_rgb_ir":
+            normalized = [
+                transform_functional.normalize(frame, FOUR_CHANNEL_MEAN, FOUR_CHANNEL_STD)
+                for frame in transformed
+            ]
+        elif four_channel_semantics == "ordinal_motion_ir":
+            normalized = [
+                torch.cat(
+                    (
+                        frame[:3],
+                        transform_functional.normalize(frame[3:], X3D_MEAN[:1], X3D_STD[:1]),
+                    ),
+                    dim=0,
+                )
+                for frame in transformed
+            ]
+        else:
+            raise ValueError("Unknown four-channel semantics")
     else:
         raise ValueError("X3D frames must contain one IR channel or four Depth+IR channels")
     return torch.stack(normalized, dim=1)
@@ -528,9 +641,11 @@ class X3DClipDataset(Dataset[X3DClipSample]):
                 "fixed_trial_person_context"
             )
         self.spatial_crop_mode = str(spatial_crop_mode)
-        if visual_input_mode not in {"ir_gray", "depth_rgb_ir"}:
-            raise ValueError("visual_input_mode must be ir_gray or depth_rgb_ir")
-        if visual_input_mode == "depth_rgb_ir" and self.spatial_crop_mode != "fixed_trial_person_context":
+        if visual_input_mode not in {"ir_gray", "depth_rgb_ir", "ordinal_motion_ir"}:
+            raise ValueError(
+                "visual_input_mode must be ir_gray, depth_rgb_ir, or ordinal_motion_ir"
+            )
+        if visual_input_mode in {"depth_rgb_ir", "ordinal_motion_ir"} and self.spatial_crop_mode != "fixed_trial_person_context":
             raise ValueError("Depth+IR early fusion requires fixed_trial_person_context")
         self.visual_input_mode = str(visual_input_mode)
         if not 0.0 < float(train_clip_keep_fraction) <= 1.0:
@@ -560,7 +675,7 @@ class X3DClipDataset(Dataset[X3DClipSample]):
         ]
         if missing_paths:
             raise ValueError(f"Selected IR image does not exist: {missing_paths[0]}")
-        if self.visual_input_mode == "depth_rgb_ir":
+        if self.visual_input_mode in {"depth_rgb_ir", "ordinal_motion_ir"}:
             missing_depth_paths = [
                 path
                 for path in selected["source_depth_path"].astype(str).unique()
@@ -663,6 +778,8 @@ class X3DClipDataset(Dataset[X3DClipSample]):
         selected_indices: list[torch.Tensor] = []
         clip_unique_fractions: list[float] = []
         image_cache: dict[int, torch.Tensor] = {}
+        ordinal_cache: dict[int, tuple[torch.Tensor, torch.Tensor]] = {}
+        fixed_ir_cache: dict[int, torch.Tensor] = {}
         for window_index, (start, end) in zip(selected_window_indices, windows):
             generator = self._generator(index, window_index)
             indices = stratified_temporal_indices(
@@ -687,7 +804,7 @@ class X3DClipDataset(Dataset[X3DClipSample]):
                                     box,
                                 )
                             )
-                        else:
+                        elif self.visual_input_mode == "ir_gray":
                             image_cache[source_index] = _read_fixed_context_gray_tensor(
                                 frame.iloc[source_index]["source_ir_path"], box
                             )
@@ -695,12 +812,43 @@ class X3DClipDataset(Dataset[X3DClipSample]):
                         image_cache[source_index] = _read_gray_tensor(
                             frame.iloc[source_index]["ir_context_path"]
                         )
-                temporal_frames.append(image_cache[source_index])
+                if self.visual_input_mode != "ordinal_motion_ir":
+                    temporal_frames.append(image_cache[source_index])
+            if self.visual_input_mode == "ordinal_motion_ir":
+                box = self.fixed_context_boxes[index]
+                assert box is not None
+                for source_index in indices.tolist():
+                    if source_index not in ordinal_cache:
+                        ordinal_cache[source_index] = _read_fixed_context_ordinal_tensor(
+                            frame.iloc[source_index]["source_depth_path"], box
+                        )
+                    if source_index not in fixed_ir_cache:
+                        fixed_ir_cache[source_index] = _read_fixed_context_gray_tensor(
+                            frame.iloc[source_index]["source_ir_path"], box
+                        )
+                ordinal_values = torch.stack(
+                    [ordinal_cache[source_index][0] for source_index in indices.tolist()]
+                )
+                ordinal_valid = torch.stack(
+                    [ordinal_cache[source_index][1] for source_index in indices.tolist()]
+                )
+                motion = ordinal_depth_motion_channels(
+                    ordinal_values, ordinal_valid, indices
+                )
+                temporal_frames = [
+                    torch.cat((motion[position], fixed_ir_cache[source_index]), dim=0)
+                    for position, source_index in enumerate(indices.tolist())
+                ]
             clip = _transform_clip_frames(
                 temporal_frames,
                 training=self.augmentation_enabled,
                 generator=generator,
                 augmentation=self.augmentation_config,
+                four_channel_semantics=(
+                    "ordinal_motion_ir"
+                    if self.visual_input_mode == "ordinal_motion_ir"
+                    else "depth_rgb_ir"
+                ),
             )
             clips.append(clip.unsqueeze(0))
 

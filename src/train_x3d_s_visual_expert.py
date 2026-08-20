@@ -1086,11 +1086,11 @@ def _resolved_spatial_crop_mode(config: Mapping[str, Any]) -> str:
 
 def _dataset_spatial_input_kwargs(config: Mapping[str, Any]) -> dict[str, Any]:
     mode = _resolved_spatial_crop_mode(config)
-    visual_input_mode = (
-        "depth_rgb_ir"
-        if str(config.get("input_view")) == "depth_color_rgb_plus_ir_gray"
-        else "ir_gray"
-    )
+    input_view = str(config.get("input_view"))
+    visual_input_mode = {
+        "depth_color_rgb_plus_ir_gray": "depth_rgb_ir",
+        "depth_ordinal_motion_plus_ir_gray": "ordinal_motion_ir",
+    }.get(input_view, "ir_gray")
     if mode == "precomputed_moving_context":
         return {
             "spatial_crop_mode": mode,
@@ -1125,7 +1125,10 @@ def validate_config(config: Mapping[str, Any]) -> None:
     if input_view == "ir_context_path":
         if input_channels != 3:
             raise ValueError("IR input_view requires three repeated X3D channels")
-    elif input_view == "depth_color_rgb_plus_ir_gray":
+    elif input_view in {
+        "depth_color_rgb_plus_ir_gray",
+        "depth_ordinal_motion_plus_ir_gray",
+    }:
         if input_channels != 4:
             raise ValueError("Depth+IR input_view requires four X3D channels")
         if fusion_strategy not in {
@@ -1134,8 +1137,18 @@ def validate_config(config: Mapping[str, Any]) -> None:
         }:
             raise ValueError("Unsupported Depth+IR fusion_strategy")
         fusion = _mapping(config, "early_fusion")
+        channel_order = (
+            [
+                "depth_relative_displacement",
+                "depth_time_normalized_velocity",
+                "depth_motion_magnitude",
+                "ir_gray",
+            ]
+            if input_view == "depth_ordinal_motion_plus_ir_gray"
+            else ["depth_r", "depth_g", "depth_b", "ir_gray"]
+        )
         expected_fusion = {
-            "channel_order": ["depth_r", "depth_g", "depth_b", "ir_gray"],
+            "channel_order": channel_order,
             "stem_initialization": (
                 "standard_k400_rgb_after_ir_anchor_zero_depth_residual"
                 if fusion_strategy == "ir_anchored_depth_residual"
@@ -1147,14 +1160,32 @@ def validate_config(config: Mapping[str, Any]) -> None:
         }
         if dict(fusion) != expected_fusion:
             raise ValueError("Depth+IR early_fusion contract changed")
+        if input_view == "depth_ordinal_motion_plus_ir_gray":
+            expected_motion = {
+                "source": "inverse_opencv_jet_ordinal",
+                "reference": "per_pixel_temporal_median",
+                "displacement_scale": "selected_clip_valid_ordinal_iqr_min_8",
+                "velocity_scale": "8_ordinal_levels_per_source_frame",
+                "velocity_timebase": "source_frame_index",
+                "clip_range": [-1.0, 1.0],
+                "invalid_policy": "strict_temporal_intersection_zero_fill",
+            }
+            if dict(_mapping(config, "depth_motion")) != expected_motion:
+                raise ValueError("ordinal Depth motion contract changed")
     else:
-        raise ValueError("input_view must be ir_context_path or depth_color_rgb_plus_ir_gray")
+        raise ValueError(
+            "input_view must be ir_context_path, depth_color_rgb_plus_ir_gray, "
+            "or depth_ordinal_motion_plus_ir_gray"
+        )
     if config.get("num_classes") != 40:
         raise ValueError("num_classes must be 40")
     temporal = _mapping(config, "temporal")
     _resolved_temporal_sampling_mode(config)
     spatial_mode = _resolved_spatial_crop_mode(config)
-    if input_view == "depth_color_rgb_plus_ir_gray" and spatial_mode != "fixed_trial_person_context":
+    if input_view in {
+        "depth_color_rgb_plus_ir_gray",
+        "depth_ordinal_motion_plus_ir_gray",
+    } and spatial_mode != "fixed_trial_person_context":
         raise ValueError("Depth+IR input requires fixed trial person context")
     if spatial_mode == "fixed_trial_person_context":
         spatial = _mapping(config, "spatial_input")

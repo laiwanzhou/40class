@@ -14,6 +14,7 @@ from src.data.x3d_clip_dataset import (
     IRAugmentationConfig,
     X3DClipDataset,
     _read_fixed_context_four_channel_tensor,
+    ordinal_depth_motion_channels,
     endpoint_uniform_indices,
     fixed_trial_person_context_box,
     _transform_clip_frames,
@@ -22,6 +23,53 @@ from src.data.x3d_clip_dataset import (
     partition_trial_windows,
     select_training_window_indices,
 )
+
+
+def test_ordinal_motion_is_zero_for_static_valid_depth() -> None:
+    values = torch.full((13, 8, 8), 120.0)
+    valid = torch.ones_like(values, dtype=torch.bool)
+    source_indices = torch.arange(13)
+
+    motion = ordinal_depth_motion_channels(values, valid, source_indices)
+
+    assert motion.shape == (13, 3, 8, 8)
+    torch.testing.assert_close(motion, torch.zeros_like(motion), atol=0.0, rtol=0.0)
+
+
+def test_ordinal_motion_is_invariant_to_constant_depth_offset() -> None:
+    base = torch.arange(13, dtype=torch.float32).view(13, 1, 1).expand(13, 8, 8)
+    valid = torch.ones_like(base, dtype=torch.bool)
+    source_indices = torch.arange(0, 26, 2)
+
+    first = ordinal_depth_motion_channels(base + 80.0, valid, source_indices)
+    shifted = ordinal_depth_motion_channels(base + 130.0, valid, source_indices)
+
+    torch.testing.assert_close(first, shifted, atol=0.0, rtol=0.0)
+
+
+def test_ordinal_motion_velocity_accounts_for_sampled_frame_spacing() -> None:
+    near_indices = torch.arange(13)
+    far_indices = torch.arange(0, 26, 2)
+    near_values = near_indices.to(torch.float32).view(13, 1, 1).expand(13, 4, 4)
+    far_values = far_indices.to(torch.float32).view(13, 1, 1).expand(13, 4, 4)
+    valid = torch.ones_like(near_values, dtype=torch.bool)
+
+    near = ordinal_depth_motion_channels(near_values, valid, near_indices)
+    far = ordinal_depth_motion_channels(far_values, valid, far_indices)
+
+    torch.testing.assert_close(near[:, 1:], far[:, 1:], atol=1e-6, rtol=0.0)
+
+
+def test_ordinal_motion_masks_invalid_changes_without_edge_spikes() -> None:
+    values = torch.full((13, 6, 6), 100.0)
+    valid = torch.ones_like(values, dtype=torch.bool)
+    valid[6, 2:4, 2:4] = False
+    values[6, 2:4, 2:4] = 0.0
+    source_indices = torch.arange(13)
+
+    motion = ordinal_depth_motion_channels(values, valid, source_indices)
+
+    torch.testing.assert_close(motion, torch.zeros_like(motion), atol=0.0, rtol=0.0)
 
 
 def test_endpoint_uniform_indices_match_eight_probe_contract() -> None:
