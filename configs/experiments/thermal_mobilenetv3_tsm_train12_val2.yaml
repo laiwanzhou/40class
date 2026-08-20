@@ -1,11 +1,15 @@
-stage: thermal_t1a
-status: eligible_after_human_approval
-training_authorized: false
+stage: thermal_mobilenet_matched_control
+status: preregistered_authorized_not_started
+training_authorized: true
+authorization: explicit_user_instruction_2026_08_20_18_11
+causal_control_only: true
+promotion_authorized: false
 num_classes: 40
 seed: 20260715
 
 development_split: metadata/splits/train12_val2_user6_user7_development.json
 input_view: thermal_full_frame
+route: full_frame
 input_shape: [16, 3, 224, 224]
 
 backbone:
@@ -35,6 +39,45 @@ preprocessing:
   validation_crop: center
   color_jitter: false
 
+matched_control:
+  differs_from_iformer_t_only_by_model_family: true
+  classifier: batchnorm1d_then_linear40
+  classifier_structure_matches_iformer_t: true
+  yolo_crop: false
+  epoch16_checkpoint_loaded: false
+
+optimization:
+  epochs: 30
+  hard_stop_epoch: 30
+  automatic_extension: false
+  resume: false
+  batch_size: 4
+  gradient_accumulation: 4
+  backbone_lr: 0.00003
+  head_lr: 0.0003
+  weight_decay: 0.05
+  warmup_epochs: 2
+  schedule: cosine
+  label_smoothing: 0.1
+  gradient_clip: 1.0
+  amp_dtype: bfloat16
+  num_workers: 0
+  seed: 20260715
+
+checkpoint_selection:
+  population: combined_user6_user7_thermal_usable
+  primary: macro_f1_fixed_labels_0_39
+  secondary: [accuracy, worst_user_accuracy]
+  final_tie_break: lower_epoch
+
+post_training_stability:
+  cohort_source: reports/thermal_t1b3_block_attribution.json
+  spike_trial_count: 23
+  matched_control_count: 23
+  precisions: [fp32, bfloat16]
+  amplification_ratio_threshold: 10.0
+  scan_all_validation_embedding_norms: true
+
 deployment:
   internal_limit_bytes_exclusive: 95000000
   probe_report: reports/thermal_backbone_environment_probe.json
@@ -45,3 +88,5 @@ prohibitions:
   read_competition_test: false
   read_quarantined_evidence: false
   modify_frozen_ir_x3d: false
+  yolo_crop: false
+  automatic_candidate_promotion: false

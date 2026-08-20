@@ -244,7 +244,9 @@ def test_qualified_iformer_t_is_paused_only_on_t1b_branch() -> None:
     )
     mobile_config = yaml.safe_load(mobile_config_path.read_text(encoding="utf-8"))
 
-    assert mobile_config["status"] == "eligible_after_human_approval"
+    assert mobile_config["status"] == "preregistered_authorized_not_started"
+    assert mobile_config["training_authorized"] is True
+    assert mobile_config["promotion_authorized"] is False
     assert mobile_config["backbone"]["pretrained_weights"] == "IMAGENET1K_V1"
 
     iformer_config_path = (

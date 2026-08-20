@@ -77,7 +77,7 @@ class MobileNetV3SmallTSM(nn.Module):
         )
         return self.temporal_shift(explicit).reshape(shape)
 
-    def forward(self, clips: torch.Tensor) -> torch.Tensor:
+    def forward_frame_features(self, clips: torch.Tensor) -> torch.Tensor:
         if clips.ndim != 5 or clips.shape[1:] != (
             self.num_segments,
             3,
@@ -96,9 +96,14 @@ class MobileNetV3SmallTSM(nn.Module):
             x = block(x)
         x = self.avgpool(x)
         x = torch.flatten(x, 1)
-        x = x.reshape(batch_size, self.num_segments, -1).mean(dim=1)
-        logits = self.classifier(x)
-        if logits.shape != (batch_size, self.num_classes):
+        return x.reshape(batch_size, self.num_segments, -1)
+
+    def forward_features(self, clips: torch.Tensor) -> torch.Tensor:
+        return self.forward_frame_features(clips).mean(dim=1)
+
+    def forward(self, clips: torch.Tensor) -> torch.Tensor:
+        logits = self.classifier(self.forward_features(clips))
+        if logits.shape != (clips.shape[0], self.num_classes):
             raise RuntimeError(f"Unexpected classifier output shape: {tuple(logits.shape)}")
         return logits
 
