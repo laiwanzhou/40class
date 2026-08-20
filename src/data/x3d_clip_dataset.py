@@ -26,6 +26,8 @@ OUTPUT_SIZE = 182
 VALIDATION_RESIZE = 200
 X3D_MEAN = (0.45, 0.45, 0.45)
 X3D_STD = (0.225, 0.225, 0.225)
+FOUR_CHANNEL_MEAN = (*X3D_MEAN, sum(X3D_MEAN) / 3.0)
+FOUR_CHANNEL_STD = (*X3D_STD, sum(X3D_STD) / 3.0)
 QUALITY_NAMES = (
     "temporal_valid_fraction",
     "context_effective_rate",
@@ -262,6 +264,29 @@ def _read_fixed_context_gray_tensor(
     return torch.from_numpy(array.copy()).unsqueeze(0).to(torch.float32).div_(255.0)
 
 
+def _read_fixed_context_four_channel_tensor(
+    depth_path: str | Path,
+    ir_path: str | Path,
+    box_xyxy: np.ndarray,
+) -> torch.Tensor:
+    with Image.open(depth_path) as depth_image, Image.open(ir_path) as ir_image:
+        if depth_image.size != ir_image.size:
+            raise ValueError(
+                f"Native Depth/IR size mismatch: {depth_path} / {ir_path}"
+            )
+        crop_box = tuple(float(value) for value in box_xyxy)
+        depth = depth_image.convert("RGB").crop(crop_box).resize(
+            (256, 256), resample=Image.Resampling.LANCZOS
+        )
+        ir = ir_image.convert("L").crop(crop_box).resize(
+            (256, 256), resample=Image.Resampling.LANCZOS
+        )
+        depth_array = np.asarray(depth, dtype=np.uint8)
+        ir_array = np.asarray(ir, dtype=np.uint8)
+    array = np.concatenate((depth_array, ir_array[:, :, None]), axis=2)
+    return torch.from_numpy(array.copy()).permute(2, 0, 1).to(torch.float32).div_(255.0)
+
+
 def _random_resized_crop_parameters(
     height: int,
     width: int,
@@ -335,11 +360,22 @@ def _transform_clip_frames(
         if flip:
             transformed = [transform_functional.hflip(frame) for frame in transformed]
         if augmentation is not None:
-            transformed = _apply_ir_photometric_augmentation(
-                transformed,
-                config=augmentation,
-                generator=generator,
-            )
+            if transformed[0].shape[0] == 4:
+                augmented_ir = _apply_ir_photometric_augmentation(
+                    [frame[3:] for frame in transformed],
+                    config=augmentation,
+                    generator=generator,
+                )
+                transformed = [
+                    torch.cat((frame[:3], ir), dim=0)
+                    for frame, ir in zip(transformed, augmented_ir, strict=True)
+                ]
+            else:
+                transformed = _apply_ir_photometric_augmentation(
+                    transformed,
+                    config=augmentation,
+                    generator=generator,
+                )
     else:
         transformed = [
             transform_functional.center_crop(
@@ -353,10 +389,19 @@ def _transform_clip_frames(
             )
             for frame in frames
         ]
-    normalized = [
-        transform_functional.normalize(frame.repeat(3, 1, 1), X3D_MEAN, X3D_STD)
-        for frame in transformed
-    ]
+    channels = transformed[0].shape[0]
+    if channels == 1:
+        normalized = [
+            transform_functional.normalize(frame.repeat(3, 1, 1), X3D_MEAN, X3D_STD)
+            for frame in transformed
+        ]
+    elif channels == 4:
+        normalized = [
+            transform_functional.normalize(frame, FOUR_CHANNEL_MEAN, FOUR_CHANNEL_STD)
+            for frame in transformed
+        ]
+    else:
+        raise ValueError("X3D frames must contain one IR channel or four Depth+IR channels")
     return torch.stack(normalized, dim=1)
 
 
@@ -420,6 +465,7 @@ class X3DClipDataset(Dataset[X3DClipSample]):
         train_clip_keep_fraction: float = 1.0,
         temporal_sampling_mode: str = "adaptive_local_windows",
         spatial_crop_mode: str = "precomputed_moving_context",
+        visual_input_mode: str = "ir_gray",
         pose_cache_path: str | Path | None = None,
         fixed_context_detection_frames: int = 8,
         fixed_context_crop_margin: float = 1.4,
@@ -482,6 +528,11 @@ class X3DClipDataset(Dataset[X3DClipSample]):
                 "fixed_trial_person_context"
             )
         self.spatial_crop_mode = str(spatial_crop_mode)
+        if visual_input_mode not in {"ir_gray", "depth_rgb_ir"}:
+            raise ValueError("visual_input_mode must be ir_gray or depth_rgb_ir")
+        if visual_input_mode == "depth_rgb_ir" and self.spatial_crop_mode != "fixed_trial_person_context":
+            raise ValueError("Depth+IR early fusion requires fixed_trial_person_context")
+        self.visual_input_mode = str(visual_input_mode)
         if not 0.0 < float(train_clip_keep_fraction) <= 1.0:
             raise ValueError("train_clip_keep_fraction must be in (0, 1]")
         if self.temporal_sampling_mode == "global_single_clip" and float(
@@ -509,6 +560,16 @@ class X3DClipDataset(Dataset[X3DClipSample]):
         ]
         if missing_paths:
             raise ValueError(f"Selected IR image does not exist: {missing_paths[0]}")
+        if self.visual_input_mode == "depth_rgb_ir":
+            missing_depth_paths = [
+                path
+                for path in selected["source_depth_path"].astype(str).unique()
+                if not Path(path).is_file()
+            ]
+            if missing_depth_paths:
+                raise ValueError(
+                    f"Selected Depth image does not exist: {missing_depth_paths[0]}"
+                )
         pose_cache: PoseTrackCache | None = None
         if self.spatial_crop_mode == "fixed_trial_person_context":
             if "source_depth_path" not in selected or selected["source_depth_path"].isnull().any():
@@ -618,9 +679,18 @@ class X3DClipDataset(Dataset[X3DClipSample]):
                     if self.spatial_crop_mode == "fixed_trial_person_context":
                         box = self.fixed_context_boxes[index]
                         assert box is not None
-                        image_cache[source_index] = _read_fixed_context_gray_tensor(
-                            frame.iloc[source_index]["source_ir_path"], box
-                        )
+                        if self.visual_input_mode == "depth_rgb_ir":
+                            image_cache[source_index] = (
+                                _read_fixed_context_four_channel_tensor(
+                                    frame.iloc[source_index]["source_depth_path"],
+                                    frame.iloc[source_index]["source_ir_path"],
+                                    box,
+                                )
+                            )
+                        else:
+                            image_cache[source_index] = _read_fixed_context_gray_tensor(
+                                frame.iloc[source_index]["source_ir_path"], box
+                            )
                     else:
                         image_cache[source_index] = _read_gray_tensor(
                             frame.iloc[source_index]["ir_context_path"]
@@ -665,7 +735,13 @@ class X3DClipDataset(Dataset[X3DClipSample]):
             "quality": quality,
             "quality_mask": torch.ones(len(QUALITY_NAMES), dtype=torch.bool),
             "availability": torch.tensor(
-                [bool(frame["ir_context_effective_valid"].astype(bool).any())],
+                [
+                    bool(frame["ir_context_effective_valid"].astype(bool).any())
+                    and (
+                        self.visual_input_mode == "ir_gray"
+                        or bool(frame["depth_context_effective_valid"].astype(bool).any())
+                    )
+                ],
                 dtype=torch.bool,
             ),
             "source_indices": source_indices,

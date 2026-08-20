@@ -245,6 +245,33 @@ def test_user6_user7_single13_fixed_context_changes_only_spatial_input() -> None
     assert candidate == reference
 
 
+def test_ir_depth4_candidate_retains_single13_fixed_context_and_changes_input_only() -> None:
+    reference = yaml.safe_load(
+        Path(
+            "configs/experiments/"
+            "x3d_s_ir_context_train12_val2_user6_user7_single13_fixed_context.yaml"
+        ).read_text(encoding="utf-8")
+    )
+    candidate = yaml.safe_load(
+        Path(
+            "configs/experiments/"
+            "x3d_s_ir_depth4_train12_val2_user6_user7_single13_fixed_context.yaml"
+        ).read_text(encoding="utf-8")
+    )
+
+    assert candidate["temporal"]["sampling_mode"] == "global_single_clip"
+    assert candidate["spatial_input"] == reference["spatial_input"]
+    assert candidate["input_view"] == "depth_color_rgb_plus_ir_gray"
+    assert candidate["input_channels"] == 4
+    assert candidate["early_fusion"]["channel_order"] == [
+        "depth_r", "depth_g", "depth_b", "ir_gray"
+    ]
+    candidate["input_view"] = reference["input_view"]
+    candidate.pop("input_channels")
+    candidate.pop("early_fusion")
+    assert candidate == reference
+
+
 def test_user6_user7_single13_preregistration_freezes_single_variable() -> None:
     preregistration = json.loads(
         Path(
@@ -295,6 +322,30 @@ def test_user6_user7_fixed_context_preregistration_freezes_spatial_only() -> Non
         0.522077922077922
     )
     assert "automatic_second_formal_training_launch" in preregistration["forbidden"]
+    assert all(len(value) == 64 for value in preregistration["bound_sha256"].values())
+
+
+def test_ir_depth4_preregistration_locks_point63_stability_gate() -> None:
+    preregistration = json.loads(
+        Path(
+            "reports/"
+            "x3d_s_train12_val2_user6_user7_single13_fixed_context_ir_depth4_preregistration.json"
+        ).read_text(encoding="utf-8")
+    )
+
+    assert preregistration["approved_formal_training_ordinal"] == 2
+    assert preregistration["approved_formal_training_total"] == 2
+    assert preregistration["stability_review_accuracy_gate"] == pytest.approx(0.63)
+    assert preregistration["stability_work_automatically_authorized"] is False
+    assert preregistration["sole_intervention"]["channel_order"] == [
+        "depth_r", "depth_g", "depth_b", "ir_gray"
+    ]
+    assert preregistration["fixed_conditions"] == {
+        "temporal_sampling": "one globally stratified 13-frame clip",
+        "spatial_crop": "one fixed trial person-context box",
+    }
+    assert "three_fold_training" in preregistration["forbidden"]
+    assert "additional_seed" in preregistration["forbidden"]
     assert all(len(value) == 64 for value in preregistration["bound_sha256"].values())
 
 

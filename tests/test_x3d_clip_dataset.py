@@ -7,11 +7,13 @@ import numpy as np
 import pandas as pd
 import pytest
 import torch
+from PIL import Image
 
 import src.data.x3d_clip_dataset as x3d_clip_dataset
 from src.data.x3d_clip_dataset import (
     IRAugmentationConfig,
     X3DClipDataset,
+    _read_fixed_context_four_channel_tensor,
     endpoint_uniform_indices,
     fixed_trial_person_context_box,
     _transform_clip_frames,
@@ -221,6 +223,52 @@ def test_fixed_context_dataset_reuses_one_trial_box_for_all_sampled_frames(
     assert observed_boxes
     for observed in observed_boxes:
         np.testing.assert_array_equal(observed, dataset.fixed_context_boxes[0])
+
+
+def test_fixed_context_four_channel_reader_orders_depth_rgb_then_ir(tmp_path: Path) -> None:
+    depth = np.zeros((12, 16, 3), dtype=np.uint8)
+    depth[:] = [10, 20, 30]
+    ir = np.full((12, 16), 40, dtype=np.uint8)
+    depth_path = tmp_path / "depth.png"
+    ir_path = tmp_path / "ir.png"
+    Image.fromarray(depth, mode="RGB").save(depth_path)
+    Image.fromarray(ir, mode="L").save(ir_path)
+
+    tensor = _read_fixed_context_four_channel_tensor(
+        depth_path, ir_path, np.asarray([0.0, 0.0, 16.0, 12.0], dtype=np.float32)
+    )
+
+    assert tensor.shape == (4, 256, 256)
+    torch.testing.assert_close(
+        tensor[:, 128, 128], torch.tensor([10.0, 20.0, 30.0, 40.0]) / 255.0
+    )
+
+
+def test_four_channel_transform_applies_photometric_change_only_to_ir() -> None:
+    frame = torch.stack(
+        (
+            torch.full((32, 32), 0.1),
+            torch.full((32, 32), 0.2),
+            torch.full((32, 32), 0.3),
+            torch.full((32, 32), 0.4),
+        )
+    )
+    frames = [frame.clone() for _ in range(13)]
+    plain = _transform_clip_frames(
+        frames,
+        training=True,
+        generator=torch.Generator().manual_seed(19),
+        augmentation=IRAugmentationConfig(),
+    )
+    augmented = _transform_clip_frames(
+        frames,
+        training=True,
+        generator=torch.Generator().manual_seed(19),
+        augmentation=IRAugmentationConfig(brightness=(1.2, 1.2)),
+    )
+
+    torch.testing.assert_close(augmented[:3], plain[:3], atol=0.0, rtol=0.0)
+    assert not torch.equal(augmented[3], plain[3])
 
 
 def test_dataset_normalizes_singleton_channel_grayscale_decode(

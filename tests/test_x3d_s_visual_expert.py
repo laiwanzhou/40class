@@ -5,7 +5,11 @@ import torch
 from torch import nn
 
 from src.models.expert_contract import ExpertOutput
-from src.models.x3d_s_visual_expert import X3DSVisualExpert, build_x3d_s_feature_backbone
+from src.models.x3d_s_visual_expert import (
+    X3DSVisualExpert,
+    build_x3d_s_feature_backbone,
+    expand_first_conv3d_input_channels,
+)
 
 
 class TinyBackbone(nn.Module):
@@ -65,6 +69,42 @@ def fixture_inputs() -> dict[str, torch.Tensor]:
         "quality_mask": torch.ones(2, 6, dtype=torch.bool),
         "availability": torch.ones(2, 1, dtype=torch.bool),
     }
+
+
+def test_expand_first_conv_to_four_channels_preserves_rgb_and_mean_initializes_ir() -> None:
+    backbone = nn.Sequential(nn.Conv3d(3, 2, kernel_size=(1, 2, 2), bias=True))
+    original = backbone[0]
+    with torch.no_grad():
+        original.weight.copy_(torch.arange(original.weight.numel()).reshape_as(original.weight))
+        original.bias.copy_(torch.tensor([1.0, 2.0]))
+    expected_rgb = original.weight.detach().clone()
+    expected_bias = original.bias.detach().clone()
+
+    expanded = expand_first_conv3d_input_channels(backbone, input_channels=4)
+
+    replacement = expanded[0]
+    assert replacement.in_channels == 4
+    torch.testing.assert_close(replacement.weight[:, :3], expected_rgb)
+    torch.testing.assert_close(replacement.weight[:, 3], expected_rgb.mean(dim=1))
+    torch.testing.assert_close(replacement.bias, expected_bias)
+
+
+def test_four_channel_expert_accepts_depth_rgb_plus_ir_clip() -> None:
+    backbone = TinyBackbone()
+    backbone.conv = nn.Conv3d(4, backbone.output_dim, kernel_size=1, stride=(1, 8, 8))
+    model = X3DSVisualExpert(
+        backbone=backbone,
+        num_classes=40,
+        embedding_dim=16,
+        dropout=0.0,
+        input_channels=4,
+    ).eval()
+    inputs = fixture_inputs()
+    inputs["clips"] = torch.randn(2, 3, 4, 13, 32, 32)
+
+    output = model(**inputs)
+
+    assert output.main_logits.shape == (2, 40)
 
 
 def test_x3d_visual_expert_emits_standard_expert_output() -> None:

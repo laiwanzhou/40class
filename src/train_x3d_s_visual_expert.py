@@ -1044,11 +1044,20 @@ def _resolved_spatial_crop_mode(config: Mapping[str, Any]) -> str:
 
 def _dataset_spatial_input_kwargs(config: Mapping[str, Any]) -> dict[str, Any]:
     mode = _resolved_spatial_crop_mode(config)
+    visual_input_mode = (
+        "depth_rgb_ir"
+        if str(config.get("input_view")) == "depth_color_rgb_plus_ir_gray"
+        else "ir_gray"
+    )
     if mode == "precomputed_moving_context":
-        return {"spatial_crop_mode": mode}
+        return {
+            "spatial_crop_mode": mode,
+            "visual_input_mode": visual_input_mode,
+        }
     spatial = _mapping(config, "spatial_input")
     return {
         "spatial_crop_mode": mode,
+        "visual_input_mode": visual_input_mode,
         "pose_cache_path": Path(str(spatial["pose_cache"])),
         "fixed_context_detection_frames": int(spatial["detection_frames"]),
         "fixed_context_crop_margin": float(spatial["crop_margin"]),
@@ -1068,13 +1077,33 @@ def validate_config(config: Mapping[str, Any]) -> None:
             raise ValueError("direct head is only supported for x3d_s")
         if int(config.get("embedding_dim", 0)) != 2048:
             raise ValueError("direct head embedding_dim must be 2048")
-    if config.get("input_view") != "ir_context_path":
-        raise ValueError("First-run input_view must be ir_context_path")
+    input_view = str(config.get("input_view"))
+    input_channels = int(config.get("input_channels", 3))
+    if input_view == "ir_context_path":
+        if input_channels != 3:
+            raise ValueError("IR input_view requires three repeated X3D channels")
+    elif input_view == "depth_color_rgb_plus_ir_gray":
+        if input_channels != 4:
+            raise ValueError("Depth+IR input_view requires four X3D channels")
+        fusion = _mapping(config, "early_fusion")
+        expected_fusion = {
+            "channel_order": ["depth_r", "depth_g", "depth_b", "ir_gray"],
+            "stem_initialization": "k400_rgb_plus_rgb_mean_ir",
+            "synchronized_geometric_transform": True,
+            "depth_photometric_augmentation": False,
+            "ir_photometric_augmentation": True,
+        }
+        if dict(fusion) != expected_fusion:
+            raise ValueError("Depth+IR early_fusion contract changed")
+    else:
+        raise ValueError("input_view must be ir_context_path or depth_color_rgb_plus_ir_gray")
     if config.get("num_classes") != 40:
         raise ValueError("num_classes must be 40")
     temporal = _mapping(config, "temporal")
     _resolved_temporal_sampling_mode(config)
     spatial_mode = _resolved_spatial_crop_mode(config)
+    if input_view == "depth_color_rgb_plus_ir_gray" and spatial_mode != "fixed_trial_person_context":
+        raise ValueError("Depth+IR input requires fixed trial person context")
     if spatial_mode == "fixed_trial_person_context":
         spatial = _mapping(config, "spatial_input")
         if not Path(str(spatial.get("pose_cache", ""))).is_file():
@@ -1780,12 +1809,17 @@ def _build_model(config: Mapping[str, Any]) -> torch.nn.Module:
                 _mapping(config, "backbone_bn")["update_running_stats"]
             ),
         )
+    input_channels = int(config.get("input_channels", 3))
+    backbone_kwargs: dict[str, Any] = {"pretrained": bool(config["pretrained"])}
+    if input_channels != 3:
+        backbone_kwargs["input_channels"] = input_channels
     return X3DSVisualExpert(
-        backbone=build_x3d_s_feature_backbone(pretrained=bool(config["pretrained"])),
+        backbone=build_x3d_s_feature_backbone(**backbone_kwargs),
         num_classes=int(config["num_classes"]),
         embedding_dim=int(config["embedding_dim"]),
         dropout=float(config["dropout"]),
         head_type=_resolved_head_type(config),
+        input_channels=input_channels,
         update_backbone_bn_running_stats=bool(
             _mapping(config, "backbone_bn")["update_running_stats"]
         ),

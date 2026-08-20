@@ -17,7 +17,50 @@ _NORMALIZATION_TYPES = (
 )
 
 
-def build_x3d_s_feature_backbone(*, pretrained: bool = True) -> nn.Module:
+def expand_first_conv3d_input_channels(
+    backbone: nn.Module, *, input_channels: int
+) -> nn.Module:
+    if input_channels < 3:
+        raise ValueError("X3D input_channels must be at least three")
+    if input_channels == 3:
+        return backbone
+    for parent in backbone.modules():
+        for name, child in parent.named_children():
+            if not isinstance(child, nn.Conv3d):
+                continue
+            if child.in_channels != 3 or child.groups != 1:
+                raise ValueError("The first X3D Conv3d must be an ungrouped RGB convolution")
+            replacement = nn.Conv3d(
+                input_channels,
+                child.out_channels,
+                child.kernel_size,
+                child.stride,
+                child.padding,
+                child.dilation,
+                child.groups,
+                child.bias is not None,
+                child.padding_mode,
+                device=child.weight.device,
+                dtype=child.weight.dtype,
+            )
+            with torch.no_grad():
+                replacement.weight[:, :3].copy_(child.weight)
+                replacement.weight[:, 3:].copy_(
+                    child.weight.mean(dim=1, keepdim=True).expand(
+                        -1, input_channels - 3, -1, -1, -1
+                    )
+                )
+                if child.bias is not None:
+                    assert replacement.bias is not None
+                    replacement.bias.copy_(child.bias)
+            setattr(parent, name, replacement)
+            return backbone
+    raise ValueError("X3D backbone exposes no Conv3d input stem")
+
+
+def build_x3d_s_feature_backbone(
+    *, pretrained: bool = True, input_channels: int = 3
+) -> nn.Module:
     """Load official PyTorchVideo X3D-S and remove its Kinetics projection."""
     from pytorchvideo.models.hub import x3d_s
 
@@ -29,7 +72,9 @@ def build_x3d_s_feature_backbone(*, pretrained: bool = True) -> nn.Module:
     head.proj = None
     head.activation = None
     backbone.output_dim = projection.in_features
-    return backbone
+    return expand_first_conv3d_input_channels(
+        backbone, input_channels=int(input_channels)
+    )
 
 
 class X3DSVisualExpert(nn.Module):
@@ -44,6 +89,7 @@ class X3DSVisualExpert(nn.Module):
         dropout: float = 0.25,
         backbone_dim: int | None = None,
         head_type: str = "projected",
+        input_channels: int = 3,
         update_backbone_bn_running_stats: bool = False,
     ) -> None:
         super().__init__()
@@ -56,6 +102,9 @@ class X3DSVisualExpert(nn.Module):
             raise ValueError("dropout must lie in [0, 1)")
 
         self.backbone = backbone
+        self.input_channels = int(input_channels)
+        if self.input_channels not in {3, 4}:
+            raise ValueError("input_channels must be three or four")
         self.head_type = str(head_type)
         if self.head_type == "projected":
             self.embedding_head = nn.Sequential(
@@ -243,8 +292,8 @@ class X3DSVisualExpert(nn.Module):
         result.index_add_(0, trial_indices, values)
         return result / valid_counts.to(dtype=values.dtype).unsqueeze(1)
 
-    @staticmethod
     def _validate_inputs(
+        self,
         clips: torch.Tensor,
         clip_mask: torch.Tensor,
         quality: torch.Tensor,
@@ -254,8 +303,10 @@ class X3DSVisualExpert(nn.Module):
         if clips.ndim != 6:
             raise ValueError("clips must have shape [B,K,C,T,H,W]")
         batch_size, num_clips, channels, frames, _, _ = clips.shape
-        if channels != 3 or frames != 13:
-            raise ValueError("each local X3D clip must have shape [3,13,H,W]")
+        if channels != self.input_channels or frames != 13:
+            raise ValueError(
+                "each local X3D clip must match configured channels and 13 frames"
+            )
         if clip_mask.shape != (batch_size, num_clips) or clip_mask.dtype != torch.bool:
             raise ValueError("clip_mask must be boolean with shape [B,K]")
         if quality.ndim != 2 or quality.shape[0] != batch_size:

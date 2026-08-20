@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "registered_at": "2026-08-20",
+  "role": "train12_val2_ir_depth4_early_fusion_preregistration",
+  "candidate": "x3d_s_single13_fixed_context_ir_depth4",
+  "parent_candidate": "x3d_s_single13_fixed_trial_context",
+  "run_id": "x3d_s_ir_depth4_train12_val2_user6_user7_single13_fixed_context_seed20260715",
+  "development_only": true,
+  "unbiased_oof": false,
+  "approved_post_freeze_exception": true,
+  "approved_formal_training_ordinal": 2,
+  "approved_formal_training_total": 2,
+  "seed": 20260715,
+  "development_split": "metadata/splits/train12_val2_user6_user7_development.json",
+  "population": {
+    "train_user_ids": [
+      "user1", "user2", "user3", "user5", "user8", "user9",
+      "user16", "user18", "user19", "user20", "user21", "user22"
+    ],
+    "validation_user_ids": ["user6", "user7"],
+    "heldout_user_ids": ["user4", "user17", "user23", "user24"],
+    "train_usable_ir_depth_trials": 1935,
+    "validation_usable_ir_depth_trials": 385,
+    "train_class_count": 40,
+    "validation_class_count": 40
+  },
+  "fixed_conditions": {
+    "temporal_sampling": "one globally stratified 13-frame clip",
+    "spatial_crop": "one fixed trial person-context box"
+  },
+  "sole_intervention": {
+    "field": "visual input channels and matched K400 input stem",
+    "reference": "IR gray repeated to three X3D channels",
+    "candidate": "aligned Depth_Color RGB plus IR gray early fusion",
+    "channel_order": ["depth_r", "depth_g", "depth_b", "ir_gray"],
+    "stem_initialization": "preserve K400 RGB kernels and initialize IR kernel from their channel mean",
+    "synchronized_geometric_transform": true,
+    "depth_photometric_augmentation": false,
+    "ir_photometric_augmentation": true,
+    "additional_parameters": 216
+  },
+  "matched_reference": {
+    "run_id": "x3d_s_ir_context_train12_val2_user6_user7_single13_fixed_context_seed20260715",
+    "accuracy": 0.5376623376623376,
+    "macro_f1": 0.4275141328945328,
+    "worst_user_accuracy": 0.5174129353233831,
+    "selected_epoch": 14
+  },
+  "stability_review_accuracy_gate": 0.63,
+  "stability_work_automatically_authorized": false,
+  "metric_contract": {
+    "primary": "trial-level Accuracy on 385 user6/user7 usable IR+Depth trials",
+    "secondary": "Macro-F1 over fixed labels 0..39",
+    "guardrail": "minimum user6/user7 Accuracy",
+    "checkpoint_objective": "Accuracy then Macro-F1 then earlier epoch",
+    "human_review_accuracy_floor": 0.5176623376623376
+  },
+  "decision_contract": {
+    "eligible_for_manual_stability_review": "Accuracy >= 0.63; report and wait for explicit approval",
+    "improved_but_below_stability_gate": "Accuracy improves over 0.5376623376623376 with Macro-F1 delta >= -0.01 and worst-user delta >= -0.02, but Accuracy < 0.63",
+    "human_review_regression": "Accuracy < 0.5176623376623376; preserve artifacts and stop"
+  },
+  "forbidden": [
+    "three_fold_training",
+    "additional_seed",
+    "automatic_stability_training",
+    "heldout4_access",
+    "competition_test_access",
+    "canonical_phase4_or_phase5_mutation",
+    "additional_temporal_clip",
+    "moving_spatial_crop",
+    "depth_photometric_augmentation",
+    "test_time_augmentation",
+    "automatic_artifact_deletion"
+  ],
+  "bound_sha256": {
+    "candidate_config": "39a3bb7902746f9b8c375625dd2e489136923f2cd2832aa41c233c6eaf67ded2",
+    "reference_config": "c38839488b537df478e6029d08515e45909674746d19790d1889fd89434d084f",
+    "development_split": "c65c4826bfdd2d16796021abfccd6b1ece0ef7fb0ec786b19cc62cb60e5e57ca",
+    "reference_report": "14f7955a8e9229198520c07726ea36693ead530140ae739979609b3c0127e143",
+    "reference_checkpoint": "5faf7ac1aca30bb53313045723823cfe17e2e2d0c92ed9d89e5378e6a4ef7c6d",
+    "reference_predictions": "e8b340099177811c027cb8e7f49e40faf9455cc8b28ef6e75d04ef7680cd1c08",
+    "input_manifest": "e80a78ea67985a02a539485b2502bef68c097365654ce137cd5a7f40e9cd70b9",
+    "pose_cache": "239f2b88cb2a481e3fefbae3dd6390d6c9c21c5ee73df38b29adc7cd9b0b624d",
+    "canonical_assignment": "2a0dde67ced6f40cf3a163f63d545f1e3cde3545b6ee0eb0291cf1c52c38ea76",
+    "canonical_phase5_oof_evidence": "98517ac3785ab55647b6e8da4e27d31b8096a6115f1cfde9f2607ec861987f21",
+    "experiment_plan": "6174b16e9ed5db4245cf919502d51ee97f73eb19b3f9de63fc950f6374c8d6c7",
+    "dataset_implementation": "9db6ad13bea321f60f230694919a673d46dd0e7bc94a90af2d645bd26bfb6515",
+    "model_implementation": "fe7345c30ba4b817544bcd08009d33ade9135dd04c88cda8996aed1b9c8c480d",
+    "trainer_implementation": "6a089ff4e392f030e1167ce3ca4444524a9f58169e8f3f9160488a2205b1f741",
+    "protected_runner": "c3dc9bf1e6038a9d22cb28449c937552d7f6d84a08bddcf1492cb7ed9bfc186e",
+    "result_reporter": "23c08ec9d8bc57cdc21ae05ec9d4f76be42d6abec1af6bc000438ed8ad59e26f"
+  }
+}
