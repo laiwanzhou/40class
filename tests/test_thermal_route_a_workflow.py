@@ -57,11 +57,12 @@ def test_committed_route_a_workflow_is_valid_and_authorizes_a3() -> None:
     assert validator.validate_workflow(workflow) == []
     assert tuple(stage["id"] for stage in workflow["stages"]) == EXPECTED_STAGE_ORDER
     assert validator.next_action(workflow) == "a3_direct_training"
-    assert workflow["status"] == "a3_prerequisites_in_progress"
+    assert workflow["status"] == "a3_training_queued_for_exclusive_gpu"
     assert workflow["stages"][0]["status"] == "completed"
     assert workflow["stages"][1]["status"] == "completed"
     assert workflow["stages"][2]["status"] == "completed"
-    assert all(stage["status"] == "pending" for stage in workflow["stages"][3:])
+    assert workflow["stages"][3]["status"] == "in_progress"
+    assert all(stage["status"] == "pending" for stage in workflow["stages"][4:])
     assert workflow["external_gates"]["route_b_report_verified"] is False
     assert workflow["external_gates"]["route_b_report_waived_by_user"] is True
     assert workflow["authorization"]["a_direct_training"] is True

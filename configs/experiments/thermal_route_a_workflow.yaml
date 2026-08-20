@@ -1,6 +1,6 @@
 schema_version: 1
 workflow_id: thermal_route_a_generation2
-status: a3_prerequisites_in_progress
+status: a3_training_queued_for_exclusive_gpu
 current_stage: a3_direct_training
 
 authority:
@@ -159,7 +159,7 @@ stages:
       - reports/thermal_generation2_environment_probe.json
       - reports/thermal_generation2_environment_probe.md
   - id: a3_direct_training
-    status: pending
+    status: in_progress
     requires: [a2_runtime_probe]
     formal_training: true
     human_approval_required_to_start: true
