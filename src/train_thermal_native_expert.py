@@ -7,7 +7,7 @@ import math
 from pathlib import Path
 import random
 import time
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 import numpy as np
 import torch
@@ -170,9 +170,13 @@ def run_epoch(
     recipe: T1BRecipe,
     optimizer: torch.optim.Optimizer | None,
     max_batches: int | None = None,
+    mode_setter: Callable[[nn.Module, bool], None] | None = None,
 ) -> EpochResult:
     training = optimizer is not None
-    model.train(training)
+    if mode_setter is None:
+        model.train(training)
+    else:
+        mode_setter(model, training)
     if training:
         optimizer.zero_grad(set_to_none=True)
     labels_all: list[np.ndarray] = []

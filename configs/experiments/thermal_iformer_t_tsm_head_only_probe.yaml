@@ -1,0 +1,76 @@
+stage: thermal_t1b4_frozen_backbone_head_only_probe
+status: preregistered_authorized_not_started
+authorization: explicit_user_instruction_2026_08_20
+causal_control_only: true
+promotion_authorized: false
+
+initialization:
+  source: official_imagenet_pretrained_iformer_t
+  repository: https://github.com/ChuanyangZheng/iFormer
+  source_revision: 2a87540fcb345afe9d950a58d0eb3873b938c3dc
+  pretrained_checkpoint: iFormer_t.pth
+  pretrained_weight_sha256: 7cbd778e3604694eb1a0becbf2e6a22798586f6bb46610a5c22b39880efb967e
+  strict_pretrained_load: true
+  random_initialization_fallback: false
+  epoch16_backbone_loaded: false
+  resume: false
+
+freeze_contract:
+  stem: frozen
+  stages: frozen
+  backbone_bn_parameters: frozen
+  backbone_bn_running_buffers: frozen
+  classifier: original_batchnorm1d_then_linear40
+  trainable_classifier_tensors: 4
+  tsm_parameter_count: 0
+
+input_contract:
+  development_split: metadata/splits/train12_val2_user6_user7_development.json
+  route: full_frame
+  segments: 16
+  timeline: thermal_native_normalized_time
+  shape: [16, 3, 224, 224]
+  resize_short_side: 256
+  crop_size: 224
+  validation_crop: center
+  crop_localizer_added: false
+
+optimization:
+  epochs: 8
+  hard_stop_epoch: 8
+  automatic_extension: false
+  batch_size: 4
+  gradient_accumulation: 4
+  head_lr: 0.0003
+  weight_decay: 0.05
+  warmup_epochs: 2
+  schedule: cosine
+  label_smoothing: 0.1
+  gradient_clip: 1.0
+  seed: 20260715
+  amp_dtype: bfloat16
+  num_workers: 0
+
+post_training_trace:
+  cohort_source: reports/thermal_t1b3_block_attribution.json
+  spike_trial_count: 23
+  matched_control_count: 23
+  points: [stages.2.5, final_embedding, classifier_logits]
+  precisions: [fp32, bfloat16]
+  hooks_must_preserve_outputs: true
+  frozen_backbone_state_must_match_official_pretrained: true
+  tail_disappearance_gate:
+    block5_and_embedding_median_spike_control_ratio_max: 1.25
+    block5_and_embedding_individual_ratio_max: 2.0
+
+prohibitions:
+  load_epoch16_backbone: false
+  resume_epoch18: false
+  bn_free_head: false
+  crop: false
+  activation_clamp: false
+  residual_scaling: false
+  read_heldout4_labels: false
+  read_competition_test: false
+  read_quarantined_evidence: false
+  modify_frozen_ir_x3d: false
