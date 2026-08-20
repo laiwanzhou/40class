@@ -1,0 +1,58 @@
+schema_version: 1
+experiment_id: thermal_b_x3d_xs_train12_val2
+route: b_x3d_xs
+objective: direct
+training_authorized: false
+authorization_token: thermal-b-x3d-xs
+
+student:
+  contract_id: thermal_x3d_xs_v1
+  architecture: thermal_x3d_xs
+  initialization: random
+  pretrained: false
+  num_classes: 40
+
+data:
+  modality: thermal_only
+  development_split: metadata/splits/train12_val2_user6_user7_development.json
+  context_manifest: metadata/thermal/thermal_v2_trial_context.jsonl
+  normalization: metadata/thermal/thermal_v2_train12_normalization.json
+  pose_cache: metadata/thermal/thermal_v2_pose_cache.npz
+  pose_cache_required_for_training: true
+  train_partition: train12
+  validation_partition: val_user6_user7
+  validation_users: [user6, user7]
+  class_ids: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39]
+  tensor_shapes:
+    full_rgb: [3, 16, 3, 160, 160]
+    crop_rgb: [3, 16, 3, 160, 160]
+    motion: [3, 16, 1, 160, 160]
+    pose: [3, 16, 56]
+    availability: [4]
+    quality: [8]
+  read_heldout4_labels: false
+  read_competition_test: false
+  read_quarantined_evidence: false
+  import_ir_depth_inputs: false
+
+optimization:
+  seed: 20260715
+  optimizer: adamw
+  learning_rate: 0.0003
+  weight_decay: 0.05
+  warmup_epochs: 3
+  schedule: cosine
+  maximum_epochs: 50
+  automatic_resume: false
+  automatic_extension: false
+  label_smoothing: 0.1
+  gradient_clip_norm: 1.0
+  amp_dtype: bfloat16
+  physical_batch_trials: 2
+  effective_batch_trials: 8
+  checkpoint_rank: [macro_f1_fixed_0_39, accuracy, worst_user_accuracy, lower_epoch]
+
+output:
+  root: outputs/thermal_b_x3d_xs_train12_val2
+  selected_prediction_archive: selected_predictions.npz
+  save_last_checkpoint: false

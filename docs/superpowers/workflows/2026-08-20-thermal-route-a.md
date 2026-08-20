@@ -1,6 +1,6 @@
 # Thermal Route A Operational Workflow
 
-**Status:** A0 approved; A1 student implementation in progress. This runbook does not authorize training.
+**Status:** A1 complete; A2 runtime probe not started. This runbook does not authorize training.
 
 **Branch:** `experiment/thermal-route-a-workflow`
 
@@ -85,6 +85,8 @@ No pretrained student tensor is allowed. A-direct and A-KD must match in archite
 **Stop:** Any sample-ID loss, forbidden data access, unreviewed montage, or unstable crop contract.
 
 ## A1: Student implementation
+
+**Completed checkpoint (2026-08-20):** The random X3D-XS baseline, fixed multi-stream student, objective-strategy trainer core, locked CLI, configs, and focused tests are implemented. See `reports/thermal_a1_student_implementation.{md,json}`. The full pose cache is absent and remains mandatory before formal training.
 
 **Purpose:** Implement one student architecture before either objective is enabled.
 

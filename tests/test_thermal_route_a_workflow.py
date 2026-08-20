@@ -18,6 +18,7 @@ RUNBOOK_PATH = (
     / "workflows"
     / "2026-08-20-thermal-route-a.md"
 )
+A1_REPORT_PATH = ROOT / "reports" / "thermal_a1_student_implementation.json"
 DEVELOPMENT_SPLIT_PATH = (
     ROOT / "metadata" / "splits" / "train12_val2_user6_user7_development.json"
 )
@@ -49,20 +50,21 @@ def load_workflow() -> dict:
     return payload
 
 
-def test_committed_route_a_workflow_is_valid_and_running_a1() -> None:
+def test_committed_route_a_workflow_is_valid_and_waiting_for_a2() -> None:
     validator = load_validator()
     workflow = load_workflow()
 
     assert validator.validate_workflow(workflow) == []
     assert tuple(stage["id"] for stage in workflow["stages"]) == EXPECTED_STAGE_ORDER
-    assert validator.next_action(workflow) == "a1_student_implementation"
-    assert workflow["status"] == "a1_student_implementation_in_progress"
+    assert validator.next_action(workflow) == "a2_runtime_probe"
+    assert workflow["status"] == "a1_complete_a2_not_started"
     assert workflow["stages"][0]["status"] == "completed"
-    assert workflow["stages"][1]["status"] == "in_progress"
+    assert workflow["stages"][1]["status"] == "completed"
     assert all(stage["status"] == "pending" for stage in workflow["stages"][2:])
     assert not workflow["authorization"]["a_direct_training"]
     assert not workflow["authorization"]["a_kd_training"]
     assert RUNBOOK_PATH.is_file()
+    assert A1_REPORT_PATH.is_file()
 
 
 def test_workflow_carries_its_authoritative_development_membership() -> None:

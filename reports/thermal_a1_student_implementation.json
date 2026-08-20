@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "stage": "A1",
+  "status": "completed",
+  "zero_training": true,
+  "branch": "experiment/thermal-route-a-workflow",
+  "a0_approval": {
+    "training_input_approved": true,
+    "approval_basis": "conditional_user_authorization_after_structured_visual_review_passed"
+  },
+  "models": {
+    "b_x3d_xs": {
+      "parameters": 3056634,
+      "trainable_parameters": 3056634,
+      "state_dict_bytes": 12570073,
+      "feature_dim": 2048,
+      "initialization": "random",
+      "pretrained_student_weights": false
+    },
+    "a_multistream": {
+      "parameters": 3669874,
+      "trainable_parameters": 3669874,
+      "state_dict_bytes": 15049075,
+      "fusion_dim": 780,
+      "logit_dim": 40,
+      "raster_encoder_shared_between_full_and_crop": true,
+      "initialization": "random",
+      "pretrained_student_weights": false
+    }
+  },
+  "architecture_contract": {
+    "raster": "pytorchvideo_create_x3d_xs_topology_16x160_projection_removed",
+    "raster_projection_dim": 256,
+    "motion_projection_dim": 128,
+    "pose_projection_dim": 128,
+    "availability_dim": 4,
+    "quality_dim": 8,
+    "sequential_window_and_view_encoding": true,
+    "missing_streams_zero_after_projection": true
+  },
+  "trainer": {
+    "single_objective_strategy_entry": true,
+    "objectives_implemented": ["direct", "kd"],
+    "masked_loss": true,
+    "fixed_40_class_metrics": true,
+    "worst_user_metric": true,
+    "checkpoint_rank": ["macro_f1_fixed_0_39", "accuracy", "worst_user_accuracy", "lower_epoch"],
+    "deterministic_seed": 20260715,
+    "optimizer": "adamw",
+    "schedule": "three_epoch_warmup_then_cosine",
+    "maximum_epochs": 50,
+    "automatic_resume": false,
+    "automatic_extension": false,
+    "selected_prediction_archive_fields": ["sample_ids", "users", "labels", "logits", "predictions", "availability", "quality", "metrics"],
+    "formal_cli_execution": "locked_until_a2_passes",
+    "training_authorized": false
+  },
+  "pose_cache": {
+    "configured_path": "metadata/thermal/thermal_v2_pose_cache.npz",
+    "status": "absent_required_before_formal_training",
+    "effect_on_a1": "none_model_and_trainer_contracts_only",
+    "required_before_stage": "A3"
+  },
+  "source_sha256": {
+    "src/models/thermal_x3d_xs.py": "51e80e476bc4df6eb6063de73c090da0fe9bee02b94bd6060fcfed71cac8680c",
+    "src/models/thermal_multistream.py": "1b3105e83d17139ac6351a2d1c8a218440eb88dc2213950fb07ae7752fabbd99",
+    "src/train_thermal_generation2.py": "4ca2fb8daf5ff777d801bc6423e75e55f15fa6c22bc5c7d0caa2944be9ad0c74",
+    "scripts/run_thermal_generation2.py": "d800b484d6697a3e7775f7adfcb7ff545d283f7d4fe80517ed54726217a39cad",
+    "configs/experiments/thermal_b_x3d_xs_train12_val2.yaml": "0e3f94473cbdce4fe1e231bc00d5dfd24ca95ef06604f2ae622505fe6f72ee7e",
+    "configs/experiments/thermal_a_multistream_direct_train12_val2.yaml": "0f116b1e734c72153f2ac610f7771c92f05ef44fd998ad3d51f7f805385c206d"
+  },
+  "evidence_boundary": {
+    "heldout4_labels_read": false,
+    "competition_test_read": false,
+    "quarantined_evidence_read": false,
+    "ir_depth_inputs_read": false,
+    "ir_x3d_modified": false,
+    "learned_weights_created": false
+  },
+  "next_action": "a2_runtime_probe"
+}
