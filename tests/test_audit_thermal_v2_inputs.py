@@ -84,12 +84,13 @@ def test_pure_audit_import_does_not_eagerly_load_torch() -> None:
     assert result.stdout.strip() == "False"
 
 
-def test_generated_a0_report_stops_for_human_montage_approval() -> None:
+def test_committed_a0_report_records_human_approval() -> None:
     assert REPORT_PATH.is_file()
     assert MARKDOWN_PATH.is_file()
     report = json.loads(REPORT_PATH.read_text(encoding="utf-8"))
 
-    assert report["status"] == "pending_human_montage_approval"
+    assert report["status"] == "approved_for_a1"
+    assert report["training_input_approved"] is True
     assert report["canonical_population"]["canonical_trials"] == 2427
     assert report["canonical_population"]["usable_trials"] == 2299
     assert report["fixed_context"]["context_available_trials"] == 2207
@@ -104,12 +105,11 @@ def test_generated_a0_report_stops_for_human_montage_approval() -> None:
         "availability": [4],
         "quality": [8],
     }
-    assert report["manual_montage_review"] == {
-        "required": True,
-        "approved": False,
-        "reviewer": None,
-        "reviewed_at": None,
-    }
+    assert report["manual_montage_review"]["required"] is True
+    assert report["manual_montage_review"]["approved"] is True
+    assert report["manual_montage_review"]["approval_basis"] == (
+        "conditional_user_authorization_after_structured_visual_review_passed"
+    )
     assert report["evidence_boundary"]["heldout4_labels_read"] is False
     assert report["evidence_boundary"]["competition_test_read"] is False
     assert report["evidence_boundary"]["ir_or_depth_inputs_read"] is False

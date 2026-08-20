@@ -1,8 +1,9 @@
 {
   "schema_version": 1,
   "stage": "thermal_route_a_a0",
-  "status": "pending_human_montage_approval",
+  "status": "approved_for_a1",
   "zero_training": true,
+  "training_input_approved": true,
   "canonical_population": {
     "canonical_trials": 2427,
     "directory_present_trials": 2299,
@@ -563,9 +564,10 @@
   },
   "manual_montage_review": {
     "required": true,
-    "approved": false,
-    "reviewer": null,
-    "reviewed_at": null
+    "approved": true,
+    "reviewer": "human_user_conditional_authorization",
+    "reviewed_at": "2026-08-20",
+    "approval_basis": "conditional_user_authorization_after_structured_visual_review_passed"
   },
   "artifacts": {
     "context_jsonl": "metadata/thermal/thermal_v2_trial_context.jsonl",
@@ -604,7 +606,7 @@
     "ir_or_depth_inputs_read": false,
     "frozen_ir_x3d_modified": false
   },
-  "decision": "a0_implementation_complete_pending_human_montage_approval",
+  "decision": "a0_approved_a1_authorized_without_training",
   "representative_tensor_audit": {
     "trial_count": 56,
     "class_count": 40,
@@ -797,5 +799,5 @@
       "reports/thermal_v2_input_montages/thermal_v2_context_06.jpg"
     ]
   },
-  "artifact_sha256": "09792fb37965cdfe42d402112107b95b92faf8955a70ddee9592dd43f7697b9c"
+  "artifact_sha256": "415a641919ad91d929fd979af3b7ca7ca6082af4f6d246f69f8144c53e2e316d"
 }

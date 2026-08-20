@@ -1,6 +1,8 @@
 # Thermal Route A A0 Input Audit
 
-**Status:** `pending_human_montage_approval`
+**Status:** `approved_for_a1`
+
+**Human approval:** The user conditionally authorized A1 after the structured visual review passed on 2026-08-20. `training_input_approved: true` records that authorization; it does not authorize training.
 
 No model was trained. Heldout labels, competition test, quarantined evidence, IR/Depth inputs, and frozen IR/X3D evidence were not read or modified.
 
@@ -35,6 +37,6 @@ Montage pages:
 - `reports/thermal_v2_input_montages/thermal_v2_context_05.jpg`
 - `reports/thermal_v2_input_montages/thermal_v2_context_06.jpg`
 
-## Stop
+## Decision
 
-Machine audit is complete, but A0 is not approved. A human must inspect every montage page before the workflow may advance to A1.
+A0 passed and A1 implementation is authorized. A2 runtime probing and all training remain unauthorized.

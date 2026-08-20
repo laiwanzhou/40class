@@ -1,7 +1,7 @@
 schema_version: 1
 workflow_id: thermal_route_a_generation2
-status: a0_pending_human_montage_approval
-current_stage: a0_input_audit
+status: a1_student_implementation_in_progress
+current_stage: a1_student_implementation
 
 authority:
   main_commit: 66c1b5754d5b397033b861888aeec4dae22cd61c
@@ -126,7 +126,7 @@ deployment:
 
 stages:
   - id: a0_input_audit
-    status: in_progress
+    status: completed
     requires: []
     formal_training: false
     human_approval_required_to_start: false
@@ -135,7 +135,7 @@ stages:
       - reports/thermal_v2_input_audit.md
       - reports/thermal_v2_input_montages
   - id: a1_student_implementation
-    status: pending
+    status: in_progress
     requires: [a0_input_audit]
     formal_training: false
     human_approval_required_to_start: false

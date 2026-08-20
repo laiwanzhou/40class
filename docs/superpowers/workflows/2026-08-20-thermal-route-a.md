@@ -1,6 +1,6 @@
 # Thermal Route A Operational Workflow
 
-**Status:** A0 machine audit complete; independent human montage approval pending. This runbook does not authorize training.
+**Status:** A0 approved; A1 student implementation in progress. This runbook does not authorize training.
 
 **Branch:** `experiment/thermal-route-a-workflow`
 
@@ -59,7 +59,7 @@ No pretrained student tensor is allowed. A-direct and A-KD must match in archite
 
 ## A0: Input audit
 
-**Current checkpoint (2026-08-20):** The zero-training machine audit and six montage pages exist. The workflow remains on A0 because `manual_montage_review.approved` is false. Independent human approval is required before A0 can complete or A1 can start.
+**Completed checkpoint (2026-08-20):** The zero-training machine audit and six montage pages passed structured visual review. The user's conditional instruction authorized A1 after that pass; the report records `training_input_approved: true`. This approval does not authorize A2 or training.
 
 **Current artifacts:**
 
