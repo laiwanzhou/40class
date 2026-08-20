@@ -237,7 +237,7 @@ def test_iformer_source_identity_is_the_mobile_iclr_family() -> None:
     )
 
 
-def test_qualified_iformer_t_and_mobilenet_control_have_t1a_configs() -> None:
+def test_qualified_iformer_t_is_paused_only_on_t1b_branch() -> None:
     mobile_config_path = (
         PROJECT_ROOT
         / "configs/experiments/thermal_mobilenetv3_tsm_train12_val2.yaml"
@@ -251,8 +251,10 @@ def test_qualified_iformer_t_and_mobilenet_control_have_t1a_configs() -> None:
         PROJECT_ROOT / "configs/experiments/thermal_iformer_t_tsm_train12_val2.yaml"
     )
     iformer_config = yaml.safe_load(iformer_config_path.read_text(encoding="utf-8"))
-    assert iformer_config["status"] == "eligible_after_human_approval"
+    assert iformer_config["stage"] == "thermal_t1b_development"
+    assert iformer_config["status"] == "interrupted_after_epoch_17_pending_diagnosis"
     assert iformer_config["training_authorized"] is False
+    assert iformer_config["resume_requires_new_human_approval"] is True
     assert iformer_config["num_classes"] == 40
     assert iformer_config["backbone"]["family"] == "ChuanyangZheng_iFormer_t"
     assert iformer_config["backbone"]["source_revision"] == IFORMER_REVISION

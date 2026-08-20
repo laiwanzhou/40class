@@ -147,7 +147,7 @@ class IFormerTSM(nn.Module):
         )
         return self.temporal_shift(explicit).reshape(shape)
 
-    def forward(self, clips: torch.Tensor) -> torch.Tensor:
+    def forward_features(self, clips: torch.Tensor) -> torch.Tensor:
         if clips.ndim != 5 or clips.shape[1:] != (
             self.num_segments,
             3,
@@ -177,10 +177,12 @@ class IFormerTSM(nn.Module):
         x = nn.functional.adaptive_avg_pool2d(x, 1).flatten(1)
         if self.backbone.last_proj:
             x = self.backbone.act(self.backbone.proj(x))
-        x = x.reshape(batch_size, self.num_segments, -1).mean(dim=1)
-        logits = self.backbone.classifier(x)
+        return x.reshape(batch_size, self.num_segments, -1).mean(dim=1)
+
+    def forward(self, clips: torch.Tensor) -> torch.Tensor:
+        logits = self.backbone.classifier(self.forward_features(clips))
         if isinstance(logits, tuple):
             raise RuntimeError("Distillation output is outside the Thermal contract")
-        if logits.shape != (batch_size, self.num_classes):
+        if logits.shape != (clips.shape[0], self.num_classes):
             raise RuntimeError(f"Unexpected classifier output shape: {tuple(logits.shape)}")
         return logits

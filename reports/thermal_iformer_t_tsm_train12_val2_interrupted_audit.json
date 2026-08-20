@@ -1,0 +1,114 @@
+{
+  "schema_version": "thermal-t1b-interrupted-audit-v1",
+  "stage": "thermal_t1b_development",
+  "status": "interrupted_after_epoch_17_pending_diagnosis",
+  "branch": "experiment/thermal-iformer-t-t1b",
+  "scientific_baseline_commit": "c42bb43091c79903e5fde5655c2846c87305895a",
+  "t1a_parent_commit": "d97f9c940cc16da470ddb5a05ed70b06897a6e39",
+  "authorization": {
+    "training_started_by_explicit_human_instruction": true,
+    "training_stopped_by_explicit_human_instruction": true,
+    "completed_epochs": 17,
+    "planned_epochs": 30,
+    "resume_authorized": false
+  },
+  "data_boundary": {
+    "train12_thermal_usable_fit_trials": 1922,
+    "user6_user7_thermal_usable_selection_trials": 377,
+    "heldout_labels_accessed": false,
+    "competition_test_accessed": false,
+    "quarantined_evidence_accessed": false,
+    "frozen_ir_x3d_modified": false
+  },
+  "best_checkpoint": {
+    "epoch": 16,
+    "selection_rule": ["macro_f1_fixed_labels_0_39", "accuracy", "worst_user_accuracy", "lower_epoch"],
+    "train": {
+      "loss": 2.135639524112507,
+      "accuracy": 0.5067637877211238,
+      "macro_f1": 0.4181534968843127
+    },
+    "validation": {
+      "loss": 9.969204109606755,
+      "accuracy": 0.29442970822281167,
+      "macro_f1": 0.195226428021063,
+      "worst_user_accuracy": 0.21025641025641026,
+      "per_user": {
+        "user6": {
+          "trial_count": 195,
+          "accuracy": 0.21025641025641026,
+          "macro_f1_fixed_0_39": 0.12418146225371725,
+          "present_class_count": 34
+        },
+        "user7": {
+          "trial_count": 182,
+          "accuracy": 0.38461538461538464,
+          "macro_f1_fixed_0_39": 0.22682371550018612,
+          "present_class_count": 33
+        }
+      },
+      "zero_recall_class_ids": [1, 2, 8, 11, 13, 14, 16, 18, 19, 20, 21, 22, 24, 25, 26, 35, 37, 38]
+    },
+    "class_map_hash": "5dbf6af1a1df88314484ba45f9fccc02ab47a1af2adba951a71e42886ec4c5e5"
+  },
+  "epoch_history": [
+    {"epoch": 1, "train_loss": 3.694693208112925, "train_accuracy": 0.043704474505723206, "train_macro_f1": 0.03443270586004502, "validation_loss": 3.8255289119497853, "validation_accuracy": 0.04774535809018567, "validation_macro_f1": 0.028711090848695116, "worst_user_accuracy": 0.046153846153846156},
+    {"epoch": 2, "train_loss": 3.5138186326756315, "train_accuracy": 0.12382934443288242, "train_macro_f1": 0.062189694018452514, "validation_loss": 3.9329538016483703, "validation_accuracy": 0.11405835543766578, "validation_macro_f1": 0.06289102996060543, "worst_user_accuracy": 0.09230769230769231},
+    {"epoch": 3, "train_loss": 3.266704260868783, "train_accuracy": 0.18730489073881373, "train_macro_f1": 0.0874479750462595, "validation_loss": 4.247993596352696, "validation_accuracy": 0.11671087533156499, "validation_macro_f1": 0.05303529834602516, "worst_user_accuracy": 0.09230769230769231},
+    {"epoch": 4, "train_loss": 3.0966683989633013, "train_accuracy": 0.21279916753381894, "train_macro_f1": 0.10506742466878327, "validation_loss": 6.489607585203743, "validation_accuracy": 0.17771883289124668, "validation_macro_f1": 0.10119244711402749, "worst_user_accuracy": 0.16923076923076924},
+    {"epoch": 5, "train_loss": 2.9675970407480006, "train_accuracy": 0.25858480749219565, "train_macro_f1": 0.15136636235137657, "validation_loss": 8.773355435945627, "validation_accuracy": 0.15119363395225463, "validation_macro_f1": 0.08514239362494054, "worst_user_accuracy": 0.14285714285714285},
+    {"epoch": 6, "train_loss": 2.8443426083575676, "train_accuracy": 0.2851196670135276, "train_macro_f1": 0.16102792127858864, "validation_loss": 3.0753122324652633, "validation_accuracy": 0.21485411140583555, "validation_macro_f1": 0.09763799082008658, "worst_user_accuracy": 0.21428571428571427},
+    {"epoch": 7, "train_loss": 2.719107655903303, "train_accuracy": 0.32934443288241416, "train_macro_f1": 0.2145453150295212, "validation_loss": 40.714140565072825, "validation_accuracy": 0.1830238726790451, "validation_macro_f1": 0.10996023917709855, "worst_user_accuracy": 0.1641025641025641},
+    {"epoch": 8, "train_loss": 2.6223888878519652, "train_accuracy": 0.3485952133194589, "train_macro_f1": 0.24172252686441364, "validation_loss": 23.069887949237774, "validation_accuracy": 0.21485411140583555, "validation_macro_f1": 0.12661661185366188, "worst_user_accuracy": 0.19487179487179487},
+    {"epoch": 9, "train_loss": 2.528863521073785, "train_accuracy": 0.38241415192507805, "train_macro_f1": 0.2653035050975439, "validation_loss": 6.98414867373297, "validation_accuracy": 0.22546419098143236, "validation_macro_f1": 0.15181233777705022, "worst_user_accuracy": 0.21025641025641026},
+    {"epoch": 10, "train_loss": 2.46671071409807, "train_accuracy": 0.4037460978147763, "train_macro_f1": 0.2973035976816936, "validation_loss": 32.59058037550443, "validation_accuracy": 0.1989389920424403, "validation_macro_f1": 0.10897386309853259, "worst_user_accuracy": 0.15384615384615385},
+    {"epoch": 11, "train_loss": 2.395600944106214, "train_accuracy": 0.4255983350676379, "train_macro_f1": 0.3200346667792845, "validation_loss": 10.856401944350184, "validation_accuracy": 0.2440318302387268, "validation_macro_f1": 0.16035338809266914, "worst_user_accuracy": 0.21025641025641026},
+    {"epoch": 12, "train_loss": 2.3326795612239937, "train_accuracy": 0.43912591050988553, "train_macro_f1": 0.34238195023571877, "validation_loss": 9.475358118745312, "validation_accuracy": 0.2838196286472148, "validation_macro_f1": 0.17741828369977056, "worst_user_accuracy": 0.20512820512820512},
+    {"epoch": 13, "train_loss": 2.2725396605361636, "train_accuracy": 0.4588969823100936, "train_macro_f1": 0.37210250863587485, "validation_loss": 24.633513668171606, "validation_accuracy": 0.2440318302387268, "validation_macro_f1": 0.14809921042886914, "worst_user_accuracy": 0.18974358974358974},
+    {"epoch": 14, "train_loss": 2.216764477859799, "train_accuracy": 0.4953173777315297, "train_macro_f1": 0.4190476409199187, "validation_loss": 18.703780800341296, "validation_accuracy": 0.2546419098143236, "validation_macro_f1": 0.159532120640333, "worst_user_accuracy": 0.18461538461538463},
+    {"epoch": 15, "train_loss": 2.1800728826691533, "train_accuracy": 0.5026014568158168, "train_macro_f1": 0.43034286725382104, "validation_loss": 48.807579822186135, "validation_accuracy": 0.2838196286472148, "validation_macro_f1": 0.1891257760290268, "worst_user_accuracy": 0.2153846153846154},
+    {"epoch": 16, "train_loss": 2.135639524112507, "train_accuracy": 0.5067637877211238, "train_macro_f1": 0.4181534968843127, "validation_loss": 9.969204109606755, "validation_accuracy": 0.29442970822281167, "validation_macro_f1": 0.195226428021063, "worst_user_accuracy": 0.21025641025641026},
+    {"epoch": 17, "train_loss": 2.114769270963401, "train_accuracy": 0.5280957336108221, "train_macro_f1": 0.4595572721671797, "validation_loss": 39.47820655547023, "validation_accuracy": 0.27055702917771884, "validation_macro_f1": 0.18614086218064602, "worst_user_accuracy": 0.20512820512820512}
+  ],
+  "runtime_artifacts": {
+    "git_policy": "local_only_outputs_directory_ignored",
+    "local_directory": "outputs/thermal_iformer_t_tsm_train12_val2_seed20260715",
+    "files": [
+      {"name": "best_macro_f1.pt", "bytes": 10862703, "sha256": "ca9c11c0f4d50f67c89da52284f726085dfeb3d1578621438872b9255a05d827"},
+      {"name": "best_validation_predictions.npz", "bytes": 34167, "sha256": "2281512e004a3817adac975005a420fddea7ebbc61140b8af99ce63ef9907879"},
+      {"name": "history.json", "bytes": 972987, "sha256": "2495272fa678ec6e555b1792f0a900e3440eb97ad5809a84e70f3451d45cd3dd"},
+      {"name": "cuda_smoke.json", "bytes": 230, "sha256": "b2f825d485e9c0eb5cfd3d742ee36cc395c55964ef2b4c71908e9c8124377497"}
+    ]
+  },
+  "diagnostic_evidence": {
+    "best_validation_logit_absolute_max": 3824.0,
+    "best_validation_logit_standard_deviation": 85.02713775634766,
+    "best_validation_nll_mean": 9.3394775390625,
+    "best_validation_nll_p95": 5.865832805633545,
+    "best_validation_nll_max": 1760.0,
+    "classifier_batchnorm_running_mean_abs_max": 14.552194595336914,
+    "classifier_batchnorm_running_variance_min": 0.10119014233350754,
+    "classifier_batchnorm_running_variance_max": 1.4891517162322998
+  },
+  "leading_hypothesis": {
+    "status": "unconfirmed_requires_label_neutral_probe",
+    "description": "The official BatchNorm1d-to-Linear classifier is applied after 16-frame feature averaging and therefore updates classifier BatchNorm statistics from only four trial rows per physical batch; gradient accumulation does not aggregate BatchNorm statistics.",
+    "do_not_resume_epoch_18_without_new_approval": true
+  },
+  "training_performed": true,
+  "t1b_complete": false,
+  "shared_train14_oof_started": false,
+  "heldout_or_competition_work_started": false,
+  "verification": {
+    "focused_t1a_t1b_tests": {"passed": 36, "failed": 0},
+    "t0_contract_tests": {"passed": 11, "failed": 0},
+    "t0_5_contract_tests": {"passed": 13, "failed": 0},
+    "full_suite": {
+      "passed": 276,
+      "failed": 1,
+      "only_failure": "missing ignored frozen X3D smoke checkpoint outputs/x3d_s_ir_context_fold0/x3d_s_ir_context_adaptive_smoke/best_accuracy.pt"
+    },
+    "compileall_passed": true,
+    "git_diff_check_passed": true
+  }
+}

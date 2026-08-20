@@ -1,6 +1,10 @@
-stage: thermal_t1a_corrective
-status: eligible_after_human_approval
+stage: thermal_t1b_development
+status: interrupted_after_epoch_17_pending_diagnosis
 training_authorized: false
+authorization_history:
+  started: "Explicit user instruction in the 2026-08-20 Thermal task"
+  paused: "Explicit user instruction after epoch 17 due low validation performance"
+resume_requires_new_human_approval: true
 num_classes: 40
 seed: 20260715
 
@@ -38,6 +42,34 @@ preprocessing:
   crop_size: 224
   validation_crop: center
   color_jitter: false
+
+optimization:
+  epochs: 30
+  batch_size: 4
+  gradient_accumulation: 4
+  backbone_lr: 0.00003
+  head_lr: 0.0003
+  weight_decay: 0.05
+  warmup_epochs: 2
+  schedule: cosine
+  label_smoothing: 0.1
+  gradient_clip: 1.0
+  amp_dtype: bfloat16
+  num_workers: 0
+
+membership:
+  canonical_train_trials: 2039
+  thermal_usable_train_trials_for_weight_fitting: 1922
+  canonical_validation_trials: 388
+  thermal_usable_validation_trials_for_selection: 377
+  unavailable_trials_retained_in_canonical_inventory: true
+  unavailable_trials_enter_batchnorm_or_loss: false
+
+checkpoint_selection:
+  population: combined_user6_user7_thermal_usable
+  primary: macro_f1_fixed_labels_0_39
+  secondary: [accuracy, worst_user_accuracy]
+  final_tie_break: lower_epoch
 
 deployment:
   internal_limit_bytes_exclusive: 95000000
