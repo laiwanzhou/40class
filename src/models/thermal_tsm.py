@@ -101,3 +101,86 @@ class MobileNetV3SmallTSM(nn.Module):
         if logits.shape != (batch_size, self.num_classes):
             raise RuntimeError(f"Unexpected classifier output shape: {tuple(logits.shape)}")
         return logits
+
+
+class IFormerTSM(nn.Module):
+    """Mobile iFormer with TSM at native stage boundaries."""
+
+    def __init__(
+        self,
+        *,
+        backbone: nn.Module,
+        num_classes: int = 40,
+        num_segments: int = 16,
+        fold_div: int = 8,
+        shift_before_stages: Iterable[int] = (0, 1, 2, 3),
+    ) -> None:
+        super().__init__()
+        if num_classes != 40:
+            raise ValueError("Thermal expert head must have exactly 40 classes")
+        if not getattr(backbone, "use_bn", False):
+            raise TypeError("Expected the official mobile iFormer use_bn=True backbone")
+        if not hasattr(backbone, "downsample_layers") or not hasattr(
+            backbone, "stages"
+        ):
+            raise TypeError("Expected official iFormer downsample_layers and stages")
+        if len(backbone.downsample_layers) != 4 or len(backbone.stages) != 4:
+            raise ValueError("Thermal iFormer contract requires four native stages")
+
+        self.backbone = backbone
+        self.num_classes = num_classes
+        self.num_segments = num_segments
+        self.shift_before_stages = frozenset(
+            int(index) for index in shift_before_stages
+        )
+        invalid = self.shift_before_stages.difference(range(4))
+        if invalid:
+            raise ValueError(f"Invalid iFormer stage indices: {sorted(invalid)}")
+        self.temporal_shift = TemporalShift(num_segments, fold_div)
+
+    def _shift_flat_features(
+        self, features: torch.Tensor, batch_size: int
+    ) -> torch.Tensor:
+        shape = features.shape
+        explicit = features.reshape(
+            batch_size, self.num_segments, shape[1], shape[2], shape[3]
+        )
+        return self.temporal_shift(explicit).reshape(shape)
+
+    def forward(self, clips: torch.Tensor) -> torch.Tensor:
+        if clips.ndim != 5 or clips.shape[1:] != (
+            self.num_segments,
+            3,
+            224,
+            224,
+        ):
+            raise ValueError(
+                "IFormerTSM expects [B,16,3,224,224] for this contract, "
+                f"received {tuple(clips.shape)}"
+            )
+        batch_size = clips.shape[0]
+        x = clips.reshape(batch_size * self.num_segments, 3, 224, 224)
+        for index in range(4):
+            if isinstance(x, tuple):
+                features, auxiliary = x
+                features = self.backbone.downsample_layers[index](features)
+                if index in self.shift_before_stages:
+                    features = self._shift_flat_features(features, batch_size)
+                x = (features, auxiliary)
+            else:
+                x = self.backbone.downsample_layers[index](x)
+                if index in self.shift_before_stages:
+                    x = self._shift_flat_features(x, batch_size)
+            x = self.backbone.stages[index](x)
+        if isinstance(x, tuple):
+            x = x[0]
+        x = nn.functional.adaptive_avg_pool2d(x, 1).flatten(1)
+        if self.backbone.last_proj:
+            x = self.backbone.act(self.backbone.proj(x))
+        x = x.reshape(batch_size, self.num_segments, -1).mean(dim=1)
+        logits = self.backbone.classifier(x)
+        if isinstance(logits, tuple):
+            raise RuntimeError("Distillation output is outside the Thermal contract")
+        if logits.shape != (batch_size, self.num_classes):
+            raise RuntimeError(f"Unexpected classifier output shape: {tuple(logits.shape)}")
+        return logits

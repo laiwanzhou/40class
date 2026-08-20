@@ -1,9 +1,18 @@
 {
-  "schema_version": 1,
-  "stage": "Thermal T1-A environment/loading/forward/budget audit only",
-  "generated_at_local": "2026-08-20T11:55:26+0800",
+  "schema_version": 2,
+  "stage": "Thermal T1-A corrective source/loading/forward/budget audit only",
+  "generated_at_local": "2026-08-20T12:53:47+0800",
   "training_performed": false,
   "labels_or_evidence_read": false,
+  "scientific_baseline_commit": "c42bb43091c79903e5fde5655c2846c87305895a",
+  "probe_seed": 20260715,
+  "source_identity_correction": {
+    "incorrect_prior_repository": "https://github.com/sail-sg/iFormer",
+    "incorrect_prior_paper": "Inception Transformer",
+    "correction": "The prior negative result applied to a homonymous project and does not apply to the intended mobile iFormer family.",
+    "authoritative_repository": "https://github.com/ChuanyangZheng/iFormer",
+    "authoritative_paper": "iFormer: Integrating ConvNet and Transformer for Mobile Application"
+  },
   "environment": {
     "python_executable": "D:\\Anaconda\\envs\\pyTorch2.7\\python.exe",
     "python": "3.12.9",
@@ -26,6 +35,12 @@
       6,
       9
     ],
+    "iformer_shift_after_downsample_before_native_stages": [
+      0,
+      1,
+      2,
+      3
+    ],
     "input_shape": [
       2,
       16,
@@ -33,7 +48,11 @@
       224,
       224
     ],
-    "output_shape": [
+    "mobile_output_shape": [
+      2,
+      40
+    ],
+    "iformer_t_output_shape": [
       2,
       40
     ],
@@ -42,21 +61,120 @@
   },
   "candidates": {
     "iformer_t_tsm": {
-      "qualification": "ineligible_source_identity",
-      "reason": "Official Sail-SG iFormer revision publishes only iFormer-S/B/L; no official iFormer-T architecture or pretrained checkpoint exists.",
-      "source_url": "https://github.com/sail-sg/iFormer",
-      "source_revision": "725d8e7f455b5e17be20788b9bcd6c6c505c4be0",
-      "official_family_code_license": "Apache-2.0",
-      "weight_url": null,
-      "weight_sha256": null,
-      "published_variants": [
-        "iFormer-S",
-        "iFormer-B",
-        "iFormer-L"
-      ],
-      "pretrained_loading_audit_passed": false,
-      "config_created": false,
-      "forward_run": false
+      "qualification": "eligible_primary_t1a_after_human_approval",
+      "pretrained_loading_audit_passed": true,
+      "random_initialization_fallback_allowed": false,
+      "provenance": {
+        "paper_title": "iFormer: Integrating ConvNet and Transformer for Mobile Application",
+        "paper_url": "https://arxiv.org/abs/2501.15369",
+        "source_url": "https://github.com/ChuanyangZheng/iFormer",
+        "source_file_url": "https://raw.githubusercontent.com/ChuanyangZheng/iFormer/2a87540fcb345afe9d950a58d0eb3873b938c3dc/models/iformer.py",
+        "source_revision": "2a87540fcb345afe9d950a58d0eb3873b938c3dc",
+        "source_sha256": "5737777f5c2a188fef88a03cdf7050ae585c44152ab392b04b92b3eba8bbea5d",
+        "license": "MIT",
+        "license_scope": "official ChuanyangZheng/iFormer source code",
+        "license_url": "https://raw.githubusercontent.com/ChuanyangZheng/iFormer/2a87540fcb345afe9d950a58d0eb3873b938c3dc/LICENSE",
+        "license_sha256": "565b9907be54bbe783784ba2ce9b49ef2054455b002f560a25ffeb2a93288875",
+        "pretrained_weight_license": "not_separately_stated_in_official_repository",
+        "pretraining": "ImageNet-1K; official v0.9 release",
+        "checkpoint_load_policy": "verify fixed SHA-256, load trusted official legacy checkpoint with weights_only=False, extract model only, then require strict state load",
+        "official_constructor_auto_downloads_weights": false,
+        "loaded_before_classifier_replacement": true,
+        "model_symbol": "iFormer_t",
+        "official_config_url": "https://raw.githubusercontent.com/ChuanyangZheng/iFormer/2a87540fcb345afe9d950a58d0eb3873b938c3dc/configs/iFormer_t.yaml",
+        "official_config_sha256": "428880d32f013b34aa9abde769bfde61f8f5de81a90460f3b2317a470c898d01",
+        "weight_url": "https://github.com/ChuanyangZheng/iFormer/releases/download/v0.9/iFormer_t.pth",
+        "weight_path": "C:\\Users\\LaiWanzhou\\.cache\\torch\\hub\\checkpoints\\iFormer_t.pth",
+        "weight_sha256": "7cbd778e3604694eb1a0becbf2e6a22798586f6bb46610a5c22b39880efb967e",
+        "weight_serialized_bytes": 35118985,
+        "checkpoint_model_key_count": 451,
+        "missing_keys": [],
+        "unexpected_keys": []
+      },
+      "resources": {
+        "official_1000_class": {
+          "parameter_count": 2886456,
+          "fp32_parameter_bytes": 11545824
+        },
+        "parameter_count": 2639736,
+        "fp32_parameter_bytes": 10558944,
+        "actual_serialized_state_dict_bytes": 10840569,
+        "actual_serialized_state_dict_sha256": "bc4d581e29b83527b2fa379c0a428137ac9a0f38ad797b421e856027e2c315b6"
+      },
+      "forward": {
+        "input_shape": [
+          2,
+          16,
+          3,
+          224,
+          224
+        ],
+        "output_shape": [
+          2,
+          40
+        ],
+        "finite": true
+      },
+      "benchmark": {
+        "device": "cuda",
+        "batch_size_trials": 1,
+        "segments": 16,
+        "warmup_iterations": 3,
+        "measured_iterations": 10,
+        "latency_ms_mean": 5.958039999859466,
+        "latency_ms_median": 5.922649999774876,
+        "latency_ms_min": 5.681800001184456,
+        "latency_ms_max": 6.356699999741977,
+        "peak_cuda_memory_allocated_bytes": 87148544,
+        "peak_cuda_memory_reserved_bytes": 136314880
+      },
+      "provisional_complete_package": {
+        "assets": [
+          {
+            "name": "frozen_ir_x3d_s_expert",
+            "identity": "b78b8de08811a3cd00e08be1a79e659864e0d1ddd6f9b44a486c5af930ea928a",
+            "serialized_bytes": 14388607,
+            "sha256": "b78b8de08811a3cd00e08be1a79e659864e0d1ddd6f9b44a486c5af930ea928a",
+            "path": "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\x3d_s_ir_context_train12_val2_dev\\x3d_s_ir_context_train12_val2_user6_user7_partial2_seed20260715\\best_accuracy.pt",
+            "status": "retained"
+          },
+          {
+            "name": "shared_yolo11n_pose",
+            "identity": "869e83fcdffdc7371fa4e34cd8e51c838cc729571d1635e5141e3075e9319dc0",
+            "serialized_bytes": 6255593,
+            "sha256": "869e83fcdffdc7371fa4e34cd8e51c838cc729571d1635e5141e3075e9319dc0",
+            "path": "D:\\work\\2026.7.14_kaggle\\40class\\yolo11n-pose.pt",
+            "status": "retained"
+          },
+          {
+            "name": "thermal_iformer_t_tsm_40class",
+            "identity": "bc4d581e29b83527b2fa379c0a428137ac9a0f38ad797b421e856027e2c315b6",
+            "serialized_bytes": 10840569,
+            "sha256": "bc4d581e29b83527b2fa379c0a428137ac9a0f38ad797b421e856027e2c315b6",
+            "path": null,
+            "status": "provisional_untrained_serialization_probe"
+          },
+          {
+            "name": "calibration_and_optional_residual_upper_bound",
+            "identity": "reserved-calibration-fusion-v1",
+            "serialized_bytes": 3000000,
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+            "path": null,
+            "status": "reserved_upper_bound_not_yet_serialized"
+          }
+        ],
+        "unique_asset_count": 4,
+        "deduplicated_reference_count": 1,
+        "deduplicated_reference_names": [
+          "shared_yolo11n_pose_reference"
+        ],
+        "total_serialized_bytes": 34484769,
+        "internal_limit_bytes_exclusive": 95000000,
+        "headroom_bytes": 60515231,
+        "passes_strict_limit": true
+      },
+      "config_created": true,
+      "training_performed": false
     },
     "mobilenetv3_small_tsm": {
       "qualification": "eligible_matched_control_t1a_with_weight_terms_caveat",
@@ -81,7 +199,7 @@
         "parameter_count": 1558856,
         "fp32_parameter_bytes": 6235424,
         "actual_serialized_state_dict_bytes": 6365399,
-        "actual_serialized_state_dict_sha256": "fc65255dd0a75a278fd90c9eb317cd6b4481a9cd23cec4e38a6b267d943d4a53"
+        "actual_serialized_state_dict_sha256": "faecf76b5b7108c2a75e52c60db883da7c082b03a503d55fd3f8c53ca67b3cbc"
       },
       "forward": {
         "input_shape": [
@@ -103,10 +221,10 @@
         "segments": 16,
         "warmup_iterations": 3,
         "measured_iterations": 10,
-        "latency_ms_mean": 6.591949999892677,
-        "latency_ms_median": 6.572999999661988,
-        "latency_ms_min": 5.901800001083757,
-        "latency_ms_max": 7.32369999968796,
+        "latency_ms_mean": 4.665480000039679,
+        "latency_ms_median": 4.62005000008503,
+        "latency_ms_min": 4.499900000155321,
+        "latency_ms_max": 4.847300000619725,
         "peak_cuda_memory_allocated_bytes": 57529344,
         "peak_cuda_memory_reserved_bytes": 73400320
       },
@@ -130,9 +248,9 @@
           },
           {
             "name": "thermal_mobilenetv3_small_tsm_40class",
-            "identity": "fc65255dd0a75a278fd90c9eb317cd6b4481a9cd23cec4e38a6b267d943d4a53",
+            "identity": "faecf76b5b7108c2a75e52c60db883da7c082b03a503d55fd3f8c53ca67b3cbc",
             "serialized_bytes": 6365399,
-            "sha256": "fc65255dd0a75a278fd90c9eb317cd6b4481a9cd23cec4e38a6b267d943d4a53",
+            "sha256": "faecf76b5b7108c2a75e52c60db883da7c082b03a503d55fd3f8c53ca67b3cbc",
             "path": null,
             "status": "provisional_untrained_serialization_probe"
           },
@@ -158,40 +276,49 @@
       "config_created": true
     },
     "iformer_s_tsm": {
-      "qualification": "ineligible_budget",
+      "qualification": "eligible_conditional_capacity_upgrade_after_primary_and_control",
       "conditional_only": true,
       "pretrained_loading_audit_passed": true,
-      "tsm_integrated": false,
+      "random_initialization_fallback_allowed": false,
+      "tsm_integrated": true,
       "forward_run": false,
       "training_performed": false,
       "provenance": {
-        "source_url": "https://github.com/sail-sg/iFormer",
-        "source_file_url": "https://raw.githubusercontent.com/sail-sg/iFormer/725d8e7f455b5e17be20788b9bcd6c6c505c4be0/models/inception_transformer.py",
-        "source_revision": "725d8e7f455b5e17be20788b9bcd6c6c505c4be0",
-        "source_sha256": "de9fc8fd184917c74dbb1df073007d55cc044e01c419f9c4e11e42f68f279610",
-        "license": "Apache-2.0",
-        "license_scope": "official iFormer repository source code",
-        "license_url": "https://raw.githubusercontent.com/sail-sg/iFormer/725d8e7f455b5e17be20788b9bcd6c6c505c4be0/LICENSE",
-        "license_sha256": "71b111620fa32c17a80ccd6db2da759d31a591e497d8b5f382174f59d1b59d49",
+        "paper_title": "iFormer: Integrating ConvNet and Transformer for Mobile Application",
+        "paper_url": "https://arxiv.org/abs/2501.15369",
+        "source_url": "https://github.com/ChuanyangZheng/iFormer",
+        "source_file_url": "https://raw.githubusercontent.com/ChuanyangZheng/iFormer/2a87540fcb345afe9d950a58d0eb3873b938c3dc/models/iformer.py",
+        "source_revision": "2a87540fcb345afe9d950a58d0eb3873b938c3dc",
+        "source_sha256": "5737777f5c2a188fef88a03cdf7050ae585c44152ab392b04b92b3eba8bbea5d",
+        "license": "MIT",
+        "license_scope": "official ChuanyangZheng/iFormer source code",
+        "license_url": "https://raw.githubusercontent.com/ChuanyangZheng/iFormer/2a87540fcb345afe9d950a58d0eb3873b938c3dc/LICENSE",
+        "license_sha256": "565b9907be54bbe783784ba2ce9b49ef2054455b002f560a25ffeb2a93288875",
         "pretrained_weight_license": "not_separately_stated_in_official_repository",
-        "weight_url": "https://huggingface.co/sail/dl2/resolve/main/iformer/iformer_small.pth",
-        "weight_path": "C:\\Users\\LaiWanzhou\\.cache\\torch\\hub\\checkpoints\\iformer_small.pth",
-        "weight_sha256": "b95bcc4ef2262d02b75b2dd81f5b837f3703dd324426508a6be6c5398becfa4e",
-        "weight_serialized_bytes": 79586519,
-        "pretraining": "ImageNet-1K",
+        "pretraining": "ImageNet-1K; official v0.9 release",
+        "checkpoint_load_policy": "verify fixed SHA-256, load trusted official legacy checkpoint with weights_only=False, extract model only, then require strict state load",
+        "official_constructor_auto_downloads_weights": false,
         "loaded_before_classifier_replacement": true,
+        "model_symbol": "iFormer_s",
+        "official_config_url": "https://raw.githubusercontent.com/ChuanyangZheng/iFormer/2a87540fcb345afe9d950a58d0eb3873b938c3dc/configs/iFormer_s.yaml",
+        "official_config_sha256": "f668f5ff84489684b0804acee77614c695bf26f012c1b61b858eb7f9a99c7c3e",
+        "weight_url": "https://github.com/ChuanyangZheng/iFormer/releases/download/v0.9/iFormer_s.pth",
+        "weight_path": "C:\\Users\\LaiWanzhou\\.cache\\torch\\hub\\checkpoints\\iFormer_s.pth",
+        "weight_sha256": "dba81d99d9b6491b18fccd022f795d2b43e31bcb75f7aeea59be37b00bc7d7a1",
+        "weight_serialized_bytes": 79363642,
+        "checkpoint_model_key_count": 505,
         "missing_keys": [],
         "unexpected_keys": []
       },
       "resources": {
         "official_1000_class": {
-          "parameter_count": 19866344,
-          "fp32_parameter_bytes": 79465376
+          "parameter_count": 6563368,
+          "fp32_parameter_bytes": 26253472
         },
-        "parameter_count": 19496744,
-        "fp32_parameter_bytes": 77986976,
-        "actual_40class_serialized_state_dict_bytes": 78132757,
-        "actual_40class_serialized_state_dict_sha256": "68cfe43e433f76e4b6ac48c384ec49afef6c924fd1b9e3721a484c31706d2f9f"
+        "parameter_count": 6255208,
+        "fp32_parameter_bytes": 25020832,
+        "actual_40class_serialized_state_dict_bytes": 25400973,
+        "actual_40class_serialized_state_dict_sha256": "bc98612ced60c6add7db4e9797376e9cbb19beb26a814a5fd97234aa1ae241fc"
       },
       "provisional_complete_package": {
         "assets": [
@@ -213,11 +340,11 @@
           },
           {
             "name": "thermal_iformer_s_tsm_40class_budget_proxy",
-            "identity": "68cfe43e433f76e4b6ac48c384ec49afef6c924fd1b9e3721a484c31706d2f9f",
-            "serialized_bytes": 78132757,
-            "sha256": "68cfe43e433f76e4b6ac48c384ec49afef6c924fd1b9e3721a484c31706d2f9f",
+            "identity": "bc98612ced60c6add7db4e9797376e9cbb19beb26a814a5fd97234aa1ae241fc",
+            "serialized_bytes": 25400973,
+            "sha256": "bc98612ced60c6add7db4e9797376e9cbb19beb26a814a5fd97234aa1ae241fc",
             "path": null,
-            "status": "conditional_budget_probe_no_tsm_runtime_no_training"
+            "status": "conditional_untrained_serialization_probe"
           },
           {
             "name": "calibration_and_optional_residual_upper_bound",
@@ -233,14 +360,14 @@
         "deduplicated_reference_names": [
           "shared_yolo11n_pose_reference"
         ],
-        "total_serialized_bytes": 101776957,
+        "total_serialized_bytes": 49045173,
         "internal_limit_bytes_exclusive": 95000000,
-        "headroom_bytes": -6776957,
-        "passes_strict_limit": false
+        "headroom_bytes": 45954827,
+        "passes_strict_limit": true
       },
       "minimum_required_headroom_bytes": 2000000,
-      "budget_eligible": false,
-      "config_created": false
+      "budget_eligible": true,
+      "config_created": true
     }
   },
   "deployment_ledger": {
@@ -290,9 +417,9 @@
     "complete_six_modal_gate_status": "not_yet_evaluable_until_other_experts_are_retained"
   },
   "decision": {
-    "iformer_t": "stop_blocked_no_official_candidate_identity",
+    "iformer_t": "technically_eligible_primary_after_human_approval",
     "mobilenetv3_small": "technically_eligible_after_human_approval_with_weight_terms_caveat",
-    "iformer_s": "stop_ineligible_budget_no_config_no_training",
-    "next_action": "stop_after_T1-A_and_request_human_decision_on_replacing_or_defining_iFormer-T"
+    "iformer_s": "conditional_upgrade_eligible_but_not_authorized",
+    "next_action": "stop_after_corrective_T1-A_and_request_human_authorization_before_T1-B_training"
   }
 }

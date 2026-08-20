@@ -1,0 +1,51 @@
+stage: thermal_t1a_corrective
+status: eligible_after_human_approval
+training_authorized: false
+num_classes: 40
+seed: 20260715
+
+development_split: metadata/splits/train12_val2_user6_user7_development.json
+input_view: thermal_full_frame
+input_shape: [16, 3, 224, 224]
+
+backbone:
+  family: ChuanyangZheng_iFormer_t
+  paper: "iFormer: Integrating ConvNet and Transformer for Mobile Application"
+  repository: https://github.com/ChuanyangZheng/iFormer
+  source_revision: 2a87540fcb345afe9d950a58d0eb3873b938c3dc
+  model_symbol: iFormer_t
+  pretrained_checkpoint: iFormer_t.pth
+  weight_sha256: 7cbd778e3604694eb1a0becbf2e6a22798586f6bb46610a5c22b39880efb967e
+  strict_pretrained_load: true
+  random_initialization_fallback: false
+
+temporal:
+  module: tsm
+  num_segments: 16
+  fold_div: 8
+  shift_after_downsample_before_native_stages: [0, 1, 2, 3]
+  trial_aggregation: mean_feature
+  crosses_trial_boundaries: false
+
+sampling_contract:
+  timeline: thermal_native_normalized_time
+  motion_peak_sampling: false
+  imports_ir_indices: false
+  singleton_and_short_trials: explicit_nearest_index_repeats_with_quality
+
+preprocessing:
+  resize_short_side: 256
+  crop_size: 224
+  validation_crop: center
+  color_jitter: false
+
+deployment:
+  internal_limit_bytes_exclusive: 95000000
+  probe_report: reports/thermal_backbone_environment_probe.json
+  count_each_inference_asset_once: true
+
+prohibitions:
+  read_heldout4_labels: false
+  read_competition_test: false
+  read_quarantined_evidence: false
+  modify_frozen_ir_x3d: false

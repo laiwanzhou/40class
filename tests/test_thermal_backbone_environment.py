@@ -11,15 +11,45 @@ from torch import nn
 
 from scripts.probe_thermal_backbones import (
     DeploymentAsset,
+    IFORMER_CHECKPOINT_SHA256,
+    IFORMER_REPOSITORY,
+    IFORMER_REVISION,
     build_deployment_ledger,
+    load_official_iformer_checkpoint,
     require_complete_pretrained_load,
     require_file_sha256,
     validate_candidate,
 )
-from src.models.thermal_tsm import MobileNetV3SmallTSM, TemporalShift
+from src.models.thermal_tsm import IFormerTSM, MobileNetV3SmallTSM, TemporalShift
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
+class _FakeIFormer(nn.Module):
+    def __init__(self, *, emits_tuple: bool = False) -> None:
+        super().__init__()
+        self.use_bn = True
+        self.last_proj = False
+        self.downsample_layers = nn.ModuleList(
+            [
+                nn.Conv2d(3, 8, 3, stride=2, padding=1),
+                nn.Conv2d(8, 16, 3, stride=2, padding=1),
+                nn.Conv2d(16, 24, 3, stride=2, padding=1),
+                nn.Conv2d(24, 32, 3, stride=2, padding=1),
+            ]
+        )
+        first_stage = _TupleStage() if emits_tuple else nn.Identity()
+        self.stages = nn.ModuleList(
+            [first_stage, nn.Identity(), nn.Identity(), nn.Identity()]
+        )
+        self.classifier = nn.Linear(32, 40)
+
+
+class _TupleStage(nn.Module):
+    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        auxiliary = torch.ones(1, device=x.device, dtype=x.dtype)
+        return x, auxiliary
 
 
 def test_temporal_shift_moves_channels_without_wrapping() -> None:
@@ -65,6 +95,26 @@ def test_weight_hash_gate_rejects_replaced_cache_file(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="SHA-256 mismatch"):
         require_file_sha256(weight, "0" * 64)
+
+
+def test_official_iformer_checkpoint_requires_hash_and_model_state(
+    tmp_path: Path,
+) -> None:
+    checkpoint = tmp_path / "iFormer_t.pth"
+    torch.save({"model": {"weight": torch.ones(2, 2)}, "optimizer": {}}, checkpoint)
+    expected = hashlib.sha256(checkpoint.read_bytes()).hexdigest()
+
+    state = load_official_iformer_checkpoint(checkpoint, expected)
+
+    assert list(state) == ["weight"]
+    with pytest.raises(ValueError, match="SHA-256 mismatch"):
+        load_official_iformer_checkpoint(checkpoint, "0" * 64)
+
+    invalid = tmp_path / "invalid.pth"
+    torch.save({"optimizer": {}}, invalid)
+    invalid_hash = hashlib.sha256(invalid.read_bytes()).hexdigest()
+    with pytest.raises(ValueError, match="model state"):
+        load_official_iformer_checkpoint(invalid, invalid_hash)
 
 
 def test_candidate_validation_rejects_missing_provenance_and_bad_output() -> None:
@@ -125,8 +175,8 @@ def test_deployment_ledger_counts_identical_asset_once(tmp_path: Path) -> None:
 
 def test_iformer_s_headroom_gate_is_strict() -> None:
     provenance = {
-        "source_url": "https://github.com/sail-sg/iFormer",
-        "license": "Apache-2.0",
+        "source_url": IFORMER_REPOSITORY,
+        "license": "MIT",
         "weight_sha256": "a" * 64,
     }
     with pytest.raises(ValueError, match="headroom"):
@@ -149,25 +199,99 @@ def test_mobilenet_tsm_forward_contract_without_downloading_weights() -> None:
     assert torch.isfinite(logits).all()
 
 
-def test_only_eligible_mobilenet_candidate_has_a_t1a_config() -> None:
-    config_path = (
+def test_iformer_tsm_forward_contract_without_downloading_weights() -> None:
+    model = IFormerTSM(
+        backbone=_FakeIFormer(),
+        num_classes=40,
+        num_segments=16,
+        fold_div=8,
+        shift_before_stages=(0, 1, 2, 3),
+    ).eval()
+    with torch.inference_mode():
+        logits = model(torch.zeros(2, 16, 3, 224, 224))
+
+    assert logits.shape == (2, 40)
+    assert torch.isfinite(logits).all()
+
+
+def test_iformer_tsm_preserves_official_tuple_stage_state() -> None:
+    model = IFormerTSM(
+        backbone=_FakeIFormer(emits_tuple=True),
+        num_classes=40,
+        num_segments=16,
+        fold_div=8,
+    ).eval()
+
+    with torch.inference_mode():
+        logits = model(torch.zeros(2, 16, 3, 224, 224))
+
+    assert logits.shape == (2, 40)
+    assert torch.isfinite(logits).all()
+
+
+def test_iformer_source_identity_is_the_mobile_iclr_family() -> None:
+    assert IFORMER_REPOSITORY == "https://github.com/ChuanyangZheng/iFormer"
+    assert IFORMER_REVISION == "2a87540fcb345afe9d950a58d0eb3873b938c3dc"
+    assert IFORMER_CHECKPOINT_SHA256 == (
+        "7cbd778e3604694eb1a0becbf2e6a22798586f6bb46610a5c22b39880efb967e"
+    )
+
+
+def test_qualified_iformer_t_and_mobilenet_control_have_t1a_configs() -> None:
+    mobile_config_path = (
         PROJECT_ROOT
         / "configs/experiments/thermal_mobilenetv3_tsm_train12_val2.yaml"
     )
-    config = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    mobile_config = yaml.safe_load(mobile_config_path.read_text(encoding="utf-8"))
 
-    assert config["status"] == "eligible_after_human_approval"
-    assert config["backbone"]["pretrained_weights"] == "IMAGENET1K_V1"
-    assert config["temporal"]["num_segments"] == 16
-    assert config["temporal"]["fold_div"] == 8
-    assert config["num_classes"] == 40
-    assert config["training_authorized"] is False
-    assert not (
+    assert mobile_config["status"] == "eligible_after_human_approval"
+    assert mobile_config["backbone"]["pretrained_weights"] == "IMAGENET1K_V1"
+
+    iformer_config_path = (
         PROJECT_ROOT / "configs/experiments/thermal_iformer_t_tsm_train12_val2.yaml"
-    ).exists()
-    assert not (
+    )
+    iformer_config = yaml.safe_load(iformer_config_path.read_text(encoding="utf-8"))
+    assert iformer_config["status"] == "eligible_after_human_approval"
+    assert iformer_config["training_authorized"] is False
+    assert iformer_config["num_classes"] == 40
+    assert iformer_config["backbone"]["family"] == "ChuanyangZheng_iFormer_t"
+    assert iformer_config["backbone"]["source_revision"] == IFORMER_REVISION
+    assert iformer_config["backbone"]["weight_sha256"] == IFORMER_CHECKPOINT_SHA256
+    assert iformer_config["backbone"]["strict_pretrained_load"] is True
+    assert iformer_config["temporal"]["num_segments"] == 16
+    assert iformer_config["temporal"]["fold_div"] == 8
+    iformer_s_config_path = (
         PROJECT_ROOT / "configs/experiments/thermal_iformer_s_tsm_train12_val2.yaml"
-    ).exists()
+    )
+    iformer_s_config = yaml.safe_load(
+        iformer_s_config_path.read_text(encoding="utf-8")
+    )
+    assert iformer_s_config["status"] == "conditional_not_authorized"
+    assert iformer_s_config["training_authorized"] is False
+    assert iformer_s_config["backbone"]["family"] == "ChuanyangZheng_iFormer_s"
+
+
+def test_corrective_probe_report_freezes_iformer_identity_and_no_training() -> None:
+    report = json.loads(
+        (PROJECT_ROOT / "reports/thermal_backbone_environment_probe.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    candidate = report["candidates"]["iformer_t_tsm"]
+
+    assert report["scientific_baseline_commit"] == (
+        "c42bb43091c79903e5fde5655c2846c87305895a"
+    )
+    assert report["training_performed"] is False
+    assert report["labels_or_evidence_read"] is False
+    assert candidate["qualification"] == "eligible_primary_t1a_after_human_approval"
+    assert candidate["pretrained_loading_audit_passed"] is True
+    assert candidate["random_initialization_fallback_allowed"] is False
+    assert candidate["provenance"]["source_url"] == IFORMER_REPOSITORY
+    assert candidate["provenance"]["official_constructor_auto_downloads_weights"] is False
+    assert candidate["provenance"]["missing_keys"] == []
+    assert candidate["provenance"]["unexpected_keys"] == []
+    assert candidate["forward"]["output_shape"] == [2, 40]
 
 
 def test_thermal_split_sidecar_freezes_original_split_and_metric_labels() -> None:

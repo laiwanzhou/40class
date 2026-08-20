@@ -1,0 +1,50 @@
+stage: thermal_t1a_corrective
+status: conditional_not_authorized
+training_authorized: false
+num_classes: 40
+seed: 20260715
+
+development_split: metadata/splits/train12_val2_user6_user7_development.json
+input_view: thermal_full_frame
+input_shape: [16, 3, 224, 224]
+
+backbone:
+  family: ChuanyangZheng_iFormer_s
+  paper: "iFormer: Integrating ConvNet and Transformer for Mobile Application"
+  repository: https://github.com/ChuanyangZheng/iFormer
+  source_revision: 2a87540fcb345afe9d950a58d0eb3873b938c3dc
+  model_symbol: iFormer_s
+  pretrained_checkpoint: iFormer_s.pth
+  weight_sha256: dba81d99d9b6491b18fccd022f795d2b43e31bcb75f7aeea59be37b00bc7d7a1
+  strict_pretrained_load: true
+  random_initialization_fallback: false
+
+temporal:
+  module: tsm
+  num_segments: 16
+  fold_div: 8
+  shift_after_downsample_before_native_stages: [0, 1, 2, 3]
+  trial_aggregation: mean_feature
+  crosses_trial_boundaries: false
+
+upgrade_gate:
+  prerequisite: compare_primary_iformer_t_and_matched_mobilenet_control_first
+  minimum_headroom_bytes: 2000000
+  may_start_without_separate_approval: false
+
+sampling_contract:
+  timeline: thermal_native_normalized_time
+  motion_peak_sampling: false
+  imports_ir_indices: false
+  singleton_and_short_trials: explicit_nearest_index_repeats_with_quality
+
+deployment:
+  internal_limit_bytes_exclusive: 95000000
+  probe_report: reports/thermal_backbone_environment_probe.json
+  count_each_inference_asset_once: true
+
+prohibitions:
+  read_heldout4_labels: false
+  read_competition_test: false
+  read_quarantined_evidence: false
+  modify_frozen_ir_x3d: false
