@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "role": "direct_head_matched_development_split",
+  "name": "train12_val2_user6_user7",
+  "development_only": true,
+  "group_field": "user_id",
+  "label_field": "class_id",
+  "train_user_ids": [
+    "user1", "user2", "user3", "user5", "user8", "user9",
+    "user16", "user18", "user19", "user20", "user21", "user22"
+  ],
+  "validation_user_ids": ["user6", "user7"],
+  "heldout_user_ids": ["user4", "user17", "user23", "user24"],
+  "ir_audit": {
+    "train_usable_trials": 1935,
+    "validation_usable_trials": 385,
+    "train_class_count": 40,
+    "validation_class_count": 40,
+    "validation_missing_class_ids": [],
+    "validation_minimum_class_support": 2
+  },
+  "selection_audit": {
+    "candidate_user_population": "the frozen official train14 users only",
+    "candidate_pair_count": 91,
+    "full_40_class_validation_pair_count": 1,
+    "selection_rule": "Select the unique two-user validation pair for which usable IR train and validation populations both cover all 40 classes; do not use model results.",
+    "model_results_used": false,
+    "heldout_users_considered_as_candidates": false
+  },
+  "metric_policy": {
+    "num_classes": 40,
+    "macro_f1_labels": "0..39",
+    "worst_user_population": ["user6", "user7"]
+  },
+  "boundary": "Use only for the matched partial2-reference and Direct-Head development experiment. Strict OOF and sealed heldout4 protocols remain separate."
+}

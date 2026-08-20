@@ -1,0 +1,192 @@
+schema_version: 1
+workflow_id: thermal_route_a_generation2
+status: preregistered_not_started
+current_stage: a0_input_audit
+
+authority:
+  main_commit: 66c1b5754d5b397033b861888aeec4dae22cd61c
+  scientific_baseline: c42bb43091c79903e5fde5655c2846c87305895a
+  design_spec: docs/superpowers/specs/2026-08-20-thermal-single-modal-60-design.md
+  parent_plan: docs/superpowers/plans/2026-08-20-thermal-single-modal-60.md
+  route_a_runbook: docs/superpowers/workflows/2026-08-20-thermal-route-a.md
+
+evidence_boundary:
+  modality: thermal_only
+  development_split: metadata/splits/train12_val2_user6_user7_development.json
+  fit_population: train12_only
+  validation_users: [6, 7]
+  read_heldout4_labels: false
+  read_competition_test: false
+  read_quarantined_evidence: false
+  allow_train14_oof: false
+  modify_frozen_ir_x3d: false
+  import_ir_depth_inputs_indices_boxes_logits: false
+
+student_contract:
+  id: thermal_multistream_x3d_xs_v1
+  initialization: random
+  pretrained_student_weights: false
+  raster_encoder: pytorchvideo_x3d_xs_topology
+  raster_views: [thermal_full_frame, thermal_fixed_trial_context]
+  raster_encoder_weights_shared: true
+  motion_stream: signed_grayscale_difference_small_3d_cnn
+  pose_stream: thermal_yolo11n_pose_tcn
+  fusion: availability_quality_concat_layernorm_linear40
+  num_classes: 40
+  temporal_windows: [[0.0, 0.5], [0.25, 0.75], [0.5, 1.0]]
+  frames_per_window: 16
+  crop_size: 160
+  motion_peak_sampling: false
+
+optimization_contract:
+  seed: 20260715
+  optimizer: adamw
+  learning_rate: 0.0003
+  weight_decay: 0.05
+  warmup_epochs: 3
+  schedule: cosine
+  maximum_epochs: 50
+  automatic_resume: false
+  automatic_extension: false
+  label_smoothing: 0.1
+  gradient_clip_norm: 1.0
+  amp_dtype: bfloat16
+  effective_batch_trials: 8
+  checkpoint_rank: [macro_f1_fixed_0_39, accuracy, worst_user_accuracy, lower_epoch]
+
+variants:
+  a_direct:
+    experiment_id: thermal_a_multistream_direct_train12_val2
+    student_contract_id: thermal_multistream_x3d_xs_v1
+    objective: hard_label_cross_entropy
+    teacher_logits: false
+  a_kd:
+    experiment_id: thermal_a_multistream_kd_train12_val2
+    student_contract_id: thermal_multistream_x3d_xs_v1
+    objective: hard_label_cross_entropy_plus_teacher_kl
+    only_training_difference: teacher_logit_loss
+    temperature: 4.0
+    hard_label_weight: 0.5
+    teacher_kl_weight: 0.5
+    feature_distillation: false
+    teacher_model_loaded_by_student: false
+
+teacher_handoff:
+  owner: route_c
+  manifest_status: absent
+  passing_teacher_count: 0
+  allow_teacher_ensemble: false
+  required_logits_shape: [train12_sample_count, 40]
+  required_logits_dtype: float32
+  required_metrics:
+    accuracy_min: 0.60
+    macro_f1_min: 0.45
+    worst_user_accuracy_min: 0.50
+  required_manifest_fields:
+    - sample_ids_sha256
+    - logits_sha256
+    - teacher_checkpoint_sha256
+    - teacher_config_sha256
+    - split_sha256
+    - class_map_sha256
+    - input_contract_sha256
+
+external_gates:
+  route_b_report_verified: false
+  route_b_report_path: reports/thermal_b_x3d_xs_train12_val2.json
+
+authorization:
+  plan_approval_is_training_approval: false
+  a_direct_training: false
+  a_kd_training: false
+  oof: false
+
+runtime_gate:
+  reference_gpu: NVIDIA GeForce RTX 5060 Laptop GPU
+  reference_vram_mib: 8151
+  peak_cuda_allocated_mib_max_exclusive: 7300
+  initial_physical_batch_trials: 2
+  fallback_physical_batch_trials: 1
+  preserve_effective_batch_on_fallback: true
+  may_reduce_frames_windows_resolution_streams: false
+
+decision_gate:
+  accuracy_min: 0.60
+  macro_f1_min: 0.45
+  worst_user_accuracy_min: 0.50
+  zero_recall_classes_max: 10
+  finite_logits_required: true
+  automatic_promotion: false
+
+deployment:
+  limit_bytes_exclusive: 95000000
+  count_unique_sha256_once: true
+  include_teacher_assets: false
+  include_frozen_ir_x3d_assets: false
+
+stages:
+  - id: a0_input_audit
+    status: pending
+    requires: []
+    formal_training: false
+    human_approval_required_to_start: false
+    completion_evidence:
+      - reports/thermal_v2_input_audit.json
+      - reports/thermal_v2_input_audit.md
+      - reports/thermal_v2_input_montages
+  - id: a1_student_implementation
+    status: pending
+    requires: [a0_input_audit]
+    formal_training: false
+    human_approval_required_to_start: false
+    completion_evidence:
+      - tests/test_thermal_multistream.py
+      - src/models/thermal_multistream.py
+  - id: a2_runtime_probe
+    status: pending
+    requires: [a0_input_audit, a1_student_implementation]
+    formal_training: false
+    human_approval_required_to_start: false
+    completion_evidence:
+      - reports/thermal_generation2_environment_probe.json
+  - id: a3_direct_training
+    status: pending
+    requires: [a2_runtime_probe]
+    formal_training: true
+    human_approval_required_to_start: true
+    completion_evidence:
+      - reports/thermal_a_multistream_direct_train12_val2.json
+      - reports/thermal_a_multistream_direct_train12_val2.md
+  - id: a4_teacher_logits_handoff
+    status: pending
+    requires: [a3_direct_training]
+    formal_training: false
+    human_approval_required_to_start: false
+    completion_evidence:
+      - reports/thermal_teacher_logits_manifest.json
+  - id: a5_kd_training
+    status: pending
+    requires: [a4_teacher_logits_handoff]
+    formal_training: true
+    human_approval_required_to_start: true
+    completion_evidence:
+      - reports/thermal_a_multistream_kd_train12_val2.json
+      - reports/thermal_a_multistream_kd_train12_val2.md
+  - id: a6_paired_decision
+    status: pending
+    requires: [a3_direct_training, a5_kd_training]
+    formal_training: false
+    human_approval_required_to_start: false
+    completion_evidence:
+      - reports/thermal_route_a_paired_decision.json
+      - reports/thermal_route_a_paired_decision.md
+
+stop_conditions:
+  - input_montage_not_human_approved
+  - runtime_probe_exceeds_vram_or_deployment_gate
+  - route_b_report_missing_before_a_direct
+  - explicit_a_direct_authorization_missing
+  - no_teacher_passes_teacher_gate
+  - teacher_logits_manifest_invalid
+  - explicit_a_kd_authorization_missing
+  - paired_decision_complete
