@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "registered_at": "2026-08-20",
+  "role": "train12_val2_ir_anchored_depth_adapter_preregistration",
+  "candidate": "x3d_s_ir_anchored_depth_adapter",
+  "run_id": "x3d_s_ir_anchored_depth_adapter_train12_val2_user6_user7_single13_fixed_context_workers4_seed20260715",
+  "development_only": true,
+  "unbiased_oof": false,
+  "approved_post_freeze_exception": true,
+  "seed": 20260715,
+  "development_split": "metadata/splits/train12_val2_user6_user7_development.json",
+  "population": {
+    "train_user_ids": [
+      "user1", "user2", "user3", "user5", "user8", "user9",
+      "user16", "user18", "user19", "user20", "user21", "user22"
+    ],
+    "validation_user_ids": ["user6", "user7"],
+    "heldout_user_ids": ["user4", "user17", "user23", "user24"],
+    "train_usable_ir_depth_trials": 1935,
+    "validation_usable_ir_depth_trials": 385,
+    "train_class_count": 40,
+    "validation_class_count": 40
+  },
+  "fixed_conditions": {
+    "temporal_sampling": "one globally stratified 13-frame clip",
+    "spatial_crop": "one fixed trial person-context box",
+    "visual_channels": ["depth_r", "depth_g", "depth_b", "ir_gray"],
+    "workers": 4,
+    "persistent_workers": false,
+    "unfrozen_backbone_blocks": 2,
+    "training_epochs": 20
+  },
+  "sole_intervention": {
+    "reference": "expanded four-channel K400 input stem",
+    "candidate": "immutable repeated-IR anchor plus zero-initialized Depth residual",
+    "adapter": "bias-free Conv3d 3-to-3 kernel-1",
+    "adapter_parameters": 9,
+    "adapter_lr": 0.0003,
+    "initial_depth_sensitivity": 0
+  },
+  "matched_ir_reference": {
+    "run_id": "x3d_s_ir_context_train12_val2_user6_user7_single13_fixed_context_seed20260715",
+    "accuracy": 0.5376623376623376,
+    "macro_f1": 0.4275141328945328,
+    "worst_user_accuracy": 0.5174129353233831,
+    "selected_epoch": 14
+  },
+  "failed_expanded_stem_reference": {
+    "run_id": "x3d_s_ir_depth4_train12_val2_user6_user7_single13_fixed_context_workers4_seed20260715",
+    "accuracy": 0.45714285714285713,
+    "macro_f1": 0.35535251791744926,
+    "worst_user_accuracy": 0.42786069651741293,
+    "selected_epoch": 10
+  },
+  "stability_review_accuracy_gate": 0.63,
+  "stability_work_automatically_authorized": false,
+  "metric_contract": {
+    "primary": "trial-level Accuracy on 385 user6/user7 usable IR+Depth trials",
+    "secondary": "Macro-F1 over fixed labels 0..39",
+    "guardrail": "minimum user6/user7 Accuracy",
+    "checkpoint_objective": "Accuracy then Macro-F1 then earlier epoch",
+    "human_review_accuracy_floor": 0.5176623376623376
+  },
+  "forbidden": [
+    "three_fold_training",
+    "additional_seed",
+    "automatic_stability_training",
+    "heldout4_evaluation",
+    "competition_test_access",
+    "canonical_phase4_or_phase5_mutation",
+    "additional_temporal_clip",
+    "moving_spatial_crop",
+    "automatic_artifact_deletion"
+  ],
+  "bound_sha256": {
+    "candidate_config": "81475e41b0a27aff75131f99cb6dcff503b815addaf6d7a8b800b7b2a83ecdff",
+    "development_split": "c65c4826bfdd2d16796021abfccd6b1ece0ef7fb0ec786b19cc62cb60e5e57ca",
+    "experiment_plan": "ddfb8350588b09e58a2285b2f19139ee7f16755676a42fa6c10cbc49092065ea",
+    "dataset_implementation": "9db6ad13bea321f60f230694919a673d46dd0e7bc94a90af2d645bd26bfb6515",
+    "model_implementation": "eb8e4ab14017ef545993ad93b92f5d29c16f8d02dddde3512e9f50c070caff88",
+    "trainer_implementation": "8efb6c1501c9de9a045c2c5a9504053d5ced991a1c558f5db8577645af877131",
+    "protected_runner": "c3dc9bf1e6038a9d22cb28449c937552d7f6d84a08bddcf1492cb7ed9bfc186e",
+    "result_reporter": "49838ccb714e392af7244f5f8161133c5f1e1aab87594a82c51d9d8f6d9c6df1",
+    "matched_ir_checkpoint": "5faf7ac1aca30bb53313045723823cfe17e2e2d0c92ed9d89e5378e6a4ef7c6d",
+    "matched_ir_predictions": "e8b340099177811c027cb8e7f49e40faf9455cc8b28ef6e75d04ef7680cd1c08",
+    "failed_expanded_stem_checkpoint": "44d9bf329a7278036016ed92eec320c40424cb289eb5b86409ba95e61834421d",
+    "failed_expanded_stem_predictions": "f531c9b9d8f8e67b9748df18ef94d7b14c4b507428f3bcf14cdcc9b274b2146d",
+    "smoke_report": "6dc0dc423a1af95f76d3eda085ceb275c6ba2891d3ff773b20d84553a048e452"
+  }
+}

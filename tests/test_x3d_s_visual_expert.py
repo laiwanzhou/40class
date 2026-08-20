@@ -6,6 +6,7 @@ from torch import nn
 
 from src.models.expert_contract import ExpertOutput
 from src.models.x3d_s_visual_expert import (
+    IRAnchoredDepthAdapter,
     X3DSVisualExpert,
     build_x3d_s_feature_backbone,
     expand_first_conv3d_input_channels,
@@ -69,6 +70,52 @@ def fixture_inputs() -> dict[str, torch.Tensor]:
         "quality_mask": torch.ones(2, 6, dtype=torch.bool),
         "availability": torch.ones(2, 1, dtype=torch.bool),
     }
+
+
+def test_ir_anchored_depth_adapter_is_exact_ir_baseline_at_initialization() -> None:
+    adapter = IRAnchoredDepthAdapter()
+    inputs = torch.randn(2, 4, 13, 8, 8)
+    expected = inputs[:, 3:4].expand(-1, 3, -1, -1, -1)
+
+    output = adapter(inputs)
+
+    torch.testing.assert_close(output, expected, atol=0.0, rtol=0.0)
+    assert sum(parameter.numel() for parameter in adapter.parameters()) == 9
+    assert torch.count_nonzero(adapter.depth_projection.weight).item() == 0
+
+
+def test_ir_anchored_depth_adapter_has_zero_initial_depth_sensitivity_but_gradient() -> None:
+    adapter = IRAnchoredDepthAdapter()
+    inputs = torch.randn(2, 4, 13, 8, 8)
+    changed_depth = inputs.clone()
+    changed_depth[:, :3].mul_(7.0).add_(2.0)
+
+    torch.testing.assert_close(
+        adapter(inputs), adapter(changed_depth), atol=0.0, rtol=0.0
+    )
+    adapter(inputs).square().mean().backward()
+    gradient = adapter.depth_projection.weight.grad
+    assert gradient is not None
+    assert torch.isfinite(gradient).all()
+    assert torch.count_nonzero(gradient).item() > 0
+
+
+def test_ir_anchored_four_channel_expert_feeds_three_channels_to_backbone() -> None:
+    model = X3DSVisualExpert(
+        backbone=TinyBackbone(),
+        num_classes=40,
+        embedding_dim=16,
+        dropout=0.0,
+        input_channels=4,
+        input_adapter_mode="ir_anchored_depth_residual",
+    ).eval()
+    inputs = fixture_inputs()
+    inputs["clips"] = torch.randn(2, 3, 4, 13, 32, 32)
+
+    output = model(**inputs)
+
+    assert output.main_logits.shape == (2, 40)
+    assert isinstance(model.input_adapter, IRAnchoredDepthAdapter)
 
 
 def test_expand_first_conv_to_four_channels_preserves_rgb_and_mean_initializes_ir() -> None:
@@ -251,6 +298,35 @@ def test_parameter_groups_split_backbone_head_and_zero_decay_parameters() -> Non
         (3e-4, 0.0),
         (3e-4, 0.05),
     }
+
+
+def test_ir_anchored_adapter_has_separate_optimizer_scope() -> None:
+    model = X3DSVisualExpert(
+        backbone=TinyBackbone(),
+        num_classes=40,
+        embedding_dim=16,
+        dropout=0.0,
+        input_channels=4,
+        input_adapter_mode="ir_anchored_depth_residual",
+    )
+
+    groups = model.parameter_groups(
+        backbone_lr=3e-5,
+        head_lr=3e-4,
+        input_adapter_lr=3e-4,
+        weight_decay=0.05,
+    )
+
+    adapter_parameter_ids = {
+        id(parameter) for parameter in model.input_adapter.parameters()
+    }
+    adapter_groups = [group for group in groups if group["group_name"] == "input_adapter"]
+    assert len(adapter_groups) == 1
+    assert float(adapter_groups[0]["lr"]) == pytest.approx(3e-4)
+    assert float(adapter_groups[0]["weight_decay"]) == pytest.approx(0.05)
+    assert {id(parameter) for parameter in adapter_groups[0]["params"]} == (
+        adapter_parameter_ids
+    )
 
 
 def test_parameter_groups_apply_block_specific_learning_rates() -> None:

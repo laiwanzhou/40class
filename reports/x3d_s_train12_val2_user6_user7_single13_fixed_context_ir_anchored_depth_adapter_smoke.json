@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-08-20",
+  "role": "ir_anchored_depth_adapter_cuda_smoke",
+  "run_id": "x3d_s_ir_anchored_depth_adapter_train12_val2_user6_user7_single13_fixed_context_workers4_smoke_seed20260715",
+  "seed": 20260715,
+  "smoke_test": true,
+  "exit_code": 0,
+  "num_workers": 4,
+  "persistent_workers": false,
+  "peak_root_and_descendant_working_set_gib": 5.632,
+  "minimum_system_available_gib": 7.767,
+  "minimum_required_system_available_gib": 4.0,
+  "maximum_observed_gpu_memory_mib": 2505,
+  "torch_peak_cuda_memory_bytes": 617113600,
+  "parameter_count": 3510019,
+  "trainable_parameter_count": 2851329,
+  "adapter_parameter_count": 9,
+  "standard_k400_stem_input_channels": 3,
+  "gradient_scopes_with_finite_nonzero": {
+    "input_adapter": true,
+    "classifier": true,
+    "backbone_block_4": true,
+    "backbone_block_5": true
+  },
+  "head_gradient_verified": true,
+  "backbone_gradient_verified_after_unfreeze": true,
+  "memory_error": false,
+  "worker_crash": false,
+  "deterministic_warning_only": "avg_pool3d_backward_cuda has no deterministic implementation",
+  "resolved_config_sha256": "4dbfcc69464442be19745ba1f82758b3b510d10e1d985f8648ace53e6ef926dc",
+  "decision": "pass_formal_training_authorized"
+}

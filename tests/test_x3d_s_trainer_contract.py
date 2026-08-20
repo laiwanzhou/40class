@@ -450,6 +450,32 @@ def test_build_model_passes_direct_head_type(monkeypatch: pytest.MonkeyPatch, tm
     assert model.output_embedding_dim == 2048
 
 
+def test_build_model_uses_standard_rgb_backbone_for_ir_anchored_adapter(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    config = fixed_config(tmp_path)
+    config.update(
+        input_view="depth_color_rgb_plus_ir_gray",
+        input_channels=4,
+        fusion_strategy="ir_anchored_depth_residual",
+        dropout=0.25,
+    )
+    calls: list[dict[str, object]] = []
+
+    def build_backbone(**kwargs: object) -> TinyTrainerBackbone:
+        calls.append(dict(kwargs))
+        return TinyTrainerBackbone()
+
+    monkeypatch.setattr(trainer_module, "build_x3d_s_feature_backbone", build_backbone)
+
+    model = trainer_module._build_model(config)
+
+    assert isinstance(model, X3DSVisualExpert)
+    assert model.input_channels == 4
+    assert model.input_adapter_mode == "ir_anchored_depth_residual"
+    assert calls == [{"pretrained": False}]
+
+
 def test_config_accepts_bounded_partial_unfreeze_policy(tmp_path: Path) -> None:
     config = fixed_config(tmp_path)
     config["training"] = {
@@ -816,6 +842,68 @@ def test_train_epoch_records_scoped_block_and_classifier_gradients() -> None:
     assert scopes["backbone_block_2"] is True
     assert scopes["backbone_block_3"] is True
     assert scopes["classifier"] is True
+
+
+def test_train_epoch_records_ir_anchored_adapter_gradient() -> None:
+    model = X3DSVisualExpert(
+        backbone=TinyTrainerBackbone(),
+        num_classes=40,
+        embedding_dim=16,
+        dropout=0.0,
+        input_channels=4,
+        input_adapter_mode="ir_anchored_depth_residual",
+    )
+    optimizer = torch.optim.AdamW(
+        model.parameter_groups(3e-5, 3e-4, 0.05, input_adapter_lr=3e-4)
+    )
+    batch = model_batch("adapter")
+    batch["clips"] = torch.randn(2, 2, 1, 4, 13, 8, 8)
+
+    outcome = run_model_epoch(
+        model,
+        [batch],
+        device=torch.device("cpu"),
+        optimizer=optimizer,
+        gradient_accumulation=1,
+        gradient_clip=1.0,
+        amp_enabled=False,
+    )
+
+    assert outcome.metrics["gradient_scopes_with_finite_nonzero"]["input_adapter"] is True
+
+
+def test_adapter_gradient_does_not_masquerade_as_head_gradient() -> None:
+    model = X3DSVisualExpert(
+        backbone=TinyTrainerBackbone(),
+        num_classes=40,
+        embedding_dim=16,
+        dropout=0.0,
+        input_channels=4,
+        input_adapter_mode="ir_anchored_depth_residual",
+    )
+    model.set_backbone_trainable(False)
+    for parameter in model.embedding_head.parameters():
+        parameter.requires_grad_(False)
+    for parameter in model.classifier.parameters():
+        parameter.requires_grad_(False)
+    optimizer = torch.optim.AdamW(
+        model.parameter_groups(3e-5, 3e-4, 0.05, input_adapter_lr=3e-4)
+    )
+    batch = model_batch("adapter-only")
+    batch["clips"] = torch.randn(2, 2, 1, 4, 13, 8, 8)
+
+    outcome = run_model_epoch(
+        model,
+        [batch],
+        device=torch.device("cpu"),
+        optimizer=optimizer,
+        gradient_accumulation=1,
+        gradient_clip=1.0,
+        amp_enabled=False,
+    )
+
+    assert outcome.metrics["head_received_finite_gradient"] is False
+    assert outcome.metrics["gradient_scopes_with_finite_nonzero"]["input_adapter"] is True
 
 
 def test_train_partition_writes_checkpoints_archives_and_summary(tmp_path: Path) -> None:

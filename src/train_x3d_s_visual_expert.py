@@ -282,7 +282,7 @@ def run_model_epoch(
                     head_received_finite_gradient |= _received_finite_gradient(
                         parameter
                         for name, parameter in named_parameters
-                        if not name.startswith("backbone.")
+                        if not name.startswith(("backbone.", "input_adapter."))
                     )
                     scoped_parameters: dict[str, list[torch.nn.Parameter]] = {}
                     for name, parameter in named_parameters:
@@ -467,6 +467,11 @@ def train_partition(
             float(optimizer_config["backbone_lr"]),
             float(optimizer_config["head_lr"]),
             float(optimizer_config["weight_decay"]),
+            input_adapter_lr=(
+                float(optimizer_config["input_adapter_lr"])
+                if "input_adapter_lr" in optimizer_config
+                else None
+            ),
             backbone_block_lrs=_backbone_block_lrs(optimizer_config),
         )
     )
@@ -685,6 +690,11 @@ def finalize_train14(
             float(optimizer_config["backbone_lr"]),
             float(optimizer_config["head_lr"]),
             float(optimizer_config["weight_decay"]),
+            input_adapter_lr=(
+                float(optimizer_config["input_adapter_lr"])
+                if "input_adapter_lr" in optimizer_config
+                else None
+            ),
             backbone_block_lrs=_backbone_block_lrs(optimizer_config),
         )
     )
@@ -1111,16 +1121,26 @@ def validate_config(config: Mapping[str, Any]) -> None:
             raise ValueError("direct head embedding_dim must be 2048")
     input_view = str(config.get("input_view"))
     input_channels = int(config.get("input_channels", 3))
+    fusion_strategy = str(config.get("fusion_strategy", "expanded_input_stem"))
     if input_view == "ir_context_path":
         if input_channels != 3:
             raise ValueError("IR input_view requires three repeated X3D channels")
     elif input_view == "depth_color_rgb_plus_ir_gray":
         if input_channels != 4:
             raise ValueError("Depth+IR input_view requires four X3D channels")
+        if fusion_strategy not in {
+            "expanded_input_stem",
+            "ir_anchored_depth_residual",
+        }:
+            raise ValueError("Unsupported Depth+IR fusion_strategy")
         fusion = _mapping(config, "early_fusion")
         expected_fusion = {
             "channel_order": ["depth_r", "depth_g", "depth_b", "ir_gray"],
-            "stem_initialization": "k400_rgb_plus_rgb_mean_ir",
+            "stem_initialization": (
+                "standard_k400_rgb_after_ir_anchor_zero_depth_residual"
+                if fusion_strategy == "ir_anchored_depth_residual"
+                else "k400_rgb_plus_rgb_mean_ir"
+            ),
             "synchronized_geometric_transform": True,
             "depth_photometric_augmentation": False,
             "ir_photometric_augmentation": True,
@@ -1187,6 +1207,13 @@ def validate_config(config: Mapping[str, Any]) -> None:
             raise ValueError(f"optimizer.{key} must be positive")
     if float(optimizer.get("weight_decay", -1.0)) < 0:
         raise ValueError("optimizer.weight_decay must be non-negative")
+    if fusion_strategy == "ir_anchored_depth_residual":
+        if model_family != "x3d_s":
+            raise ValueError("IR-anchored Depth adapter requires X3D-S")
+        if float(optimizer.get("input_adapter_lr", 0.0)) != 3e-4:
+            raise ValueError("IR-anchored Depth adapter LR must be 3e-4")
+    elif "input_adapter_lr" in optimizer:
+        raise ValueError("input_adapter_lr requires the IR-anchored Depth adapter")
     if int(optimizer.get("gradient_accumulation", 0)) != 4:
         raise ValueError("optimizer.gradient_accumulation must be 4")
     block_lrs = _backbone_block_lrs(optimizer)
@@ -1361,6 +1388,8 @@ def _received_finite_gradient(parameters: Iterator[torch.nn.Parameter]) -> bool:
 
 
 def _gradient_scope(parameter_name: str) -> str | None:
+    if parameter_name.startswith("input_adapter."):
+        return "input_adapter"
     if parameter_name.startswith("classifier."):
         return "classifier"
     prefix = "backbone.blocks."
@@ -1854,8 +1883,14 @@ def _build_model(config: Mapping[str, Any]) -> torch.nn.Module:
             ),
         )
     input_channels = int(config.get("input_channels", 3))
+    fusion_strategy = str(config.get("fusion_strategy", "expanded_input_stem"))
+    input_adapter_mode = (
+        "ir_anchored_depth_residual"
+        if fusion_strategy == "ir_anchored_depth_residual"
+        else None
+    )
     backbone_kwargs: dict[str, Any] = {"pretrained": bool(config["pretrained"])}
-    if input_channels != 3:
+    if input_channels != 3 and input_adapter_mode is None:
         backbone_kwargs["input_channels"] = input_channels
     return X3DSVisualExpert(
         backbone=build_x3d_s_feature_backbone(**backbone_kwargs),
@@ -1864,6 +1899,7 @@ def _build_model(config: Mapping[str, Any]) -> torch.nn.Module:
         dropout=float(config["dropout"]),
         head_type=_resolved_head_type(config),
         input_channels=input_channels,
+        input_adapter_mode=input_adapter_mode,
         update_backbone_bn_running_stats=bool(
             _mapping(config, "backbone_bn")["update_running_stats"]
         ),

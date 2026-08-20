@@ -299,6 +299,34 @@ def test_ir_depth4_workers4_config_is_loader_only_operational_amendment() -> Non
     assert candidate == reference
 
 
+def test_ir_anchored_adapter_config_changes_only_registered_model_intervention() -> None:
+    reference = yaml.safe_load(
+        Path(
+            "configs/experiments/"
+            "x3d_s_ir_depth4_train12_val2_user6_user7_single13_fixed_context_workers4.yaml"
+        ).read_text(encoding="utf-8")
+    )
+    candidate = yaml.safe_load(
+        Path(
+            "configs/experiments/"
+            "x3d_s_ir_anchored_depth_adapter_train12_val2_user6_user7_"
+            "single13_fixed_context_workers4.yaml"
+        ).read_text(encoding="utf-8")
+    )
+
+    assert candidate["fusion_strategy"] == "ir_anchored_depth_residual"
+    assert candidate["early_fusion"]["stem_initialization"] == (
+        "standard_k400_rgb_after_ir_anchor_zero_depth_residual"
+    )
+    assert candidate["optimizer"]["input_adapter_lr"] == pytest.approx(3e-4)
+    candidate.pop("fusion_strategy")
+    candidate["early_fusion"]["stem_initialization"] = (
+        reference["early_fusion"]["stem_initialization"]
+    )
+    candidate["optimizer"].pop("input_adapter_lr")
+    assert candidate == reference
+
+
 def test_user6_user7_single13_preregistration_freezes_single_variable() -> None:
     preregistration = json.loads(
         Path(
@@ -371,6 +399,32 @@ def test_ir_depth4_preregistration_locks_point63_stability_gate() -> None:
         "temporal_sampling": "one globally stratified 13-frame clip",
         "spatial_crop": "one fixed trial person-context box",
     }
+    assert "three_fold_training" in preregistration["forbidden"]
+    assert "additional_seed" in preregistration["forbidden"]
+    assert all(len(value) == 64 for value in preregistration["bound_sha256"].values())
+
+
+def test_ir_anchored_adapter_preregistration_preserves_ir_anchor() -> None:
+    preregistration = json.loads(
+        Path(
+            "reports/"
+            "x3d_s_train12_val2_user6_user7_single13_fixed_context_"
+            "ir_anchored_depth_adapter_preregistration.json"
+        ).read_text(encoding="utf-8")
+    )
+
+    assert preregistration["approved_post_freeze_exception"] is True
+    assert preregistration["seed"] == 20260715
+    assert preregistration["sole_intervention"] == {
+        "reference": "expanded four-channel K400 input stem",
+        "candidate": "immutable repeated-IR anchor plus zero-initialized Depth residual",
+        "adapter": "bias-free Conv3d 3-to-3 kernel-1",
+        "adapter_parameters": 9,
+        "adapter_lr": 0.0003,
+        "initial_depth_sensitivity": 0,
+    }
+    assert preregistration["stability_review_accuracy_gate"] == pytest.approx(0.63)
+    assert preregistration["stability_work_automatically_authorized"] is False
     assert "three_fold_training" in preregistration["forbidden"]
     assert "additional_seed" in preregistration["forbidden"]
     assert all(len(value) == 64 for value in preregistration["bound_sha256"].values())

@@ -77,6 +77,22 @@ def build_x3d_s_feature_backbone(
     )
 
 
+class IRAnchoredDepthAdapter(nn.Module):
+    """Add a learnable Depth residual without changing the IR baseline path."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.depth_projection = nn.Conv3d(3, 3, kernel_size=1, bias=False)
+        nn.init.zeros_(self.depth_projection.weight)
+
+    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+        if inputs.ndim != 5 or inputs.shape[1] != 4:
+            raise ValueError("IR-anchored adapter expects [N,4,T,H,W]")
+        depth = inputs[:, :3]
+        ir_anchor = inputs[:, 3:4].expand(-1, 3, -1, -1, -1)
+        return ir_anchor + self.depth_projection(depth)
+
+
 class X3DSVisualExpert(nn.Module):
     """Aggregate local X3D clips into one trial-level IR expert output."""
 
@@ -90,6 +106,7 @@ class X3DSVisualExpert(nn.Module):
         backbone_dim: int | None = None,
         head_type: str = "projected",
         input_channels: int = 3,
+        input_adapter_mode: str | None = None,
         update_backbone_bn_running_stats: bool = False,
     ) -> None:
         super().__init__()
@@ -105,6 +122,15 @@ class X3DSVisualExpert(nn.Module):
         self.input_channels = int(input_channels)
         if self.input_channels not in {3, 4}:
             raise ValueError("input_channels must be three or four")
+        self.input_adapter_mode = input_adapter_mode
+        if input_adapter_mode is None:
+            self.input_adapter = nn.Identity()
+        elif input_adapter_mode == "ir_anchored_depth_residual":
+            if self.input_channels != 4:
+                raise ValueError("IR-anchored Depth adapter requires four input channels")
+            self.input_adapter = IRAnchoredDepthAdapter()
+        else:
+            raise ValueError("input_adapter_mode must be ir_anchored_depth_residual or None")
         self.head_type = str(head_type)
         if self.head_type == "projected":
             self.embedding_head = nn.Sequential(
@@ -176,6 +202,7 @@ class X3DSVisualExpert(nn.Module):
         head_lr: float,
         weight_decay: float,
         *,
+        input_adapter_lr: float | None = None,
         backbone_block_lrs: Mapping[int, float] | None = None,
     ) -> list[dict[str, object]]:
         if backbone_lr <= 0 or head_lr <= 0:
@@ -190,6 +217,13 @@ class X3DSVisualExpert(nn.Module):
             for parameter in module.parameters(recurse=False)
         }
         backbone_parameters = {id(parameter) for parameter in self.backbone.parameters()}
+        input_adapter_parameters = {
+            id(parameter) for parameter in self.input_adapter.parameters()
+        }
+        if input_adapter_parameters and (
+            input_adapter_lr is None or input_adapter_lr <= 0
+        ):
+            raise ValueError("input_adapter_lr must be positive when an adapter is enabled")
         block_learning_rates: dict[int, tuple[str, float]] = {}
         if backbone_block_lrs:
             blocks = getattr(self.backbone, "blocks", None)
@@ -208,7 +242,10 @@ class X3DSVisualExpert(nn.Module):
 
         grouped: dict[tuple[str, float, float], list[nn.Parameter]] = {}
         for name, parameter in self.named_parameters():
-            if id(parameter) not in backbone_parameters:
+            if id(parameter) in input_adapter_parameters:
+                assert input_adapter_lr is not None
+                scope, learning_rate = "input_adapter", input_adapter_lr
+            elif id(parameter) not in backbone_parameters:
                 scope, learning_rate = "custom_head", head_lr
             elif id(parameter) in block_learning_rates:
                 scope, learning_rate = block_learning_rates[id(parameter)]
@@ -242,7 +279,8 @@ class X3DSVisualExpert(nn.Module):
             raise ValueError("Each trial must contain at least one valid clip; found zero valid clips")
 
         valid_clips = clips[clip_mask]
-        clip_features = self._pool_backbone_output(self.backbone(valid_clips))
+        adapted_clips = self.input_adapter(valid_clips)
+        clip_features = self._pool_backbone_output(self.backbone(adapted_clips))
         clip_embeddings = self.embedding_head(clip_features)
         classifier_input = (
             self.direct_classifier_dropout(clip_features)
