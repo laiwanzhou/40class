@@ -197,6 +197,57 @@ def test_user6_user7_partial2_changes_only_development_partition() -> None:
     assert candidate == historical
 
 
+def test_user6_user7_single13_changes_only_temporal_sampling_mode() -> None:
+    reference = yaml.safe_load(
+        Path(
+            "configs/experiments/"
+            "x3d_s_ir_context_train12_val2_user6_user7_partial2.yaml"
+        ).read_text(encoding="utf-8")
+    )
+    candidate = yaml.safe_load(
+        Path(
+            "configs/experiments/"
+            "x3d_s_ir_context_train12_val2_user6_user7_single13_global.yaml"
+        ).read_text(encoding="utf-8")
+    )
+
+    assert candidate["temporal"]["sampling_mode"] == "global_single_clip"
+    candidate["temporal"].pop("sampling_mode")
+    assert candidate == reference
+
+
+def test_user6_user7_single13_preregistration_freezes_single_variable() -> None:
+    preregistration = json.loads(
+        Path(
+            "reports/"
+            "x3d_s_train12_val2_user6_user7_single13_global_preregistration.json"
+        ).read_text(encoding="utf-8")
+    )
+
+    assert preregistration["approved_post_freeze_exception"] is True
+    assert preregistration["development_split"] == (
+        "metadata/splits/train12_val2_user6_user7_development.json"
+    )
+    assert preregistration["sole_intervention"] == {
+        "field": "temporal.sampling_mode",
+        "reference": "adaptive_local_windows",
+        "candidate": "global_single_clip",
+        "candidate_definition": (
+            "one [0,T) window with 13 equal bins; random within-bin training "
+            "sample and deterministic validation midpoint"
+        ),
+        "effective_clips_per_trial": 1,
+    }
+    assert preregistration["matched_reference"]["accuracy"] == pytest.approx(
+        0.5324675324675324
+    )
+    assert preregistration["population"]["validation_class_count"] == 40
+    assert "heldout4_access" in preregistration["forbidden"]
+    assert all(
+        len(value) == 64 for value in preregistration["bound_sha256"].values()
+    )
+
+
 def test_user6_user7_partial2_preregistration_freezes_generation_r() -> None:
     preregistration = json.loads(
         Path("reports/x3d_s_train12_val2_user6_user7_partial2_preregistration.json")

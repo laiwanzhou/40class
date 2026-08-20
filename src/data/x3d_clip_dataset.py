@@ -352,6 +352,7 @@ class X3DClipDataset(Dataset[X3DClipSample]):
         augmentation_enabled: bool = True,
         augmentation_config: Mapping[str, object] | IRAugmentationConfig | None = None,
         train_clip_keep_fraction: float = 1.0,
+        temporal_sampling_mode: str = "adaptive_local_windows",
         seed: int = 20260715,
     ) -> None:
         if split not in {"train", "val"}:
@@ -392,8 +393,23 @@ class X3DClipDataset(Dataset[X3DClipSample]):
         )
         self.seed = int(seed)
         self.epoch = 0
+        if temporal_sampling_mode not in {
+            "adaptive_local_windows",
+            "global_single_clip",
+        }:
+            raise ValueError(
+                "temporal_sampling_mode must be adaptive_local_windows or "
+                "global_single_clip"
+            )
+        self.temporal_sampling_mode = str(temporal_sampling_mode)
         if not 0.0 < float(train_clip_keep_fraction) <= 1.0:
             raise ValueError("train_clip_keep_fraction must be in (0, 1]")
+        if self.temporal_sampling_mode == "global_single_clip" and float(
+            train_clip_keep_fraction
+        ) != 1.0:
+            raise ValueError(
+                "global_single_clip requires train_clip_keep_fraction=1.0"
+            )
         self.train_clip_keep_fraction = (
             float(train_clip_keep_fraction) if self.training else 1.0
         )
@@ -422,7 +438,11 @@ class X3DClipDataset(Dataset[X3DClipSample]):
             self.samples.append(ordered)
             self.sample_ids.append(str(sample_id))
             self.lengths.append(len(ordered))
-            full_clip_count = adaptive_clip_count(len(ordered))
+            full_clip_count = (
+                1
+                if self.temporal_sampling_mode == "global_single_clip"
+                else adaptive_clip_count(len(ordered))
+            )
             self.num_clips.append(
                 max(1, math.ceil(full_clip_count * self.train_clip_keep_fraction))
             )
@@ -451,7 +471,11 @@ class X3DClipDataset(Dataset[X3DClipSample]):
     def __getitem__(self, index: int) -> X3DClipSample:
         frame = self.samples[index]
         num_frames = len(frame)
-        windows = partition_trial_windows(num_frames)
+        windows = (
+            [(0, num_frames)]
+            if self.temporal_sampling_mode == "global_single_clip"
+            else partition_trial_windows(num_frames)
+        )
         if self.training and self.train_clip_keep_fraction < 1.0:
             selected_window_indices = select_training_window_indices(
                 len(windows),

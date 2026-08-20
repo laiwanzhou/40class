@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "registered_at": "2026-08-20",
+  "role": "train12_val2_single13_global_cuda_smoke_audit",
+  "run_id": "x3d_s_ir_context_train12_val2_user6_user7_single13_global_smoke_20260820",
+  "status": "passed",
+  "formal_result_produced": false,
+  "seed": 20260715,
+  "development_split_name": "train12_val2_user6_user7",
+  "temporal_sampling_mode": "global_single_clip",
+  "train_trial_count": 1935,
+  "validation_trial_count": 385,
+  "mean_train_clips_per_trial": 1.0,
+  "max_train_clips_per_trial": 1,
+  "epochs": 2,
+  "max_train_batches_per_epoch": 1,
+  "max_validation_batches_per_epoch": 1,
+  "head_gradient_verified": true,
+  "backbone_gradient_verified_after_unfreeze": true,
+  "finite_nonzero_gradient_scopes": [
+    "backbone_block_4",
+    "backbone_block_5",
+    "classifier"
+  ],
+  "peak_cuda_memory_bytes": 186125824,
+  "checkpoint_bytes": 14388671,
+  "ir_route_serialized_weight_subtotal": 20644264,
+  "internal_size_limit_bytes": 95000000,
+  "canonical_artifacts_unchanged": true,
+  "determinism_warning": "warn-only avg_pool3d_backward_cuda notice; same known PyTorch limitation as prior X3D runs",
+  "resolved_smoke_config_sha256": "78610ba026c9c009a46d6fe0f3cfe9af05b0acc289c039d11e3fbed6a2f2e116"
+}

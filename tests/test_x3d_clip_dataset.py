@@ -178,6 +178,62 @@ def test_236_frame_trial_uses_eight_local_windows(tmp_path: Path) -> None:
         assert all(start <= index < end for index in indices.tolist())
 
 
+def test_global_single_clip_samples_thirteen_frames_across_complete_trial(
+    tmp_path: Path,
+) -> None:
+    dataset = X3DClipDataset(
+        fixture_manifest(tmp_path, primary_frames=236, split="val"),
+        split="val",
+        training=False,
+        temporal_sampling_mode="global_single_clip",
+    )
+
+    item = dataset[0]
+
+    assert dataset.num_clips[0] == 1
+    assert item["num_clips"] == 1
+    assert item["clips"].shape == (1, 1, 3, 13, 182, 182)
+    assert item["window_bounds"].tolist() == [[0, 236]]
+    indices = item["source_indices"][0, 0].tolist()
+    assert len(indices) == 13
+    assert indices == sorted(indices)
+    assert indices[0] < 236 // 13
+    assert indices[-1] >= 236 - (236 // 13 + 1)
+
+
+def test_global_single_clip_training_sampling_changes_by_epoch_without_losing_span(
+    tmp_path: Path,
+) -> None:
+    dataset = X3DClipDataset(
+        fixture_manifest(tmp_path, primary_frames=236),
+        split="train",
+        training=True,
+        temporal_sampling_mode="global_single_clip",
+        seed=29,
+    )
+
+    dataset.set_epoch(3)
+    first = dataset[0]
+    dataset.set_epoch(4)
+    changed = dataset[0]
+
+    assert first["window_bounds"].tolist() == [[0, 236]]
+    assert changed["window_bounds"].tolist() == [[0, 236]]
+    assert not torch.equal(first["source_indices"], changed["source_indices"])
+    assert first["source_indices"][0, 0, 0] < 19
+    assert first["source_indices"][0, 0, -1] >= 217
+
+
+def test_dataset_rejects_unknown_temporal_sampling_mode(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="temporal_sampling_mode"):
+        X3DClipDataset(
+            fixture_manifest(tmp_path),
+            split="train",
+            training=True,
+            temporal_sampling_mode="motion_peak",
+        )
+
+
 def test_training_clip_dropout_keeps_half_and_changes_windows_by_epoch(
     tmp_path: Path,
 ) -> None:

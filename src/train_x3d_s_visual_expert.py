@@ -1018,6 +1018,17 @@ def _resolved_head_type(config: Mapping[str, Any]) -> str:
     return head_type
 
 
+def _resolved_temporal_sampling_mode(config: Mapping[str, Any]) -> str:
+    temporal = _mapping(config, "temporal")
+    mode = str(temporal.get("sampling_mode", "adaptive_local_windows"))
+    if mode not in {"adaptive_local_windows", "global_single_clip"}:
+        raise ValueError(
+            "temporal.sampling_mode must be adaptive_local_windows or "
+            "global_single_clip"
+        )
+    return mode
+
+
 def validate_config(config: Mapping[str, Any]) -> None:
     model_family = str(config.get("model_family", "x3d_s"))
     if model_family not in {"x3d_s", "mobilenet_v3_small_tcn"}:
@@ -1033,6 +1044,7 @@ def validate_config(config: Mapping[str, Any]) -> None:
     if config.get("num_classes") != 40:
         raise ValueError("num_classes must be 40")
     temporal = _mapping(config, "temporal")
+    _resolved_temporal_sampling_mode(config)
     expected_temporal = {
         "local_frames": 13,
         "target_window_frames": 32,
@@ -1548,6 +1560,7 @@ def run(args: argparse.Namespace) -> None:
             train_manifest,
             split="train",
             training=True,
+            temporal_sampling_mode=_resolved_temporal_sampling_mode(config),
             seed=int(config["seed"]),
         )
         model = _build_model(config)
@@ -1617,10 +1630,18 @@ def run(args: argparse.Namespace) -> None:
             validation_user_ids=partition.validation_user_ids,
         )
         train_dataset = X3DClipDataset(
-            partition_manifest, split="train", training=True, seed=int(config["seed"])
+            partition_manifest,
+            split="train",
+            training=True,
+            temporal_sampling_mode=_resolved_temporal_sampling_mode(config),
+            seed=int(config["seed"]),
         )
         validation_dataset = X3DClipDataset(
-            partition_manifest, split="val", training=False, seed=int(config["seed"])
+            partition_manifest,
+            split="val",
+            training=False,
+            temporal_sampling_mode=_resolved_temporal_sampling_mode(config),
+            seed=int(config["seed"]),
         )
         if assignment is not None:
             raw_fold = assignment["folds"][partition.fold]
@@ -1643,10 +1664,18 @@ def run(args: argparse.Namespace) -> None:
                 validation_user_ids=inner_validation_users,
             )
             inner_fit_dataset = X3DClipDataset(
-                inner_manifest, split="train", training=True, seed=int(config["seed"])
+                inner_manifest,
+                split="train",
+                training=True,
+                temporal_sampling_mode=_resolved_temporal_sampling_mode(config),
+                seed=int(config["seed"]),
             )
             inner_validation_dataset = X3DClipDataset(
-                inner_manifest, split="val", training=False, seed=int(config["seed"])
+                inner_manifest,
+                split="val",
+                training=False,
+                temporal_sampling_mode=_resolved_temporal_sampling_mode(config),
+                seed=int(config["seed"]),
             )
             summary = train_strict_oof_partition(
                 model_factory=lambda: _build_model(config),

@@ -165,6 +165,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         training=True,
         augmentation_config=augmentation,
         train_clip_keep_fraction=1.0,
+        temporal_sampling_mode=trainer._resolved_temporal_sampling_mode(config),
         seed=CANONICAL_SEED,
     )
     validation_dataset = X3DClipDataset(
@@ -173,6 +174,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         training=False,
         augmentation_config=augmentation,
         train_clip_keep_fraction=1.0,
+        temporal_sampling_mode=trainer._resolved_temporal_sampling_mode(config),
         seed=CANONICAL_SEED,
     )
     if set(train_dataset.sample_ids) & set(validation_dataset.sample_ids):
@@ -206,6 +208,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "development_split_sha256": trainer._sha256_file(args.development_split),
         "resolved_config_sha256": trainer.resolved_config_sha256(config),
         "temporal_training_policy": {
+            "sampling_mode": trainer._resolved_temporal_sampling_mode(config),
             "train_clip_keep_fraction": 1.0,
             "validation_clip_keep_fraction": 1.0,
             "aggregation": "mean_probability",

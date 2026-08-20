@@ -1,0 +1,101 @@
+{
+  "schema_version": 1,
+  "registered_at": "2026-08-20",
+  "role": "train12_val2_temporal_ablation_preregistration",
+  "candidate": "x3d_s_ir_context_single13_global",
+  "parent_candidate": "train12_val2_user6_user7_partial2",
+  "run_id": "x3d_s_ir_context_train12_val2_user6_user7_single13_global_seed20260715",
+  "development_only": true,
+  "unbiased_oof": false,
+  "approved_post_freeze_exception": true,
+  "seed": 20260715,
+  "development_split": "metadata/splits/train12_val2_user6_user7_development.json",
+  "population": {
+    "train_user_ids": [
+      "user1", "user2", "user3", "user5", "user8", "user9",
+      "user16", "user18", "user19", "user20", "user21", "user22"
+    ],
+    "validation_user_ids": ["user6", "user7"],
+    "heldout_user_ids": ["user4", "user17", "user23", "user24"],
+    "train_usable_ir_trials": 1935,
+    "validation_usable_ir_trials": 385,
+    "train_class_count": 40,
+    "validation_class_count": 40,
+    "validation_minimum_class_support": 2
+  },
+  "sole_intervention": {
+    "field": "temporal.sampling_mode",
+    "reference": "adaptive_local_windows",
+    "candidate": "global_single_clip",
+    "candidate_definition": "one [0,T) window with 13 equal bins; random within-bin training sample and deterministic validation midpoint",
+    "effective_clips_per_trial": 1
+  },
+  "matched_reference": {
+    "run_id": "x3d_s_ir_context_train12_val2_user6_user7_partial2_seed20260715",
+    "accuracy": 0.5324675324675324,
+    "macro_f1": 0.42157462519220035,
+    "worst_user_accuracy": 0.5323383084577115,
+    "selected_epoch": 14
+  },
+  "fixed_recipe": {
+    "architecture": "projected X3D-S",
+    "embedding_dim": 256,
+    "local_frames": 13,
+    "train_views": 1,
+    "validation_views": 1,
+    "aggregation": "mean_probability_degenerate_at_k1",
+    "motion_peak_sampling": false,
+    "clip_dropout": false,
+    "unfrozen_backbone_blocks": 2,
+    "backbone_lr": 0.00003,
+    "head_lr": 0.0003,
+    "weight_decay": 0.05,
+    "gradient_accumulation": 4,
+    "equal_trial_objective": true,
+    "label_smoothing": 0.0,
+    "photometric_ranges": [0.9, 1.1],
+    "epochs_maximum": 20,
+    "scheduler_horizon_epochs": 20,
+    "warmup_epochs": 2,
+    "macro_f1_patience": 8,
+    "backbone_bn_running_stats_frozen": true
+  },
+  "metric_contract": {
+    "primary": "trial-level Accuracy on 385 user6/user7 usable-IR trials",
+    "secondary": "Macro-F1 over fixed labels 0..39",
+    "guardrail": "minimum user6/user7 Accuracy",
+    "checkpoint_objective": "Accuracy then Macro-F1 then earlier epoch",
+    "human_review_accuracy_floor": 0.5124675324675324
+  },
+  "decision_contract": {
+    "preferred_temporal_candidate": "Accuracy > reference, Macro-F1 delta >= -0.01, worst-user Accuracy delta >= -0.02",
+    "non_winning_ablation": "preferred rule not met and Accuracy >= 0.5124675324675324",
+    "human_review_regression": "Accuracy < 0.5124675324675324; preserve artifacts and stop"
+  },
+  "forbidden": [
+    "depth_color_input",
+    "heldout4_access",
+    "competition_test_access",
+    "canonical_phase4_or_phase5_mutation",
+    "additional_seed",
+    "motion_peak_sampling",
+    "extra_temporal_views",
+    "test_time_augmentation",
+    "automatic_artifact_deletion",
+    "automatic_formal_oof_launch"
+  ],
+  "bound_sha256": {
+    "candidate_config": "ba1095d128043293985d28cf2bce29e23d783bf1290a468c324921b761430127",
+    "reference_config": "ce1a408215110da8c934a2b3281aaa6a6f5f0090ac7d038fdd9fbb37b3775a24",
+    "development_split": "c65c4826bfdd2d16796021abfccd6b1ece0ef7fb0ec786b19cc62cb60e5e57ca",
+    "reference_report": "73d44094e0a419e474c5f7f5d611f169555b908a6640c30e59b4d2115ab59957",
+    "reference_checkpoint": "b78b8de08811a3cd00e08be1a79e659864e0d1ddd6f9b44a486c5af930ea928a",
+    "reference_predictions": "4994d51fd828e70516cde7ca3b5b5b3b269a4261ad74cbb6e548d67c029876da",
+    "canonical_assignment": "2a0dde67ced6f40cf3a163f63d545f1e3cde3545b6ee0eb0291cf1c52c38ea76",
+    "canonical_phase5_oof_evidence": "98517ac3785ab55647b6e8da4e27d31b8096a6115f1cfde9f2607ec861987f21",
+    "experiment_plan": "d8ec6c8ee4b27de2b6db25f2a8cf6139ec2311a8d1c971a268af4bcffe2785ea",
+    "dataset_implementation": "bb64c502cd5b81d2f5685e0aa74a958350fb6427ef5c63a1e3aeb617b1c92bb1",
+    "trainer_implementation": "728b41194b4e819fc1ad96f73362879d7a3f28ee5c55d48a31bd1095d1fbc7ce",
+    "protected_runner": "5668f440e247d7a4091547ca30c85e1079288a93d0c858cbea3ea824c30e7d5e"
+  }
+}
