@@ -1,5 +1,5 @@
 stage: thermal_t1b_development
-status: t1b1_zero_training_diagnostic_complete_root_cause_not_confirmed
+status: t1b2_zero_training_trace_complete_waiting_human_decision
 training_authorized: false
 authorization_history:
   started: "Explicit user instruction in the 2026-08-20 Thermal task"
@@ -11,6 +11,15 @@ t1b1:
   classifier_bn_root_cause_confirmed: false
   bn_free_short_run_authorized: false
   dominant_followup: upstream_layerwise_embedding_spike_trace
+t1b2:
+  training_performed: false
+  epoch16_checkpoint_modified: false
+  state_dict_or_bn_buffer_updated: false
+  hooks_preserved_logits_exactly: true
+  first_group_amplification_fp32: spatial.backbone.stages.2.5
+  first_group_amplification_bfloat16: spatial.backbone.stages.2.5
+  epoch18_resume_authorized: false
+  head_change_authorized: false
 num_classes: 40
 seed: 20260715
 
