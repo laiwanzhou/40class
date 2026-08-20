@@ -92,6 +92,7 @@ def train_selection(
     config: dict[str, Any], train: CleanSkeletonDataset, validation: CleanSkeletonDataset,
     device: torch.device, seed: int, output_dir: Path,
     model_builder: Callable[[dict[str, Any]], nn.Module] | None = None,
+    train_loader_builder: Callable[[CleanSkeletonDataset, int, int], DataLoader] | None = None,
 ) -> tuple[int, pd.DataFrame]:
     set_seed(seed)
     model = (model_builder or model_for)(config).to(device)
@@ -101,7 +102,11 @@ def train_selection(
     amp = bool(config["amp"]) and device.type == "cuda"
     scaler = torch.amp.GradScaler("cuda", enabled=amp)
     criterion = nn.CrossEntropyLoss()
-    train_loader = loader(train, int(config["batch_size"]), True, seed)
+    train_loader = (
+        train_loader_builder(train, int(config["batch_size"]), seed)
+        if train_loader_builder is not None
+        else loader(train, int(config["batch_size"]), True, seed)
+    )
     validation_loader = loader(validation, int(config["batch_size"]), False, seed + 1)
     best_accuracy = -1.0
     best_epoch = 0
@@ -141,6 +146,7 @@ def formal_refit_and_predict(
     config: dict[str, Any], train: CleanSkeletonDataset, validation: CleanSkeletonDataset,
     selected_epoch: int, device: torch.device, seed: int, output_dir: Path,
     model_builder: Callable[[dict[str, Any]], nn.Module] | None = None,
+    train_loader_builder: Callable[[CleanSkeletonDataset, int, int], DataLoader] | None = None,
 ) -> tuple[pd.DataFrame, dict[str, Any], pd.DataFrame]:
     set_seed(seed)
     model = (model_builder or model_for)(config).to(device)
@@ -149,7 +155,11 @@ def formal_refit_and_predict(
     amp = bool(config["amp"]) and device.type == "cuda"
     scaler = torch.amp.GradScaler("cuda", enabled=amp)
     criterion = nn.CrossEntropyLoss()
-    train_loader = loader(train, int(config["batch_size"]), True, seed)
+    train_loader = (
+        train_loader_builder(train, int(config["batch_size"]), seed)
+        if train_loader_builder is not None
+        else loader(train, int(config["batch_size"]), True, seed)
+    )
     validation_loader = loader(validation, int(config["batch_size"]), False, seed + 1)
     history = []
     for epoch in range(1, selected_epoch + 1):
