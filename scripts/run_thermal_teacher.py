@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
 import hashlib
 import json
+import os
 from pathlib import Path
 import subprocess
 import time
@@ -74,8 +76,9 @@ def build_loaders(config: dict, *, data_root: Path, num_workers: int) -> tuple[D
     return train, validation, train_dataset
 
 
-def run_train_epoch(*, model: ThermalR2Plus1D18Teacher, loader: DataLoader, config: dict, device: torch.device, optimizer: torch.optim.Optimizer, scheduler: torch.optim.lr_scheduler.LambdaLR) -> dict[str, Any]:
+def run_train_epoch(*, model: ThermalR2Plus1D18Teacher, loader: DataLoader, config: dict, device: torch.device, optimizer: torch.optim.Optimizer, scheduler: torch.optim.lr_scheduler.LambdaLR, epoch: int) -> dict[str, Any]:
     model.train()
+    started = time.perf_counter()
     optimizer.zero_grad(set_to_none=True)
     accumulation = int(config["optimization"]["effective_batch_trials"])
     logits, labels, users = [], [], []
@@ -101,6 +104,14 @@ def run_train_epoch(*, model: ThermalR2Plus1D18Teacher, loader: DataLoader, conf
             scheduler.step()
             optimizer.zero_grad(set_to_none=True)
             optimizer_steps += 1
+        if index % 100 == 0 or index == len(loader):
+            print(json.dumps({
+                "event": "train_progress",
+                "epoch": epoch,
+                "trials_completed": index,
+                "trials_total": len(loader),
+                "elapsed_seconds": time.perf_counter() - started,
+            }), flush=True)
     merged_logits = np.concatenate(logits).astype(np.float32)
     merged_labels = np.concatenate(labels).astype(np.int64)
     metrics = fixed_label_metrics(labels=merged_labels, logits=merged_logits, users=np.asarray(users))
@@ -144,6 +155,18 @@ def write_reports(manifest: dict[str, Any]) -> None:
 
 def run_formal_training(config: dict, *, output_root: Path, data_root: Path, num_workers: int) -> dict[str, Any]:
     output_root = prepare_output_root(output_root)
+    launch_manifest_path = output_root / "launch_manifest.json"
+    launch_manifest_path.write_text(json.dumps({
+        "schema_version": 1,
+        "status": "running",
+        "experiment_id": config["experiment_id"],
+        "pid": os.getpid(),
+        "started_at_utc": datetime.now(timezone.utc).isoformat(),
+        "repository_head_at_start": repository_head(),
+        "automatic_resume": False,
+        "automatic_extension": False,
+        "maximum_epochs": 30,
+    }, indent=2) + "\n", encoding="utf-8")
     set_teacher_seed(int(config["optimization"]["seed"]))
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if device.type != "cuda":
@@ -164,7 +187,7 @@ def run_formal_training(config: dict, *, output_root: Path, data_root: Path, num
     for epoch in range(1, 31):
         train_dataset.set_epoch(epoch - 1)
         epoch_started = time.perf_counter()
-        train_metrics = run_train_epoch(model=model, loader=train_loader, config=config, device=device, optimizer=optimizer, scheduler=scheduler)
+        train_metrics = run_train_epoch(model=model, loader=train_loader, config=config, device=device, optimizer=optimizer, scheduler=scheduler, epoch=epoch)
         validation_archive = collect_teacher_predictions(model=model, loader=validation_loader, device=device)
         validation_metrics = validation_archive["metrics"]
         rank = checkpoint_rank(validation_metrics, epoch=epoch)
