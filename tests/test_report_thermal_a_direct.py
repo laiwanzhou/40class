@@ -1,8 +1,15 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import numpy as np
 
 from scripts.report_thermal_a_direct import build_a_direct_report
+
+
+ROOT = Path(__file__).resolve().parents[1]
+REPORT = ROOT / "reports/thermal_a_multistream_direct_train12_val2.json"
 
 
 def test_report_recomputes_fixed_metrics_and_records_policy() -> None:
@@ -50,3 +57,27 @@ def test_report_recomputes_fixed_metrics_and_records_policy() -> None:
     assert report["policy"]["route_b_report_verified"] is False
     assert report["policy"]["route_b_prerequisite_waived_by_user"] is True
     assert report["deployment"]["under_95000000_bytes"] is True
+
+
+def test_committed_a3_report_is_complete_and_stops_before_a4() -> None:
+    payload = json.loads(REPORT.read_text(encoding="utf-8"))
+
+    combined = payload["metrics"]["combined"]
+    assert payload["stage"] == "A3"
+    assert payload["status"] == "completed_stopped_before_a4"
+    assert payload["epochs_completed"] == 50
+    assert payload["selected_epoch"] == 38
+    assert combined["accuracy"] == 0.27320954907161804
+    assert combined["macro_f1"] == 0.1896036550647166
+    assert combined["worst_user_accuracy"] == 0.22564102564102564
+    assert len(combined["per_class_recall"]) == 40
+    assert combined["zero_recall_classes"] == 19
+    assert set(payload["metrics"]["per_user"]) == {"user6", "user7"}
+    assert payload["deployment"]["checkpoint_bytes"] == 15_069_955
+    assert payload["deployment"]["under_95000000_bytes"] is True
+    assert payload["policy"]["teacher_logits_loaded"] is False
+    assert payload["policy"]["heldout4_labels_read"] is False
+    assert payload["policy"]["competition_test_read"] is False
+    assert payload["policy"]["quarantined_evidence_read"] is False
+    assert payload["decision_gate"]["passed"] is False
+    assert payload["next_action"] == "stop_for_human_review_before_A4"

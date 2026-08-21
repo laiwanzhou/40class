@@ -103,6 +103,7 @@ def build_a_direct_report(
             "route_b_paired_comparison_reason": "Route B was explicitly waived and has no formal report",
             "heldout4_labels_read": False,
             "competition_test_read": False,
+            "quarantined_evidence_read": False,
             "ir_depth_inputs_read": False,
             "automatic_resume": False,
             "automatic_extension": False,
