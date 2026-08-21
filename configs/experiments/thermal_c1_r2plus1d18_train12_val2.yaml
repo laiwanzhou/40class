@@ -1,0 +1,74 @@
+schema_version: 1
+experiment_id: thermal_c1_r2plus1d18_train12_val2
+route: c1_r2plus1d18
+training_authorized: true
+authorization_token: thermal-c1-r2plus1d18
+authorization:
+  approved_on: '2026-08-21'
+  approval_text: 请在独立worktree中开启对教师的训练
+  scope: C1-R2Plus1D18 only
+  c2_authorized: false
+
+teacher:
+  architecture: torchvision_r2plus1d_18
+  num_classes: 40
+  initialization: official_kinetics400_v1
+  repository: https://github.com/pytorch/vision
+  repository_revision: 9eb57cd5c96be7fe31923eb65399c3819d064587
+  license: BSD-3-Clause
+  license_scope: torchvision source code; pretrained weights may inherit training-dataset terms
+  checkpoint_url: https://download.pytorch.org/models/r2plus1d_18-91a641e6.pth
+  checkpoint_sha256: 91a641e6c2ab531d1aca5f4321b4d802ec5c3babc15df855cdb6e39c6a1107c8
+  checkpoint_bytes: 126162996
+  strict_load_required: true
+  training_only: true
+  competition_use_basis: user-confirmed training-only large pretrained teachers are permitted
+
+data:
+  modality: thermal_only
+  development_split: metadata/splits/train12_val2_user6_user7_development.json
+  context_manifest: metadata/thermal/thermal_v2_trial_context.jsonl
+  normalization: metadata/thermal/thermal_v2_train12_normalization.json
+  train_partition: train12
+  validation_partition: val_user6_user7
+  validation_users: [user6, user7]
+  class_ids: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39]
+  views: [full, thermal_yolo_context]
+  normalized_windows: [[0.0, 0.5], [0.25, 0.75], [0.5, 1.0]]
+  frames_per_window: 16
+  raster_short_side: 176
+  raster_crop_size: 160
+  preprocessing_identity: thermal_v2_train12_rgb_not_kinetics_transform
+  read_heldout4_labels: false
+  read_competition_test: false
+  read_quarantined_evidence: false
+  import_ir_depth_inputs: false
+
+optimization:
+  seed: 20260715
+  optimizer: adamw
+  pretrained_backbone_learning_rate: 0.00001
+  classifier_learning_rate: 0.0001
+  weight_decay: 0.05
+  warmup_epochs: 3
+  schedule: cosine
+  maximum_epochs: 30
+  automatic_resume: false
+  automatic_extension: false
+  label_smoothing: 0.1
+  gradient_clip_norm: 1.0
+  amp_dtype: bfloat16
+  physical_batch_trials: 1
+  effective_batch_trials: 8
+  checkpoint_rank: [macro_f1_fixed_0_39, accuracy, worst_user_accuracy, lower_epoch]
+
+runtime:
+  sequential_clip_execution: true
+  average_available_clip_logits: true
+  maximum_peak_allocated_mib_exclusive: 7300
+  require_cuda: true
+
+output:
+  root: outputs/thermal_c1_r2plus1d18_train12_val2
+  selected_prediction_archive: selected_predictions.npz
+  save_last_checkpoint: false

@@ -1,0 +1,102 @@
+{
+  "schema_version": 1,
+  "stage": "C1-qualification",
+  "status": "passed",
+  "zero_formal_training": true,
+  "throwaway_optimizer_steps": 1,
+  "repository_head_at_probe": "50e7d711b268fd8fb4cf4fd156215926f5ea77b8",
+  "hardware": {
+    "gpu_name": "NVIDIA GeForce RTX 5060 Laptop GPU",
+    "total_vram_mib": 8150.5625,
+    "torch": "2.7.0+cu128",
+    "cuda": "12.8"
+  },
+  "provenance": {
+    "config_sha256": "f288c4d90ba4cdfa6ace702aab59542b8757dd5c21ed07b1c0acdd3632143ff3",
+    "probe_script_sha256": "b9cf4f0adbc21732b653ba64333e98c6743d9f094ba2873f3f7793879710aafb",
+    "context_sha256": "6c4828f7d41ee7c259abd5acd678fee82028b6c0f4fc0b048a52c8fbcc0123f1",
+    "normalization_sha256": "3ecf4b4f6a6c860758493bec5d7b1e98bebdb5f6244b60a6502556f35b0301da"
+  },
+  "pretrained_load": {
+    "paper_name": "A Closer Look at Spatiotemporal Convolutions for Action Recognition",
+    "repository": "https://github.com/pytorch/vision",
+    "repository_revision": "9eb57cd5c96be7fe31923eb65399c3819d064587",
+    "torchvision_version": "0.22.0",
+    "license": "BSD-3-Clause",
+    "license_scope": "torchvision source code; pretrained weights may inherit training-dataset terms",
+    "checkpoint_url": "https://download.pytorch.org/models/r2plus1d_18-91a641e6.pth",
+    "checkpoint_sha256": "91a641e6c2ab531d1aca5f4321b4d802ec5c3babc15df855cdb6e39c6a1107c8",
+    "checkpoint_bytes": 126162996,
+    "pretraining_dataset": "Kinetics-400",
+    "weights_enum": "R2Plus1D_18_Weights.KINETICS400_V1",
+    "checkpoint_path": "C:\\Users\\LaiWanzhou\\.cache\\torch\\hub\\checkpoints\\r2plus1d_18-91a641e6.pth",
+    "strict_load": true,
+    "missing_keys": [],
+    "unexpected_keys": [],
+    "classifier_replaced_after_strict_load": true,
+    "classifier_in_features": 512,
+    "classifier_out_features": 40,
+    "preprocessing_identity": "thermal_v2_train12_rgb_not_kinetics_transform",
+    "competition_use_basis": "user-confirmed training-only large pretrained teachers are permitted"
+  },
+  "input_contract": {
+    "modality": "thermal_only",
+    "sample_id": "train__c00__user16__1-1-1",
+    "source_partition": "train12",
+    "views": [
+      "full",
+      "thermal_yolo_context"
+    ],
+    "windows": 3,
+    "frames_per_window": 16,
+    "raster_crop_size": 160,
+    "preprocessing_identity": "thermal_v2_train12_rgb_not_kinetics_transform",
+    "forbidden_evidence_read": false
+  },
+  "model": {
+    "parameters": 31320645,
+    "classifier_outputs": 40,
+    "sequential_clip_execution": true,
+    "latency": {
+      "median_ms_per_trial": 87.24829999846406,
+      "p95_ms_per_trial": 87.86690000124509,
+      "iterations": 4,
+      "output_shape": [
+        1,
+        40
+      ],
+      "finite": true,
+      "clip_count": 6
+    }
+  },
+  "real_data_train_smoke": {
+    "physical_batch_trials": 1,
+    "effective_batch_trials": 8,
+    "clip_count_per_trial": 6,
+    "finite_loss": true,
+    "finite_logits": true,
+    "finite_gradients": true,
+    "optimizer_state_changed": true,
+    "seconds_per_optimizer_step": 12.21979850000207,
+    "peak_allocated_mib": 857.197265625,
+    "peak_reserved_mib": 892.0,
+    "persistent_checkpoint_written": false
+  },
+  "projected_training": {
+    "train_usable_trials": 1922,
+    "optimizer_steps_per_epoch": 241,
+    "epochs": 30,
+    "projected_seconds_lower_bound_from_smoke": 88349.14315501497,
+    "projected_hours_lower_bound_from_smoke": 24.541428654170826,
+    "basis": "one warmed real-trial effective-batch optimizer step; excludes validation and data loading"
+  },
+  "gates": {
+    "peak_allocated_below_7300_mib": true,
+    "strict_pretrained_load": true,
+    "finite": true,
+    "optimizer_state_changed": true
+  },
+  "teacher_is_training_only": true,
+  "student_deployment_imports_teacher": false,
+  "next_action": "single_authorized_c1_run"
+}
