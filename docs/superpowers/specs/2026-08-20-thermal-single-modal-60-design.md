@@ -215,11 +215,14 @@ The crop artifact records probe indices, detections, confidence statistics, fina
 ### Teachers
 
 - Seed: `20260715`.
+- Training uses inverse-frequency weighted random sampling with replacement over usable train12 class IDs, with one epoch containing the same number of draws as usable train12 trials. This gives every class equal sampling probability mass. Validation preserves its natural distribution and evaluates every usable validation trial exactly once.
 - Pretrained backbone learning rate `1e-5`; new classifier learning rate `1e-4`.
 - AdamW, weight decay `0.05`, 3 warmup epochs, cosine decay, 30 epochs maximum.
 - Cross-entropy with label smoothing `0.1`.
 - Effective batch: 8 trials; sequential view/window execution is mandatory.
 - Checkpoint rank matches the student rule.
+
+The natural-shuffle C1 run started on 2026-08-21 was stopped during epoch 6 and is invalid for teacher-family conclusions: usable train12 class counts ranged from 3 to 225 and the run collapsed toward the majority class. It must never be resumed; the corrected run restarts from the official pretrained weights.
 
 ### A-KD
 

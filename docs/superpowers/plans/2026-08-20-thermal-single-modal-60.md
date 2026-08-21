@@ -389,7 +389,9 @@ Run `pytest tests/test_thermal_teachers.py tests/test_probe_thermal_teachers.py 
 
 **Step 4: Train C1 only after approval**
 
-Record approval in config, commit, run C1 once, and report common metrics. Leave checkpoints ignored.
+Record approval in config, commit, run C1 once, and report common metrics. Leave checkpoints ignored. The corrected C1 recipe uses inverse-frequency `WeightedRandomSampler` with replacement over usable train12 class IDs and records the source class counts, equalized class probability mass, sampled-label histogram, and predicted-class histogram. Validation remains natural and exactly-once.
+
+The earlier natural-shuffle run is `invalid_imbalanced_stopped`, may not be resumed, and does not count as a teacher-family result. The corrected authorized run starts from the exact official Kinetics-400 checkpoint.
 
 **Step 5: Apply the fixed C2 rule**
 

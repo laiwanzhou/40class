@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 REPORT = ROOT / "reports/thermal_teacher_environment_probe.json"
@@ -34,3 +36,15 @@ def test_generated_c1_probe_passes_frozen_gates() -> None:
     assert smoke["peak_allocated_mib"] < 7300
     assert payload["teacher_is_training_only"] is True
     assert payload["student_deployment_imports_teacher"] is False
+    sampler = payload["training_sampler"]
+    assert sampler["policy"] == "inverse_frequency_weighted_random_replacement"
+    assert sampler["basis"] == "train12_usable_class_id"
+    assert sampler["validation_sampling"] == "natural_once"
+    assert len(sampler["class_counts"]) == 40
+    assert min(sampler["class_counts"].values()) == 3
+    assert max(sampler["class_counts"].values()) == 225
+    assert list(sampler["class_probability_mass"].values()) == pytest.approx(
+        [1 / 40] * 40
+    )
+    assert payload["correction"]["prior_run_status"] == "invalid_imbalanced_stopped"
+    assert payload["correction"]["resume_prior_checkpoint"] is False

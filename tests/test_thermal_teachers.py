@@ -5,7 +5,9 @@ from pathlib import Path
 import pytest
 import torch
 from torch import nn
+from torch.utils.data import WeightedRandomSampler
 
+from scripts import run_thermal_teacher as teacher_runner
 from src.models.thermal_teachers import (
     OFFICIAL_R2PLUS1D18,
     ThermalR2Plus1D18Teacher,
@@ -51,7 +53,8 @@ def test_config_freezes_c1_authorization_data_and_optimization() -> None:
 
     assert config["route"] == "c1_r2plus1d18"
     assert config["training_authorized"] is True
-    assert config["authorization"]["approval_text"] == "请在独立worktree中开启对教师的训练"
+    assert config["authorization"]["approval_text"] == "停止训练，修改训练代码后重新运行"
+    assert config["authorization"]["prior_run_status"] == "invalid_imbalanced_stopped"
     assert config["data"]["modality"] == "thermal_only"
     assert config["data"]["development_split"].endswith(
         "train12_val2_user6_user7_development.json"
@@ -61,6 +64,11 @@ def test_config_freezes_c1_authorization_data_and_optimization() -> None:
     assert config["optimization"]["effective_batch_trials"] == 8
     assert config["runtime"]["sequential_clip_execution"] is True
     assert config["runtime"]["maximum_peak_allocated_mib_exclusive"] == 7300
+    assert config["optimization"]["sampling_policy"] == (
+        "inverse_frequency_weighted_random_replacement"
+    )
+    assert config["optimization"]["sampling_basis"] == "train12_usable_class_id"
+    assert config["optimization"]["validation_sampling"] == "natural_once"
     assert all(config["data"][field] is False for field in (
         "read_heldout4_labels",
         "read_competition_test",
@@ -74,7 +82,53 @@ def test_authorization_requires_exact_c1_token() -> None:
 
     with pytest.raises(TeacherTrainingAuthorizationError):
         require_teacher_training_authorization(config, token="wrong")
-    require_teacher_training_authorization(config, token="thermal-c1-r2plus1d18")
+    require_teacher_training_authorization(
+        config, token="thermal-c1-r2plus1d18-balanced"
+    )
+
+
+def test_inverse_frequency_sampler_equalizes_probability_mass_by_class() -> None:
+    assert hasattr(teacher_runner, "build_inverse_frequency_sampler")
+    records = [
+        {"class_id": 0},
+        {"class_id": 1}, {"class_id": 1},
+        {"class_id": 2}, {"class_id": 2}, {"class_id": 2}, {"class_id": 2},
+    ]
+    sampler, audit = teacher_runner.build_inverse_frequency_sampler(
+        records=records,
+        indices=list(range(len(records))),
+        seed=20260715,
+    )
+
+    assert isinstance(sampler, WeightedRandomSampler)
+    assert sampler.replacement is True
+    assert sampler.num_samples == len(records)
+    weights = torch.as_tensor(sampler.weights, dtype=torch.float64)
+    class_mass = {
+        class_id: float(weights[[row["class_id"] == class_id for row in records]].sum())
+        for class_id in range(3)
+    }
+    assert list(class_mass.values()) == pytest.approx([1.0, 1.0, 1.0])
+    assert audit["class_counts"] == {"0": 1, "1": 2, "2": 4}
+    assert audit["class_probability_mass"] == pytest.approx(
+        {"0": 1 / 3, "1": 1 / 3, "2": 1 / 3}
+    )
+
+
+def test_history_row_does_not_mislabel_online_training_logits_as_epoch_end() -> None:
+    assert hasattr(teacher_runner, "build_epoch_history_row")
+    row = teacher_runner.build_epoch_history_row(
+        epoch=4,
+        selected=False,
+        seconds=12.0,
+        learning_rates=[1e-5, 1e-4],
+        online_train={"accuracy": 0.2},
+        validation={"accuracy": 0.3},
+    )
+
+    assert "train" not in row
+    assert row["online_train"] == {"accuracy": 0.2}
+    assert row["validation"] == {"accuracy": 0.3}
 
 
 def test_official_provenance_is_pinned() -> None:

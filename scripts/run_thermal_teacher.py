@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -12,7 +13,7 @@ from typing import Any, Sequence
 
 import numpy as np
 import torch
-from torch.utils.data import DataLoader, Subset
+from torch.utils.data import DataLoader, Subset, WeightedRandomSampler
 
 from src.data.thermal_teacher_dataset import ThermalTeacherDataset
 from src.models.thermal_teachers import ThermalR2Plus1D18Teacher
@@ -51,7 +52,41 @@ def prepare_output_root(path: Path) -> Path:
     return path
 
 
-def build_loaders(config: dict, *, data_root: Path, num_workers: int) -> tuple[DataLoader, DataLoader, ThermalTeacherDataset]:
+def build_inverse_frequency_sampler(
+    *, records: list[dict[str, Any]], indices: list[int], seed: int
+) -> tuple[WeightedRandomSampler, dict[str, Any]]:
+    if not indices:
+        raise ValueError("class-balanced sampler requires at least one training sample")
+    labels = [int(records[index]["class_id"]) for index in indices]
+    counts = Counter(labels)
+    weights = torch.tensor([1.0 / counts[label] for label in labels], dtype=torch.double)
+    generator = torch.Generator().manual_seed(seed)
+    sampler = WeightedRandomSampler(
+        weights=weights,
+        num_samples=len(indices),
+        replacement=True,
+        generator=generator,
+    )
+    total_mass = float(weights.sum())
+    class_mass = {
+        str(class_id): float(weights[torch.tensor(labels) == class_id].sum()) / total_mass
+        for class_id in sorted(counts)
+    }
+    audit = {
+        "policy": "inverse_frequency_weighted_random_replacement",
+        "basis": "train12_usable_class_id",
+        "replacement": True,
+        "epoch_samples": len(indices),
+        "class_counts": {str(class_id): counts[class_id] for class_id in sorted(counts)},
+        "class_probability_mass": class_mass,
+        "validation_sampling": "natural_once",
+    }
+    return sampler, audit
+
+
+def build_loaders(
+    config: dict, *, data_root: Path, num_workers: int
+) -> tuple[DataLoader, DataLoader, ThermalTeacherDataset, dict[str, Any]]:
     data = config["data"]
     common = {
         "data_root": data_root.resolve(),
@@ -63,7 +98,11 @@ def build_loaders(config: dict, *, data_root: Path, num_workers: int) -> tuple[D
     validation_dataset = ThermalTeacherDataset(**common, partition="val_user6_user7", training=False)
     train_indices = [index for index, record in enumerate(train_dataset.records) if record.get("usable", False)]
     validation_indices = [index for index, record in enumerate(validation_dataset.records) if record.get("usable", False)]
-    generator = torch.Generator().manual_seed(int(config["optimization"]["seed"]))
+    sampler, sampler_audit = build_inverse_frequency_sampler(
+        records=train_dataset.records,
+        indices=train_indices,
+        seed=int(config["optimization"]["seed"]),
+    )
     options = {
         "batch_size": 1,
         "num_workers": num_workers,
@@ -71,9 +110,11 @@ def build_loaders(config: dict, *, data_root: Path, num_workers: int) -> tuple[D
         # Recreate workers each epoch so set_epoch changes clip-consistent augmentation.
         "persistent_workers": False,
     }
-    train = DataLoader(Subset(train_dataset, train_indices), shuffle=True, generator=generator, **options)
+    train = DataLoader(
+        Subset(train_dataset, train_indices), sampler=sampler, shuffle=False, **options
+    )
     validation = DataLoader(Subset(validation_dataset, validation_indices), shuffle=False, **options)
-    return train, validation, train_dataset
+    return train, validation, train_dataset, sampler_audit
 
 
 def run_train_epoch(*, model: ThermalR2Plus1D18Teacher, loader: DataLoader, config: dict, device: torch.device, optimizer: torch.optim.Optimizer, scheduler: torch.optim.lr_scheduler.LambdaLR, epoch: int) -> dict[str, Any]:
@@ -115,12 +156,40 @@ def run_train_epoch(*, model: ThermalR2Plus1D18Teacher, loader: DataLoader, conf
     merged_logits = np.concatenate(logits).astype(np.float32)
     merged_labels = np.concatenate(labels).astype(np.int64)
     metrics = fixed_label_metrics(labels=merged_labels, logits=merged_logits, users=np.asarray(users))
-    metrics.update({"loss": float(np.mean(losses)), "eligible_samples": len(merged_labels), "optimizer_steps": optimizer_steps})
+    metrics.update({
+        "loss": float(np.mean(losses)),
+        "eligible_samples": len(merged_labels),
+        "optimizer_steps": optimizer_steps,
+        "metric_semantics": "online_logits_from_changing_model_states_not_epoch_end",
+        "sampled_class_counts": np.bincount(merged_labels, minlength=40).tolist(),
+        "predicted_class_counts": np.bincount(
+            merged_logits.argmax(axis=1), minlength=40
+        ).tolist(),
+    })
     return metrics
 
 
 def compact(metrics: dict[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in metrics.items() if key not in {"confusion_matrix", "per_class_recall"}}
+
+
+def build_epoch_history_row(
+    *,
+    epoch: int,
+    selected: bool,
+    seconds: float,
+    learning_rates: list[float],
+    online_train: dict[str, Any],
+    validation: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "epoch": epoch,
+        "selected": selected,
+        "seconds": seconds,
+        "learning_rates": learning_rates,
+        "online_train": online_train,
+        "validation": validation,
+    }
 
 
 def write_reports(manifest: dict[str, Any]) -> None:
@@ -142,6 +211,8 @@ def write_reports(manifest: dict[str, Any]) -> None:
         f"- NLL: `{metrics['nll']:.5f}`",
         f"- Zero-recall classes: `{metrics['zero_recall_classes']}/40`",
         f"- Teacher gate passed: `{gate['passed']}`",
+        "- Training sampler: `inverse_frequency_weighted_random_replacement` over usable train12 class IDs",
+        "- Validation sampling: `natural_once`",
         f"- Checkpoint: `{manifest['checkpoint_bytes']}` bytes, SHA256 `{manifest['checkpoint_sha256']}`",
         f"- CUDA peak allocated/reserved: `{manifest['cuda_peak_allocated_mib']:.2f}` / `{manifest['cuda_peak_reserved_mib']:.2f}` MiB",
         f"- Total runtime: `{manifest['total_seconds'] / 3600:.2f}` hours",
@@ -171,7 +242,9 @@ def run_formal_training(config: dict, *, output_root: Path, data_root: Path, num
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if device.type != "cuda":
         raise RuntimeError("formal C1 requires the qualified CUDA device")
-    train_loader, validation_loader, train_dataset = build_loaders(config, data_root=data_root, num_workers=num_workers)
+    train_loader, validation_loader, train_dataset, sampler_audit = build_loaders(
+        config, data_root=data_root, num_workers=num_workers
+    )
     model = ThermalR2Plus1D18Teacher(num_classes=40).to(device)
     accumulation = int(config["optimization"]["effective_batch_trials"])
     steps_per_epoch = (len(train_loader) + accumulation - 1) // accumulation
@@ -201,14 +274,14 @@ def run_formal_training(config: dict, *, output_root: Path, data_root: Path, num
                 "initialization_provenance": model.initialization_provenance,
                 "training_only": True,
             }, checkpoint_path)
-        row = {
-            "epoch": epoch,
-            "selected": selected,
-            "seconds": time.perf_counter() - epoch_started,
-            "learning_rates": [float(group["lr"]) for group in optimizer.param_groups],
-            "train": compact(train_metrics),
-            "validation": compact(validation_metrics),
-        }
+        row = build_epoch_history_row(
+            epoch=epoch,
+            selected=selected,
+            seconds=time.perf_counter() - epoch_started,
+            learning_rates=[float(group["lr"]) for group in optimizer.param_groups],
+            online_train=compact(train_metrics),
+            validation=compact(validation_metrics),
+        )
         history.append(row)
         history_path.write_text(json.dumps(history, indent=2) + "\n", encoding="utf-8")
         print(json.dumps(row, sort_keys=True), flush=True)
@@ -244,6 +317,7 @@ def run_formal_training(config: dict, *, output_root: Path, data_root: Path, num
         "train_usable_trials": len(train_loader.dataset),
         "validation_usable_trials": len(validation_loader.dataset),
         "canonical_train_trials": len(train_dataset),
+        "training_sampler": sampler_audit,
         "checkpoint_path": str(checkpoint_path),
         "checkpoint_bytes": checkpoint_path.stat().st_size,
         "checkpoint_sha256": sha256_file(checkpoint_path),

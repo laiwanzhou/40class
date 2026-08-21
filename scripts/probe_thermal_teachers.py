@@ -12,6 +12,7 @@ from typing import Sequence
 import torch
 from torch.utils.data import DataLoader, Subset
 
+from scripts.run_thermal_teacher import build_inverse_frequency_sampler
 from src.data.thermal_teacher_dataset import ThermalTeacherDataset
 from src.models.thermal_teachers import ThermalR2Plus1D18Teacher
 from src.train_thermal_teacher import (
@@ -40,7 +41,7 @@ def repository_head() -> str:
     return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=PROJECT_ROOT, text=True).strip()
 
 
-def first_real_batch(config: dict, *, data_root: Path) -> tuple[dict, int]:
+def first_real_batch(config: dict, *, data_root: Path) -> tuple[dict, int, dict]:
     data = config["data"]
     dataset = ThermalTeacherDataset(
         data_root=data_root,
@@ -51,8 +52,13 @@ def first_real_batch(config: dict, *, data_root: Path) -> tuple[dict, int]:
         seed=int(config["optimization"]["seed"]),
     )
     usable = [index for index, record in enumerate(dataset.records) if record.get("usable", False)]
+    _, sampler_audit = build_inverse_frequency_sampler(
+        records=dataset.records,
+        indices=usable,
+        seed=int(config["optimization"]["seed"]),
+    )
     loader = DataLoader(Subset(dataset, usable[:1]), batch_size=1, shuffle=False, num_workers=0)
-    return next(iter(loader)), len(usable)
+    return next(iter(loader)), len(usable), sampler_audit
 
 
 def _cuda_latency(model: ThermalR2Plus1D18Teacher, batch: dict, device: torch.device) -> dict:
@@ -91,7 +97,7 @@ def run_probe(*, config_path: Path, data_root: Path, report_path: Path) -> dict:
     if not torch.cuda.is_available():
         raise RuntimeError("C1 probe requires CUDA")
     device = torch.device("cuda")
-    batch, train_trials = first_real_batch(config, data_root=data_root)
+    batch, train_trials, sampler_audit = first_real_batch(config, data_root=data_root)
     model = ThermalR2Plus1D18Teacher(num_classes=40).to(device)
     provenance = model.initialization_provenance
     parameter_count = sum(parameter.numel() for parameter in model.parameters())
@@ -179,6 +185,13 @@ def run_probe(*, config_path: Path, data_root: Path, report_path: Path) -> dict:
             "classifier_outputs": 40,
             "sequential_clip_execution": True,
             "latency": latency,
+        },
+        "training_sampler": sampler_audit,
+        "correction": {
+            "prior_run_status": "invalid_imbalanced_stopped",
+            "root_cause": "natural shuffle plus unweighted cross entropy under 75x class imbalance",
+            "resume_prior_checkpoint": False,
+            "restart_from_official_pretrained_weights": True,
         },
         "real_data_train_smoke": {
             "physical_batch_trials": 1,

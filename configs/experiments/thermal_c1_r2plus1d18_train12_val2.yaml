@@ -1,12 +1,13 @@
 schema_version: 1
-experiment_id: thermal_c1_r2plus1d18_train12_val2
+experiment_id: thermal_c1_r2plus1d18_balanced_train12_val2
 route: c1_r2plus1d18
 training_authorized: true
-authorization_token: thermal-c1-r2plus1d18
+authorization_token: thermal-c1-r2plus1d18-balanced
 authorization:
   approved_on: '2026-08-21'
-  approval_text: 请在独立worktree中开启对教师的训练
-  scope: C1-R2Plus1D18 only
+  approval_text: 停止训练，修改训练代码后重新运行
+  scope: corrected class-balanced C1-R2Plus1D18 only
+  prior_run_status: invalid_imbalanced_stopped
   c2_authorized: false
 
 teacher:
@@ -60,6 +61,9 @@ optimization:
   amp_dtype: bfloat16
   physical_batch_trials: 1
   effective_batch_trials: 8
+  sampling_policy: inverse_frequency_weighted_random_replacement
+  sampling_basis: train12_usable_class_id
+  validation_sampling: natural_once
   checkpoint_rank: [macro_f1_fixed_0_39, accuracy, worst_user_accuracy, lower_epoch]
 
 runtime:
@@ -69,6 +73,6 @@ runtime:
   require_cuda: true
 
 output:
-  root: outputs/thermal_c1_r2plus1d18_train12_val2
+  root: outputs/thermal_c1_r2plus1d18_balanced_train12_val2
   selected_prediction_archive: selected_predictions.npz
   save_last_checkpoint: false

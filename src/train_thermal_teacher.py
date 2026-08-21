@@ -51,6 +51,19 @@ def validate_teacher_config(config: dict[str, Any]) -> None:
     _require(optimization.get("automatic_extension") is False, "extension is forbidden")
     _require(optimization.get("physical_batch_trials") == 1, "teacher physical batch must be 1")
     _require(optimization.get("effective_batch_trials") == 8, "effective batch must be 8")
+    _require(
+        optimization.get("sampling_policy")
+        == "inverse_frequency_weighted_random_replacement",
+        "teacher training must use the frozen inverse-frequency sampler",
+    )
+    _require(
+        optimization.get("sampling_basis") == "train12_usable_class_id",
+        "sampling basis changed",
+    )
+    _require(
+        optimization.get("validation_sampling") == "natural_once",
+        "validation must preserve its natural distribution",
+    )
     _require(optimization.get("checkpoint_rank") == CHECKPOINT_RANK, "checkpoint rank changed")
     _require(runtime.get("sequential_clip_execution") is True, "clip execution must be sequential")
     _require(runtime.get("average_available_clip_logits") is True, "clip logits must be averaged")

@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "status": "invalid_imbalanced_stopped",
+  "experiment_id": "thermal_c1_r2plus1d18_train12_val2",
+  "repository_head_at_start": "b4713010dc2c72eb0d9756b5dea646fbe9605d38",
+  "stopped_during_epoch": 6,
+  "stopped_after_epoch_trial": 1200,
+  "epochs_completed": 5,
+  "resume_forbidden": true,
+  "teacher_failure_claim_allowed": false,
+  "root_cause": {
+    "natural_shuffle": true,
+    "unweighted_cross_entropy": true,
+    "train12_usable_min_class_count": 3,
+    "train12_usable_max_class_count": 225,
+    "imbalance_ratio": 75.0,
+    "majority_class_id": 36,
+    "majority_class_name": "Walk",
+    "majority_fraction": 0.11706555671175858,
+    "observed_online_train_accuracy_epochs_2_and_3": 0.11706555671175858,
+    "selected_checkpoint_validation_prediction_counts": {
+      "class_36": 284,
+      "class_7": 50,
+      "class_9": 38,
+      "class_6": 5
+    }
+  },
+  "selected_epoch_before_stop": 2,
+  "selected_metrics_before_stop": {
+    "accuracy": 0.11936339522546419,
+    "macro_f1": 0.013040178571428574,
+    "worst_user_accuracy": 0.11282051282051282,
+    "user6_accuracy": 0.11282051282051282,
+    "user7_accuracy": 0.12637362637362637,
+    "nll": 3.5662853717803955,
+    "zero_recall_classes": 37
+  },
+  "integrity_checks": {
+    "real_r2plus1d_joint_vs_sequential_loss_exact": true,
+    "real_r2plus1d_joint_vs_sequential_logits_max_abs": 0.0,
+    "real_r2plus1d_joint_vs_sequential_gradient_max_relative": 0.0,
+    "real_r2plus1d_joint_vs_sequential_bn_buffer_max_abs": 0.0,
+    "checkpoint_finite": true,
+    "heldout_labels_read": false,
+    "competition_test_read": false,
+    "ir_or_depth_inputs_read": false
+  },
+  "archived_local_artifacts": {
+    "root": "outputs/thermal_c1_r2plus1d18_train12_val2_invalid_imbalanced_20260821",
+    "checkpoint_bytes": 125472071,
+    "checkpoint_sha256": "1db6961b90107d1824d9ee07b0ef3e12f0ed6c29fc427d34f18be7b24bb1ddac",
+    "history_sha256": "469c03faf21a0b422f8d9205a09429ce8a411eafe56511f22ad5a61ec8f97f08",
+    "stdout_sha256": "b7e128eee72d779f113d7ec560310decf201b695ed835748bae0bc5689f89120",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "corrective_run": {
+    "authorization_text": "停止训练，修改训练代码后重新运行",
+    "sampling_policy": "inverse_frequency_weighted_random_replacement",
+    "sampling_basis": "train12_usable_class_id",
+    "validation_sampling": "natural_once",
+    "restart_from_official_pretrained_weights": true
+  }
+}
