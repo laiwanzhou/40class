@@ -21,10 +21,16 @@ from src.models.ir_depth_videomaev2_teacher import (
     IRDepthVideoMAEV2Teacher,
     build_official_videomaev2_vit_b,
     sequential_multiview_backward,
+    sha256_file,
 )
 
 
 DEFAULT_CONFIG = PROJECT_ROOT / "configs/experiments/ir_depth_videomaev2_vit_b_p0.yaml"
+P0_SOURCE_PATHS = (
+    PROJECT_ROOT / "src/models/ir_depth_videomaev2_teacher.py",
+    PROJECT_ROOT / "src/data/ir_depth_videomaev2_dataset.py",
+    Path(__file__).resolve(),
+)
 
 
 def _require(condition: bool, message: str) -> None:
@@ -46,6 +52,10 @@ def load_probe_config(path: Path) -> dict[str, Any]:
     _require(inputs.get("image_size") == 224, "P0 requires 224 pixel input")
     _require(inputs.get("modalities") == list(MODALITY_NAMES), "P0 modalities changed")
     _require(inputs.get("views") == list(VIEW_NAMES), "P0 views changed")
+    _require(
+        inputs.get("roi_temporal_policy") == "fixed_trial_level_all_views",
+        "P0 ROI temporal policy changed",
+    )
     _require(runtime.get("physical_batch_trials") == 1, "P0 physical batch must be one")
     _require(runtime.get("amp_dtype") == "bfloat16", "P0 dtype must be bfloat16")
     _require(runtime.get("activation_checkpointing") is True, "checkpointing is required")
@@ -154,6 +164,13 @@ def run_probe(config_path: Path) -> dict[str, Any]:
         "stage": "P0",
         "status": "passed" if gate_values["passed"] else "failed",
         "config": str(config_path.resolve()),
+        "integrity": {
+            "config_sha256": sha256_file(config_path.resolve()),
+            "source_sha256": {
+                str(path.relative_to(PROJECT_ROOT)).replace("\\", "/"): sha256_file(path)
+                for path in P0_SOURCE_PATHS
+            },
+        },
         "checkpoint": provenance,
         "hardware": {
             "gpu": torch.cuda.get_device_name(device),

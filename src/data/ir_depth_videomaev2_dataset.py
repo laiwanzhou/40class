@@ -117,6 +117,8 @@ class IRDepthVideoMAEV2Dataset(Dataset[dict[str, object]]):
         with Image.open(depth_paths[0]) as first:
             width, height = first.size
         keys = [depth_frame_key(path) for path in depth_paths]
+        for path in depth_paths:
+            self.pose_cache.validate_frame(sample_id, path, width, height)
         person_boxes, keypoints, confidence = self.pose_cache.trial_arrays(sample_id, keys)
         interaction = self.interaction_builder.build(
             person_boxes, keypoints, confidence, width, height
@@ -135,6 +137,26 @@ class IRDepthVideoMAEV2Dataset(Dataset[dict[str, object]]):
         right_boxes, right_available = _fill_boxes(
             interaction.boxes[:, 2], interaction.valid_mask[:, 2]
         )
+        if left_available:
+            left_box = fixed_trial_person_context_box(
+                left_boxes,
+                width=width,
+                height=height,
+                detection_frames=8,
+                crop_margin=1.2,
+                minimum_side_fraction=0.12,
+            )
+            left_boxes[:] = left_box
+        if right_available:
+            right_box = fixed_trial_person_context_box(
+                right_boxes,
+                width=width,
+                height=height,
+                detection_frames=8,
+                crop_margin=1.2,
+                minimum_side_fraction=0.12,
+            )
+            right_boxes[:] = right_box
         indices = uniform_trial_indices(
             len(depth_paths),
             self.frames,

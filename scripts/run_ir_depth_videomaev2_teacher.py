@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from pathlib import Path
 import random
 import sys
@@ -18,12 +19,13 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from scripts.probe_ir_depth_videomaev2_teacher import load_probe_config
+from scripts.probe_ir_depth_videomaev2_teacher import P0_SOURCE_PATHS, load_probe_config
 from src.data.ir_depth_videomaev2_dataset import IRDepthVideoMAEV2Dataset
 from src.models.ir_depth_videomaev2_teacher import (
     IRDepthVideoMAEV2Teacher,
     build_official_videomaev2_vit_b,
     sequential_multiview_backward,
+    sha256_file,
 )
 
 
@@ -35,6 +37,60 @@ def _project_path(value: str) -> Path:
     return path if path.is_absolute() else PROJECT_ROOT / path
 
 
+def _atomic_write_text(path: Path, text: str) -> None:
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(text, encoding="utf-8")
+    temporary.replace(path)
+
+
+def _atomic_torch_save(path: Path, payload: object) -> None:
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    torch.save(payload, temporary)
+    temporary.replace(path)
+
+
+def _atomic_npz(path: Path, **arrays: np.ndarray) -> None:
+    temporary = path.with_suffix(".tmp.npz")
+    np.savez_compressed(temporary, **arrays)
+    temporary.replace(path)
+
+
+def validate_p0_binding(config: dict[str, Any], report: dict[str, Any]) -> None:
+    p0_config_path = _project_path(str(config["p0_config"])).resolve()
+    integrity = report.get("integrity", {})
+    if integrity.get("config_sha256") != sha256_file(p0_config_path):
+        raise RuntimeError("P0 report is not bound to the current P0 config")
+    recorded_sources = integrity.get("source_sha256", {})
+    expected_sources = {
+        str(path.relative_to(PROJECT_ROOT)).replace("\\", "/"): sha256_file(path)
+        for path in P0_SOURCE_PATHS
+    }
+    if recorded_sources != expected_sources:
+        raise RuntimeError("P0 report is not bound to the current P0 source code")
+    p0_config = load_probe_config(p0_config_path)
+    checkpoint = report.get("checkpoint", {})
+    if (
+        checkpoint.get("checkpoint_sha256") != p0_config["checkpoint"]["sha256"]
+        or checkpoint.get("checkpoint_bytes") != p0_config["checkpoint"]["bytes"]
+        or checkpoint.get("checkpoint_path")
+        != str(Path(str(p0_config["checkpoint"]["path"])).resolve())
+    ):
+        raise RuntimeError("P0 checkpoint provenance does not match P1")
+    gates = report.get("gates", {})
+    required = {
+        "peak_allocated_below_7300_mib",
+        "strict_checkpoint_load",
+        "finite_loss_logits_gradients",
+        "optimizer_state_changed",
+        "exact_execution_trace",
+        "passed",
+    }
+    if report.get("status") != "passed" or report.get("p1_status") != "eligible_to_start":
+        raise RuntimeError("P1 is blocked because P0 did not pass")
+    if not required.issubset(gates) or not all(bool(gates[name]) for name in required):
+        raise RuntimeError("P0 report does not contain a complete passing gate set")
+
+
 def load_training_config(path: Path) -> dict[str, Any]:
     config = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(config, dict):
@@ -44,7 +100,7 @@ def load_training_config(path: Path) -> dict[str, Any]:
         raise ValueError("P1 stage changed")
     if training.get("epochs") != 20 or training.get("gradient_accumulation") != 8:
         raise ValueError("P1 epoch or accumulation contract changed")
-    if training.get("unfrozen_backbone_blocks") != 4:
+    if training.get("unfrozen_backbone_blocks") != 12:
         raise ValueError("P1 trainable backbone tail changed")
     if training.get("sampler") != "inverse_frequency_replacement":
         raise ValueError("P1 class balancing changed")
@@ -92,6 +148,13 @@ def _set_seed(seed: int) -> None:
     torch.cuda.manual_seed_all(seed)
 
 
+def cosine_warmup_factor(step: int, *, warmup_steps: int, total_steps: int) -> float:
+    if warmup_steps and step < warmup_steps:
+        return max(1, step + 1) / warmup_steps
+    progress = (step - warmup_steps) / max(1, total_steps - warmup_steps)
+    return 0.5 * (1.0 + math.cos(math.pi * min(max(progress, 0.0), 1.0)))
+
+
 def _metrics(
     *, labels: np.ndarray, logits: np.ndarray, users: np.ndarray
 ) -> dict[str, object]:
@@ -112,6 +175,7 @@ def _metrics(
         "worst_user_accuracy": min(user_accuracy.values()),
         "user_accuracy": user_accuracy,
         "predicted_class_count": int(np.unique(predictions).size),
+        "predicted_class_histogram": np.bincount(predictions, minlength=40).tolist(),
         "zero_recall_classes": int(np.sum(np.asarray(recalls) == 0.0)),
         "per_class_recall": recalls,
     }
@@ -176,7 +240,21 @@ def evaluate(
         "sample_ids": np.asarray(sample_ids),
         "class_view_weights": torch.cat(gates).numpy(),
     }
-    return _metrics(labels=archive["labels"], logits=archive["logits"], users=archive["users"]), archive
+    metrics = _metrics(labels=archive["labels"], logits=archive["logits"], users=archive["users"])
+    weights = archive["class_view_weights"]
+    selected_weights = weights[np.arange(len(weights)), archive["labels"]]
+    metrics["true_class_view_weight_mean"] = selected_weights.mean(axis=0).tolist()
+    metrics["true_class_view_gate_entropy_mean"] = float(
+        (-(selected_weights * np.log(np.clip(selected_weights, 1e-12, 1.0))).sum(axis=(1, 2))).mean()
+    )
+    per_class_gate = []
+    for class_id in range(40):
+        selected = archive["labels"] == class_id
+        per_class_gate.append(
+            weights[selected, class_id].mean(axis=0).tolist() if selected.any() else [[0.0] * 4] * 2
+        )
+    metrics["per_class_view_weight_mean"] = per_class_gate
+    return metrics, archive
 
 
 def _save_checkpoint(
@@ -187,9 +265,9 @@ def _save_checkpoint(
     metrics: dict[str, object],
     config: dict[str, Any],
 ) -> None:
-    torch.save(
-        {"epoch": epoch, "metrics": metrics, "model_state_dict": model.state_dict(), "config": config},
+    _atomic_torch_save(
         path,
+        {"epoch": epoch, "metrics": metrics, "model_state_dict": model.state_dict(), "config": config},
     )
 
 
@@ -198,12 +276,12 @@ def run_training(
     *,
     token: str,
     smoke_test: bool = False,
+    resume: bool = False,
 ) -> dict[str, object]:
     config = load_training_config(config_path)
     require_training_authorization(config, token=token)
     p0_report = json.loads(_project_path(str(config["p0_report"])).read_text(encoding="utf-8"))
-    if p0_report.get("status") != "passed" or p0_report.get("p1_status") != "eligible_to_start":
-        raise RuntimeError("P1 is blocked because P0 did not pass")
+    validate_p0_binding(config, p0_report)
     training = config["training"]
     seed = int(training["seed"])
     _set_seed(seed)
@@ -235,6 +313,16 @@ def run_training(
         weight_decay=float(training["weight_decay"]),
     )
     epochs = 1 if smoke_test else int(training["epochs"])
+    optimizer_steps_per_epoch = math.ceil(len(train_loader) / int(training["gradient_accumulation"]))
+    total_optimizer_steps = max(1, optimizer_steps_per_epoch * epochs)
+    warmup_steps = optimizer_steps_per_epoch * int(training["warmup_epochs"])
+
+    scheduler = torch.optim.lr_scheduler.LambdaLR(
+        optimizer,
+        lambda step: cosine_warmup_factor(
+            step, warmup_steps=warmup_steps, total_steps=total_optimizer_steps
+        ),
+    )
     output_root = _project_path(str(config["output_root"]))
     run_id = str(config["run_id"]) + ("_smoke" if smoke_test else "")
     run_dir = output_root / run_id
@@ -244,19 +332,43 @@ def run_training(
             run_id = str(config["run_id"]) + f"_smoke_{suffix:02d}"
             run_dir = output_root / run_id
             suffix += 1
-    if run_dir.exists():
+    if run_dir.exists() and not (resume and not smoke_test):
         raise FileExistsError(run_dir)
-    run_dir.mkdir(parents=True)
-    (run_dir / "resolved_config.yaml").write_text(
-        yaml.safe_dump(config, sort_keys=False), encoding="utf-8"
-    )
+    run_dir.mkdir(parents=True, exist_ok=resume and not smoke_test)
+    resolved_config = yaml.safe_dump(config, sort_keys=False)
+    if resume:
+        existing_config = (run_dir / "resolved_config.yaml").read_text(encoding="utf-8")
+        if existing_config != resolved_config:
+            raise RuntimeError("resume config does not match the original P1 run")
+    else:
+        _atomic_write_text(run_dir / "resolved_config.yaml", resolved_config)
     history: list[dict[str, object]] = []
     best_key: tuple[float, ...] | None = None
     best_epoch = 0
     patience = 0
+    start_epoch = 1
+    if resume:
+        latest_path = run_dir / "latest_checkpoint.pt"
+        if not latest_path.is_file():
+            raise FileNotFoundError("resume requires latest_checkpoint.pt")
+        latest = torch.load(latest_path, map_location=device, weights_only=False)
+        model.load_state_dict(latest["model_state_dict"])
+        optimizer.load_state_dict(latest["optimizer_state_dict"])
+        scheduler.load_state_dict(latest["scheduler_state_dict"])
+        history = list(latest["history"])
+        best_key = tuple(latest["best_key"]) if latest["best_key"] is not None else None
+        best_epoch = int(latest["best_epoch"])
+        patience = int(latest["patience"])
+        start_epoch = int(latest["epoch"]) + 1
+        random.setstate(latest["python_rng_state"])
+        np.random.set_state(latest["numpy_rng_state"])
+        torch.set_rng_state(latest["torch_rng_state"].cpu())
+        torch.cuda.set_rng_state_all(latest["cuda_rng_state"])
+        if sampler.generator is not None:
+            sampler.generator.set_state(latest["sampler_generator_state"].cpu())
     accumulation_target = int(training["gradient_accumulation"])
     formal_started = time.perf_counter()
-    for epoch in range(1, epochs + 1):
+    for epoch in range(start_epoch, epochs + 1):
         model.train()
         optimizer.zero_grad(set_to_none=True)
         train_logits, train_labels, train_users = [], [], []
@@ -292,6 +404,7 @@ def run_training(
                         parameter.grad.div_(accumulated)
                 torch.nn.utils.clip_grad_norm_(trainable, float(training["gradient_clip"]))
                 optimizer.step()
+                scheduler.step()
                 optimizer.zero_grad(set_to_none=True)
                 optimizer_steps += 1
                 accumulated = 0
@@ -313,11 +426,12 @@ def run_training(
             "validation": val_metrics,
             "sampled_class_counts": sampled_counts.tolist(),
             "optimizer_steps": optimizer_steps,
+            "learning_rates": [float(group["lr"]) for group in optimizer.param_groups],
             "peak_allocated_mib": float(torch.cuda.max_memory_allocated(device) / 1024**2),
             "peak_reserved_mib": float(torch.cuda.max_memory_reserved(device) / 1024**2),
         }
         history.append(row)
-        (run_dir / "history.json").write_text(json.dumps(history, indent=2) + "\n", encoding="utf-8")
+        _atomic_write_text(run_dir / "history.json", json.dumps(history, indent=2) + "\n")
         rank = (
             float(val_metrics["macro_f1"]),
             float(val_metrics["accuracy"]),
@@ -335,10 +449,45 @@ def run_training(
                 metrics=val_metrics,
                 config=config,
             )
-            np.savez_compressed(run_dir / "selected_validation_predictions.npz", **val_archive)
+            _atomic_npz(run_dir / "selected_validation_predictions.npz", **val_archive)
         else:
             patience += 1
-        print(json.dumps(row), flush=True)
+        latest_payload = {
+            "epoch": epoch,
+            "model_state_dict": model.state_dict(),
+            "optimizer_state_dict": optimizer.state_dict(),
+            "scheduler_state_dict": scheduler.state_dict(),
+            "history": history,
+            "best_key": best_key,
+            "best_epoch": best_epoch,
+            "patience": patience,
+            "python_rng_state": random.getstate(),
+            "numpy_rng_state": np.random.get_state(),
+            "torch_rng_state": torch.get_rng_state(),
+            "cuda_rng_state": torch.cuda.get_rng_state_all(),
+            "sampler_generator_state": sampler.generator.get_state()
+            if sampler.generator is not None
+            else torch.empty(0, dtype=torch.uint8),
+        }
+        _atomic_torch_save(run_dir / "latest_checkpoint.pt", latest_payload)
+        print(
+            json.dumps(
+                {
+                    "epoch": epoch,
+                    "seconds": row["seconds"],
+                    "train_accuracy": train_metrics["accuracy"],
+                    "train_macro_f1": train_metrics["macro_f1"],
+                    "val_accuracy": val_metrics["accuracy"],
+                    "val_macro_f1": val_metrics["macro_f1"],
+                    "val_worst_user_accuracy": val_metrics["worst_user_accuracy"],
+                    "val_nll": val_metrics["nll"],
+                    "optimizer_steps": optimizer_steps,
+                    "learning_rates": row["learning_rates"],
+                    "peak_allocated_mib": row["peak_allocated_mib"],
+                }
+            ),
+            flush=True,
+        )
         if (
             not smoke_test
             and epoch >= int(training["minimum_epochs"])
@@ -347,11 +496,47 @@ def run_training(
             break
     selected_metrics = history[best_epoch - 1]["validation"]
     gate_config = config["teacher_gate"]
-    gates = {
+    classification_gates = {
         "accuracy": float(selected_metrics["accuracy"]) >= float(gate_config["accuracy_at_least"]),
         "macro_f1": float(selected_metrics["macro_f1"]) >= float(gate_config["macro_f1_at_least"]),
         "worst_user_accuracy": float(selected_metrics["worst_user_accuracy"])
         >= float(gate_config["worst_user_accuracy_at_least"]),
+    }
+    classification_passed = all(classification_gates.values())
+    train12_logits_audit = {
+        "performed": False,
+        "sample_count": 0,
+        "unique_sample_ids": False,
+        "finite_logits": False,
+        "shape": [],
+    }
+    if classification_passed and not smoke_test:
+        selected_checkpoint = torch.load(
+            run_dir / "selected_checkpoint.pt", map_location=device, weights_only=False
+        )
+        model.load_state_dict(selected_checkpoint["model_state_dict"])
+        deterministic_train = _make_dataset(config, partition="train", training=False)
+        deterministic_loader = DataLoader(
+            deterministic_train, batch_size=1, shuffle=False, num_workers=0, pin_memory=True
+        )
+        _, train12_archive = evaluate(model, deterministic_loader, device)
+        sample_ids = train12_archive["sample_ids"]
+        logits = train12_archive["logits"]
+        train12_logits_audit = {
+            "performed": True,
+            "sample_count": int(len(sample_ids)),
+            "unique_sample_ids": int(np.unique(sample_ids).size) == len(deterministic_train),
+            "finite_logits": bool(np.isfinite(logits).all()),
+            "shape": list(logits.shape),
+        }
+    gates = {
+        **classification_gates,
+        "finite_train12_logits": bool(
+            train12_logits_audit["performed"]
+            and train12_logits_audit["unique_sample_ids"]
+            and train12_logits_audit["finite_logits"]
+            and train12_logits_audit["shape"] == [len(train_dataset), 40]
+        ),
     }
     gates["passed"] = all(gates.values())
     summary = {
@@ -361,6 +546,8 @@ def run_training(
         "selected_epoch": best_epoch,
         "selected_metrics": selected_metrics,
         "teacher_gate": gates,
+        "classification_gate_passed": classification_passed,
+        "train12_logits_audit": train12_logits_audit,
         "p0_report": str(_project_path(str(config["p0_report"]))),
         "checkpoint_provenance": provenance,
         "sampler": sampler_audit,
@@ -369,7 +556,7 @@ def run_training(
         "runtime_seconds": time.perf_counter() - formal_started,
         "logits_export_status": "blocked_until_teacher_gate_review",
     }
-    (run_dir / "run_summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+    _atomic_write_text(run_dir / "run_summary.json", json.dumps(summary, indent=2) + "\n")
     return summary
 
 
@@ -378,9 +565,10 @@ def main() -> None:
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
     parser.add_argument("--authorize-training", required=True)
     parser.add_argument("--smoke-test", action="store_true")
+    parser.add_argument("--resume", action="store_true")
     args = parser.parse_args()
     summary = run_training(
-        args.config.resolve(), token=args.authorize_training, smoke_test=args.smoke_test
+        args.config.resolve(), token=args.authorize_training, smoke_test=args.smoke_test, resume=args.resume
     )
     print(json.dumps({"status": summary["status"], "run_id": summary["run_id"]}))
 

@@ -169,7 +169,7 @@ def build_official_videomaev2_vit_b(
     if digest != OFFICIAL_VIDEOMAEV2_VIT_B["checkpoint_sha256"]:
         raise RuntimeError(f"official checkpoint SHA256 mismatch: {digest}")
 
-    archive = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
+    archive = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
     if not isinstance(archive, dict) or not isinstance(archive.get("module"), dict):
         raise ValueError("official checkpoint must contain a module state mapping")
     state = dict(archive["module"])

@@ -26,6 +26,7 @@ input:
   ir_channels: repeated_gray_3
   depth_channels: depth_color_rgb
   normalization: imagenet_default
+  roi_temporal_policy: fixed_trial_level_all_views
 
 roi:
   keypoint_threshold: 0.25

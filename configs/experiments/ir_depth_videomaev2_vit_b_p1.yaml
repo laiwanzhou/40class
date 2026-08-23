@@ -27,7 +27,7 @@ training:
   physical_batch_trials: 1
   gradient_accumulation: 8
   sampler: inverse_frequency_replacement
-  unfrozen_backbone_blocks: 4
+  unfrozen_backbone_blocks: 12
   train_patch_embed: false
   amp_dtype: bfloat16
   backbone_learning_rate: 0.00001
@@ -50,4 +50,3 @@ policy:
   validation_logits_for_student: false
   automatic_logits_export: false
   oof_authorized: false
-

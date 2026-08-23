@@ -3,6 +3,14 @@
   "stage": "P0",
   "status": "passed",
   "config": "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\configs\\experiments\\ir_depth_videomaev2_vit_b_p0.yaml",
+  "integrity": {
+    "config_sha256": "fd902925d01c645424f0d3468ad3210c5cb07ad0634426900484a830418ef9e7",
+    "source_sha256": {
+      "src/models/ir_depth_videomaev2_teacher.py": "4ad06c0c3f661bc76e5bfab37dca74174a55f7fa8ee71bb5098959271601968b",
+      "src/data/ir_depth_videomaev2_dataset.py": "222adef628adcab05f62a712b2ac614817833a5b1e569cfdb9fbb596e6eb1c71",
+      "scripts/probe_ir_depth_videomaev2_teacher.py": "4a81ef78a18c0e40cbd22464363e938d3beb52af54205bdecc7a8f0918570743"
+    }
+  },
   "checkpoint": {
     "architecture": "vit_base_patch16_224",
     "repository": "https://github.com/OpenGVLab/VideoMAEv2",
@@ -115,8 +123,8 @@
     ]
   },
   "backward": {
-    "loss": 3.7757842540740967,
-    "seconds_per_optimizer_step": 2.5267072999995435,
+    "loss": 3.666473388671875,
+    "seconds_per_optimizer_step": 3.0158150999995996,
     "peak_allocated_mib": 1741.32421875,
     "peak_reserved_mib": 1830.0,
     "finite_gradients": true,
