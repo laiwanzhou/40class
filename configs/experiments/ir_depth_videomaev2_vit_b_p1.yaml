@@ -16,6 +16,7 @@ data:
   split: metadata/splits/train12_val2_user6_user7_development.json
   root: D:\work\2026.7.14_kaggle\datasets\Small-Model-Track\train
   pose_cache: D:\work\2026.7.14_kaggle\40class\outputs\depth_ir_person_crop_40class_fold0\person_crop_pose_tracks.npz
+  pairing_audit: reports/depth_ir_pose_roi_40class_pairing.csv
   temporal_jitter: 0.10
   num_workers: 0
 

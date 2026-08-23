@@ -4,20 +4,21 @@
   "status": "passed",
   "config": "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\configs\\experiments\\ir_depth_videomaev2_vit_b_p0.yaml",
   "integrity": {
-    "config_sha256": "fd902925d01c645424f0d3468ad3210c5cb07ad0634426900484a830418ef9e7",
+    "config_sha256": "e64f2141d5ca4c044691234838c55d71f3adf31c3969c9ce2c3f4a35bfdf21d5",
     "source_sha256": {
       "src/models/ir_depth_videomaev2_teacher.py": "4ad06c0c3f661bc76e5bfab37dca74174a55f7fa8ee71bb5098959271601968b",
-      "src/data/ir_depth_videomaev2_dataset.py": "222adef628adcab05f62a712b2ac614817833a5b1e569cfdb9fbb596e6eb1c71",
+      "src/data/ir_depth_videomaev2_dataset.py": "a8f2c51b9c0c13093d025a585eda8cc415343c7d28ae7f31233f39f1b270e7b3",
       "src/data/common.py": "3861762e91df79b3101ddb7292f44e7f0af2596df762e057cd049284920bb3b1",
       "src/data/pose_roi_dataset.py": "02810049e350f9c83872263d96213726cc426422aa9d084ad74efedf392c1bb0",
       "src/data/x3d_clip_dataset.py": "65235792f08d42b63501d578e22b95a38a3fe79ecddd0afd6077c53e15212829",
       "src/roi/object_interaction_builder.py": "f275134eed8e13f6babb3a178d960a000e923dc660ee657bcd20a7e8efd1dbb3",
-      "scripts/probe_ir_depth_videomaev2_teacher.py": "ea93f4935c4ca25d97a660e072d621743d2d5f95a123fc47a654c025066907ba"
+      "scripts/probe_ir_depth_videomaev2_teacher.py": "e4bd44c88ac446ad848861842fd56dd3a8b610396d9e21356e59d35c448d0f84"
     },
     "data_contract_sha256": {
       "manifest": "92d195ed82b71a243355d118280a3a891f00fd5643c76ed3c94a927eea0aecad",
       "split": "c65c4826bfdd2d16796021abfccd6b1ece0ef7fb0ec786b19cc62cb60e5e57ca",
-      "pose_cache": "239f2b88cb2a481e3fefbae3dd6390d6c9c21c5ee73df38b29adc7cd9b0b624d"
+      "pose_cache": "239f2b88cb2a481e3fefbae3dd6390d6c9c21c5ee73df38b29adc7cd9b0b624d",
+      "pairing_audit": "8b15585690cd3880690a75ad862cf84effba8a83990e15da2353d66ddb406ee1"
     }
   },
   "checkpoint": {
@@ -102,6 +103,11 @@
       46
     ]
   },
+  "train12_inventory": {
+    "sample_count": 1935,
+    "class_count": 40,
+    "frame_count": 55688
+  },
   "model": {
     "parameters": 86258280,
     "trial_logits_shape": [
@@ -132,8 +138,8 @@
     ]
   },
   "backward": {
-    "loss": 3.6313390731811523,
-    "seconds_per_optimizer_step": 2.5655439000001934,
+    "loss": 3.7476139068603516,
+    "seconds_per_optimizer_step": 2.528807599999709,
     "peak_allocated_mib": 1741.32421875,
     "peak_reserved_mib": 1830.0,
     "finite_gradients": true,

@@ -59,6 +59,7 @@ class IRDepthVideoMAEV2Dataset(Dataset[dict[str, object]]):
         split_path: Path,
         data_root: Path,
         pose_cache_path: Path,
+        pairing_audit_path: Path,
         partition: str,
         training: bool,
         frames: int = 16,
@@ -81,6 +82,12 @@ class IRDepthVideoMAEV2Dataset(Dataset[dict[str, object]]):
             & manifest["ir_path"].fillna("").astype(str).str.strip().ne("")
         )
         selected = manifest.loc[present & manifest["user_id"].isin(users)].copy()
+        audit = pd.read_csv(pairing_audit_path, encoding="utf-8-sig")
+        if "complete_pairing" not in audit or "sample_id" not in audit:
+            raise ValueError("pairing audit must contain sample_id and complete_pairing")
+        complete = audit["complete_pairing"].astype(str).str.casefold().eq("true")
+        valid_ids = set(audit.loc[complete, "sample_id"].astype(str))
+        selected = selected[selected["sample_id"].astype(str).isin(valid_ids)]
         selected = selected.sort_values(["class_id", "sample_id"]).reset_index(drop=True)
         if selected.empty or selected["class_id"].nunique() != 40:
             raise ValueError(f"{partition} must retain all 40 classes")
@@ -98,6 +105,27 @@ class IRDepthVideoMAEV2Dataset(Dataset[dict[str, object]]):
 
     def class_ids(self) -> list[int]:
         return [int(sample["class_id"]) for sample in self.samples]
+
+    def audit_inventory(self) -> dict[str, int]:
+        frame_count = 0
+        for row in self.samples:
+            sample_id = str(row["sample_id"])
+            depth_dir = resolve_manifest_path(self.data_root, str(row["depth_color_path"]))
+            ir_dir = resolve_manifest_path(self.data_root, str(row["ir_path"]))
+            depth_paths, _ = paired_frame_paths(depth_dir, ir_dir)
+            with Image.open(depth_paths[0]) as first:
+                width, height = first.size
+            for path in depth_paths:
+                key = depth_frame_key(path)
+                if (sample_id, key) not in self.pose_cache.lookup:
+                    raise KeyError(f"pose cache misses {sample_id} / {key}")
+                self.pose_cache.validate_frame(sample_id, path, width, height)
+            frame_count += len(depth_paths)
+        return {
+            "sample_count": len(self.samples),
+            "class_count": len(set(self.class_ids())),
+            "frame_count": frame_count,
+        }
 
     def _tensor(self, image: Image.Image, box: np.ndarray, *, grayscale: bool) -> torch.Tensor:
         converted = image.convert("L" if grayscale else "RGB")
@@ -117,6 +145,9 @@ class IRDepthVideoMAEV2Dataset(Dataset[dict[str, object]]):
         with Image.open(depth_paths[0]) as first:
             width, height = first.size
         keys = [depth_frame_key(path) for path in depth_paths]
+        missing_keys = [key for key in keys if (sample_id, key) not in self.pose_cache.lookup]
+        if missing_keys:
+            raise KeyError(f"pose cache misses {len(missing_keys)} frames for {sample_id}")
         for path in depth_paths:
             self.pose_cache.validate_frame(sample_id, path, width, height)
         person_boxes, keypoints, confidence = self.pose_cache.trial_arrays(sample_id, keys)

@@ -72,6 +72,9 @@ def validate_p0_binding(config: dict[str, Any], report: dict[str, Any]) -> None:
         "manifest": sha256_file(_project_path(str(p0_config["data"]["manifest"]))),
         "split": sha256_file(_project_path(str(p0_config["data"]["split"]))),
         "pose_cache": sha256_file(Path(str(p0_config["data"]["pose_cache"]))),
+        "pairing_audit": sha256_file(
+            _project_path(str(p0_config["data"]["pairing_audit"]))
+        ),
     }
     if integrity.get("data_contract_sha256") != expected_data:
         raise RuntimeError("P0 report is not bound to the current manifest, split, and pose cache")
@@ -196,6 +199,7 @@ def _make_dataset(config: dict[str, Any], *, partition: str, training: bool) -> 
         split_path=_project_path(str(data["split"])),
         data_root=Path(str(data["root"])),
         pose_cache_path=Path(str(data["pose_cache"])),
+        pairing_audit_path=_project_path(str(data["pairing_audit"])),
         partition=partition,
         training=training,
         frames=16,

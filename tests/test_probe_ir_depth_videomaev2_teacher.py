@@ -25,6 +25,7 @@ def test_p0_config_freezes_real_probe_contract() -> None:
         "right_hand_object",
     ]
     assert config["input"]["roi_temporal_policy"] == "fixed_trial_level_all_views"
+    assert config["data"]["pairing_audit"] == "reports/depth_ir_pose_roi_40class_pairing.csv"
     assert config["runtime"]["physical_batch_trials"] == 1
     assert config["runtime"]["amp_dtype"] == "bfloat16"
     assert config["runtime"]["sequential_multiview_backward"] is True

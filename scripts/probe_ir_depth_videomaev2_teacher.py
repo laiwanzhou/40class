@@ -92,6 +92,7 @@ def run_probe(config_path: Path) -> dict[str, Any]:
         split_path=_resolve_project_path(str(data["split"])),
         data_root=Path(str(data["root"])),
         pose_cache_path=Path(str(data["pose_cache"])),
+        pairing_audit_path=_resolve_project_path(str(data["pairing_audit"])),
         partition=str(data["partition"]),
         training=False,
         frames=16,
@@ -99,6 +100,7 @@ def run_probe(config_path: Path) -> dict[str, Any]:
         temporal_jitter=0.0,
         interaction_config=dict(config["roi"]),
     )
+    inventory = dataset.audit_inventory()
     sample: dict[str, object] | None = None
     for index in range(min(len(dataset), 32)):
         candidate = dataset[index]
@@ -178,6 +180,9 @@ def run_probe(config_path: Path) -> dict[str, Any]:
                 "manifest": sha256_file(_resolve_project_path(str(config["data"]["manifest"]))),
                 "split": sha256_file(_resolve_project_path(str(config["data"]["split"]))),
                 "pose_cache": sha256_file(Path(str(config["data"]["pose_cache"]))),
+                "pairing_audit": sha256_file(
+                    _resolve_project_path(str(config["data"]["pairing_audit"]))
+                ),
             },
         },
         "checkpoint": provenance,
@@ -195,6 +200,7 @@ def run_probe(config_path: Path) -> dict[str, Any]:
             "availability": availability.cpu().tolist(),
             "sampled_indices": torch.as_tensor(sample["sampled_indices"]).tolist(),
         },
+        "train12_inventory": inventory,
         "model": {
             "parameters": sum(parameter.numel() for parameter in model.parameters()),
             "trial_logits_shape": list(result["logits"].shape),
