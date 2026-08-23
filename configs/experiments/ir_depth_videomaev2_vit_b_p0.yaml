@@ -1,0 +1,67 @@
+schema_version: 1
+stage: P0
+role: ir_depth_videomaev2_vit_b_real_backward_probe
+
+checkpoint:
+  architecture: vit_base_patch16_224
+  path: C:\Users\LaiWanzhou\.cache\torch\hub\checkpoints\vit_b_k710_dl_from_giant.pth
+  url: https://huggingface.co/OpenGVLab/VideoMAE2/resolve/main/distill/vit_b_k710_dl_from_giant.pth
+  sha256: 8141a6955e0700d11bf15928fe6d61e5cfe482606fed8cfdddb1b922c0fd88ec
+  bytes: 173574417
+  source_revision: 29eab1e8a588d1b3ec0cdec7b03a86cca491b74b
+
+data:
+  manifest: metadata/manifest.csv
+  split: metadata/splits/train12_val2_user6_user7_development.json
+  root: D:\work\2026.7.14_kaggle\datasets\Small-Model-Track\train
+  pose_cache: D:\work\2026.7.14_kaggle\40class\outputs\depth_ir_person_crop_40class_fold0\person_crop_pose_tracks.npz
+  partition: train
+
+input:
+  modalities: [ir, depth]
+  views: [global, person_context, left_hand_object, right_hand_object]
+  frames: 16
+  image_size: 224
+  validation_temporal_jitter: 0.0
+  ir_channels: repeated_gray_3
+  depth_channels: depth_color_rgb
+  normalization: imagenet_default
+
+roi:
+  keypoint_threshold: 0.25
+  projection_alpha: 0.55
+  long_axis_scale: 0.65
+  short_axis_scale: 0.45
+  wrist_fallback_person_width: 0.35
+  minimum_pixel_side: 48.0
+  merge_iou_threshold: 0.30
+  merge_projected_distance: 0.60
+  merge_wrist_distance: 0.70
+  merge_elbow_distance: 0.80
+  merge_wide_wrist_distance: 1.20
+  two_hand_horizontal_padding: 0.30
+  two_hand_top_padding: 0.10
+  two_hand_bottom_padding: 0.45
+  hand_head_distance: 0.90
+
+runtime:
+  device: cuda
+  physical_batch_trials: 1
+  amp_dtype: bfloat16
+  activation_checkpointing: true
+  sequential_multiview_backward: true
+  optimizer: adamw
+  backbone_learning_rate: 0.00001
+  fusion_learning_rate: 0.0001
+  weight_decay: 0.05
+  label_smoothing: 0.1
+  gradient_clip: 5.0
+
+gates:
+  peak_allocated_mib_below: 7300
+  strict_checkpoint_load: true
+  finite_loss_logits_gradients: true
+  optimizer_state_changed: true
+  exact_execution_trace: true
+
+report: reports/ir_depth_videomaev2_vit_b_p0_probe.json

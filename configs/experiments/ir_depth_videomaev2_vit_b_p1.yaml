@@ -1,0 +1,53 @@
+schema_version: 1
+stage: P1
+role: ir_depth_videomaev2_vit_b_single_teacher_run
+run_id: ir_depth_videomaev2_vit_b_train12_val2_seed20260715
+output_root: outputs/ir_depth_videomaev2_teacher
+p0_config: configs/experiments/ir_depth_videomaev2_vit_b_p0.yaml
+p0_report: reports/ir_depth_videomaev2_vit_b_p0_probe.json
+
+authorization:
+  p1_authorized: true
+  token: AUTHORIZE_IR_DEPTH_VIDEOMAEV2_P1_20260823
+  basis: user requested fixing P0 and then starting P1 on 2026-08-23
+
+data:
+  manifest: metadata/manifest.csv
+  split: metadata/splits/train12_val2_user6_user7_development.json
+  root: D:\work\2026.7.14_kaggle\datasets\Small-Model-Track\train
+  pose_cache: D:\work\2026.7.14_kaggle\40class\outputs\depth_ir_person_crop_40class_fold0\person_crop_pose_tracks.npz
+  temporal_jitter: 0.10
+  num_workers: 0
+
+training:
+  seed: 20260715
+  epochs: 20
+  minimum_epochs: 3
+  early_stopping_patience: 6
+  physical_batch_trials: 1
+  gradient_accumulation: 8
+  sampler: inverse_frequency_replacement
+  unfrozen_backbone_blocks: 4
+  train_patch_embed: false
+  amp_dtype: bfloat16
+  backbone_learning_rate: 0.00001
+  head_learning_rate: 0.0001
+  fusion_learning_rate: 0.0001
+  weight_decay: 0.05
+  label_smoothing: 0.1
+  gradient_clip: 5.0
+  warmup_epochs: 2
+  checkpoint_rank: [macro_f1, accuracy, worst_user_accuracy, negative_nll, earlier_epoch]
+
+teacher_gate:
+  accuracy_at_least: 0.60
+  macro_f1_at_least: 0.45
+  worst_user_accuracy_at_least: 0.50
+  finite_train12_logits_required: true
+
+policy:
+  train_users_only_for_optimization: true
+  validation_logits_for_student: false
+  automatic_logits_export: false
+  oof_authorized: false
+

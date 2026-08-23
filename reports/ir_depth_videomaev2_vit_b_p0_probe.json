@@ -1,0 +1,134 @@
+{
+  "schema_version": 1,
+  "stage": "P0",
+  "status": "passed",
+  "config": "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\configs\\experiments\\ir_depth_videomaev2_vit_b_p0.yaml",
+  "checkpoint": {
+    "architecture": "vit_base_patch16_224",
+    "repository": "https://github.com/OpenGVLab/VideoMAEv2",
+    "repository_revision": "29eab1e8a588d1b3ec0cdec7b03a86cca491b74b",
+    "license": "MIT",
+    "checkpoint_url": "https://huggingface.co/OpenGVLab/VideoMAE2/resolve/main/distill/vit_b_k710_dl_from_giant.pth",
+    "checkpoint_sha256": "8141a6955e0700d11bf15928fe6d61e5cfe482606fed8cfdddb1b922c0fd88ec",
+    "checkpoint_bytes": 173574417,
+    "pretraining_dataset": "Kinetics-710 distilled from VideoMAE V2 ViT-giant",
+    "frames": 16,
+    "image_size": 224,
+    "checkpoint_path": "C:\\Users\\LaiWanzhou\\.cache\\torch\\hub\\checkpoints\\vit_b_k710_dl_from_giant.pth",
+    "strict_backbone_load": true,
+    "source_head_shape": [
+      710,
+      768
+    ],
+    "replacement_head_shape": [
+      40,
+      768
+    ],
+    "missing_keys": [
+      "head.weight",
+      "head.bias"
+    ],
+    "unexpected_keys": [],
+    "activation_checkpointing": true
+  },
+  "hardware": {
+    "gpu": "NVIDIA GeForce RTX 5060 Laptop GPU",
+    "total_vram_mib": 8150.5625,
+    "torch": "2.7.0+cu128",
+    "cuda": "12.8"
+  },
+  "real_sample": {
+    "sample_id": "train__c00__user16__1-1-1",
+    "user_id": "user16",
+    "label": 0,
+    "clips_shape": [
+      1,
+      2,
+      4,
+      3,
+      16,
+      224,
+      224
+    ],
+    "availability": [
+      [
+        [
+          true,
+          true,
+          true,
+          true
+        ],
+        [
+          true,
+          true,
+          true,
+          true
+        ]
+      ]
+    ],
+    "sampled_indices": [
+      0,
+      3,
+      6,
+      9,
+      12,
+      15,
+      18,
+      21,
+      25,
+      28,
+      31,
+      34,
+      37,
+      40,
+      43,
+      46
+    ]
+  },
+  "model": {
+    "parameters": 86258280,
+    "trial_logits_shape": [
+      1,
+      40
+    ],
+    "view_logits_shape": [
+      1,
+      2,
+      4,
+      40
+    ],
+    "class_view_weights_shape": [
+      1,
+      40,
+      2,
+      4
+    ],
+    "execution_trace": [
+      "ir:global",
+      "ir:person_context",
+      "ir:left_hand_object",
+      "ir:right_hand_object",
+      "depth:global",
+      "depth:person_context",
+      "depth:left_hand_object",
+      "depth:right_hand_object"
+    ]
+  },
+  "backward": {
+    "loss": 3.7757842540740967,
+    "seconds_per_optimizer_step": 2.5267072999995435,
+    "peak_allocated_mib": 1741.32421875,
+    "peak_reserved_mib": 1830.0,
+    "finite_gradients": true,
+    "optimizer_state_changed": true
+  },
+  "gates": {
+    "peak_allocated_below_7300_mib": true,
+    "strict_checkpoint_load": true,
+    "finite_loss_logits_gradients": true,
+    "optimizer_state_changed": true,
+    "exact_execution_trace": true,
+    "passed": true
+  },
+  "p1_status": "eligible_to_start"
+}
