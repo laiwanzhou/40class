@@ -8,7 +8,16 @@
     "source_sha256": {
       "src/models/ir_depth_videomaev2_teacher.py": "4ad06c0c3f661bc76e5bfab37dca74174a55f7fa8ee71bb5098959271601968b",
       "src/data/ir_depth_videomaev2_dataset.py": "222adef628adcab05f62a712b2ac614817833a5b1e569cfdb9fbb596e6eb1c71",
-      "scripts/probe_ir_depth_videomaev2_teacher.py": "4a81ef78a18c0e40cbd22464363e938d3beb52af54205bdecc7a8f0918570743"
+      "src/data/common.py": "3861762e91df79b3101ddb7292f44e7f0af2596df762e057cd049284920bb3b1",
+      "src/data/pose_roi_dataset.py": "02810049e350f9c83872263d96213726cc426422aa9d084ad74efedf392c1bb0",
+      "src/data/x3d_clip_dataset.py": "65235792f08d42b63501d578e22b95a38a3fe79ecddd0afd6077c53e15212829",
+      "src/roi/object_interaction_builder.py": "f275134eed8e13f6babb3a178d960a000e923dc660ee657bcd20a7e8efd1dbb3",
+      "scripts/probe_ir_depth_videomaev2_teacher.py": "ea93f4935c4ca25d97a660e072d621743d2d5f95a123fc47a654c025066907ba"
+    },
+    "data_contract_sha256": {
+      "manifest": "92d195ed82b71a243355d118280a3a891f00fd5643c76ed3c94a927eea0aecad",
+      "split": "c65c4826bfdd2d16796021abfccd6b1ece0ef7fb0ec786b19cc62cb60e5e57ca",
+      "pose_cache": "239f2b88cb2a481e3fefbae3dd6390d6c9c21c5ee73df38b29adc7cd9b0b624d"
     }
   },
   "checkpoint": {
@@ -123,8 +132,8 @@
     ]
   },
   "backward": {
-    "loss": 3.666473388671875,
-    "seconds_per_optimizer_step": 3.0158150999995996,
+    "loss": 3.6313390731811523,
+    "seconds_per_optimizer_step": 2.5655439000001934,
     "peak_allocated_mib": 1741.32421875,
     "peak_reserved_mib": 1830.0,
     "finite_gradients": true,

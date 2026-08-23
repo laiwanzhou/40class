@@ -29,6 +29,10 @@ DEFAULT_CONFIG = PROJECT_ROOT / "configs/experiments/ir_depth_videomaev2_vit_b_p
 P0_SOURCE_PATHS = (
     PROJECT_ROOT / "src/models/ir_depth_videomaev2_teacher.py",
     PROJECT_ROOT / "src/data/ir_depth_videomaev2_dataset.py",
+    PROJECT_ROOT / "src/data/common.py",
+    PROJECT_ROOT / "src/data/pose_roi_dataset.py",
+    PROJECT_ROOT / "src/data/x3d_clip_dataset.py",
+    PROJECT_ROOT / "src/roi/object_interaction_builder.py",
     Path(__file__).resolve(),
 )
 
@@ -169,6 +173,11 @@ def run_probe(config_path: Path) -> dict[str, Any]:
             "source_sha256": {
                 str(path.relative_to(PROJECT_ROOT)).replace("\\", "/"): sha256_file(path)
                 for path in P0_SOURCE_PATHS
+            },
+            "data_contract_sha256": {
+                "manifest": sha256_file(_resolve_project_path(str(config["data"]["manifest"]))),
+                "split": sha256_file(_resolve_project_path(str(config["data"]["split"]))),
+                "pose_cache": sha256_file(Path(str(config["data"]["pose_cache"]))),
             },
         },
         "checkpoint": provenance,

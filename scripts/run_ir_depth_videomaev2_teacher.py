@@ -68,6 +68,13 @@ def validate_p0_binding(config: dict[str, Any], report: dict[str, Any]) -> None:
     if recorded_sources != expected_sources:
         raise RuntimeError("P0 report is not bound to the current P0 source code")
     p0_config = load_probe_config(p0_config_path)
+    expected_data = {
+        "manifest": sha256_file(_project_path(str(p0_config["data"]["manifest"]))),
+        "split": sha256_file(_project_path(str(p0_config["data"]["split"]))),
+        "pose_cache": sha256_file(Path(str(p0_config["data"]["pose_cache"]))),
+    }
+    if integrity.get("data_contract_sha256") != expected_data:
+        raise RuntimeError("P0 report is not bound to the current manifest, split, and pose cache")
     checkpoint = report.get("checkpoint", {})
     if (
         checkpoint.get("checkpoint_sha256") != p0_config["checkpoint"]["sha256"]
