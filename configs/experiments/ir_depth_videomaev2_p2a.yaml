@@ -1,0 +1,40 @@
+schema_version: 1
+stage: P2-A
+role: deterministic_per_view_cache_and_ablation
+
+source:
+  p1_config: configs/experiments/ir_depth_videomaev2_vit_b_p1.yaml
+  checkpoint: outputs/ir_depth_videomaev2_teacher/ir_depth_videomaev2_vit_b_train12_val2_seed20260715/selected_checkpoint.pt
+  checkpoint_sha256: 4b3e89542abd33cb306814f277e3bb40bb7143833a3c0ac9ab23b2d38271429c
+  checkpoint_bytes: 345104224
+  reference_predictions: outputs/ir_depth_videomaev2_teacher/ir_depth_videomaev2_vit_b_train12_val2_seed20260715/selected_validation_predictions.npz
+  reference_predictions_sha256: 60422d0864b12ac5c32f6bc6dffa0ec3a8f566e209f6a06b242519462998cb12
+
+input_contract:
+  modalities: [ir, depth]
+  views: [global, person_context, left_hand_object, right_hand_object]
+  frames: 16
+  image_size: 224
+  deterministic: true
+
+outputs:
+  cache: outputs/ir_depth_videomaev2_teacher/ir_depth_videomaev2_vit_b_train12_val2_seed20260715/p2a_view_cache.npz
+  report_json: reports/ir_depth_videomaev2_p2a_diagnostics.json
+  report_markdown: reports/ir_depth_videomaev2_p2a_diagnostics.md
+  per_class_csv: reports/ir_depth_videomaev2_p2a_per_class.csv
+
+policy:
+  training_allowed: false
+  checkpoint_mutation_allowed: false
+  validation_membership_mutation_allowed: false
+  p2b_authorized: false
+  logits_export_for_student: false
+
+deferred_p2b:
+  status: candidate_only_wait_for_p2a_review
+  long_trial_threshold: 32
+  long_trial_frames: 32
+  short_trial_frames: 16
+  fixed_cost_by_duration_bucket: true
+  motion_peak_sampling: false
+
