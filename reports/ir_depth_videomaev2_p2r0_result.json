@@ -6732,14 +6732,22 @@
   },
   "effective_gate": false,
   "strong_gate": false,
-  "hypothesis_status": "rejected",
+  "scope_status": "partial_implementation_of_approved_p2r0",
+  "hypothesis_status": "narrow_variant_rejected",
   "interpretation": {
     "cv_limit": "The frozen VideoMAE had already trained on all train12 users, so internal router CV starts from near-saturated, non-cross-fitted teacher features.",
     "final_outcome": "Feature router rescued 13 trials and harmed 22, for net rescue -9.",
-    "decision": "Do not retry or start P2-B automatically; require human review."
+    "scope_limit": "This run omitted the approved per-view logits, Top-5 margin, duration, and no-Depth feature-router control; it cannot reject the complete P2-R0 hypothesis.",
+    "decision": "Do not run a corrected variant or start P2-B without new user approval."
   },
   "videomae_updated": false,
   "p2b_started": false,
   "runtime_seconds": 19.941127400001278,
-  "output_root": "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\ir_depth_videomaev2_p2r0\\ir_depth_videomaev2_p2r0_seed20260715"
+  "output_root": "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\ir_depth_videomaev2_p2r0\\ir_depth_videomaev2_p2r0_seed20260715",
+  "artifacts": {
+    "feature_router_model.pt": {"path": "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\ir_depth_videomaev2_p2r0\\ir_depth_videomaev2_p2r0_seed20260715\\feature_router_model.pt", "bytes": 1743981, "sha256": "6750cc0a4b1813b4f485a09c5738d201a4111d916b8dee98a83bfef27808e491"},
+    "feature_router_validation_predictions.npz": {"path": "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\ir_depth_videomaev2_p2r0\\ir_depth_videomaev2_p2r0_seed20260715\\feature_router_validation_predictions.npz", "bytes": 231953, "sha256": "5b3a9f5f1ccbebaaee877a4c40cc56a98f5002b3baede9519fd4f3253eb9737c"},
+    "logit_only_model.pt": {"path": "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\ir_depth_videomaev2_p2r0\\ir_depth_videomaev2_p2r0_seed20260715\\logit_only_model.pt", "bytes": 47909, "sha256": "2a3bcc174080cee94c63ccee153bf8a414e53a9a896c9f34635dfee83c7534bb"},
+    "logit_only_validation_predictions.npz": {"path": "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\ir_depth_videomaev2_p2r0\\ir_depth_videomaev2_p2r0_seed20260715\\logit_only_validation_predictions.npz", "bytes": 114064, "sha256": "def5f1ed1ebcac1d8a416892d91e6f2763dd83d23544990a5872cc86dde54ad7"}
+  }
 }

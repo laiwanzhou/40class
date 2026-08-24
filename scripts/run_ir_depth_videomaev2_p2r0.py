@@ -502,6 +502,12 @@ def run_experiment(config_path: Path) -> dict[str, object]:
         "maximum_two_views": int(feature.get("maximum_nonzero_views", 99)) <= 2,
     }
     success_gates["passed"] = all(success_gates.values())
+    artifact_names = (
+        "feature_router_model.pt",
+        "feature_router_validation_predictions.npz",
+        "logit_only_model.pt",
+        "logit_only_validation_predictions.npz",
+    )
     report = {
         "schema_version": 1,
         "stage": "P2-R0",
@@ -518,7 +524,10 @@ def run_experiment(config_path: Path) -> dict[str, object]:
         "success_gates": success_gates,
         "effective_gate": float(feature["accuracy"]) >= float(gates_config["effective_accuracy"]),
         "strong_gate": float(feature["accuracy"]) >= float(gates_config["strong_accuracy"]),
-        "hypothesis_status": "supported" if success_gates["passed"] else "rejected",
+        "scope_status": "partial_implementation_of_approved_p2r0",
+        "hypothesis_status": (
+            "narrow_variant_supported" if success_gates["passed"] else "narrow_variant_rejected"
+        ),
         "interpretation": {
             "cv_limit": (
                 "The frozen VideoMAE had already trained on all train12 users, so internal "
@@ -528,12 +537,24 @@ def run_experiment(config_path: Path) -> dict[str, object]:
                 f"Feature router rescued {feature['rescued']} trials and harmed "
                 f"{feature['harmed']}, for net rescue {feature['net_rescue']}."
             ),
-            "decision": "Do not retry or start P2-B automatically; require human review.",
+            "scope_limit": (
+                "This run omitted the approved per-view logits, Top-5 margin, duration, and "
+                "no-Depth feature-router control; it cannot reject the complete P2-R0 hypothesis."
+            ),
+            "decision": "Do not run a corrected variant or start P2-B without new user approval.",
         },
         "videomae_updated": False,
         "p2b_started": False,
         "runtime_seconds": time.perf_counter() - started,
         "output_root": str(output_root),
+        "artifacts": {
+            name: {
+                "path": str(output_root / name),
+                "bytes": (output_root / name).stat().st_size,
+                "sha256": sha256_file(output_root / name),
+            }
+            for name in artifact_names
+        },
     }
     _atomic_write_text(report_json, json.dumps(report, indent=2) + "\n")
     markdown = [
@@ -557,17 +578,20 @@ def run_experiment(config_path: Path) -> dict[str, object]:
             f"- Feature-router gate passed: `{success_gates['passed']}`",
             f"- Effective >=0.78 gate: `{report['effective_gate']}`",
             f"- Strong >=0.80 gate: `{report['strong_gate']}`",
+            f"- Scope status: `{report['scope_status']}`",
             f"- Hypothesis status: `{report['hypothesis_status']}`",
             "- VideoMAE updated: `False`",
             "- P2-B started: `False`",
             "",
             "## Interpretation",
             "",
-            "The cached-feature reranking hypothesis was rejected. The frozen VideoMAE had",
+            "The implemented narrow cached-feature reranker was rejected. The frozen VideoMAE had",
             "already trained on all train12 users, so router CV began from near-saturated,",
             "non-cross-fitted teacher features and did not predict unseen-user improvement.",
             "The feature router rescued 13 validation trials but harmed 22 (net -9).",
-            "No automatic retry or P2-B launch is authorized.",
+            "This run omitted per-view logits, Top-5 margin, duration, and the no-Depth feature",
+            "control, so it does not reject the complete approved P2-R0 hypothesis.",
+            "No corrected retry or P2-B launch is authorized without human approval.",
             "",
         ]
     )
