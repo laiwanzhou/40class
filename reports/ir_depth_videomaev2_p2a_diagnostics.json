@@ -3,6 +3,7 @@
   "stage": "P2-A",
   "status": "completed",
   "training_performed": false,
+  "exploratory_validation_diagnostics": true,
   "source": {
     "selected_epoch": 6,
     "checkpoint": "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\ir_depth_videomaev2_teacher\\ir_depth_videomaev2_vit_b_train12_val2_seed20260715\\selected_checkpoint.pt",
@@ -36,7 +37,27 @@
       ],
       "unexpected_keys": [],
       "activation_checkpointing": true
+    },
+    "diagnostic_source_sha256": {
+      "configs/experiments/ir_depth_videomaev2_p2a.yaml": "f8cc68a585128237b38e119e30b894a42e5ee95a7b4144e628372991d549f447",
+      "scripts/cache_ir_depth_videomaev2_p2a.py": "bbdec2ae54ff3745f71a8babab5509686766dd9d2b6c125d0c91d670cc985159",
+      "src/models/ir_depth_videomaev2_teacher.py": "4ad06c0c3f661bc76e5bfab37dca74174a55f7fa8ee71bb5098959271601968b",
+      "src/data/ir_depth_videomaev2_dataset.py": "a8f2c51b9c0c13093d025a585eda8cc415343c7d28ae7f31233f39f1b270e7b3",
+      "scripts/run_ir_depth_videomaev2_teacher.py": "1abb2002e64f074fdc340913431495628c595529f9953f46bb96cc04b1fea36a"
     }
+  },
+  "execution": {
+    "seed": 20260715,
+    "device": "cuda",
+    "gpu": "NVIDIA GeForce RTX 5060 Laptop GPU",
+    "torch": "2.7.0+cu128",
+    "cuda": "12.8",
+    "cudnn": 90701,
+    "deterministic_algorithms": true,
+    "cublas_workspace_config": ":4096:8",
+    "cudnn_deterministic": true,
+    "cudnn_benchmark": false,
+    "claim_boundary": "deterministic sampling and algorithms within the recorded stack"
   },
   "cache": {
     "path": "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\ir_depth_videomaev2_teacher\\ir_depth_videomaev2_vit_b_train12_val2_seed20260715\\p2a_view_cache.npz",
@@ -59,9 +80,14 @@
     "finite": true
   },
   "reproduction": {
+    "sample_count_exact": true,
+    "unique_sample_ids": true,
+    "sample_id_set_exact": true,
     "labels_exact": true,
+    "users_exact": true,
     "argmax_exact": true,
     "maximum_logit_delta": 9.5367431640625e-07,
+    "maximum_allowed_logit_delta": 1e-05,
     "reference_accuracy": 0.7142857142857143,
     "cache_accuracy": 0.7142857142857143
   },
@@ -2031,5 +2057,23 @@
     "motion_peak_sampling": false
   },
   "p2b_started": false,
-  "runtime_seconds": 616.8008235000016
+  "may_select_p2b_without_new_evaluation_boundary": false,
+  "runtime_seconds": 324.76583709999977,
+  "artifacts": {
+    "cache": {
+      "path": "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\ir_depth_videomaev2_teacher\\ir_depth_videomaev2_vit_b_train12_val2_seed20260715\\p2a_view_cache.npz",
+      "sha256": "1b5685833bfbae1839d4121f67686f3262a4155e33f96537e528bb898d9b6a83",
+      "bytes": 4653209
+    },
+    "per_class_csv": {
+      "path": "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\reports\\ir_depth_videomaev2_p2a_per_class.csv",
+      "sha256": "f84e895322ef305169d3e8a5e3172c910c8128f3d898046264056377b2ec9953",
+      "bytes": 26405
+    },
+    "report_markdown": {
+      "path": "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\reports\\ir_depth_videomaev2_p2a_diagnostics.md",
+      "sha256": "f55a347b9aab12d44c4bb55fdc82c64bcdc729a1e969162d2785c15016bda93b",
+      "bytes": 3926
+    }
+  }
 }

@@ -17,6 +17,12 @@ input_contract:
   image_size: 224
   deterministic: true
 
+execution:
+  seed: 20260715
+  deterministic_algorithms: true
+  cublas_workspace_config: ":4096:8"
+  maximum_reference_logit_delta: 0.00001
+
 outputs:
   cache: outputs/ir_depth_videomaev2_teacher/ir_depth_videomaev2_vit_b_train12_val2_seed20260715/p2a_view_cache.npz
   report_json: reports/ir_depth_videomaev2_p2a_diagnostics.json
@@ -29,6 +35,8 @@ policy:
   validation_membership_mutation_allowed: false
   p2b_authorized: false
   logits_export_for_student: false
+  exploratory_validation_diagnostics: true
+  may_select_p2b_without_new_evaluation_boundary: false
 
 deferred_p2b:
   status: candidate_only_wait_for_p2a_review
@@ -37,4 +45,3 @@ deferred_p2b:
   short_trial_frames: 16
   fixed_cost_by_duration_bucket: true
   motion_peak_sampling: false
-

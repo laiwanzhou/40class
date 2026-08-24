@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
+import random
 import sys
 import time
 from typing import Any
@@ -42,6 +44,7 @@ def load_p2a_config(path: Path) -> dict[str, Any]:
     policy = config.get("policy", {})
     inputs = config.get("input_contract", {})
     deferred = config.get("deferred_p2b", {})
+    execution = config.get("execution", {})
     if config.get("stage") != "P2-A":
         raise ValueError("P2-A stage changed")
     if inputs.get("modalities") != ["ir", "depth"]:
@@ -58,7 +61,30 @@ def load_p2a_config(path: Path) -> dict[str, Any]:
         raise ValueError("P2-A must not authorize training or P2-B")
     if deferred.get("long_trial_frames") != 32 or deferred.get("motion_peak_sampling") is not False:
         raise ValueError("deferred P2-B candidate changed")
+    if execution.get("seed") != 20260715 or execution.get("deterministic_algorithms") is not True:
+        raise ValueError("P2-A deterministic execution contract changed")
+    if execution.get("cublas_workspace_config") != ":4096:8":
+        raise ValueError("P2-A CuBLAS deterministic workspace changed")
+    if execution.get("maximum_reference_logit_delta") != 0.00001:
+        raise ValueError("P2-A reference tolerance changed")
+    if policy.get("exploratory_validation_diagnostics") is not True:
+        raise ValueError("P2-A diagnostics must be marked exploratory")
+    if policy.get("may_select_p2b_without_new_evaluation_boundary") is not False:
+        raise ValueError("P2-A may not directly select P2-B")
     return config
+
+
+def validate_reference_membership(
+    current_ids: np.ndarray, reference_ids: np.ndarray
+) -> np.ndarray:
+    current = np.asarray(current_ids).astype(str)
+    reference = np.asarray(reference_ids).astype(str)
+    if np.unique(current).size != len(current) or np.unique(reference).size != len(reference):
+        raise ValueError("current and reference sample IDs must both be unique")
+    if len(current) != len(reference) or set(current.tolist()) != set(reference.tolist()):
+        raise ValueError("current and reference sample ID sets must exactly match")
+    lookup = {sample_id: index for index, sample_id in enumerate(reference)}
+    return np.asarray([lookup[sample_id] for sample_id in current], dtype=np.int64)
 
 
 def fuse_cached_view_logits(
@@ -203,6 +229,12 @@ def _atomic_npz(path: Path, **arrays: np.ndarray) -> None:
     temporary.replace(path)
 
 
+def _atomic_csv(path: Path, frame: pd.DataFrame) -> None:
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    frame.to_csv(temporary, index=False, encoding="utf-8-sig")
+    temporary.replace(path)
+
+
 def _require_artifact(path: Path, *, expected_hash: str, expected_bytes: int | None = None) -> None:
     if not path.is_file():
         raise FileNotFoundError(path)
@@ -288,7 +320,7 @@ def _ablation_table(markdown: list[str], title: str, group: dict[str, object]) -
     markdown.append("")
 
 
-def run_p2a(config_path: Path) -> dict[str, object]:
+def run_p2a(config_path: Path, *, refresh: bool = False) -> dict[str, object]:
     config = load_p2a_config(config_path)
     source = config["source"]
     checkpoint_path = _project_path(str(source["checkpoint"]))
@@ -302,9 +334,31 @@ def run_p2a(config_path: Path) -> dict[str, object]:
         reference_path, expected_hash=str(source["reference_predictions_sha256"])
     )
     output_paths = {name: _project_path(str(value)) for name, value in config["outputs"].items()}
-    existing = [str(path) for path in output_paths.values() if path.exists()]
-    if existing:
-        raise FileExistsError(f"P2-A outputs already exist: {existing}")
+    if output_paths["report_json"].is_file() and not refresh:
+        completed = json.loads(output_paths["report_json"].read_text(encoding="utf-8"))
+        if completed.get("status") != "completed":
+            raise RuntimeError("existing P2-A report is not complete")
+        for name in ("cache", "per_class_csv", "report_markdown"):
+            artifact = completed["artifacts"][name]
+            path = Path(str(artifact["path"]))
+            _require_artifact(
+                path,
+                expected_hash=str(artifact["sha256"]),
+                expected_bytes=int(artifact["bytes"]),
+            )
+        return completed
+
+    seed = int(config["execution"]["seed"])
+    os.environ["CUBLAS_WORKSPACE_CONFIG"] = str(
+        config["execution"]["cublas_workspace_config"]
+    )
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.use_deterministic_algorithms(True)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
     p1_config = load_training_config(_project_path(str(source["p1_config"])))
     p0_config = load_probe_config(_project_path(str(p1_config["p0_config"])))
@@ -372,15 +426,21 @@ def run_p2a(config_path: Path) -> dict[str, object]:
 
     reference = np.load(reference_path, allow_pickle=False)
     reference_ids = reference["sample_ids"].astype(str)
-    reference_lookup = {sample_id: index for index, sample_id in enumerate(reference_ids)}
-    take = np.asarray([reference_lookup[sample_id] for sample_id in sample_ids_np])
+    take = validate_reference_membership(sample_ids_np, reference_ids)
     reference_logits = reference["logits"][take].astype(np.float32)
     reference_labels = reference["labels"][take].astype(np.int64)
+    reference_users = reference["users"][take].astype(str)
     max_logit_delta = float(np.max(np.abs(full_logits - reference_logits)))
     argmax_exact = bool(
         np.array_equal(full_logits.argmax(axis=1), reference_logits.argmax(axis=1))
     )
-    if not np.array_equal(labels_np, reference_labels) or not argmax_exact:
+    maximum_delta = float(config["execution"]["maximum_reference_logit_delta"])
+    if (
+        not np.array_equal(labels_np, reference_labels)
+        or not np.array_equal(users_np, reference_users)
+        or not argmax_exact
+        or max_logit_delta > maximum_delta
+    ):
         raise RuntimeError("P2-A cache does not reproduce selected validation predictions")
 
     diagnostics = evaluate_cached_ablation(
@@ -418,12 +478,20 @@ def run_p2a(config_path: Path) -> dict[str, object]:
         full_logits=full_logits,
     )
     output_paths["per_class_csv"].parent.mkdir(parents=True, exist_ok=True)
-    per_class.to_csv(output_paths["per_class_csv"], index=False, encoding="utf-8-sig")
+    _atomic_csv(output_paths["per_class_csv"], per_class)
+    diagnostic_sources = (
+        config_path.resolve(),
+        Path(__file__).resolve(),
+        PROJECT_ROOT / "src/models/ir_depth_videomaev2_teacher.py",
+        PROJECT_ROOT / "src/data/ir_depth_videomaev2_dataset.py",
+        PROJECT_ROOT / "scripts/run_ir_depth_videomaev2_teacher.py",
+    )
     report = {
         "schema_version": 1,
         "stage": "P2-A",
         "status": "completed",
         "training_performed": False,
+        "exploratory_validation_diagnostics": True,
         "source": {
             "selected_epoch": int(checkpoint["epoch"]),
             "checkpoint": str(checkpoint_path),
@@ -431,6 +499,23 @@ def run_p2a(config_path: Path) -> dict[str, object]:
             "reference_predictions": str(reference_path),
             "reference_predictions_sha256": sha256_file(reference_path),
             "backbone_provenance": provenance,
+            "diagnostic_source_sha256": {
+                str(path.relative_to(PROJECT_ROOT)).replace("\\", "/"): sha256_file(path)
+                for path in diagnostic_sources
+            },
+        },
+        "execution": {
+            "seed": seed,
+            "device": str(device),
+            "gpu": torch.cuda.get_device_name(device),
+            "torch": torch.__version__,
+            "cuda": torch.version.cuda,
+            "cudnn": torch.backends.cudnn.version(),
+            "deterministic_algorithms": torch.are_deterministic_algorithms_enabled(),
+            "cublas_workspace_config": os.environ.get("CUBLAS_WORKSPACE_CONFIG"),
+            "cudnn_deterministic": torch.backends.cudnn.deterministic,
+            "cudnn_benchmark": torch.backends.cudnn.benchmark,
+            "claim_boundary": "deterministic sampling and algorithms within the recorded stack",
         },
         "cache": {
             "path": str(output_paths["cache"]),
@@ -447,9 +532,14 @@ def run_p2a(config_path: Path) -> dict[str, object]:
             ),
         },
         "reproduction": {
+            "sample_count_exact": len(sample_ids_np) == len(reference_ids),
+            "unique_sample_ids": np.unique(sample_ids_np).size == len(sample_ids_np),
+            "sample_id_set_exact": set(sample_ids_np.tolist()) == set(reference_ids.tolist()),
             "labels_exact": True,
+            "users_exact": True,
             "argmax_exact": argmax_exact,
             "maximum_logit_delta": max_logit_delta,
+            "maximum_allowed_logit_delta": maximum_delta,
             "reference_accuracy": float(
                 accuracy_score(labels_np, reference_logits.argmax(axis=1))
             ),
@@ -472,11 +562,9 @@ def run_p2a(config_path: Path) -> dict[str, object]:
         "dataset_coverage": coverage,
         "deferred_p2b": config["deferred_p2b"],
         "p2b_started": False,
+        "may_select_p2b_without_new_evaluation_boundary": False,
         "runtime_seconds": time.perf_counter() - started,
     }
-    _atomic_write_text(
-        output_paths["report_json"], json.dumps(report, indent=2) + "\n"
-    )
     markdown = [
         "# IR + Depth VideoMAE V2 P2-A diagnostics",
         "",
@@ -489,6 +577,9 @@ def run_p2a(config_path: Path) -> dict[str, object]:
         "",
         "Current fusion is static class-conditioned late-logit fusion. It is not sample-conditioned",
         "and does not perform IR/Depth feature interaction before the classifier.",
+        "",
+        "> These user6/user7 ablations are exploratory diagnostics. They must not be used",
+        "> to fit or select a gate/P2-B recipe without a new user-grouped evaluation boundary.",
         "",
     ]
     _ablation_table(markdown, "Modality only", diagnostics["modality_only"])
@@ -511,15 +602,43 @@ def run_p2a(config_path: Path) -> dict[str, object]:
             "",
         ]
     )
+    deferred_rows = [row for row in coverage if row["status"] == "deferred_dataset_coverage"]
+    if deferred_rows:
+        markdown.extend(
+            [
+                "Deferred classes: "
+                + ", ".join(
+                    f"`{row['class_id']} {row['action_name']}` ({row['train_users']} users)"
+                    for row in deferred_rows
+                ),
+                "",
+            ]
+        )
     _atomic_write_text(output_paths["report_markdown"], "\n".join(markdown))
+    report["artifacts"] = {
+        name: {
+            "path": str(output_paths[name]),
+            "sha256": sha256_file(output_paths[name]),
+            "bytes": output_paths[name].stat().st_size,
+        }
+        for name in ("cache", "per_class_csv", "report_markdown")
+    }
+    _atomic_write_text(
+        output_paths["report_json"], json.dumps(report, indent=2) + "\n"
+    )
     return report
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Cache P2-A per-view VideoMAE diagnostics")
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
+    parser.add_argument(
+        "--refresh",
+        action="store_true",
+        help="Recompute and atomically replace an existing completed P2-A diagnostic.",
+    )
     args = parser.parse_args()
-    report = run_p2a(args.config.resolve())
+    report = run_p2a(args.config.resolve(), refresh=args.refresh)
     print(
         json.dumps(
             {

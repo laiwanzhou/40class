@@ -10,6 +10,9 @@
 Current fusion is static class-conditioned late-logit fusion. It is not sample-conditioned
 and does not perform IR/Depth feature interaction before the classifier.
 
+> These user6/user7 ablations are exploratory diagnostics. They must not be used
+> to fit or select a gate/P2-B recipe without a new user-grouped evaluation boundary.
+
 ## Modality only
 
 | Experiment | Accuracy | Delta | Macro-F1 | Worst-user | Zero recall |
@@ -77,3 +80,5 @@ Competition-provided classes with five or fewer train12 users are recorded as
 
 P2-B was not started. The only recorded candidate is fixed 32 frames for long trials;
 motion-peak sampling is explicitly disabled pending this report's review.
+
+Deferred classes: `3 Take_off_clothes` (5 users), `16 Fold_clothes` (3 users), `24 Use_a_mobile_phone` (5 users), `25 Watch_TV` (1 users), `26 Play_games` (3 users), `33 Lie_down` (4 users)
