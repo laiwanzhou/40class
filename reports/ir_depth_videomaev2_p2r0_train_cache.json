@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "stage": "P2-R0-train-cache",
+  "status": "completed",
+  "training_performed": false,
+  "checkpoint": "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\ir_depth_videomaev2_teacher\\ir_depth_videomaev2_vit_b_train12_val2_seed20260715\\selected_checkpoint.pt",
+  "checkpoint_sha256": "4b3e89542abd33cb306814f277e3bb40bb7143833a3c0ac9ab23b2d38271429c",
+  "cache": "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\ir_depth_videomaev2_teacher\\ir_depth_videomaev2_vit_b_train12_val2_seed20260715\\p2r0_train12_view_cache.npz",
+  "cache_sha256": "80957fee820031ebed2d3063b397eb2d411cec25ff19718f69877f4e8cdff178",
+  "cache_bytes": 23497403,
+  "sample_count": 1935,
+  "unique_sample_ids": true,
+  "class_count": 40,
+  "users": [
+    "user1",
+    "user16",
+    "user18",
+    "user19",
+    "user2",
+    "user20",
+    "user21",
+    "user22",
+    "user3",
+    "user5",
+    "user8",
+    "user9"
+  ],
+  "view_logits_shape": [
+    1935,
+    2,
+    4,
+    40
+  ],
+  "view_embeddings_shape": [
+    1935,
+    2,
+    4,
+    768
+  ],
+  "finite": true,
+  "runtime_seconds": 1629.0428174000117,
+  "backbone_provenance": {
+    "architecture": "vit_base_patch16_224",
+    "repository": "https://github.com/OpenGVLab/VideoMAEv2",
+    "repository_revision": "29eab1e8a588d1b3ec0cdec7b03a86cca491b74b",
+    "license": "MIT",
+    "checkpoint_url": "https://huggingface.co/OpenGVLab/VideoMAE2/resolve/main/distill/vit_b_k710_dl_from_giant.pth",
+    "checkpoint_sha256": "8141a6955e0700d11bf15928fe6d61e5cfe482606fed8cfdddb1b922c0fd88ec",
+    "checkpoint_bytes": 173574417,
+    "pretraining_dataset": "Kinetics-710 distilled from VideoMAE V2 ViT-giant",
+    "frames": 16,
+    "image_size": 224,
+    "checkpoint_path": "C:\\Users\\LaiWanzhou\\.cache\\torch\\hub\\checkpoints\\vit_b_k710_dl_from_giant.pth",
+    "strict_backbone_load": true,
+    "source_head_shape": [
+      710,
+      768
+    ],
+    "replacement_head_shape": [
+      40,
+      768
+    ],
+    "missing_keys": [
+      "head.weight",
+      "head.bias"
+    ],
+    "unexpected_keys": [],
+    "activation_checkpointing": true
+  },
+  "execution": {
+    "seed": 20260715,
+    "gpu": "NVIDIA GeForce RTX 5060 Laptop GPU",
+    "torch": "2.7.0+cu128",
+    "cuda": "12.8",
+    "deterministic_algorithms": true,
+    "cublas_workspace_config": ":4096:8"
+  }
+}

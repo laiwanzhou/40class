@@ -1,0 +1,74 @@
+schema_version: 1
+stage: P2-R0
+role: frozen_videomae_ir_anchored_feature_reranker
+run_id: ir_depth_videomaev2_p2r0_seed20260715
+
+source:
+  p1_config: configs/experiments/ir_depth_videomaev2_vit_b_p1.yaml
+  checkpoint: outputs/ir_depth_videomaev2_teacher/ir_depth_videomaev2_vit_b_train12_val2_seed20260715/selected_checkpoint.pt
+  checkpoint_sha256: 4b3e89542abd33cb306814f277e3bb40bb7143833a3c0ac9ab23b2d38271429c
+  validation_cache: outputs/ir_depth_videomaev2_teacher/ir_depth_videomaev2_vit_b_train12_val2_seed20260715/p2a_view_cache.npz
+  validation_cache_report: reports/ir_depth_videomaev2_p2a_diagnostics.json
+  train_cache: outputs/ir_depth_videomaev2_teacher/ir_depth_videomaev2_vit_b_train12_val2_seed20260715/p2r0_train12_view_cache.npz
+  train_cache_report: reports/ir_depth_videomaev2_p2r0_train_cache.json
+
+model:
+  embedding_dim: 768
+  fusion_dim: 128
+  num_classes: 40
+  view_top_k: 2
+  class_top_k: 5
+  dropout: 0.20
+  depth_gate_initial_bias: -2.0
+
+training:
+  seed: 20260715
+  batch_size: 64
+  max_epochs: 50
+  early_stopping_patience: 8
+  learning_rate: 0.0003
+  weight_decay: 0.01
+  guard_weight: 0.20
+  depth_l1_weight: 0.02
+  sampler: inverse_frequency_replacement
+  final_epoch_rule: median_cv_best_epoch
+
+cv:
+  group_field: user_id
+  folds:
+    - [user1, user18, user21, user5]
+    - [user16, user19, user22, user8]
+    - [user2, user20, user3, user9]
+
+validation_policy:
+  final_users: [user6, user7]
+  final_evaluation_count: 1
+  use_final_users_for_training: false
+  use_final_users_for_early_stopping: false
+  use_final_users_for_hyperparameter_search: false
+
+references:
+  full_teacher_accuracy: 0.7142857142857143
+  ir_anchor_accuracy: 0.7168831168831169
+  fixed_both_hands_accuracy: 0.7454545454545455
+  fixed_both_hands_macro_f1: 0.6670759970759971
+  fixed_both_hands_worst_user_accuracy: 0.7114427860696517
+
+success_gates:
+  minimum_accuracy: 0.7454545454545455
+  effective_accuracy: 0.78
+  strong_accuracy: 0.80
+  minimum_macro_f1: 0.6670759970759971
+  minimum_worst_user_accuracy: 0.7114427860696517
+
+outputs:
+  root: outputs/ir_depth_videomaev2_p2r0
+  report_json: reports/ir_depth_videomaev2_p2r0_result.json
+  report_markdown: reports/ir_depth_videomaev2_p2r0_result.md
+
+policy:
+  update_videomae: false
+  p2b_authorized: false
+  logits_export_for_student: false
+  one_final_validation_evaluation: true
+
