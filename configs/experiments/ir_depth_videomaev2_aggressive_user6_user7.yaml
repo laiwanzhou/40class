@@ -1,0 +1,86 @@
+schema_version: 1
+stage: P3-AGGRESSIVE
+role: aggressive_cross_user_development_midfusion
+run_id: ir_depth_videomaev2_midfusion_train12_val_user6_user7_seed20260715
+p0_input_config: configs/experiments/ir_depth_videomaev2_vit_b_p0.yaml
+
+split:
+  path: metadata/splits/train12_val2_user6_user7_development.json
+  train_user_ids: [user1, user2, user3, user5, user8, user9, user16, user18, user19, user20, user21, user22]
+  validation_user_ids: [user6, user7]
+  train_class_count: 40
+  validation_class_count: 40
+  validation_missing_class_ids: []
+  validation_is_development_only: true
+
+data:
+  manifest: metadata/manifest.csv
+  root: D:\work\2026.7.14_kaggle\datasets\Small-Model-Track\train
+  pose_cache: D:\work\2026.7.14_kaggle\40class\outputs\depth_ir_person_crop_40class_fold0\person_crop_pose_tracks.npz
+  pairing_audit: reports/depth_ir_pose_roi_40class_pairing.csv
+  frames: 16
+  image_size: 224
+  temporal_jitter: 0.10
+  num_workers: 0
+
+checkpoint:
+  path: C:\Users\LaiWanzhou\.cache\torch\hub\checkpoints\vit_b_k710_dl_from_giant.pth
+  sha256: 8141a6955e0700d11bf15928fe6d61e5cfe482606fed8cfdddb1b922c0fd88ec
+  bytes: 173574417
+
+model:
+  num_classes: 40
+  frozen_prefix_blocks: 8
+  view_top_k: 2
+  hand_prior_bias: 0.5
+  depth_hidden_dim: 128
+  depth_gate_initial_bias: -2.0
+  load_previous_finetuned_checkpoint: false
+
+augmentation:
+  depth_dropout: 0.30
+  global_person_view_dropout: 0.20
+  hand_view_dropout: 0.10
+  ir_brightness: [0.80, 1.20]
+  ir_contrast: [0.80, 1.20]
+  ir_gamma: [0.80, 1.20]
+  ir_random_erasing_probability: 0.20
+  validation_augmentation: false
+
+training:
+  seed: 20260715
+  epochs: 15
+  minimum_epochs: 4
+  early_stopping_patience: 5
+  physical_batch_trials: 1
+  gradient_accumulation: 8
+  sampler: class_user_balanced
+  backbone_learning_rate: 0.00001
+  new_module_learning_rate: 0.0001
+  weight_decay: 0.05
+  label_smoothing: 0.1
+  gradient_clip: 5.0
+  warmup_epochs: 2
+
+checkpoint_selection:
+  order: [accuracy, macro_f1, worst_user_accuracy, negative_nll, earlier_epoch]
+
+decision_gates:
+  stop_below_accuracy: 0.75
+  promising_accuracy: 0.80
+  oof_worthy_accuracy: 0.85
+  target_accuracy: 0.90
+  maximum_generalization_gap: 0.20
+
+output_root: outputs/ir_depth_videomaev2_aggressive_dev
+report_json: reports/ir_depth_videomaev2_aggressive_user6_user7.json
+report_markdown: reports/ir_depth_videomaev2_aggressive_user6_user7.md
+
+policy:
+  validation_users_enter_gradient: false
+  validation_users_enter_normalization: false
+  validation_users_enter_sampler: false
+  allow_repeated_development_selection: true
+  load_previous_teacher_checkpoint: false
+  p2b_authorized: false
+  oof_authorized: false
