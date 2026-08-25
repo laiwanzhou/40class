@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "stage": "P5-HMF0-fixed-user6-user7-pretraining-audit",
+  "status": "ready_for_explicit_training_authorization",
+  "evaluation_protocol": "fixed_user6_user7",
+  "train_population_samples": 2039,
+  "validation_population_samples": 388,
+  "train_user_ids": [
+    "user1",
+    "user2",
+    "user3",
+    "user5",
+    "user8",
+    "user9",
+    "user16",
+    "user18",
+    "user19",
+    "user20",
+    "user21",
+    "user22"
+  ],
+  "validation_user_ids": ["user6", "user7"],
+  "validation_class_count": 40,
+  "candidate_order": [
+    "visual_only",
+    "visual_skeleton",
+    "visual_imu",
+    "visual_skeleton_imu"
+  ],
+  "grouped_cv": {
+    "authorized": false,
+    "stored_fold_fit_class_counts": [39, 40, 40],
+    "stored_fold_validation_class_counts": [39, 39, 39],
+    "required_for_future_use": "Every fold fit and validation scope must cover class IDs 0..39 and the user must explicitly authorize the run."
+  },
+  "isolation": {
+    "validation_users_enter_training": false,
+    "validation_users_enter_normalization": false,
+    "validation_users_enter_sampler": false,
+    "validation_users_enter_class_prior": false,
+    "validation_users_enter_candidate_selection": true,
+    "development_validation": true,
+    "independent_final_test": false
+  },
+  "verification": {
+    "command": "D:\\Anaconda\\envs\\PyTorch2.7\\python.exe -m pytest -q",
+    "passed": 384,
+    "failed": 0,
+    "compileall_passed": true,
+    "git_diff_check_passed": true
+  },
+  "commits": {
+    "spec_protocol_amendment": "aa8fa50",
+    "plan_protocol_amendment": "b04ff02",
+    "protocol_hard_gate": "924d14f",
+    "fixed_split_training": "5ad0e80",
+    "fixed_validation_runner": "a645a32"
+  },
+  "formal_command": "D:\\Anaconda\\envs\\PyTorch2.7\\python.exe scripts\\run_hierarchical_multimodal_teacher.py --mode fixed-validation",
+  "formal_command_executed": false,
+  "training_authorized": false,
+  "estimated_gpu_hours": "54-58",
+  "expected_artifacts": {
+    "output_root": "outputs/hierarchical_multimodal_midfusion_stage1/fixed_user6_user7",
+    "json_report": "reports/hierarchical_multimodal_teacher_fixed_user6_user7.json",
+    "markdown_report": "reports/hierarchical_multimodal_teacher_fixed_user6_user7.md"
+  },
+  "expected_artifacts_exist": false
+}
