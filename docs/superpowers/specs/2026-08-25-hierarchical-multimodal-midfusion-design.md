@@ -2,6 +2,11 @@
 
 Approved direction: 2026-08-25 (Asia/Shanghai)
 
+Protocol amendment approved: 2026-08-25 (Asia/Shanghai). The default experiment
+boundary is the fixed train12 to user6/user7 development split. Grouped
+three-fold evaluation is disabled unless every fold has all 40 classes in both
+fit and validation scopes and the user explicitly authorizes that run.
+
 ## 1. Objective
 
 Build a competition-compliant multimodal student whose first retained modality
@@ -128,6 +133,34 @@ train12-only class-prior prediction and `core_available=False`. Its label may
 not influence model or fallback selection. This preserves the canonical union
 without pretending that a modality the model does not consume is available.
 
+### 3.1 Three-fold coverage audit and protocol decision
+
+The previously frozen train12 grouped split does not satisfy full class
+coverage:
+
+| Fold | Fit rows/classes | Validation rows/classes | Missing from fit | Missing from validation |
+|---|---:|---:|---|---|
+| 0 | 1,414 / 39 | 625 / 39 | class 25 | class 26 |
+| 1 | 1,302 / 40 | 737 / 39 | none | class 25 |
+| 2 | 1,362 / 40 | 677 / 39 | none | class 25 |
+
+Class 25 has only three train12 samples and all belong to `user1`. Class 26
+appears only for `user16`, `user19`, and `user9`. Consequently no strict
+user-held-out assignment that validates `user1` can retain class 25 in that
+fold's fit scope. Pooling the three validation folds covers 40 classes, but the
+fold-0 model has never learned class 25 and its pooled fixed-40 Macro-F1 is
+structurally distorted.
+
+The grouped split remains an audit artifact only. It is not an executable
+default. A future three-fold run requires both:
+
+1. every fold's fit and validation scopes contain class IDs `0..39`;
+2. explicit user authorization after the qualifying split is shown.
+
+Until both conditions hold, all Stage-1 candidate training uses the 2,039-row
+train12 scope and all candidate evaluation uses the fixed 388-row user6/user7
+development validation scope.
+
 ## 4. Normalized Segment Contract
 
 Every usable modality is represented on `K=8` normalized trial segments. Raw
@@ -185,14 +218,11 @@ Skeleton preprocessing uses the accepted H36M-17 representation:
 - gap-aware masks;
 - no interpolation across disconnected retained segments.
 
-Multi-person Skeleton candidate identity and image-to-Skeleton projection are
-rebuilt separately for every train12 grouped fold. Projection fitting uses only
-that fold's fit users; the fold-validation users influence neither projection
-nor candidate-selection thresholds. Existing train14 OOF clean views are not
-reused because their user ownership differs from this experiment.
-After grouped candidate selection, one separate `selected_final` clean view fits
-its projection on all train12 users and applies it to train12 plus user6/user7.
-The final projection never fits a user6/user7 row.
+Multi-person Skeleton candidate identity and image-to-Skeleton projection use
+the existing `selected_final` clean view. Its projection is fit on all train12
+users and applied to train12 plus user6/user7. The projection never fits a
+user6/user7 row. Previously generated fold-specific clean views remain audit
+artifacts and are not consumed by the fixed-validation experiment.
 
 Raw IMU preserves five device-role slots and 16 channels per role. Missing
 roles have explicit role masks. It is resampled into the same eight normalized
@@ -305,28 +335,37 @@ usable.
 
 ## 7. Training and Leakage Policy
 
-All architecture, loss, epoch, and modality decisions use only train12 users.
-Use one persisted three-fold user assignment over the 12 users. Every fold:
+The architecture, loss weights, fixed 15-epoch schedule, four candidate set,
+metric order, masks, and fallback behavior are frozen before user6/user7 model
+evaluation. For each candidate:
 
-1. fits preprocessing statistics on fold-fit users;
-2. trains the complete model on fold-fit users;
-3. selects a fixed pre-registered epoch or uses an inner-user split contained
-   entirely in fold-fit users;
-4. predicts only fold-validation users;
-5. stores logits, masks, quality, action/group attention, and provenance.
+1. fit Skeleton and IMU normalization on train12 only;
+2. train on eligible train12 rows only;
+3. evaluate train12 once after epoch 15 with dropout disabled;
+4. evaluate the canonical 388-row user6/user7 development validation once;
+5. store logits, masks, quality, action/group attention, and provenance.
 
-Candidates are selected from pooled train12 grouped predictions. After one
-candidate is frozen, train it on all train12 users and evaluate user6/user7
-exactly once. Non-selected candidates may not be evaluated on user6/user7.
+User6/user7 rows may enter metric computation and the pre-registered four-way
+candidate selection. They may not enter gradients, normalization, the sampler,
+class-prior fitting, epoch selection, loss design, threshold fitting, or
+fallback fitting. Repeated candidate comparison makes this a development-set
+selection result, not an untouched independent final-test estimate.
 
-The teacher and student receive identical fold ownership. A distillation target
-for one OOF sample must come from a teacher that did not train on that sample's
-user.
+The candidate order is fixed as `visual_only`, `visual_skeleton`, `visual_imu`,
+and `visual_skeleton_imu`. Selection uses Accuracy, Macro-F1, worst-user
+Accuracy, negative NLL, then fixed candidate order. Because every candidate is
+already trained on all train12 users, no second selected-candidate retraining or
+second user6/user7 evaluation event is performed.
+
+Teacher-to-student distillation remains outside this Stage-1 execution. Its
+later plan must define train12 target ownership without assuming that the
+disabled grouped split is available.
 
 ## 8. Modality Admission and Removal
 
-A modality is not retained because its standalone Accuracy is high. Admission
-requires train12 grouped evidence that it contributes complementary information.
+A modality is not retained because its standalone Accuracy is high. In this
+protocol, admission requires pre-registered fixed user6/user7 development
+evidence that it contributes complementary information.
 
 ### Skeleton and IMU
 
@@ -341,11 +380,12 @@ visual + IMU
 visual + Skeleton + IMU
 ```
 
-Only the preselected full candidate receives user6/user7 labels.
+All four pre-registered candidates receive one user6/user7 metric evaluation.
+Only the metric-selected candidate is eligible for later teacher promotion.
 
 ### Thermal admission gate
 
-Thermal remains excluded until a train12 grouped experiment using native
+Thermal remains excluded until an authorized experiment using native
 thermal motion/pose/quality tokens satisfies all of:
 
 - at least `+0.010` Accuracy over the frozen four-modality model;
@@ -355,9 +395,10 @@ thermal motion/pose/quality tokens satisfies all of:
 
 ### Radar admission gate
 
-Radar remains excluded until a raw point-set frame encoder satisfies all of:
+Radar remains excluded until an authorized raw point-set frame experiment
+satisfies all of:
 
-- standalone grouped Accuracy at least `0.25`;
+- standalone Accuracy at least `0.25` on its frozen evaluation boundary;
 - at least `+0.010` Accuracy over the frozen retained model;
 - positive net rescue;
 - finite masked behavior for empty Radar frames.
@@ -396,6 +437,11 @@ Every result reports:
 - train/validation generalization gap;
 - serialized model and preprocessing bytes;
 - exact cache, split, checkpoint, config, and code hashes.
+
+The report must label user6/user7 as `development_validation`, record that all
+four candidates were compared on it, and set `independent_final_test=False`.
+It must report final dropout-disabled train12 and validation metrics for every
+candidate so the train-to-validation generalization gap is directly auditable.
 
 ### Stage-1 research gates
 
@@ -447,14 +493,20 @@ the exported inference model is reloaded and shown to reproduce final logits.
 - No frame-level YOLO/Skeleton hard joint correspondence.
 - No current Thermal classifier or Radar 21-stat logits in Stage 1.
 - No exhaustive artificial generation of all modality subsets.
-- No user6/user7 labels for architecture, modality, epoch, loss, threshold, or
-  fallback selection.
+- No user6/user7 rows in gradients, normalization, sampling, class-prior
+  fitting, epoch selection, loss design, threshold fitting, or fallback
+  fitting. Their labels are allowed only for the pre-registered four-candidate
+  development comparison and reporting.
+- No three-fold execution without both complete `0..39` class coverage in each
+  fit and validation scope and explicit user authorization.
 - No competition-test access.
 
 ## 13. First Implementation Boundary
 
-The first implementation ends after one selected-only user6/user7 evaluation
-of the four-modality teacher candidate and its visual/Skeleton/IMU ablations.
+The first implementation ends after all four pre-registered candidates are
+trained on train12, evaluated once on fixed user6/user7 development validation,
+and compared in one atomic report. There is no second selected-only retraining
+or evaluation event.
 Student distillation starts only if the candidate reaches
 `full_teacher_worthy`. Thermal and Radar are separate approved designs after
 their admission evidence exists.
