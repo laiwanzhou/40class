@@ -1,18 +1,30 @@
 from __future__ import annotations
 
 import copy
+from collections import defaultdict
+import hashlib
 import json
 from pathlib import Path
 import random
+import time
 from typing import Any, Callable
 
 import numpy as np
 import torch
-from torch.utils.data import DataLoader, Dataset, Subset
+from torch.utils.data import DataLoader, Dataset, Sampler, Subset
 import yaml
 
-from scripts.cache_ir_depth_videomaev2_p2a import _atomic_write_text
+from scripts.cache_ir_depth_videomaev2_p2a import (
+    _atomic_npz,
+    _atomic_write_text,
+    _metrics,
+)
 from src.data.hierarchical_multimodal_dataset import make_midfusion_dataset
+from src.data.clean_skeleton_segments import (
+    SkeletonSegments,
+    fit_skeleton_normalization,
+)
+from src.data.raw_imu_segments import IMUSegments, fit_imu_normalization
 from src.experiments.hierarchical_midfusion_config import (
     load_midfusion_config,
     project_path,
@@ -36,6 +48,189 @@ from src.training.hierarchical_multimodal_losses import hierarchical_teacher_los
 
 ModelFactory = Callable[[dict[str, Any]], HierarchicalMultimodalTeacher]
 DatasetFactory = Callable[[dict[str, Any]], Dataset[dict[str, object]]]
+CANDIDATE_MODALITIES = {
+    "visual_only": ("ir", "depth_color"),
+    "visual_skeleton": ("ir", "depth_color", "skeleton"),
+    "visual_imu": ("ir", "depth_color", "imu"),
+    "visual_skeleton_imu": ("ir", "depth_color", "skeleton", "imu"),
+}
+
+
+class EpochClassUserBalancedSampler(Sampler[int]):
+    def __init__(
+        self,
+        *,
+        labels: np.ndarray,
+        users: np.ndarray,
+        samples: int,
+        seed: int,
+    ) -> None:
+        self.samples = int(samples)
+        self.seed = int(seed)
+        self.epoch = 0
+        groups: dict[int, dict[str, list[int]]] = defaultdict(lambda: defaultdict(list))
+        for index, (label, user) in enumerate(zip(labels, users, strict=True)):
+            groups[int(label)][str(user)].append(index)
+        self.groups = {
+            label: {user: tuple(indices) for user, indices in values.items()}
+            for label, values in groups.items()
+        }
+        self.classes = tuple(sorted(self.groups))
+        if not self.classes:
+            raise ValueError("balanced sampler received no classes")
+
+    def set_epoch(self, epoch: int) -> None:
+        self.epoch = int(epoch)
+
+    def __iter__(self):
+        rng = random.Random(self.seed + self.epoch)
+        for _ in range(self.samples):
+            label = rng.choice(self.classes)
+            user = rng.choice(tuple(sorted(self.groups[label])))
+            yield rng.choice(self.groups[label][user])
+
+    def __len__(self) -> int:
+        return self.samples
+
+
+def partition_fold_indices(
+    users: np.ndarray, *, validation_users: set[str]
+) -> tuple[np.ndarray, np.ndarray]:
+    user_values = np.asarray(users).astype(str)
+    validation = np.isin(user_values, np.asarray(sorted(validation_users)))
+    fit_indices = np.flatnonzero(~validation)
+    validation_indices = np.flatnonzero(validation)
+    if not len(fit_indices) or not len(validation_indices):
+        raise ValueError("grouped fold partition is empty")
+    if set(fit_indices.tolist()) & set(validation_indices.tolist()):
+        raise ValueError("grouped fold indices overlap")
+    return fit_indices, validation_indices
+
+
+def final_evaluation_candidates(selected: str) -> tuple[str]:
+    if selected not in CANDIDATE_MODALITIES:
+        raise ValueError(f"unknown midfusion candidate: {selected}")
+    return (selected,)
+
+
+def fit_class_prior(labels: np.ndarray, *, classes: int = 40) -> torch.Tensor:
+    counts = np.bincount(np.asarray(labels, dtype=np.int64), minlength=classes).astype(
+        np.float64
+    )
+    probabilities = (counts + 1.0) / (counts.sum() + classes)
+    return torch.from_numpy(np.log(probabilities).astype(np.float32))
+
+
+def pool_fold_predictions(
+    *,
+    sample_count: int,
+    classes: int,
+    folds: list[tuple[np.ndarray, np.ndarray]],
+) -> np.ndarray:
+    pooled = np.full((sample_count, classes), np.nan, dtype=np.float32)
+    ownership = np.zeros(sample_count, dtype=np.int64)
+    for indices, logits in folds:
+        indices = np.asarray(indices, dtype=np.int64)
+        logits = np.asarray(logits, dtype=np.float32)
+        if logits.shape != (len(indices), classes):
+            raise ValueError("fold prediction shape changed")
+        if bool((indices < 0).any()) or bool((indices >= sample_count).any()):
+            raise ValueError("fold prediction index is outside population")
+        if bool((ownership[indices] != 0).any()):
+            raise ValueError("fold prediction ownership repeated")
+        pooled[indices] = logits
+        ownership[indices] += 1
+    if not bool((ownership == 1).all()) or not np.isfinite(pooled).all():
+        raise ValueError("fold predictions do not cover every sample exactly once")
+    return pooled
+
+
+def select_grouped_candidate(
+    metrics: dict[str, dict[str, Any]],
+) -> str:
+    order = tuple(CANDIDATE_MODALITIES)
+    if set(metrics) != set(order):
+        raise ValueError("grouped candidate metric set changed")
+    return max(
+        order,
+        key=lambda name: (
+            float(metrics[name]["accuracy"]),
+            float(metrics[name]["macro_f1"]),
+            float(metrics[name]["worst_user_accuracy"]),
+            -float(metrics[name]["nll"]),
+            -order.index(name),
+        ),
+    )
+
+
+def _atomic_torch_save(path: Path, payload: object) -> None:
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    torch.save(payload, temporary)
+    temporary.replace(path)
+
+
+def _optimizer_to_device(
+    optimizer: torch.optim.Optimizer, device: torch.device
+) -> None:
+    for state in optimizer.state.values():
+        for key, value in state.items():
+            if isinstance(value, torch.Tensor):
+                state[key] = value.to(device)
+
+
+def _array_sha256(value: np.ndarray) -> str:
+    contiguous = np.ascontiguousarray(value)
+    return hashlib.sha256(contiguous.view(np.uint8)).hexdigest()
+
+
+def fit_body_normalization(
+    dataset: Dataset[dict[str, object]], fit_indices: np.ndarray
+) -> dict[str, Any]:
+    if not hasattr(dataset, "trials"):
+        raise TypeError("body normalization requires canonical trial access")
+    if not hasattr(dataset.skeleton_loader, "set_normalization"):
+        raise TypeError("Skeleton loader cannot accept normalization")
+    if not hasattr(dataset.imu_loader, "set_normalization"):
+        raise TypeError("IMU loader cannot accept normalization")
+    skeleton_samples: list[SkeletonSegments] = []
+    imu_samples: list[IMUSegments] = []
+    fit_sample_ids: list[str] = []
+    for index in np.asarray(fit_indices, dtype=np.int64).tolist():
+        trial = dataset.trials[index]
+        fit_sample_ids.append(str(trial.sample_id))
+        skeleton = dataset.skeleton_loader(trial)
+        if bool(skeleton["modality_usable"]):
+            skeleton_samples.append(
+                SkeletonSegments(
+                    features=skeleton["values"],
+                    mask=skeleton["mask"],
+                    quality=skeleton["quality"],
+                )
+            )
+        imu = dataset.imu_loader(trial)
+        if bool(imu["modality_usable"]):
+            imu_samples.append(
+                IMUSegments(
+                    features=imu["values"],
+                    role_mask=imu["role_mask"],
+                    quality=imu["quality"],
+                )
+            )
+    if not skeleton_samples or not imu_samples:
+        raise ValueError("fit scope lacks Skeleton or IMU normalization samples")
+    skeleton_mean, skeleton_std = fit_skeleton_normalization(skeleton_samples)
+    imu_mean, imu_std = fit_imu_normalization(imu_samples)
+    dataset.skeleton_loader.set_normalization(skeleton_mean, skeleton_std)
+    dataset.imu_loader.set_normalization(imu_mean, imu_std)
+    return {
+        "fit_sample_ids": fit_sample_ids,
+        "skeleton_mean_sha256": _array_sha256(skeleton_mean),
+        "skeleton_std_sha256": _array_sha256(skeleton_std),
+        "imu_mean_sha256": _array_sha256(imu_mean),
+        "imu_std_sha256": _array_sha256(imu_std),
+        "skeleton_samples": len(skeleton_samples),
+        "imu_samples": len(imu_samples),
+    }
 
 
 def _set_seed(seed: int) -> None:
@@ -264,5 +459,477 @@ def run_smoke(
     )
     _atomic_write_text(
         output_root / "smoke_report.json", json.dumps(report, indent=2) + "\n"
+    )
+    return report
+
+
+def _dataset_identity(
+    dataset: Dataset[dict[str, object]],
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    if all(hasattr(dataset, name) for name in ("labels", "user_ids", "sample_ids")):
+        return (
+            np.asarray(getattr(dataset, "labels"), dtype=np.int64),
+            np.asarray(getattr(dataset, "user_ids")).astype(str),
+            np.asarray(getattr(dataset, "sample_ids")).astype(str),
+        )
+    if hasattr(dataset, "trials"):
+        trials = list(getattr(dataset, "trials"))
+        return (
+            np.asarray([trial.class_id for trial in trials], dtype=np.int64),
+            np.asarray([trial.user_id for trial in trials]),
+            np.asarray([trial.sample_id for trial in trials]),
+        )
+    labels, users, samples = [], [], []
+    for index in range(len(dataset)):
+        item = dataset[index]
+        labels.append(int(item["label"]))
+        users.append(str(item["user_id"]))
+        samples.append(str(item["sample_id"]))
+    return np.asarray(labels), np.asarray(users), np.asarray(samples)
+
+
+def _candidate_eligible(
+    dataset: Dataset[dict[str, object]], index: int, candidate: str
+) -> bool:
+    if not hasattr(dataset, "trials"):
+        return True
+    trial = getattr(dataset, "trials")[index]
+    return any(bool(trial.availability[name]) for name in CANDIDATE_MODALITIES[candidate])
+
+
+@torch.no_grad()
+def _predict_indices(
+    *,
+    model: HierarchicalMultimodalTeacher,
+    dataset: Dataset[dict[str, object]],
+    indices: np.ndarray,
+    candidate: str,
+    prior_logits: torch.Tensor,
+    device: torch.device,
+) -> dict[str, Any]:
+    model.eval()
+    loader = DataLoader(Subset(dataset, indices.tolist()), batch_size=1, shuffle=False)
+    logits, labels, users, samples, core = [], [], [], [], []
+    for batch in loader:
+        batch = _move_batch(batch, device)
+        with torch.autocast(
+            device_type=device.type,
+            dtype=torch.bfloat16,
+            enabled=device.type == "cuda",
+        ):
+            output = model(
+                batch,
+                dropout_policy=GroupDropout.disabled(),
+                enabled_modalities=CANDIDATE_MODALITIES[candidate],
+            )
+        values = output["logits"].float()
+        available = output["core_available"].bool()
+        values = torch.where(
+            available[:, None], values, prior_logits.to(device)[None]
+        )
+        logits.append(values.cpu())
+        labels.append(batch["label"].long().cpu())
+        users.extend(str(value) for value in batch["user_id"])
+        samples.extend(str(value) for value in batch["sample_id"])
+        core.append(available.cpu())
+    logits_np = torch.cat(logits).numpy()
+    labels_np = torch.cat(labels).numpy()
+    users_np = np.asarray(users)
+    return {
+        "logits": logits_np,
+        "labels": labels_np,
+        "user_ids": users_np,
+        "sample_ids": np.asarray(samples),
+        "core_available": torch.cat(core).numpy(),
+        "metrics": _metrics(labels_np, logits_np, users_np),
+    }
+
+
+def train_candidate_fold(
+    *,
+    config: dict[str, Any],
+    candidate: str,
+    dataset: Dataset[dict[str, object]],
+    fit_indices: np.ndarray,
+    validation_indices: np.ndarray,
+    run_dir: Path,
+    model_factory: ModelFactory | None = None,
+    device: torch.device | None = None,
+) -> dict[str, Any]:
+    if candidate not in CANDIDATE_MODALITIES:
+        raise ValueError(f"unknown midfusion candidate: {candidate}")
+    if (run_dir / "summary.json").exists():
+        raise FileExistsError(f"completed fold already exists: {run_dir}")
+    if run_dir.exists() and not (run_dir / "latest_checkpoint.pt").is_file():
+        raise FileExistsError(f"non-resumable fold directory exists: {run_dir}")
+    run_dir.mkdir(parents=True, exist_ok=True)
+    labels, users, sample_ids = _dataset_identity(dataset)
+    fit_indices = np.asarray(fit_indices, dtype=np.int64)
+    validation_indices = np.asarray(validation_indices, dtype=np.int64)
+    if set(fit_indices.tolist()) & set(validation_indices.tolist()):
+        raise ValueError("fit and validation indices overlap")
+    fit_users = set(users[fit_indices].tolist())
+    validation_users = set(users[validation_indices].tolist())
+    if fit_users & validation_users:
+        raise ValueError("fit and validation users overlap")
+    eligible_fit = np.asarray(
+        [
+            index
+            for index in fit_indices.tolist()
+            if _candidate_eligible(dataset, index, candidate)
+        ],
+        dtype=np.int64,
+    )
+    if not len(eligible_fit):
+        raise ValueError("candidate has no usable fit rows")
+    training = config["training"]
+    seed = int(training["seed"])
+    _set_seed(seed)
+    device = device or torch.device("cuda")
+    model = (model_factory or build_teacher)(config).to(device)
+    optimizer = torch.optim.AdamW(
+        [parameter for parameter in model.parameters() if parameter.requires_grad],
+        lr=float(training["learning_rate"]),
+        weight_decay=float(training["weight_decay"]),
+    )
+    prior_logits = fit_class_prior(labels[fit_indices], classes=40)
+    history: list[dict[str, float | int]] = []
+    start_epoch = 1
+    latest = run_dir / "latest_checkpoint.pt"
+    if latest.is_file():
+        payload = torch.load(latest, map_location="cpu", weights_only=False)
+        if payload["candidate"] != candidate:
+            raise RuntimeError("resume candidate changed")
+        model.load_state_dict(payload["model_state_dict"], strict=True)
+        optimizer.load_state_dict(payload["optimizer_state_dict"])
+        _optimizer_to_device(optimizer, device)
+        history = list(payload["history"])
+        start_epoch = int(payload["epoch"]) + 1
+        random.setstate(payload["python_rng_state"])
+        np.random.set_state(payload["numpy_rng_state"])
+        torch.set_rng_state(payload["torch_rng_state"])
+        if device.type == "cuda" and payload.get("cuda_rng_state") is not None:
+            torch.cuda.set_rng_state(payload["cuda_rng_state"], device)
+
+    fit_dataset = Subset(dataset, eligible_fit.tolist())
+    subset_labels = labels[eligible_fit]
+    subset_users = users[eligible_fit]
+    sampler = EpochClassUserBalancedSampler(
+        labels=subset_labels,
+        users=subset_users,
+        samples=len(eligible_fit),
+        seed=seed,
+    )
+    loader = DataLoader(fit_dataset, batch_size=1, sampler=sampler, num_workers=0)
+    accumulation_target = int(training["gradient_accumulation"])
+    fixed_epochs = int(training["fixed_epochs"])
+    for epoch in range(start_epoch, fixed_epochs + 1):
+        epoch_started = time.perf_counter()
+        sampler.set_epoch(epoch)
+        model.train()
+        optimizer.zero_grad(set_to_none=True)
+        accumulated = 0
+        loss_total = 0.0
+        supervised_rows = 0
+        for step, batch in enumerate(loader, start=1):
+            batch = _move_batch(batch, device)
+            with torch.autocast(
+                device_type=device.type,
+                dtype=torch.bfloat16,
+                enabled=device.type == "cuda",
+            ):
+                output = model(
+                    batch,
+                    dropout_policy=GroupDropout(
+                        context=float(training["context_dropout"]),
+                        wrist=float(training["wrist_dropout"]),
+                        body=float(training["body_dropout"]),
+                        visual=float(training["visual_dropout"]),
+                    ),
+                    enabled_modalities=CANDIDATE_MODALITIES[candidate],
+                )
+                losses = hierarchical_teacher_loss(
+                    output,
+                    batch["label"].long(),
+                    epoch=epoch,
+                    natural_pattern=True,
+                )
+            losses["loss"].backward()
+            accumulated += 1
+            loss_total += float(losses["loss"].detach())
+            supervised_rows += int(losses["supervised_rows"].detach())
+            is_last = step == len(loader)
+            if accumulated == accumulation_target or is_last:
+                for parameter in model.parameters():
+                    if parameter.grad is not None:
+                        parameter.grad.div_(accumulated)
+                if any(
+                    parameter.grad is not None
+                    and not bool(torch.isfinite(parameter.grad).all())
+                    for parameter in model.parameters()
+                ):
+                    raise FloatingPointError("non-finite grouped-CV gradient")
+                torch.nn.utils.clip_grad_norm_(model.parameters(), 5.0)
+                optimizer.step()
+                optimizer.zero_grad(set_to_none=True)
+                accumulated = 0
+        history.append(
+            {
+                "epoch": epoch,
+                "mean_train_loss": loss_total / max(len(loader), 1),
+                "supervised_rows": supervised_rows,
+                "seconds": time.perf_counter() - epoch_started,
+            }
+        )
+        _atomic_torch_save(
+            latest,
+            {
+                "candidate": candidate,
+                "epoch": epoch,
+                "model_state_dict": model.state_dict(),
+                "optimizer_state_dict": optimizer.state_dict(),
+                "history": history,
+                "prior_logits": prior_logits,
+                "python_rng_state": random.getstate(),
+                "numpy_rng_state": np.random.get_state(),
+                "torch_rng_state": torch.get_rng_state(),
+                "cuda_rng_state": (
+                    torch.cuda.get_rng_state(device) if device.type == "cuda" else None
+                ),
+                "fit_user_ids": sorted(fit_users),
+                "validation_user_ids": sorted(validation_users),
+            },
+        )
+        print(
+            json.dumps(
+                {
+                    "stage": "grouped_fold_training",
+                    "candidate": candidate,
+                    "run_dir": str(run_dir),
+                    **history[-1],
+                }
+            ),
+            flush=True,
+        )
+
+    prediction = _predict_indices(
+        model=model,
+        dataset=dataset,
+        indices=validation_indices,
+        candidate=candidate,
+        prior_logits=prior_logits,
+        device=device,
+    )
+    _atomic_npz(
+        run_dir / "validation_predictions.npz",
+        sample_ids=prediction["sample_ids"],
+        user_ids=prediction["user_ids"],
+        labels=prediction["labels"],
+        logits=prediction["logits"],
+        core_available=prediction["core_available"],
+    )
+    summary = {
+        "candidate": candidate,
+        "epochs_completed": fixed_epochs,
+        "history": history,
+        "fit_user_ids": sorted(fit_users),
+        "validation_user_ids": sorted(validation_users),
+        "validation_sample_ids": prediction["sample_ids"].astype(str).tolist(),
+        "validation_evaluation_count": 1,
+        "validation_metrics": prediction["metrics"],
+        "checkpoint": str(latest),
+        "checkpoint_sha256": sha256_file(latest),
+        "predictions": str(run_dir / "validation_predictions.npz"),
+        "predictions_sha256": sha256_file(run_dir / "validation_predictions.npz"),
+    }
+    _atomic_write_text(run_dir / "summary.json", json.dumps(summary, indent=2) + "\n")
+    return summary
+
+
+def _comparison(
+    labels: np.ndarray, anchor_logits: np.ndarray, candidate_logits: np.ndarray
+) -> dict[str, int]:
+    anchor = anchor_logits.argmax(axis=1)
+    candidate = candidate_logits.argmax(axis=1)
+    return {
+        "rescued": int(((candidate == labels) & (anchor != labels)).sum()),
+        "harmed": int(((candidate != labels) & (anchor == labels)).sum()),
+        "net": int((candidate == labels).sum() - (anchor == labels).sum()),
+        "disagreement": int((candidate != anchor).sum()),
+    }
+
+
+def run_grouped_cv(config_path: Path) -> dict[str, Any]:
+    config = load_midfusion_config(config_path)
+    report_path = project_path(str(config["outputs"]["grouped_report_json"]))
+    markdown_path = project_path(str(config["outputs"]["grouped_report_markdown"]))
+    if report_path.exists() or markdown_path.exists():
+        raise FileExistsError("grouped-CV report already exists")
+    output_root = project_path(str(config["outputs"]["root"])) / "grouped_cv"
+    output_root.mkdir(parents=True, exist_ok=True)
+    fold_results: dict[str, list[dict[str, Any]]] = {
+        candidate: [] for candidate in CANDIDATE_MODALITIES
+    }
+    fold_predictions: dict[str, list[tuple[np.ndarray, np.ndarray]]] = {
+        candidate: [] for candidate in CANDIDATE_MODALITIES
+    }
+    canonical_labels: np.ndarray | None = None
+    canonical_users: np.ndarray | None = None
+    canonical_samples: np.ndarray | None = None
+
+    for fold in config["grouped_folds"]:
+        fold_index = int(fold["fold"])
+        clean_view = project_path(
+            str(config["data"]["skeleton_clean_views"])
+        ) / f"fold_{fold_index}/clean_view.csv"
+        dataset = make_midfusion_dataset(
+            config,
+            partition="train",
+            metadata_only=False,
+            skeleton_clean_view=clean_view,
+            training=True,
+        )
+        labels, users, samples = _dataset_identity(dataset)
+        if canonical_labels is None:
+            canonical_labels, canonical_users, canonical_samples = labels, users, samples
+        elif not (
+            np.array_equal(labels, canonical_labels)
+            and np.array_equal(users, canonical_users)
+            and np.array_equal(samples, canonical_samples)
+        ):
+            raise RuntimeError("fold datasets changed canonical ordering")
+        fit_indices, validation_indices = partition_fold_indices(
+            users, validation_users=set(fold["validation_user_ids"])
+        )
+        if set(users[fit_indices].tolist()) != set(fold["fit_user_ids"]):
+            raise RuntimeError("fold fit membership differs from contract")
+        normalization = fit_body_normalization(dataset, fit_indices)
+        normalization_path = output_root / f"fold_{fold_index}/normalization.json"
+        normalization_path.parent.mkdir(parents=True, exist_ok=True)
+        _atomic_write_text(
+            normalization_path,
+            json.dumps(
+                {
+                    **normalization,
+                    "fit_user_ids": sorted(set(users[fit_indices].tolist())),
+                    "validation_user_ids": sorted(
+                        set(users[validation_indices].tolist())
+                    ),
+                },
+                indent=2,
+            )
+            + "\n",
+        )
+        for candidate in CANDIDATE_MODALITIES:
+            run_dir = output_root / candidate / f"fold_{fold_index}"
+            if (run_dir / "summary.json").is_file():
+                summary = json.loads(
+                    (run_dir / "summary.json").read_text(encoding="utf-8")
+                )
+            else:
+                summary = train_candidate_fold(
+                    config=config,
+                    candidate=candidate,
+                    dataset=dataset,
+                    fit_indices=fit_indices,
+                    validation_indices=validation_indices,
+                    run_dir=run_dir,
+                    device=torch.device("cuda"),
+                )
+            archive_path = run_dir / "validation_predictions.npz"
+            with np.load(archive_path, allow_pickle=False) as archive:
+                archive_samples = archive["sample_ids"].astype(str)
+                expected_samples = samples[validation_indices].astype(str)
+                if not np.array_equal(archive_samples, expected_samples):
+                    raise RuntimeError("fold prediction sample order changed")
+                fold_predictions[candidate].append(
+                    (validation_indices, archive["logits"].astype(np.float32))
+                )
+            fold_results[candidate].append(
+                {
+                    "fold": fold_index,
+                    "fit_user_ids": summary["fit_user_ids"],
+                    "validation_user_ids": summary["validation_user_ids"],
+                    "metrics": summary["validation_metrics"],
+                    "checkpoint_sha256": summary["checkpoint_sha256"],
+                    "predictions_sha256": summary["predictions_sha256"],
+                    "normalization_sha256": sha256_file(normalization_path),
+                }
+            )
+
+    assert canonical_labels is not None
+    assert canonical_users is not None
+    assert canonical_samples is not None
+    pooled_logits: dict[str, np.ndarray] = {}
+    candidate_metrics: dict[str, dict[str, Any]] = {}
+    for candidate in CANDIDATE_MODALITIES:
+        logits = pool_fold_predictions(
+            sample_count=len(canonical_labels),
+            classes=40,
+            folds=fold_predictions[candidate],
+        )
+        pooled_logits[candidate] = logits
+        candidate_metrics[candidate] = _metrics(
+            canonical_labels, logits, canonical_users
+        )
+        _atomic_npz(
+            output_root / f"{candidate}_pooled_predictions.npz",
+            sample_ids=canonical_samples,
+            user_ids=canonical_users,
+            labels=canonical_labels,
+            logits=logits,
+            predictions=logits.argmax(axis=1),
+        )
+    selected = select_grouped_candidate(candidate_metrics)
+    anchor = pooled_logits["visual_only"]
+    report = {
+        "stage": "P5-HMF0-grouped-cv",
+        "status": "completed",
+        "population_samples": len(canonical_labels),
+        "selected_candidate": selected,
+        "selection_order": [
+            "accuracy",
+            "macro_f1",
+            "worst_user_accuracy",
+            "negative_nll",
+            "fixed_candidate_order",
+        ],
+        "candidate_metrics": candidate_metrics,
+        "comparison_to_visual_only": {
+            candidate: _comparison(canonical_labels, anchor, pooled_logits[candidate])
+            for candidate in CANDIDATE_MODALITIES
+        },
+        "fold_results": fold_results,
+        "validation_users_entered_training": False,
+        "user6_user7_evaluated": False,
+    }
+    _atomic_write_text(report_path, json.dumps(report, indent=2) + "\n")
+    lines = [
+        "# Hierarchical multimodal teacher grouped-CV",
+        "",
+        f"- Selected candidate: `{selected}`",
+        "- user6/user7 evaluated: `False`",
+        "",
+        "| Candidate | Accuracy | Macro-F1 | Worst-user | Rescue/Harm |",
+        "|---|---:|---:|---:|---:|",
+    ]
+    for candidate in CANDIDATE_MODALITIES:
+        metrics = candidate_metrics[candidate]
+        comparison = report["comparison_to_visual_only"][candidate]
+        lines.append(
+            f"| {candidate} | {metrics['accuracy']:.6f} | "
+            f"{metrics['macro_f1']:.6f} | {metrics['worst_user_accuracy']:.6f} | "
+            f"{comparison['rescued']}/{comparison['harmed']} |"
+        )
+    _atomic_write_text(markdown_path, "\n".join(lines) + "\n")
+    print(
+        json.dumps(
+            {
+                "stage": report["stage"],
+                "status": report["status"],
+                "selected_candidate": selected,
+            }
+        ),
+        flush=True,
     )
     return report

@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 from pathlib import Path
+from typing import Iterable
 
 import numpy as np
 import pandas as pd
@@ -21,6 +22,41 @@ class SkeletonSegments:
     features: torch.Tensor
     mask: torch.Tensor
     quality: torch.Tensor
+
+
+def fit_skeleton_normalization(
+    samples: Iterable[SkeletonSegments],
+) -> tuple[np.ndarray, np.ndarray]:
+    parts = [
+        sample.features[sample.mask].numpy().astype(np.float64)
+        for sample in samples
+        if bool(sample.mask.any())
+    ]
+    if not parts:
+        raise ValueError("no valid Skeleton segments for normalization")
+    values = np.concatenate(parts, axis=0)
+    mean = values.mean(axis=0).astype(np.float32)
+    std = np.maximum(values.std(axis=0), 1e-6).astype(np.float32)
+    return mean, std
+
+
+def apply_skeleton_normalization(
+    sample: SkeletonSegments,
+    mean: np.ndarray,
+    std: np.ndarray,
+) -> SkeletonSegments:
+    if mean.shape != (17, 6) or std.shape != (17, 6):
+        raise ValueError("Skeleton normalization shape changed")
+    values = sample.features.numpy().copy()
+    values = (values - mean[None]) / np.maximum(std[None], 1e-6)
+    values[~sample.mask.numpy()] = 0.0
+    if not np.isfinite(values).all():
+        raise ValueError("non-finite normalized Skeleton segments")
+    return SkeletonSegments(
+        features=torch.from_numpy(values.astype(np.float32)),
+        mask=sample.mask.clone(),
+        quality=sample.quality.clone(),
+    )
 
 
 def frame_bone_scale(poses: np.ndarray) -> np.ndarray:

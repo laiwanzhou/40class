@@ -8,6 +8,8 @@ import torch
 
 from scripts.build_midfusion_skeleton_clean_views import projection_scope_specs
 from src.data.clean_skeleton_segments import (
+    apply_skeleton_normalization,
+    fit_skeleton_normalization,
     load_skeleton_segments,
     resample_skeleton_segments,
 )
@@ -105,3 +107,20 @@ def test_load_skeleton_segments_reads_selected_candidate(tmp_path: Path) -> None
     assert result.features.shape == (8, 17, 6)
     assert result.mask.all()
     assert torch.isfinite(result.features).all()
+
+
+def test_skeleton_normalization_uses_only_valid_segments() -> None:
+    frames = np.arange(8)
+    result = resample_skeleton_segments(
+        frames,
+        np.zeros(8, dtype=np.int64),
+        synthetic_h36m_poses(frames),
+        segment_count=8,
+    )
+    mean, std = fit_skeleton_normalization([result])
+    normalized = apply_skeleton_normalization(result, mean, std)
+
+    assert mean.shape == (17, 6)
+    assert std.shape == (17, 6)
+    assert torch.isfinite(normalized.features).all()
+    assert torch.count_nonzero(normalized.features[~normalized.mask]) == 0

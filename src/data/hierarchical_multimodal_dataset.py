@@ -19,7 +19,10 @@ from src.data.canonical_multimodal_index import (
     build_canonical_trials,
     normalized_segment_bounds,
 )
-from src.data.clean_skeleton_segments import load_skeleton_segments
+from src.data.clean_skeleton_segments import (
+    apply_skeleton_normalization,
+    load_skeleton_segments,
+)
 from src.data.common import sorted_files
 from src.data.ir_depth_videomaev2_dataset import (
     IMAGENET_MEAN,
@@ -27,7 +30,7 @@ from src.data.ir_depth_videomaev2_dataset import (
     IRDepthVideoMAEV2Dataset,
     uniform_trial_indices,
 )
-from src.data.raw_imu_segments import load_raw_imu_segments
+from src.data.raw_imu_segments import apply_imu_normalization, load_raw_imu_segments
 from src.experiments.hierarchical_midfusion_config import project_path
 
 
@@ -147,13 +150,22 @@ class CleanSkeletonLoader:
             for sample_id, group in frame.groupby("sample_id", sort=False)
         }
         self.data_root = data_root
+        self.cache: dict[str, Any] = {}
+        self.normalization: tuple[np.ndarray, np.ndarray] | None = None
+
+    def set_normalization(self, mean: np.ndarray, std: np.ndarray) -> None:
+        self.normalization = (mean.copy(), std.copy())
 
     def __call__(self, trial: CanonicalTrial | None) -> dict[str, torch.Tensor]:
         if trial is None or trial.sample_id not in self.lookup:
             return EmptyModalityLoader.skeleton()(trial)
-        result = load_skeleton_segments(
-            self.lookup[trial.sample_id], data_root=self.data_root, segment_count=8
-        )
+        if trial.sample_id not in self.cache:
+            self.cache[trial.sample_id] = load_skeleton_segments(
+                self.lookup[trial.sample_id], data_root=self.data_root, segment_count=8
+            )
+        result = self.cache[trial.sample_id]
+        if self.normalization is not None:
+            result = apply_skeleton_normalization(result, *self.normalization)
         return {
             "values": result.features,
             "mask": result.mask,
@@ -163,10 +175,23 @@ class CleanSkeletonLoader:
 
 
 class RawIMULoader:
+    def __init__(self) -> None:
+        self.cache: dict[str, Any] = {}
+        self.normalization: tuple[np.ndarray, np.ndarray] | None = None
+
+    def set_normalization(self, mean: np.ndarray, std: np.ndarray) -> None:
+        self.normalization = (mean.copy(), std.copy())
+
     def __call__(self, trial: CanonicalTrial | None) -> dict[str, torch.Tensor]:
         if trial is None or trial.paths["imu"] is None:
             return EmptyModalityLoader.imu()(trial)
-        result = load_raw_imu_segments(trial.paths["imu"], segment_count=8)
+        if trial.sample_id not in self.cache:
+            self.cache[trial.sample_id] = load_raw_imu_segments(
+                trial.paths["imu"], segment_count=8
+            )
+        result = self.cache[trial.sample_id]
+        if self.normalization is not None:
+            result = apply_imu_normalization(result, *self.normalization)
         return {
             "values": result.features,
             "role_mask": result.role_mask,
