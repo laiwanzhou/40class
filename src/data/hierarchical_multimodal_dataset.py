@@ -34,7 +34,7 @@ from src.data.raw_imu_segments import apply_imu_normalization, load_raw_imu_segm
 from src.experiments.hierarchical_midfusion_config import project_path
 
 
-ModalityLoader = Callable[[CanonicalTrial | None], dict[str, torch.Tensor]]
+ModalityLoader = Callable[[CanonicalTrial | None], dict[str, Any]]
 
 
 class EmptyModalityLoader:
@@ -45,6 +45,7 @@ class EmptyModalityLoader:
                 "values": torch.zeros(2, 4, 3, 16, 224, 224),
                 "availability": torch.zeros(2, 4, dtype=torch.bool),
                 "modality_usable": torch.zeros(2, dtype=torch.bool),
+                "failure_reasons": ("not_loaded", "not_loaded"),
             }
 
         return load
@@ -57,6 +58,7 @@ class EmptyModalityLoader:
                 "mask": torch.zeros(8, dtype=torch.bool),
                 "quality": torch.zeros(8, 4),
                 "modality_usable": torch.tensor(False),
+                "failure_reason": "not_loaded",
             }
 
         return load
@@ -69,6 +71,7 @@ class EmptyModalityLoader:
                 "role_mask": torch.zeros(8, 5, dtype=torch.bool),
                 "quality": torch.zeros(8, 5, 3),
                 "modality_usable": torch.tensor(False),
+                "failure_reason": "not_loaded",
             }
 
         return load
@@ -107,9 +110,11 @@ class StrictVisualLoader:
         output = EmptyModalityLoader.visual()(trial)
         ir_path = trial.paths["ir"]
         if ir_path is None:
+            output["failure_reasons"] = ("not_present", "not_present")
             return output
         paths = sorted_files(ir_path, {".png", ".jpg", ".jpeg", ".bmp"})
         if not paths:
+            output["failure_reasons"] = ("no_ir_frames", "not_present")
             return output
         indices = uniform_trial_indices(len(paths), 16, jitter=0.0)
         frames = []
@@ -125,9 +130,10 @@ class StrictVisualLoader:
         output["values"][0, 0] = torch.stack(frames, dim=1)
         output["availability"][0, 0] = True
         output["modality_usable"][0] = True
+        output["failure_reasons"] = ("", "not_present_or_unusable")
         return output
 
-    def __call__(self, trial: CanonicalTrial | None) -> dict[str, torch.Tensor]:
+    def __call__(self, trial: CanonicalTrial | None) -> dict[str, Any]:
         if trial is None:
             return EmptyModalityLoader.visual()(trial)
         index = self.lookup.get(trial.sample_id)
@@ -139,6 +145,10 @@ class StrictVisualLoader:
             "values": item["clips"].float(),
             "availability": availability,
             "modality_usable": availability.any(dim=1),
+            "failure_reasons": tuple(
+                "" if bool(modality.any()) else "not_present_or_unusable"
+                for modality in availability
+            ),
         }
 
 
@@ -156,9 +166,14 @@ class CleanSkeletonLoader:
     def set_normalization(self, mean: np.ndarray, std: np.ndarray) -> None:
         self.normalization = (mean.copy(), std.copy())
 
-    def __call__(self, trial: CanonicalTrial | None) -> dict[str, torch.Tensor]:
+    def __call__(self, trial: CanonicalTrial | None) -> dict[str, Any]:
         if trial is None or trial.sample_id not in self.lookup:
-            return EmptyModalityLoader.skeleton()(trial)
+            output = EmptyModalityLoader.skeleton()(trial)
+            output["failure_reason"] = (
+                "not_present" if trial is None or trial.paths["skeleton"] is None
+                else "clean_view_missing_or_unusable"
+            )
+            return output
         if trial.sample_id not in self.cache:
             self.cache[trial.sample_id] = load_skeleton_segments(
                 self.lookup[trial.sample_id], data_root=self.data_root, segment_count=8
@@ -171,25 +186,43 @@ class CleanSkeletonLoader:
             "mask": result.mask,
             "quality": result.quality,
             "modality_usable": result.mask.any(),
+            "failure_reason": "" if bool(result.mask.any()) else "no_usable_segments",
         }
 
 
 class RawIMULoader:
     def __init__(self) -> None:
         self.cache: dict[str, Any] = {}
+        self.failure_reasons: dict[str, str] = {}
         self.normalization: tuple[np.ndarray, np.ndarray] | None = None
 
     def set_normalization(self, mean: np.ndarray, std: np.ndarray) -> None:
         self.normalization = (mean.copy(), std.copy())
 
-    def __call__(self, trial: CanonicalTrial | None) -> dict[str, torch.Tensor]:
+    def __call__(self, trial: CanonicalTrial | None) -> dict[str, Any]:
         if trial is None or trial.paths["imu"] is None:
-            return EmptyModalityLoader.imu()(trial)
+            output = EmptyModalityLoader.imu()(trial)
+            output["failure_reason"] = "not_present"
+            return output
+        imu_path = trial.paths["imu"]
+        if not imu_path.is_dir():
+            self.cache[trial.sample_id] = None
+            self.failure_reasons[trial.sample_id] = "manifest_path_missing"
         if trial.sample_id not in self.cache:
-            self.cache[trial.sample_id] = load_raw_imu_segments(
-                trial.paths["imu"], segment_count=8
-            )
+            try:
+                self.cache[trial.sample_id] = load_raw_imu_segments(
+                    imu_path, segment_count=8
+                )
+            except (OSError, ValueError, KeyError) as error:
+                self.cache[trial.sample_id] = None
+                self.failure_reasons[trial.sample_id] = (
+                    f"preprocessing_error:{type(error).__name__}"
+                )
         result = self.cache[trial.sample_id]
+        if result is None:
+            output = EmptyModalityLoader.imu()(trial)
+            output["failure_reason"] = self.failure_reasons[trial.sample_id]
+            return output
         if self.normalization is not None:
             result = apply_imu_normalization(result, *self.normalization)
         return {
@@ -197,6 +230,9 @@ class RawIMULoader:
             "role_mask": result.role_mask,
             "quality": result.quality,
             "modality_usable": result.role_mask.any(),
+            "failure_reason": (
+                "" if bool(result.role_mask.any()) else "no_usable_segments"
+            ),
         }
 
 
@@ -264,6 +300,11 @@ class HierarchicalMultimodalDataset(Dataset[dict[str, object]]):
             "present": present,
             "usable": usable,
             "availability": usable,
+            "failure_reasons": (
+                *visual["failure_reasons"],
+                skeleton["failure_reason"],
+                imu["failure_reason"],
+            ),
             "core_available": core_available.bool(),
             "sample_id": trial.sample_id,
             "user_id": trial.user_id,

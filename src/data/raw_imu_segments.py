@@ -43,7 +43,11 @@ def _read_trial(path: Path) -> pd.DataFrame:
         missing = required - set(table.columns)
         if missing:
             raise ValueError(f"IMU CSV misses {sorted(missing)}: {csv_path}")
-        tables.append(table.dropna(how="all"))
+        cleaned = table.dropna(how="all")
+        if not cleaned.empty:
+            tables.append(cleaned)
+    if not tables:
+        raise ValueError(f"IMU trial has no non-empty rows: {path}")
     combined = pd.concat(tables, ignore_index=True)
     combined["_role"] = combined["设备名称"].astype(str).map(_role)
     combined["_time"] = pd.to_datetime(combined["时间"], errors="coerce")

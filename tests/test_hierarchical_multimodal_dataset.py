@@ -8,7 +8,9 @@ from src.data.hierarchical_multimodal_dataset import (
     EmptyModalityLoader,
     HierarchicalMultimodalDataset,
     make_midfusion_dataset,
+    RawIMULoader,
 )
+from src.data.canonical_multimodal_index import CanonicalTrial
 from src.experiments.hierarchical_midfusion_config import load_midfusion_config
 
 
@@ -67,3 +69,46 @@ def test_empty_loader_returns_exact_shapes() -> None:
     assert visual["availability"].shape == (2, 4)
     assert skeleton["values"].shape == (8, 17, 6)
     assert imu["values"].shape == (8, 5, 16)
+
+
+def test_imu_manifest_path_missing_is_present_but_unusable(tmp_path: Path) -> None:
+    missing = tmp_path / "missing_imu_trial"
+    trial = CanonicalTrial(
+        sample_id="sample_missing_imu",
+        user_id="user1",
+        class_id=0,
+        paths={
+            "ir": None,
+            "depth_color": None,
+            "skeleton": None,
+            "imu": missing,
+            "radar": None,
+            "thermal": None,
+        },
+        availability={
+            "ir": False,
+            "depth_color": False,
+            "skeleton": False,
+            "imu": True,
+            "radar": False,
+            "thermal": False,
+        },
+    )
+
+    result = RawIMULoader()(trial)
+
+    assert not bool(result["modality_usable"])
+    assert not result["role_mask"].any()
+    assert result["failure_reason"] == "manifest_path_missing"
+
+    dataset = HierarchicalMultimodalDataset(
+        [trial],
+        visual_loader=EmptyModalityLoader.visual(),
+        skeleton_loader=EmptyModalityLoader.skeleton(),
+        imu_loader=RawIMULoader(),
+    )
+    item = dataset[0]
+
+    assert bool(item["present"][3]) is True
+    assert bool(item["usable"][3]) is False
+    assert item["failure_reasons"][3] == "manifest_path_missing"
