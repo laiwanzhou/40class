@@ -129,6 +129,11 @@ def test_no_core_rows_are_excluded_from_teacher_loss() -> None:
     assert not output["core_available"].any()
     assert losses["supervised_rows"].item() == 0
     assert losses["loss"].item() == 0.0
+    losses["loss"].backward()
+    assert all(
+        parameter.grad is None or torch.isfinite(parameter.grad).all()
+        for parameter in model.parameters()
+    )
 
 
 def test_entropy_floor_is_disabled_after_epoch_two() -> None:

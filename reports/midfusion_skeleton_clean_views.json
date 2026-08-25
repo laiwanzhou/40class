@@ -1,0 +1,235 @@
+{
+  "stage": "P5-HMF0-skeleton-clean-views",
+  "status": "completed",
+  "source_commit": "bdd5d7313320336b5f2e6eae34df4e7adf2918d3",
+  "output_root": "outputs/midfusion_skeleton_clean_views",
+  "scopes": [
+    {
+      "fold": 0,
+      "scope": "fold_0",
+      "fold_fit_user_ids": [
+        "user16",
+        "user19",
+        "user2",
+        "user20",
+        "user22",
+        "user3",
+        "user8",
+        "user9"
+      ],
+      "projection_fit_user_ids": [
+        "user16",
+        "user19",
+        "user2",
+        "user20",
+        "user22",
+        "user3",
+        "user8",
+        "user9"
+      ],
+      "scope_validation_user_ids": [
+        "user1",
+        "user18",
+        "user21",
+        "user5"
+      ],
+      "fit_validation_overlap": [],
+      "projection_matrix": [
+        [
+          -0.8122477986840906,
+          -0.18927577609720028
+        ],
+        [
+          -0.0382829910788645,
+          0.23211144818536106
+        ],
+        [
+          -0.1128303919497629,
+          -1.1489576302055848
+        ]
+      ],
+      "calibration_correspondences": 370776,
+      "retained_trials": 1956,
+      "empty_trials": 0,
+      "clean_view_sha256": "4d92adfdcf6307fe86ec56784afc8b1d493a759df71894483a530e147798326b",
+      "pose_cache_sha256": "bf9cae0c6e4e0785fc28aab47980fc95266a93f9d40c6e2da99d6f4e19f7b8c8",
+      "source_commit": "bdd5d7313320336b5f2e6eae34df4e7adf2918d3",
+      "source_blob_sha256": {
+        "retained": "c325124428591b3ed01e905620b96410a6af0911ad4974b9a8bbe8b0af167cfe",
+        "ambiguous": "73b305a5f311ad7eabc5f6f955009629fcd33a3247c49f8c864d9b37be902f7d"
+      }
+    },
+    {
+      "fold": 1,
+      "scope": "fold_1",
+      "fold_fit_user_ids": [
+        "user1",
+        "user18",
+        "user2",
+        "user20",
+        "user21",
+        "user3",
+        "user5",
+        "user9"
+      ],
+      "projection_fit_user_ids": [
+        "user1",
+        "user18",
+        "user2",
+        "user20",
+        "user21",
+        "user3",
+        "user5",
+        "user9"
+      ],
+      "scope_validation_user_ids": [
+        "user16",
+        "user19",
+        "user22",
+        "user8"
+      ],
+      "fit_validation_overlap": [],
+      "projection_matrix": [
+        [
+          -0.7710986672254702,
+          -0.2183675643454878
+        ],
+        [
+          0.002430086613710659,
+          0.2754399030855406
+        ],
+        [
+          -0.12288872375512411,
+          -1.1421512384829489
+        ]
+      ],
+      "calibration_correspondences": 351980,
+      "retained_trials": 1956,
+      "empty_trials": 0,
+      "clean_view_sha256": "b2771b22fc75e96504345749dec50ef0254cae2b4bb46dab351c157938fe0b3b",
+      "pose_cache_sha256": "bf9cae0c6e4e0785fc28aab47980fc95266a93f9d40c6e2da99d6f4e19f7b8c8",
+      "source_commit": "bdd5d7313320336b5f2e6eae34df4e7adf2918d3",
+      "source_blob_sha256": {
+        "retained": "c325124428591b3ed01e905620b96410a6af0911ad4974b9a8bbe8b0af167cfe",
+        "ambiguous": "73b305a5f311ad7eabc5f6f955009629fcd33a3247c49f8c864d9b37be902f7d"
+      }
+    },
+    {
+      "fold": 2,
+      "scope": "fold_2",
+      "fold_fit_user_ids": [
+        "user1",
+        "user16",
+        "user18",
+        "user19",
+        "user21",
+        "user22",
+        "user5",
+        "user8"
+      ],
+      "projection_fit_user_ids": [
+        "user1",
+        "user16",
+        "user18",
+        "user19",
+        "user21",
+        "user22",
+        "user5",
+        "user8"
+      ],
+      "scope_validation_user_ids": [
+        "user2",
+        "user20",
+        "user3",
+        "user9"
+      ],
+      "fit_validation_overlap": [],
+      "projection_matrix": [
+        [
+          -0.8332162502798269,
+          -0.17771554980176504
+        ],
+        [
+          0.008265656316941457,
+          0.24661450709117475
+        ],
+        [
+          -0.12125665046980774,
+          -1.1703365586913825
+        ]
+      ],
+      "calibration_correspondences": 376716,
+      "retained_trials": 1956,
+      "empty_trials": 0,
+      "clean_view_sha256": "67b96185f36ebb4ab378735b449c322cf026f274c63dc0923aa2abe433190f42",
+      "pose_cache_sha256": "bf9cae0c6e4e0785fc28aab47980fc95266a93f9d40c6e2da99d6f4e19f7b8c8",
+      "source_commit": "bdd5d7313320336b5f2e6eae34df4e7adf2918d3",
+      "source_blob_sha256": {
+        "retained": "c325124428591b3ed01e905620b96410a6af0911ad4974b9a8bbe8b0af167cfe",
+        "ambiguous": "73b305a5f311ad7eabc5f6f955009629fcd33a3247c49f8c864d9b37be902f7d"
+      }
+    },
+    {
+      "fold": -1,
+      "scope": "selected_final",
+      "fold_fit_user_ids": [
+        "user1",
+        "user16",
+        "user18",
+        "user19",
+        "user2",
+        "user20",
+        "user21",
+        "user22",
+        "user3",
+        "user5",
+        "user8",
+        "user9"
+      ],
+      "projection_fit_user_ids": [
+        "user1",
+        "user16",
+        "user18",
+        "user19",
+        "user2",
+        "user20",
+        "user21",
+        "user22",
+        "user3",
+        "user5",
+        "user8",
+        "user9"
+      ],
+      "scope_validation_user_ids": [
+        "user6",
+        "user7"
+      ],
+      "fit_validation_overlap": [],
+      "projection_matrix": [
+        [
+          -0.8058785256823181,
+          -0.19530734506284733
+        ],
+        [
+          -0.00856654781264107,
+          0.25149177608658074
+        ],
+        [
+          -0.11886893288811753,
+          -1.154013406828616
+        ]
+      ],
+      "calibration_correspondences": 549736,
+      "retained_trials": 2341,
+      "empty_trials": 0,
+      "clean_view_sha256": "005f0082c48d7b9f84717ade5efa4fdbe151ccba86588f2ec5bfc8aabb8b2060",
+      "pose_cache_sha256": "bf9cae0c6e4e0785fc28aab47980fc95266a93f9d40c6e2da99d6f4e19f7b8c8",
+      "source_commit": "bdd5d7313320336b5f2e6eae34df4e7adf2918d3",
+      "source_blob_sha256": {
+        "retained": "c325124428591b3ed01e905620b96410a6af0911ad4974b9a8bbe8b0af167cfe",
+        "ambiguous": "73b305a5f311ad7eabc5f6f955009629fcd33a3247c49f8c864d9b37be902f7d"
+      }
+    }
+  ],
+  "validation_users_entered_projection_fit": false
+}

@@ -2,17 +2,81 @@ from __future__ import annotations
 
 import torch
 from torch import nn
+from torch.utils import checkpoint
 
 from src.models.multimodal_token_contract import GroupTokens
+
+
+class VideoMAESegmentBackboneAdapter(nn.Module):
+    """Expose a VideoMAE backbone as aligned prefix and eight-segment tail seams."""
+
+    def __init__(
+        self,
+        *,
+        backbone: nn.Module,
+        frozen_prefix_blocks: int = 8,
+        segment_count: int = 8,
+    ) -> None:
+        super().__init__()
+        if not 0 <= frozen_prefix_blocks < len(backbone.blocks):
+            raise ValueError("invalid frozen VideoMAE prefix")
+        if segment_count != 8:
+            raise ValueError("Stage-1 VideoMAE segment count must be eight")
+        self.backbone = backbone
+        self.embed_dim = int(backbone.embed_dim)
+        self.frozen_prefix_blocks = int(frozen_prefix_blocks)
+        self.segment_count = int(segment_count)
+        for parameter in backbone.patch_embed.parameters():
+            parameter.requires_grad = False
+        for block in backbone.blocks[: self.frozen_prefix_blocks]:
+            for parameter in block.parameters():
+                parameter.requires_grad = False
+        for block in backbone.blocks[self.frozen_prefix_blocks :]:
+            for parameter in block.parameters():
+                parameter.requires_grad = True
+
+    def encode_prefix(self, clips: torch.Tensor) -> torch.Tensor:
+        with torch.no_grad():
+            tokens = self.backbone.patch_embed(clips)
+            positional = self.backbone.pos_embed.to(
+                device=tokens.device, dtype=tokens.dtype
+            )
+            if positional.shape[1] < tokens.shape[1]:
+                raise ValueError("VideoMAE positional embedding is too short")
+            tokens = self.backbone.pos_drop(tokens + positional[:, : tokens.shape[1]])
+            for block in self.backbone.blocks[: self.frozen_prefix_blocks]:
+                tokens = block(tokens)
+        if tokens.shape[1] % self.segment_count:
+            raise ValueError("VideoMAE token count is not divisible by eight segments")
+        spatial_tokens = tokens.shape[1] // self.segment_count
+        return tokens.detach().reshape(
+            tokens.shape[0], self.segment_count, spatial_tokens, tokens.shape[2]
+        )
+
+    def encode_tail(self, tokens: torch.Tensor) -> torch.Tensor:
+        if tokens.ndim != 4 or tokens.shape[1] != self.segment_count:
+            raise ValueError("VideoMAE prefix tokens must be [B,8,P,D]")
+        batch, segments, spatial, dim = tokens.shape
+        values = tokens.reshape(batch, segments * spatial, dim)
+        for block in self.backbone.blocks[self.frozen_prefix_blocks :]:
+            if self.training and torch.is_grad_enabled():
+                values = checkpoint.checkpoint(block, values, use_reentrant=False)
+            else:
+                values = block(values)
+        values = values.reshape(batch, segments, spatial, dim).mean(dim=2)
+        return self.backbone.fc_norm(values)
 
 
 def _masked_pair_weights(scores: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
     if scores.shape != mask.shape or scores.shape[-1] != 2:
         raise ValueError("pair scores and mask must have matching [...,2] shape")
-    maximum = scores.masked_fill(~mask, torch.finfo(scores.dtype).min).max(
+    masked_scores = torch.where(mask, scores, torch.zeros_like(scores))
+    maximum = masked_scores.masked_fill(~mask, torch.finfo(scores.dtype).min).max(
         dim=-1, keepdim=True
     ).values
-    exponent = torch.where(mask, torch.exp(scores - maximum), torch.zeros_like(scores))
+    maximum = torch.where(mask.any(dim=-1, keepdim=True), maximum, torch.zeros_like(maximum))
+    shifted = torch.where(mask, masked_scores - maximum, torch.zeros_like(scores))
+    exponent = torch.exp(shifted) * mask.to(scores.dtype)
     return exponent / exponent.sum(dim=-1, keepdim=True).clamp_min(1e-12)
 
 

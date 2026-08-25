@@ -22,7 +22,8 @@ data:
   skeleton_source_commit: bdd5d7313320336b5f2e6eae34df4e7adf2918d3
   skeleton_retained_blob: reports/skeleton_clean_frame_index/skeleton_retained_frame_index.csv
   skeleton_ambiguous_blob: reports/skeleton_clean_frame_index/skeleton_ambiguous_frame_index.csv
-  skeleton_clean_views: reports/midfusion_skeleton_clean_views
+  skeleton_clean_views: outputs/midfusion_skeleton_clean_views
+  skeleton_clean_view_report: reports/midfusion_skeleton_clean_views.json
   image_size: 224
   frames: 16
 

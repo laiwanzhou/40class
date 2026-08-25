@@ -278,6 +278,7 @@ def build_midfusion_clean_views(
 ) -> list[dict[str, Any]]:
     config = load_midfusion_config(config_path)
     data = config["data"]
+    formal_output = output_root is None
     output_root = (
         output_root.resolve()
         if output_root is not None
@@ -341,6 +342,24 @@ def build_midfusion_clean_views(
             json.dumps(report, indent=2) + "\n", encoding="utf-8"
         )
         reports.append(report)
+    if formal_output:
+        report_path = project_path(str(data["skeleton_clean_view_report"]))
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        report_path.write_text(
+            json.dumps(
+                {
+                    "stage": "P5-HMF0-skeleton-clean-views",
+                    "status": "completed",
+                    "source_commit": data["skeleton_source_commit"],
+                    "output_root": str(data["skeleton_clean_views"]),
+                    "scopes": reports,
+                    "validation_users_entered_projection_fit": False,
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
     return reports
 
 

@@ -7,10 +7,13 @@ from src.models.multimodal_token_contract import GroupTokens
 
 
 def _masked_softmax(scores: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
-    maximum = scores.masked_fill(~mask, torch.finfo(scores.dtype).min).max(
+    masked_scores = torch.where(mask, scores, torch.zeros_like(scores))
+    maximum = masked_scores.masked_fill(~mask, torch.finfo(scores.dtype).min).max(
         dim=-1, keepdim=True
     ).values
-    exponent = torch.where(mask, torch.exp(scores - maximum), torch.zeros_like(scores))
+    maximum = torch.where(mask.any(dim=-1, keepdim=True), maximum, torch.zeros_like(maximum))
+    shifted = torch.where(mask, masked_scores - maximum, torch.zeros_like(scores))
+    exponent = torch.exp(shifted) * mask.to(scores.dtype)
     return exponent / exponent.sum(dim=-1, keepdim=True).clamp_min(1e-12)
 
 
