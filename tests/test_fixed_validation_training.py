@@ -1,12 +1,18 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
 
 import numpy as np
 import pytest
 import torch
 from torch import nn
 from torch.utils.data import Dataset
+import yaml
+
+from scripts.report_hierarchical_multimodal_teacher import (
+    build_fixed_validation_report,
+)
 
 from src.data.body_normalization_state import (
     apply_body_normalization_state,
@@ -18,7 +24,11 @@ from src.models.body_motion_segment_encoder import BodyMotionSegmentEncoder
 from src.models.hierarchical_action_query_fusion import HierarchicalActionQueryFusion
 from src.models.hierarchical_multimodal_teacher import HierarchicalMultimodalTeacher
 from src.models.structured_ir_depth_visual_encoder import StructuredIRDepthVisualEncoder
-from src.train_hierarchical_multimodal_teacher import train_candidate_split
+from src.train_hierarchical_multimodal_teacher import (
+    CANDIDATE_MODALITIES,
+    run_fixed_validation,
+    train_candidate_split,
+)
 
 
 MODALITIES = ("ir", "depth_color", "skeleton", "imu", "radar", "thermal")
@@ -134,6 +144,21 @@ class TinySplitDataset(Dataset[dict[str, object]]):
         self.sample_ids = np.asarray(
             [f"{prefix}_{index}" for index in range(len(self.labels))]
         )
+        self.trials = [
+            CanonicalTrial(
+                sample_id=str(sample_id),
+                user_id=str(user_id),
+                class_id=int(label),
+                paths={name: Path(f"{name}/{sample_id}") for name in MODALITIES},
+                availability={name: name in {"ir", "depth_color", "skeleton", "imu"} for name in MODALITIES},
+            )
+            for sample_id, user_id, label in zip(
+                self.sample_ids, self.user_ids, self.labels, strict=True
+            )
+        ]
+        normalization_value = 2.0 if prefix == "train" else 100.0
+        self.skeleton_loader = ConstantSkeletonLoader(normalization_value)
+        self.imu_loader = ConstantIMULoader(normalization_value)
 
     def __len__(self) -> int:
         return len(self.labels)
@@ -184,6 +209,19 @@ def test_candidate_split_isolates_user67_and_evaluates_each_scope_once(
     )
     assert (tmp_path / "candidate/train_predictions.npz").is_file()
     assert (tmp_path / "candidate/validation_predictions.npz").is_file()
+    with np.load(
+        tmp_path / "candidate/validation_predictions.npz", allow_pickle=False
+    ) as archive:
+        assert archive["logits"].shape == (4, 40)
+        assert archive["group_attention"].shape == (4, 40, 3)
+        assert archive["segment_attention"].shape == (4, 40, 8)
+        assert archive["context_logits"].shape == (4, 40)
+        assert archive["wrist_logits"].shape == (4, 40)
+        assert archive["body_logits"].shape == (4, 40)
+        assert archive["effective_group_mask"].shape == (4, 3)
+        assert archive["availability"].shape == (4, 4)
+        assert archive["skeleton_quality"].shape == (4, 8, 4)
+        assert archive["imu_quality"].shape == (4, 8, 5, 3)
 
 
 def test_candidate_split_resume_rejects_changed_validation_samples(
@@ -216,3 +254,67 @@ def test_candidate_split_resume_rejects_changed_validation_samples(
             model_factory=tiny_model,
             device=torch.device("cpu"),
         )
+
+
+def test_fixed_runner_orchestrates_four_candidates_without_grouped_cv(
+    tmp_path: Path,
+) -> None:
+    config = yaml.safe_load(CONFIG.read_text(encoding="utf-8"))
+    config["training"]["fixed_epochs"] = 1
+    config_path = tmp_path / "tiny_fixed.yaml"
+    config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+
+    def dataset_factory(_: dict, partition: str) -> TinySplitDataset:
+        if partition == "train":
+            return TinySplitDataset(prefix="train", users=("user1", "user2"))
+        return TinySplitDataset(
+            prefix="validation", users=("user6", "user7")
+        )
+
+    report = run_fixed_validation(
+        config_path,
+        output_root=tmp_path / "fixed_run",
+        dataset_factory=dataset_factory,
+        model_factory=tiny_model,
+        device=torch.device("cpu"),
+    )
+
+    assert report["evaluation_protocol"] == "fixed_user6_user7"
+    assert report["train_population_samples"] == 4
+    assert report["validation_population_samples"] == 4
+    assert list(report["candidate_results"]) == list(CANDIDATE_MODALITIES)
+    assert report["validation_users_entered_training"] is False
+    assert report["development_validation"] is True
+    assert report["independent_final_test"] is False
+    assert report["research_category"] in {
+        "reject",
+        "promising",
+        "full_teacher_worthy",
+        "teacher_target_reached",
+    }
+    assert report["student_planning_authorized"] == (
+        report["research_category"]
+        in {"full_teacher_worthy", "teacher_target_reached"}
+    )
+    assert len(report["provenance"]["git_commit"]) == 40
+    assert len(report["provenance"]["config_file_sha256"]) == 64
+    assert len(report["provenance"]["trainer_source_sha256"]) == 64
+    assert {
+        result["config_sha256"]
+        for result in report["candidate_results"].values()
+    } == {report["config_sha256"]}
+    assert set(report["normalization"]["fit_user_ids"]) == {"user1", "user2"}
+    assert (tmp_path / "fixed_run/normalization_state.npz").is_file()
+    assert (tmp_path / "fixed_run/fixed_validation_report.json").is_file()
+    assert (tmp_path / "fixed_run/fixed_validation_report.md").is_file()
+    report_path = tmp_path / "fixed_run/fixed_validation_report.json"
+    verified = build_fixed_validation_report(report_path)
+    assert verified["selected_candidate"] == report["selected_candidate"]
+
+    tampered = json.loads(report_path.read_text(encoding="utf-8"))
+    tampered["candidate_results"]["visual_only"]["validation_metrics"][
+        "accuracy"
+    ] += 0.25
+    report_path.write_text(json.dumps(tampered, indent=2), encoding="utf-8")
+    with pytest.raises(RuntimeError, match="metric mismatch"):
+        build_fixed_validation_report(report_path)

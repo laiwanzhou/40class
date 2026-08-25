@@ -6,6 +6,7 @@ import hashlib
 import json
 from pathlib import Path
 import random
+import subprocess
 import time
 from typing import Any, Callable
 
@@ -21,6 +22,7 @@ from scripts.cache_ir_depth_videomaev2_p2a import (
 )
 from src.data.hierarchical_multimodal_dataset import make_midfusion_dataset
 from src.data.body_normalization_state import (
+    BodyNormalizationState,
     apply_body_normalization_state,
     body_normalization_provenance,
     fit_body_normalization_state,
@@ -49,6 +51,9 @@ from src.training.hierarchical_multimodal_losses import hierarchical_teacher_los
 
 ModelFactory = Callable[[dict[str, Any]], HierarchicalMultimodalTeacher]
 DatasetFactory = Callable[[dict[str, Any]], Dataset[dict[str, object]]]
+FixedDatasetFactory = Callable[
+    [dict[str, Any], str], Dataset[dict[str, object]]
+]
 CANDIDATE_MODALITIES = {
     "visual_only": ("ir", "depth_color"),
     "visual_skeleton": ("ir", "depth_color", "skeleton"),
@@ -506,6 +511,24 @@ def _predict_indices(
     model.eval()
     loader = DataLoader(Subset(dataset, indices.tolist()), batch_size=1, shuffle=False)
     logits, labels, users, samples, core = [], [], [], [], []
+    diagnostics: dict[str, list[torch.Tensor]] = {
+        name: []
+        for name in (
+            "group_attention",
+            "segment_attention",
+            "context_logits",
+            "wrist_logits",
+            "body_logits",
+            "effective_group_mask",
+            "visual_mask",
+            "body_mask",
+            "availability",
+            "skeleton_quality",
+            "imu_quality",
+            "skeleton_mask",
+            "imu_role_mask",
+        )
+    }
     for batch in loader:
         batch = _move_batch(batch, device)
         with torch.autocast(
@@ -528,10 +551,37 @@ def _predict_indices(
         users.extend(str(value) for value in batch["user_id"])
         samples.extend(str(value) for value in batch["sample_id"])
         core.append(available.cpu())
+        for name in (
+            "group_attention",
+            "segment_attention",
+            "context_logits",
+            "wrist_logits",
+            "body_logits",
+            "effective_group_mask",
+            "visual_mask",
+            "body_mask",
+        ):
+            diagnostics[name].append(output[name].detach().cpu())
+        diagnostics["availability"].append(batch["availability"].detach().cpu())
+        batch_size = values.shape[0]
+        diagnostics["skeleton_quality"].append(
+            batch.get(
+                "skeleton_quality",
+                torch.zeros(batch_size, 8, 4, device=device),
+            ).detach().cpu()
+        )
+        diagnostics["imu_quality"].append(
+            batch.get(
+                "imu_quality",
+                torch.zeros(batch_size, 8, 5, 3, device=device),
+            ).detach().cpu()
+        )
+        diagnostics["skeleton_mask"].append(batch["skeleton_mask"].detach().cpu())
+        diagnostics["imu_role_mask"].append(batch["imu_role_mask"].detach().cpu())
     logits_np = torch.cat(logits).numpy()
     labels_np = torch.cat(labels).numpy()
     users_np = np.asarray(users)
-    return {
+    result = {
         "logits": logits_np,
         "labels": labels_np,
         "user_ids": users_np,
@@ -539,6 +589,21 @@ def _predict_indices(
         "core_available": torch.cat(core).numpy(),
         "metrics": _metrics(labels_np, logits_np, users_np),
     }
+    result.update(
+        {name: torch.cat(values).numpy() for name, values in diagnostics.items()}
+    )
+    return result
+
+
+def _save_prediction_archive(path: Path, prediction: dict[str, Any]) -> None:
+    _atomic_npz(
+        path,
+        **{
+            name: np.asarray(value)
+            for name, value in prediction.items()
+            if name != "metrics"
+        },
+    )
 
 
 def train_candidate_fold(
@@ -684,7 +749,7 @@ def train_candidate_fold(
                     and not bool(torch.isfinite(parameter.grad).all())
                     for parameter in model.parameters()
                 ):
-                    raise FloatingPointError("non-finite grouped-CV gradient")
+                    raise FloatingPointError("non-finite candidate gradient")
                 torch.nn.utils.clip_grad_norm_(model.parameters(), 5.0)
                 optimizer.step()
                 optimizer.zero_grad(set_to_none=True)
@@ -723,7 +788,7 @@ def train_candidate_fold(
         print(
             json.dumps(
                 {
-                    "stage": "grouped_fold_training",
+                    "stage": "candidate_training",
                     "candidate": candidate,
                     "run_dir": str(run_dir),
                     **history[-1],
@@ -740,14 +805,7 @@ def train_candidate_fold(
         prior_logits=prior_logits,
         device=device,
     )
-    _atomic_npz(
-        run_dir / "train_predictions.npz",
-        sample_ids=train_prediction["sample_ids"],
-        user_ids=train_prediction["user_ids"],
-        labels=train_prediction["labels"],
-        logits=train_prediction["logits"],
-        core_available=train_prediction["core_available"],
-    )
+    _save_prediction_archive(run_dir / "train_predictions.npz", train_prediction)
     prediction = _predict_indices(
         model=model,
         dataset=dataset,
@@ -756,14 +814,7 @@ def train_candidate_fold(
         prior_logits=prior_logits,
         device=device,
     )
-    _atomic_npz(
-        run_dir / "validation_predictions.npz",
-        sample_ids=prediction["sample_ids"],
-        user_ids=prediction["user_ids"],
-        labels=prediction["labels"],
-        logits=prediction["logits"],
-        core_available=prediction["core_available"],
-    )
+    _save_prediction_archive(run_dir / "validation_predictions.npz", prediction)
     summary = {
         "candidate": candidate,
         "evaluation_protocol": config["evaluation_protocol"],
@@ -828,6 +879,276 @@ def train_candidate_split(
     )
 
 
+def _default_fixed_dataset_factory(
+    config: dict[str, Any], partition: str
+) -> Dataset[dict[str, object]]:
+    clean_view = project_path(str(config["data"]["skeleton_clean_views"])) / (
+        "selected_final/clean_view.csv"
+    )
+    if not clean_view.is_file():
+        raise FileNotFoundError(f"missing selected-final Skeleton clean view: {clean_view}")
+    return make_midfusion_dataset(
+        config,
+        partition=partition,
+        metadata_only=False,
+        skeleton_clean_view=clean_view,
+        training=partition == "train",
+    )
+
+
+def _persist_normalization_state(
+    path: Path, state: BodyNormalizationState
+) -> None:
+    arrays = {
+        "skeleton_mean": state.skeleton_mean,
+        "skeleton_std": state.skeleton_std,
+        "imu_mean": state.imu_mean,
+        "imu_std": state.imu_std,
+        "fit_sample_ids": np.asarray(state.fit_sample_ids),
+        "fit_user_ids": np.asarray(state.fit_user_ids),
+        "skeleton_samples": np.asarray(state.skeleton_samples, dtype=np.int64),
+        "imu_samples": np.asarray(state.imu_samples, dtype=np.int64),
+    }
+    if path.is_file():
+        with np.load(path, allow_pickle=False) as existing:
+            if set(existing.files) != set(arrays) or any(
+                not np.array_equal(existing[name], value)
+                for name, value in arrays.items()
+            ):
+                raise RuntimeError("persisted normalization state changed")
+        return
+    _atomic_npz(path, **arrays)
+
+
+def _fixed_report_paths(
+    config: dict[str, Any], output_root: Path | None
+) -> tuple[Path, Path, Path]:
+    if output_root is not None:
+        root = output_root.resolve()
+        return (
+            root,
+            root / "fixed_validation_report.json",
+            root / "fixed_validation_report.md",
+        )
+    root = project_path(str(config["outputs"]["root"])) / "fixed_user6_user7"
+    return (
+        root,
+        project_path(str(config["outputs"]["fixed_validation_report_json"])),
+        project_path(
+            str(config["outputs"]["fixed_validation_report_markdown"])
+        ),
+    )
+
+
+def run_fixed_validation(
+    config_path: Path,
+    *,
+    output_root: Path | None = None,
+    dataset_factory: FixedDatasetFactory | None = None,
+    model_factory: ModelFactory | None = None,
+    device: torch.device | None = None,
+) -> dict[str, Any]:
+    config = load_midfusion_config(config_path)
+    if config["evaluation_protocol"] != "fixed_user6_user7":
+        raise RuntimeError("fixed validation protocol changed")
+    root, report_path, markdown_path = _fixed_report_paths(config, output_root)
+    if report_path.exists() or markdown_path.exists():
+        raise FileExistsError("fixed-validation report already exists")
+    root.mkdir(parents=True, exist_ok=True)
+    factory = dataset_factory or _default_fixed_dataset_factory
+    train_dataset = factory(config, "train")
+    validation_dataset = factory(config, "validation")
+    train_labels, train_users, train_samples = _dataset_identity(train_dataset)
+    validation_labels, validation_users, validation_samples = _dataset_identity(
+        validation_dataset
+    )
+    if set(train_users.tolist()) & set(validation_users.tolist()):
+        raise RuntimeError("fixed train and validation users overlap")
+    if set(train_samples.tolist()) & set(validation_samples.tolist()):
+        raise RuntimeError("fixed train and validation samples overlap")
+    if dataset_factory is None:
+        if len(train_dataset) != 2039 or len(validation_dataset) != 388:
+            raise RuntimeError("fixed canonical population changed")
+        if set(train_users.tolist()) != set(config["population"]["train_user_ids"]):
+            raise RuntimeError("fixed train users changed")
+        if set(validation_users.tolist()) != {"user6", "user7"}:
+            raise RuntimeError("fixed validation users changed")
+        if set(train_labels.tolist()) != set(range(40)) or set(
+            validation_labels.tolist()
+        ) != set(range(40)):
+            raise RuntimeError("fixed population class coverage changed")
+
+    normalization_state = fit_body_normalization_state(
+        train_dataset, np.arange(len(train_dataset), dtype=np.int64)
+    )
+    validation_user_set = set(validation_users.astype(str).tolist())
+    if set(normalization_state.fit_user_ids) & validation_user_set:
+        raise RuntimeError("validation users entered normalization")
+    apply_body_normalization_state(train_dataset, normalization_state)
+    apply_body_normalization_state(validation_dataset, normalization_state)
+    normalization_path = root / "normalization_state.npz"
+    _persist_normalization_state(normalization_path, normalization_state)
+    normalization = {
+        **body_normalization_provenance(normalization_state),
+        "state_path": str(normalization_path),
+        "state_sha256": sha256_file(normalization_path),
+    }
+    provenance = {
+        "git_commit": subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=project_path("."),
+            text=True,
+        ).strip(),
+        "config_path": str(config_path.resolve()),
+        "config_file_sha256": sha256_file(config_path.resolve()),
+        "trainer_source_sha256": sha256_file(Path(__file__).resolve()),
+        "runner_source_sha256": sha256_file(
+            project_path("scripts/run_hierarchical_multimodal_teacher.py")
+        ),
+        "selected_final_clean_view_sha256": None,
+    }
+    if dataset_factory is None:
+        clean_view = project_path(
+            str(config["data"]["skeleton_clean_views"])
+        ) / "selected_final/clean_view.csv"
+        provenance["selected_final_clean_view_sha256"] = sha256_file(clean_view)
+    run_config = copy.deepcopy(config)
+    run_config["runtime_provenance"] = {
+        "normalization_state_sha256": normalization["state_sha256"],
+        **provenance,
+    }
+    run_config_sha256 = _config_sha256(run_config)
+
+    candidate_results: dict[str, dict[str, Any]] = {}
+    validation_logits: dict[str, np.ndarray] = {}
+    for candidate in CANDIDATE_MODALITIES:
+        candidate_dir = root / candidate
+        summary_path = candidate_dir / "summary.json"
+        if summary_path.is_file():
+            summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        else:
+            summary = train_candidate_split(
+                config=run_config,
+                candidate=candidate,
+                train_dataset=train_dataset,
+                validation_dataset=validation_dataset,
+                run_dir=candidate_dir,
+                model_factory=model_factory,
+                device=device,
+            )
+        if summary["fit_user_ids"] != sorted(set(train_users.tolist())):
+            raise RuntimeError("candidate fit ownership changed")
+        if summary["validation_user_ids"] != sorted(
+            set(validation_users.tolist())
+        ):
+            raise RuntimeError("candidate validation ownership changed")
+        if summary.get("config_sha256") != run_config_sha256:
+            raise RuntimeError("candidate config provenance changed")
+        if sha256_file(Path(summary["checkpoint"])) != summary["checkpoint_sha256"]:
+            raise RuntimeError("candidate checkpoint hash changed")
+        if (
+            sha256_file(Path(summary["train_predictions"]))
+            != summary["train_predictions_sha256"]
+        ):
+            raise RuntimeError("candidate train prediction hash changed")
+        validation_archive = Path(summary["predictions"])
+        if sha256_file(validation_archive) != summary["predictions_sha256"]:
+            raise RuntimeError("candidate validation prediction hash changed")
+        with np.load(validation_archive, allow_pickle=False) as archive:
+            if not np.array_equal(
+                archive["sample_ids"].astype(str), validation_samples.astype(str)
+            ):
+                raise RuntimeError("candidate validation sample order changed")
+            validation_logits[candidate] = archive["logits"].astype(np.float32)
+        train_accuracy = float(summary["train_metrics"]["accuracy"])
+        validation_accuracy = float(summary["validation_metrics"]["accuracy"])
+        candidate_results[candidate] = {
+            "config_sha256": summary["config_sha256"],
+            "train_metrics": summary["train_metrics"],
+            "validation_metrics": summary["validation_metrics"],
+            "accuracy_generalization_gap": train_accuracy - validation_accuracy,
+            "checkpoint": summary["checkpoint"],
+            "checkpoint_sha256": summary["checkpoint_sha256"],
+            "train_predictions": summary["train_predictions"],
+            "train_predictions_sha256": summary["train_predictions_sha256"],
+            "validation_predictions": summary["predictions"],
+            "validation_predictions_sha256": summary["predictions_sha256"],
+        }
+
+    candidate_metrics = {
+        name: result["validation_metrics"]
+        for name, result in candidate_results.items()
+    }
+    selected = select_grouped_candidate(candidate_metrics)
+    anchor_logits = validation_logits["visual_only"]
+    comparisons = {
+        candidate: _comparison(
+            validation_labels, anchor_logits, validation_logits[candidate]
+        )
+        for candidate in CANDIDATE_MODALITIES
+    }
+    research_category = _research_category(
+        config,
+        selected_metrics=candidate_metrics[selected],
+        visual_metrics=candidate_metrics["visual_only"],
+        comparison=comparisons[selected],
+    )
+    report = {
+        "stage": "P5-HMF0-fixed-user6-user7",
+        "status": "completed",
+        "evaluation_protocol": "fixed_user6_user7",
+        "development_validation": True,
+        "independent_final_test": False,
+        "train_population_samples": len(train_dataset),
+        "validation_population_samples": len(validation_dataset),
+        "train_user_ids": sorted(set(train_users.tolist())),
+        "validation_user_ids": sorted(set(validation_users.tolist())),
+        "validation_users_entered_training": False,
+        "normalization": normalization,
+        "provenance": provenance,
+        "candidate_order": list(CANDIDATE_MODALITIES),
+        "selection_order": [
+            "accuracy",
+            "macro_f1",
+            "worst_user_accuracy",
+            "negative_nll",
+            "fixed_candidate_order",
+        ],
+        "selected_candidate": selected,
+        "research_category": research_category,
+        "student_planning_authorized": research_category
+        in {"full_teacher_worthy", "teacher_target_reached"},
+        "candidate_results": candidate_results,
+        "comparison_to_visual_only": comparisons,
+        "config_sha256": run_config_sha256,
+    }
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    markdown_path.parent.mkdir(parents=True, exist_ok=True)
+    _atomic_write_text(report_path, json.dumps(report, indent=2) + "\n")
+    lines = [
+        "# Hierarchical multimodal teacher fixed user6/user7 validation",
+        "",
+        "- Development validation: `True`",
+        "- Independent final test: `False`",
+        f"- Selected candidate: `{selected}`",
+        "",
+        "| Candidate | Train Accuracy | Validation Accuracy | Macro-F1 | Worst-user | Gap |",
+        "|---|---:|---:|---:|---:|---:|",
+    ]
+    for candidate, result in candidate_results.items():
+        train_metrics = result["train_metrics"]
+        validation_metrics = result["validation_metrics"]
+        lines.append(
+            f"| {candidate} | {train_metrics['accuracy']:.6f} | "
+            f"{validation_metrics['accuracy']:.6f} | "
+            f"{validation_metrics['macro_f1']:.6f} | "
+            f"{validation_metrics['worst_user_accuracy']:.6f} | "
+            f"{result['accuracy_generalization_gap']:.6f} |"
+        )
+    _atomic_write_text(markdown_path, "\n".join(lines) + "\n")
+    return report
+
+
 def _comparison(
     labels: np.ndarray, anchor_logits: np.ndarray, candidate_logits: np.ndarray
 ) -> dict[str, int]:
@@ -839,6 +1160,40 @@ def _comparison(
         "net": int((candidate == labels).sum() - (anchor == labels).sum()),
         "disagreement": int((candidate != anchor).sum()),
     }
+
+
+def _research_category(
+    config: dict[str, Any],
+    *,
+    selected_metrics: dict[str, Any],
+    visual_metrics: dict[str, Any],
+    comparison: dict[str, int],
+) -> str:
+    gates = config["decision_gates"]
+    accuracy = float(selected_metrics["accuracy"])
+    macro_f1 = float(selected_metrics["macro_f1"])
+    worst_user = float(selected_metrics["worst_user_accuracy"])
+    if (
+        accuracy >= float(gates["teacher_target_accuracy"])
+        and macro_f1 >= float(gates["teacher_target_macro_f1"])
+        and worst_user >= float(gates["teacher_target_worst_user"])
+    ):
+        return "teacher_target_reached"
+    if (
+        accuracy >= float(gates["full_teacher_worthy_accuracy"])
+        and comparison["net"] > 0
+        and worst_user >= float(gates["full_teacher_worthy_worst_user"])
+    ):
+        return "full_teacher_worthy"
+    if (
+        accuracy >= float(gates["reject_below_accuracy"])
+        and accuracy < float(gates["full_teacher_worthy_accuracy"])
+        and comparison["net"] > 0
+        and worst_user
+        >= float(visual_metrics["worst_user_accuracy"]) - 0.01
+    ):
+        return "promising"
+    return "reject"
 
 
 def run_grouped_cv(config_path: Path) -> dict[str, Any]:
