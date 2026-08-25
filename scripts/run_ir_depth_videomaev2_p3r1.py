@@ -555,7 +555,7 @@ def run(config_path: Path) -> dict[str, Any]:
                 anchor_logits=validation["route_logits"][:, 0],
                 candidate_logits=validation_logits,
             ),
-            "checkpoint": str(output_root / f"{candidate}.pt"),
+            "checkpoint": str(Path(config["outputs"]["root"]) / f"{candidate}.pt"),
             "checkpoint_bytes": checkpoint_path.stat().st_size,
             "checkpoint_sha256": sha256_file(checkpoint_path),
         }

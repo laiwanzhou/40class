@@ -18047,7 +18047,7 @@
         "net": 0,
         "disagreement": 11
       },
-      "checkpoint": "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\ir_depth_videomaev2_p3r1\\logit_only.pt"
+      "checkpoint": "outputs/ir_depth_videomaev2_p3r1/logit_only.pt"
     },
     "routes_no_margin": {
       "train_metrics": {
@@ -18180,7 +18180,7 @@
         "net": 1,
         "disagreement": 14
       },
-      "checkpoint": "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\ir_depth_videomaev2_p3r1\\routes_no_margin.pt"
+      "checkpoint": "outputs/ir_depth_videomaev2_p3r1/routes_no_margin.pt"
     },
     "margin_routes": {
       "train_metrics": {
@@ -18313,7 +18313,7 @@
         "net": -4,
         "disagreement": 17
       },
-      "checkpoint": "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\ir_depth_videomaev2_p3r1\\margin_routes.pt"
+      "checkpoint": "outputs/ir_depth_videomaev2_p3r1/margin_routes.pt"
     }
   },
   "decision": "reject",

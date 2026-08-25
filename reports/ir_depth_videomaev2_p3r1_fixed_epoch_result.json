@@ -9313,7 +9313,7 @@
         "net": -5,
         "disagreement": 28
       },
-      "checkpoint": "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\ir_depth_videomaev2_p3r1_fixed_epoch\\logit_only.pt",
+      "checkpoint": "outputs/ir_depth_videomaev2_p3r1_fixed_epoch/logit_only.pt",
       "checkpoint_bytes": 28345,
       "checkpoint_sha256": "36fcd2e31080e21403b655f3144b76a0eedc6a98b9449e912c8e156055bcacae"
     },
@@ -9448,7 +9448,7 @@
         "net": 0,
         "disagreement": 5
       },
-      "checkpoint": "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\ir_depth_videomaev2_p3r1_fixed_epoch\\routes_no_margin.pt",
+      "checkpoint": "outputs/ir_depth_videomaev2_p3r1_fixed_epoch/routes_no_margin.pt",
       "checkpoint_bytes": 22672,
       "checkpoint_sha256": "02ec7660b345b5ccb247ba41c9e49511070015219f7127c43277859227d5814c"
     },
@@ -9583,7 +9583,7 @@
         "net": -4,
         "disagreement": 14
       },
-      "checkpoint": "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\ir_depth_videomaev2_p3r1_fixed_epoch\\margin_routes.pt",
+      "checkpoint": "outputs/ir_depth_videomaev2_p3r1_fixed_epoch/margin_routes.pt",
       "checkpoint_bytes": 22627,
       "checkpoint_sha256": "cc43cd09498c4adfa7031c3f8cfd09e68a35c82fac9c90fef2aae2e450aa4afb"
     }
