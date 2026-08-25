@@ -26,6 +26,7 @@ from src.data.clean_skeleton_segments import (
 )
 from src.data.raw_imu_segments import IMUSegments, fit_imu_normalization
 from src.experiments.hierarchical_midfusion_config import (
+    assert_grouped_cv_authorized,
     load_midfusion_config,
     project_path,
 )
@@ -761,6 +762,7 @@ def _comparison(
 
 def run_grouped_cv(config_path: Path) -> dict[str, Any]:
     config = load_midfusion_config(config_path)
+    assert_grouped_cv_authorized(config)
     report_path = project_path(str(config["outputs"]["grouped_report_json"]))
     markdown_path = project_path(str(config["outputs"]["grouped_report_markdown"]))
     if report_path.exists() or markdown_path.exists():

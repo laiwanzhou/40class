@@ -44,7 +44,7 @@ def projection_scope_specs(config: dict[str, Any]) -> list[dict[str, Any]]:
             "projection_fit_user_ids": list(fold["fit_user_ids"]),
             "scope_validation_user_ids": list(fold["validation_user_ids"]),
         }
-        for fold in config["grouped_folds"]
+        for fold in config.get("grouped_folds", [])
     ]
     train_users = sorted(str(value) for value in config["population"]["train_user_ids"])
     validation_users = [

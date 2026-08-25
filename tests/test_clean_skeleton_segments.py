@@ -59,12 +59,12 @@ def test_skeleton_features_are_xyz_plus_segment_local_velocity() -> None:
     assert torch.allclose(result.features[4, :, 3:], torch.zeros(17, 3))
 
 
-def test_projection_scopes_fit_only_fold_fit_users() -> None:
+def test_default_projection_scope_is_train12_fit_selected_final_only() -> None:
     config = load_midfusion_config(CONFIG)
 
     scopes = projection_scope_specs(config)
 
-    assert len(scopes) == 4
+    assert len(scopes) == 1
     for scope in scopes:
         assert set(scope["projection_fit_user_ids"]).isdisjoint(
             scope["scope_validation_user_ids"]
@@ -72,7 +72,7 @@ def test_projection_scopes_fit_only_fold_fit_users() -> None:
         assert set(scope["projection_fit_user_ids"]) == set(
             scope["fold_fit_user_ids"]
         )
-    final = scopes[-1]
+    final = scopes[0]
     assert final["scope"] == "selected_final"
     assert set(final["projection_fit_user_ids"]) == set(
         config["population"]["train_user_ids"]

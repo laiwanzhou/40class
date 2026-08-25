@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import json
 from pathlib import Path
 from typing import Any
@@ -27,6 +28,8 @@ def load_midfusion_config(path: Path) -> dict[str, Any]:
         raise ValueError("midfusion config must be a mapping")
     if config.get("stage") != "P5-HMF0":
         raise ValueError("midfusion stage changed")
+    if config.get("evaluation_protocol") != "fixed_user6_user7":
+        raise ValueError("midfusion evaluation protocol changed")
     if config.get("modalities") != EXPECTED_MODALITIES:
         raise ValueError("midfusion modalities changed")
     if int(config.get("segment_count", -1)) != 8:
@@ -51,14 +54,36 @@ def load_midfusion_config(path: Path) -> dict[str, Any]:
         "validation_users_enter_training",
         "validation_users_enter_normalization",
         "validation_users_enter_sampler",
-        "validation_users_enter_selection",
-        "nonselected_candidates_enter_final_evaluation",
         "thermal_allowed",
         "radar_allowed",
     )
     if any(policy.get(key) is not False for key in required_false):
         raise ValueError("midfusion isolation policy changed")
+    if policy.get("validation_users_enter_selection") is not True:
+        raise ValueError("fixed validation candidate selection changed")
+    if not isinstance(policy.get("grouped_cv_authorized"), bool):
+        raise ValueError("grouped-CV authorization must be explicit")
 
+    return config
+
+
+def _manifest_classes_by_user(config: dict[str, Any]) -> dict[str, set[int]]:
+    manifest_path = project_path(str(config["population"]["manifest"]))
+    classes: dict[str, set[int]] = {}
+    with manifest_path.open("r", encoding="utf-8-sig", newline="") as handle:
+        for row in csv.DictReader(handle):
+            user = str(row["user_id"])
+            if user in EXPECTED_TRAIN_USERS:
+                classes.setdefault(user, set()).add(int(row["class_id"]))
+    return classes
+
+
+def assert_grouped_cv_authorized(config: dict[str, Any]) -> None:
+    """Reject grouped execution unless authorization and every class gate pass."""
+    if config.get("policy", {}).get("grouped_cv_authorized") is not True:
+        raise PermissionError("grouped CV requires explicit authorization")
+
+    population = config["population"]
     grouped_path = project_path(str(population["grouped_split"]))
     grouped = json.loads(grouped_path.read_text(encoding="utf-8"))
     if grouped.get("schema_version") != 1 or grouped.get("seed") != 20260715:
@@ -84,5 +109,28 @@ def load_midfusion_config(path: Path) -> dict[str, Any]:
         raise ValueError("midfusion grouped ownership repeated")
     if set(validation_owners) != EXPECTED_TRAIN_USERS:
         raise ValueError("midfusion grouped ownership incomplete")
+    classes_by_user = _manifest_classes_by_user(config)
+    expected_classes = set(range(40))
+    coverage_failures = []
+    for fold in folds:
+        fit_classes = set().union(
+            *(classes_by_user[user] for user in fold["fit_user_ids"])
+        )
+        validation_classes = set().union(
+            *(classes_by_user[user] for user in fold["validation_user_ids"])
+        )
+        missing_fit = sorted(expected_classes - fit_classes)
+        missing_validation = sorted(expected_classes - validation_classes)
+        if missing_fit or missing_validation:
+            coverage_failures.append(
+                {
+                    "fold": fold["fold"],
+                    "missing_fit": missing_fit,
+                    "missing_validation": missing_validation,
+                }
+            )
+    if coverage_failures:
+        raise ValueError(
+            f"grouped CV class coverage is incomplete: {coverage_failures}"
+        )
     config["grouped_folds"] = folds
-    return config
