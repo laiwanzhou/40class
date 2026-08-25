@@ -273,6 +273,7 @@ git commit -m "feat: add canonical multimodal segment contract"
 - Produces: `load_skeleton_segments(trial, clean_rows, data_root) -> SkeletonSegments`
 - Produces: `SkeletonSegments(features [8,17,6], mask [8], quality [8,4])`
 - Produces: `reports/midfusion_skeleton_clean_views/fold_{k}/clean_view.csv` and `provenance.json`
+- Produces: `reports/midfusion_skeleton_clean_views/selected_final/clean_view.csv` fitted on train12 only
 
 - [ ] **Step 1: Write tests for gap isolation and retained velocity**
 

@@ -190,6 +190,9 @@ rebuilt separately for every train12 grouped fold. Projection fitting uses only
 that fold's fit users; the fold-validation users influence neither projection
 nor candidate-selection thresholds. Existing train14 OOF clean views are not
 reused because their user ownership differs from this experiment.
+After grouped candidate selection, one separate `selected_final` clean view fits
+its projection on all train12 users and applies it to train12 plus user6/user7.
+The final projection never fits a user6/user7 row.
 
 Raw IMU preserves five device-role slots and 16 channels per role. Missing
 roles have explicit role masks. It is resampled into the same eight normalized

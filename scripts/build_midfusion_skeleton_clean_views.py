@@ -36,8 +36,9 @@ def sha256_bytes(value: bytes) -> str:
 
 
 def projection_scope_specs(config: dict[str, Any]) -> list[dict[str, Any]]:
-    return [
+    scopes = [
         {
+            "scope": f"fold_{int(fold['fold'])}",
             "fold": int(fold["fold"]),
             "fold_fit_user_ids": list(fold["fit_user_ids"]),
             "projection_fit_user_ids": list(fold["fit_user_ids"]),
@@ -45,6 +46,20 @@ def projection_scope_specs(config: dict[str, Any]) -> list[dict[str, Any]]:
         }
         for fold in config["grouped_folds"]
     ]
+    train_users = sorted(str(value) for value in config["population"]["train_user_ids"])
+    validation_users = [
+        str(value) for value in config["population"]["validation_user_ids"]
+    ]
+    scopes.append(
+        {
+            "scope": "selected_final",
+            "fold": -1,
+            "fold_fit_user_ids": train_users,
+            "projection_fit_user_ids": train_users,
+            "scope_validation_user_ids": validation_users,
+        }
+    )
+    return scopes
 
 
 def _git_blob(commit: str, path: str) -> bytes:
@@ -299,12 +314,13 @@ def build_midfusion_clean_views(
             confidence_threshold=0.25,
             margin_threshold=0.20,
         )
-        fold_dir = output_root / f"fold_{scope['fold']}"
+        fold_dir = output_root / str(scope["scope"])
         fold_dir.mkdir(parents=True)
         view_path = fold_dir / "clean_view.csv"
         view.to_csv(view_path, index=False, encoding="utf-8-sig")
         report = {
             "fold": scope["fold"],
+            "scope": scope["scope"],
             "fold_fit_user_ids": scope["fold_fit_user_ids"],
             "projection_fit_user_ids": scope["projection_fit_user_ids"],
             "scope_validation_user_ids": scope["scope_validation_user_ids"],
@@ -345,4 +361,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

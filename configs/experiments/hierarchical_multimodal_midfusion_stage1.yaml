@@ -17,6 +17,7 @@ population:
 data:
   root: D:\work\2026.7.14_kaggle\datasets\Small-Model-Track\train
   pose_cache: D:\work\2026.7.14_kaggle\40class\outputs\depth_ir_pose_roi_40class_probe\pose_tracks.npz
+  pairing_audit: reports/depth_ir_pose_roi_40class_pairing.csv
   p0_config: configs/experiments/ir_depth_videomaev2_vit_b_p0.yaml
   skeleton_source_commit: bdd5d7313320336b5f2e6eae34df4e7adf2918d3
   skeleton_retained_blob: reports/skeleton_clean_frame_index/skeleton_retained_frame_index.csv

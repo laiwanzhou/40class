@@ -62,7 +62,7 @@ def test_projection_scopes_fit_only_fold_fit_users() -> None:
 
     scopes = projection_scope_specs(config)
 
-    assert len(scopes) == 3
+    assert len(scopes) == 4
     for scope in scopes:
         assert set(scope["projection_fit_user_ids"]).isdisjoint(
             scope["scope_validation_user_ids"]
@@ -70,6 +70,12 @@ def test_projection_scopes_fit_only_fold_fit_users() -> None:
         assert set(scope["projection_fit_user_ids"]) == set(
             scope["fold_fit_user_ids"]
         )
+    final = scopes[-1]
+    assert final["scope"] == "selected_final"
+    assert set(final["projection_fit_user_ids"]) == set(
+        config["population"]["train_user_ids"]
+    )
+    assert set(final["scope_validation_user_ids"]) == {"user6", "user7"}
 
 
 def test_load_skeleton_segments_reads_selected_candidate(tmp_path: Path) -> None:
