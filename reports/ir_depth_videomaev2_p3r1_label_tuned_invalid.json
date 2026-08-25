@@ -1,6 +1,7 @@
 {
   "stage": "P3-R1",
-  "status": "completed",
+  "status": "invalidated_by_review",
+  "invalidation_reason": "Each held-out user fold was also used for epoch selection. This report is retained only as audit evidence and must not be used for model selection.",
   "selected_by_train_user_grouped_cv": "margin_routes",
   "route_names": [
     "full_hard2",

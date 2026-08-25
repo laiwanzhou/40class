@@ -23,7 +23,11 @@ if str(PROJECT_ROOT) not in sys.path:
 DEFAULT_CONFIG = PROJECT_ROOT / "configs/experiments/ir_depth_videomaev2_p3r1.yaml"
 
 from scripts.cache_ir_depth_videomaev2_p2a import _atomic_npz, _atomic_write_text, _metrics
-from scripts.cache_ir_depth_videomaev2_p3r1 import _project_path, load_p3r1_config
+from scripts.cache_ir_depth_videomaev2_p3r1 import (
+    _project_path,
+    load_p3r1_config,
+    validate_cache_membership,
+)
 from src.models.ir_anchored_top5_reranker import Top5LogitReranker
 from src.models.ir_depth_videomaev2_teacher import sha256_file
 from src.models.margin_conditioned_top3_routing import MarginConditionedTop3Reranker
@@ -101,6 +105,19 @@ def _guarded_loss(
     return ce.mean() + float(weight) * guard.mean(), ce.mean(), guard.mean()
 
 
+def _optimizer_step(
+    *, loss: torch.Tensor, model: nn.Module, optimizer: torch.optim.Optimizer
+) -> None:
+    loss.backward()
+    if any(
+        parameter.grad is not None and not torch.isfinite(parameter.grad).all()
+        for parameter in model.parameters()
+    ):
+        raise FloatingPointError("non-finite P3-R1 gradient")
+    torch.nn.utils.clip_grad_norm_(model.parameters(), 5.0)
+    optimizer.step()
+
+
 def _weighted_sampler(labels: np.ndarray, seed: int) -> WeightedRandomSampler:
     labels = np.asarray(labels, dtype=np.int64)
     counts = np.bincount(labels, minlength=int(labels.max()) + 1)
@@ -165,13 +182,9 @@ def train_cv_fold(
         lr=float(settings["learning_rate"]),
         weight_decay=float(settings["weight_decay"]),
     )
-    best_key: tuple[float, ...] | None = None
-    best_state: dict[str, torch.Tensor] | None = None
-    best_metrics: dict[str, object] | None = None
-    best_logits: np.ndarray | None = None
-    best_epoch, patience = 0, 0
     history: list[dict[str, object]] = []
-    for epoch in range(1, int(settings["max_epochs"]) + 1):
+    fixed_epochs = int(settings["fixed_epochs"])
+    for epoch in range(1, fixed_epochs + 1):
         model.train()
         losses, guards = [], []
         for batch in loader:
@@ -185,58 +198,31 @@ def train_cv_fold(
                 labels=labels,
                 weight=float(settings["guard_weight"]),
             )
-            loss.backward()
-            if any(
-                parameter.grad is not None and not torch.isfinite(parameter.grad).all()
-                for parameter in model.parameters()
-            ):
-                raise FloatingPointError("non-finite P3-R1 gradient")
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 5.0)
-            optimizer.step()
+            _optimizer_step(loss=loss, model=model, optimizer=optimizer)
             losses.append(float(loss.detach()))
             guards.append(float(guard.detach()))
-        metrics, logits, _ = _predict(
-            model,
-            candidate,
-            cache,
-            validation_indices,
-            batch_size=int(settings["batch_size"]),
-            device=device,
-        )
         history.append(
             {
                 "epoch": epoch,
                 "train_loss": float(np.mean(losses)),
                 "guard_loss": float(np.mean(guards)),
-                "validation": metrics,
             }
         )
-        key = (
-            float(metrics["accuracy"]),
-            float(metrics["macro_f1"]),
-            float(metrics["worst_user_accuracy"]),
-            -float(metrics["nll"]),
-            -float(epoch),
-        )
-        if best_key is None or key > best_key:
-            best_key = key
-            best_epoch = epoch
-            best_metrics = metrics
-            best_logits = logits.copy()
-            best_state = copy.deepcopy(model.state_dict())
-            patience = 0
-        else:
-            patience += 1
-        if patience >= int(settings["early_stopping_patience"]):
-            break
-    assert best_state is not None and best_metrics is not None and best_logits is not None
+    metrics, logits, _ = _predict(
+        model,
+        candidate,
+        cache,
+        validation_indices,
+        batch_size=int(settings["batch_size"]),
+        device=device,
+    )
     return {
         "candidate": candidate,
-        "best_epoch": best_epoch,
+        "best_epoch": fixed_epochs,
         "epochs_completed": len(history),
-        "best_metrics": best_metrics,
-        "best_logits": best_logits,
-        "best_state": best_state,
+        "best_metrics": metrics,
+        "best_logits": logits,
+        "best_state": copy.deepcopy(model.state_dict()),
         "history": history,
         "validation_indices": np.asarray(validation_indices, dtype=np.int64),
         "validation_sample_ids": cache["sample_ids"][validation_indices].astype(str).tolist(),
@@ -282,9 +268,7 @@ def _fit_fixed_epochs(
                 labels=labels,
                 weight=float(settings["guard_weight"]),
             )
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 5.0)
-            optimizer.step()
+            _optimizer_step(loss=loss, model=model, optimizer=optimizer)
     return model
 
 
@@ -292,7 +276,8 @@ def _load_cache(path: Path) -> dict[str, np.ndarray]:
     with np.load(path, allow_pickle=False) as archive:
         cache = {key: archive[key] for key in archive.files}
     required = {
-        "sample_ids", "user_ids", "labels", "num_frames", "route_names", "route_logits"
+        "sample_ids", "user_ids", "labels", "num_frames", "route_names",
+        "route_logits", "route_view_weights",
     }
     if not required.issubset(cache):
         raise RuntimeError(f"P3-R1 cache misses {sorted(required - set(cache))}")
@@ -300,10 +285,21 @@ def _load_cache(path: Path) -> dict[str, np.ndarray]:
 
 
 def _route_controls(cache: dict[str, np.ndarray]) -> dict[str, dict[str, object]]:
-    return {
-        str(name): _metrics(cache["labels"], cache["route_logits"][:, index], cache["user_ids"])
-        for index, name in enumerate(cache["route_names"].astype(str))
-    }
+    controls: dict[str, dict[str, object]] = {}
+    anchor = cache["route_logits"][:, 0]
+    for index, name in enumerate(cache["route_names"].astype(str)):
+        logits = cache["route_logits"][:, index]
+        controls[str(name)] = {
+            **_metrics(cache["labels"], logits, cache["user_ids"]),
+            "comparison_to_anchor": _comparison(
+                labels=cache["labels"], anchor_logits=anchor, candidate_logits=logits
+            ),
+            "mean_view_weights": cache["route_view_weights"][:, index]
+            .astype(np.float64)
+            .mean(axis=(0, 1))
+            .tolist(),
+        }
+    return controls
 
 
 def _comparison(
@@ -394,6 +390,23 @@ def _jsonable_fold(result: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def validate_loaded_cache_contracts(
+    *,
+    train: dict[str, np.ndarray],
+    validation: dict[str, np.ndarray],
+    config: dict[str, Any],
+) -> None:
+    for partition, cache in (("train", train), ("validation", validation)):
+        validate_cache_membership(
+            partition=partition,
+            sample_ids=cache["sample_ids"],
+            user_ids=cache["user_ids"],
+            labels=cache["labels"],
+            expected_samples=int(config["split"][f"{partition}_samples"]),
+            config=config,
+        )
+
+
 def run(config_path: Path) -> dict[str, Any]:
     config = load_p3r1_config(config_path)
     cache_report_path = _project_path(str(config["cache"]["report"]))
@@ -401,11 +414,12 @@ def run(config_path: Path) -> dict[str, Any]:
     caches: dict[str, dict[str, np.ndarray]] = {}
     for partition in ("train", "validation"):
         artifact = cache_report["artifacts"][partition]
-        path = Path(str(artifact["path"]))
+        path = _project_path(str(config["cache"][partition]))
         if path.stat().st_size != int(artifact["bytes"]) or sha256_file(path) != artifact["sha256"]:
             raise RuntimeError(f"{partition} P3-R1 cache provenance changed")
         caches[partition] = _load_cache(path)
     train, validation = caches["train"], caches["validation"]
+    validate_loaded_cache_contracts(train=train, validation=validation, config=config)
     if not np.array_equal(train["route_names"], validation["route_names"]):
         raise RuntimeError("P3-R1 cache route order differs")
     if set(validation["user_ids"].astype(str).tolist()) != {"user6", "user7"}:
@@ -458,7 +472,7 @@ def run(config_path: Path) -> dict[str, Any]:
                 candidate_logits=pooled,
             ),
             "folds": [_jsonable_fold(result) for result in folds],
-            "final_epoch": int(np.median([result["best_epoch"] for result in folds])),
+            "final_epoch": int(config["reranker"]["fixed_epochs"]),
         }
         print(
             json.dumps(
@@ -524,6 +538,7 @@ def run(config_path: Path) -> dict[str, Any]:
             },
             output_root / f"{candidate}.pt",
         )
+        checkpoint_path = output_root / f"{candidate}.pt"
         _atomic_npz(
             output_root / f"{candidate}_validation_predictions.npz",
             sample_ids=validation["sample_ids"],
@@ -541,6 +556,8 @@ def run(config_path: Path) -> dict[str, Any]:
                 candidate_logits=validation_logits,
             ),
             "checkpoint": str(output_root / f"{candidate}.pt"),
+            "checkpoint_bytes": checkpoint_path.stat().st_size,
+            "checkpoint_sha256": sha256_file(checkpoint_path),
         }
 
     route_controls = {
@@ -554,6 +571,19 @@ def run(config_path: Path) -> dict[str, Any]:
         "selected_by_train_user_grouped_cv": selected,
         "route_names": train["route_names"].astype(str).tolist(),
         "route_controls": route_controls,
+        "cache_provenance": {
+            "report": str(config["cache"]["report"]),
+            "artifacts": cache_report["artifacts"],
+            "selected_prediction_reproduction": cache_report.get(
+                "selected_prediction_reproduction"
+            ),
+        },
+        "wrist_fallback_samples": {
+            "train": int((~train["availability"].any(axis=1)[:, 2:].any(axis=1)).sum()),
+            "validation": int(
+                (~validation["availability"].any(axis=1)[:, 2:].any(axis=1)).sum()
+            ),
+        },
         "uniform_reference_comparison": uniform_comparison,
         "cv_results": cv_results,
         "final_results": final_results,
@@ -583,12 +613,16 @@ def run(config_path: Path) -> dict[str, Any]:
         "",
         "## Route controls",
         "",
-        "| Route | Accuracy | Macro-F1 | Worst-user |",
-        "|---|---:|---:|---:|",
+        "| Route | Accuracy | Macro-F1 | Worst-user | G/P/L/R weights | Rescue/Harm |",
+        "|---|---:|---:|---:|---|---:|",
     ]
     for name, metrics in route_controls["validation"].items():
+        weights = "/".join(f"{value:.3f}" for value in metrics["mean_view_weights"])
+        comparison = metrics["comparison_to_anchor"]
         lines.append(
-            f"| {name} | {metrics['accuracy']:.6f} | {metrics['macro_f1']:.6f} | {metrics['worst_user_accuracy']:.6f} |"
+            f"| {name} | {metrics['accuracy']:.6f} | {metrics['macro_f1']:.6f} | "
+            f"{metrics['worst_user_accuracy']:.6f} | {weights} | "
+            f"{comparison['rescued']}/{comparison['harmed']} |"
         )
     lines.extend(
         [

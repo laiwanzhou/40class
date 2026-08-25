@@ -325,7 +325,7 @@ def run(config_path: Path, *, smoke_test: bool = False) -> dict[str, Any]:
             output_path = _project_path(str(config["cache"][partition]))
             _atomic_npz(output_path, **partition_arrays[partition])
             artifacts[partition] = {
-                "path": str(output_path),
+                "path": str(config["cache"][partition]),
                 "bytes": output_path.stat().st_size,
                 "sha256": sha256_file(output_path),
                 "samples": len(partition_arrays[partition]["labels"]),
@@ -334,7 +334,7 @@ def run(config_path: Path, *, smoke_test: bool = False) -> dict[str, Any]:
         "stage": "P3-R1-cache",
         "status": "smoke_passed" if smoke_test else "completed",
         "checkpoint": {
-            "path": str(checkpoint),
+            "path": str(source["checkpoint"]),
             "bytes": checkpoint.stat().st_size,
             "sha256": sha256_file(checkpoint),
             "epoch": int(source["selected_epoch"]),

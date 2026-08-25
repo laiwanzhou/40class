@@ -9,8 +9,10 @@ from scripts.cache_ir_depth_videomaev2_p3r1 import (
     validate_reference_predictions,
 )
 from scripts.run_ir_depth_videomaev2_p3r1 import (
+    _route_controls,
     compare_uniform_reference,
     train_cv_fold,
+    validate_loaded_cache_contracts,
 )
 from src.models.margin_conditioned_top3_routing import (
     MarginConditionedTop3Reranker,
@@ -124,6 +126,22 @@ def test_top3_reranker_can_change_only_anchor_candidates() -> None:
     expected = torch.tensor([[True, True, True, False, False, False]])
     assert torch.equal(output["candidate_mask"], expected)
     assert torch.equal(output["logits"] != anchor, expected)
+
+
+def test_top3_reranker_cannot_demote_all_candidates_below_rank4() -> None:
+    model = MarginConditionedTop3Reranker(
+        num_classes=6, route_count=3, class_embedding_dim=4, hidden_dim=10
+    )
+    with torch.no_grad():
+        model.residual[-1].bias.fill_(-100.0)
+    anchor = torch.tensor([[6.0, 5.0, 4.0, 3.0, 2.0, 1.0]])
+    output = model(
+        anchor_logits=anchor,
+        route_logits=torch.randn(1, 3, 6),
+        num_frames=torch.tensor([24.0]),
+    )
+
+    assert int(output["logits"].argmax(dim=1)) in {0, 1, 2}
 
 
 def test_margin_gate_is_monotonically_smaller_for_confident_samples() -> None:
@@ -283,8 +301,7 @@ def test_grouped_cv_fold_trains_only_on_supplied_indices() -> None:
         "class_embedding_dim": 4,
         "hidden_dim": 8,
         "batch_size": 8,
-        "max_epochs": 3,
-        "early_stopping_patience": 2,
+        "fixed_epochs": 3,
     }
     rng = np.random.default_rng(17)
     labels = np.tile(np.arange(5), 6).astype(np.int64)
@@ -309,8 +326,8 @@ def test_grouped_cv_fold_trains_only_on_supplied_indices() -> None:
         device=torch.device("cpu"),
     )
 
-    assert 1 <= result["best_epoch"] <= 3
-    assert result["epochs_completed"] <= 3
+    assert result["best_epoch"] == 3
+    assert result["epochs_completed"] == 3
     assert result["validation_sample_ids"] == [f"sample_{index}" for index in range(20, 30)]
 
 
@@ -352,3 +369,60 @@ def test_uniform_reference_comparison_aligns_sample_ids_before_deltas() -> None:
         "disagreement": 3,
     }
     assert np.isclose(result["uniform_mean_view_entropy"], np.log(8.0))
+
+
+def test_runner_rejects_contaminated_train_cache_before_sampler_construction() -> None:
+    config = load_p3r1_config(CONFIG)
+    config["split"] = {
+        **config["split"],
+        "train_user_ids": ["user1"],
+        "validation_user_ids": ["user6", "user7"],
+        "train_samples": 2,
+        "validation_samples": 2,
+    }
+    clean_validation = {
+        "sample_ids": np.asarray(["v1", "v2"]),
+        "user_ids": np.asarray(["user6", "user7"]),
+        "labels": np.asarray([0, 1]),
+    }
+    contaminated_train = {
+        "sample_ids": np.asarray(["t1", "t2"]),
+        "user_ids": np.asarray(["user1", "user6"]),
+        "labels": np.asarray([0, 1]),
+    }
+
+    with np.testing.assert_raises_regex(ValueError, "train user membership"):
+        validate_loaded_cache_contracts(
+            train=contaminated_train,
+            validation=clean_validation,
+            config=config,
+        )
+
+
+def test_route_controls_report_weights_and_rescue_harm() -> None:
+    cache = {
+        "labels": np.asarray([0, 1]),
+        "user_ids": np.asarray(["u1", "u2"]),
+        "route_names": np.asarray(["anchor", "candidate"]),
+        "route_logits": np.asarray(
+            [[[3.0, 0.0], [0.0, 3.0]], [[3.0, 0.0], [0.0, 3.0]]],
+            dtype=np.float32,
+        ),
+        "route_view_weights": np.asarray(
+            [
+                [np.full((2, 4), 0.25), np.tile([0.0, 0.0, 0.5, 0.5], (2, 1))],
+                [np.full((2, 4), 0.25), np.tile([0.0, 0.0, 0.5, 0.5], (2, 1))],
+            ],
+            dtype=np.float32,
+        ),
+    }
+
+    controls = _route_controls(cache)
+
+    assert controls["candidate"]["comparison_to_anchor"] == {
+        "rescued": 1,
+        "harmed": 1,
+        "net": 0,
+        "disagreement": 2,
+    }
+    assert controls["candidate"]["mean_view_weights"] == [0.0, 0.0, 0.5, 0.5]

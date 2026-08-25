@@ -272,9 +272,22 @@ class MarginConditionedTop3Reranker(nn.Module):
             )
         else:
             margin_gate = torch.ones_like(margin_13)
-        delta_logits = raw_delta * margin_gate[:, None] * candidate_mask.to(raw_delta.dtype)
+        proposed_delta = raw_delta * margin_gate[:, None] * candidate_mask.to(raw_delta.dtype)
+        proposed_logits = anchor_logits + proposed_delta
+        outside_maximum = anchor_logits.masked_fill(
+            candidate_mask, torch.finfo(anchor_logits.dtype).min
+        ).max(dim=1).values
+        candidate_floor = torch.nextafter(
+            outside_maximum, torch.full_like(outside_maximum, float("inf"))
+        )
+        corrected_logits = torch.where(
+            candidate_mask,
+            torch.maximum(proposed_logits, candidate_floor[:, None]),
+            anchor_logits,
+        )
+        delta_logits = corrected_logits - anchor_logits
         return {
-            "logits": anchor_logits + delta_logits,
+            "logits": corrected_logits,
             "delta_logits": delta_logits,
             "candidate_mask": candidate_mask,
             "candidate_indices": candidate_indices,

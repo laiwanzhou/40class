@@ -40,8 +40,7 @@ reranker:
   class_embedding_dim: 16
   hidden_dim: 64
   batch_size: 64
-  max_epochs: 50
-  early_stopping_patience: 8
+  fixed_epochs: 10
   learning_rate: 0.0003
   weight_decay: 0.01
   guard_weight: 0.20
@@ -53,9 +52,9 @@ references:
   minimum_accuracy: 0.75
 
 outputs:
-  root: outputs/ir_depth_videomaev2_p3r1
-  report_json: reports/ir_depth_videomaev2_p3r1_result.json
-  report_markdown: reports/ir_depth_videomaev2_p3r1_result.md
+  root: outputs/ir_depth_videomaev2_p3r1_fixed_epoch
+  report_json: reports/ir_depth_videomaev2_p3r1_fixed_epoch_result.json
+  report_markdown: reports/ir_depth_videomaev2_p3r1_fixed_epoch_result.md
 
 policy:
   update_videomae: false

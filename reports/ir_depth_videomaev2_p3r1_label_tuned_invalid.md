@@ -1,4 +1,8 @@
-# IR + Depth VideoMAE P3-R1 result
+# INVALID: label-tuned IR + Depth VideoMAE P3-R1 result
+
+This report is retained only as audit evidence. Each held-out user fold was
+also used for epoch selection, so its pooled score is optimistic and must not
+be used for model selection. See the fixed-epoch P3-R1 result instead.
 
 - Selected by train-user grouped CV: `margin_routes`
 - Validation Accuracy: `0.711688`

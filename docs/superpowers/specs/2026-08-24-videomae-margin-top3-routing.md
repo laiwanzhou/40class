@@ -40,4 +40,3 @@ the configured `0.75` gate remains the experiment threshold.
 - A Top-3-limited reranker whose correction gate decreases monotonically as
   anchor margin increases.
 - Auditable cache and grouped-CV runner interfaces.
-
