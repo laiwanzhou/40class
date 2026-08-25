@@ -60,6 +60,11 @@ CANDIDATE_MODALITIES = {
     "visual_imu": ("ir", "depth_color", "imu"),
     "visual_skeleton_imu": ("ir", "depth_color", "skeleton", "imu"),
 }
+FIXED_VALIDATION_CANDIDATES = (
+    "visual_only",
+    "visual_skeleton",
+    "visual_skeleton_imu",
+)
 
 
 class EpochClassUserBalancedSampler(Sampler[int]):
@@ -151,12 +156,13 @@ def pool_fold_predictions(
     return pooled
 
 
-def select_grouped_candidate(
-    metrics: dict[str, dict[str, Any]],
+def select_candidate(
+    metrics: dict[str, dict[str, Any]], order: tuple[str, ...]
 ) -> str:
-    order = tuple(CANDIDATE_MODALITIES)
+    if not order or len(order) != len(set(order)):
+        raise ValueError("candidate selection order changed")
     if set(metrics) != set(order):
-        raise ValueError("grouped candidate metric set changed")
+        raise ValueError("candidate metric set changed")
     return max(
         order,
         key=lambda name: (
@@ -167,6 +173,12 @@ def select_grouped_candidate(
             -order.index(name),
         ),
     )
+
+
+def select_grouped_candidate(
+    metrics: dict[str, dict[str, Any]],
+) -> str:
+    return select_candidate(metrics, tuple(CANDIDATE_MODALITIES))
 
 
 def _atomic_torch_save(path: Path, payload: object) -> None:
@@ -1021,7 +1033,7 @@ def run_fixed_validation(
 
     candidate_results: dict[str, dict[str, Any]] = {}
     validation_logits: dict[str, np.ndarray] = {}
-    for candidate in CANDIDATE_MODALITIES:
+    for candidate in FIXED_VALIDATION_CANDIDATES:
         candidate_dir = root / candidate
         summary_path = candidate_dir / "summary.json"
         if summary_path.is_file():
@@ -1079,13 +1091,13 @@ def run_fixed_validation(
         name: result["validation_metrics"]
         for name, result in candidate_results.items()
     }
-    selected = select_grouped_candidate(candidate_metrics)
+    selected = select_candidate(candidate_metrics, FIXED_VALIDATION_CANDIDATES)
     anchor_logits = validation_logits["visual_only"]
     comparisons = {
         candidate: _comparison(
             validation_labels, anchor_logits, validation_logits[candidate]
         )
-        for candidate in CANDIDATE_MODALITIES
+        for candidate in FIXED_VALIDATION_CANDIDATES
     }
     research_category = _research_category(
         config,
@@ -1106,7 +1118,7 @@ def run_fixed_validation(
         "validation_users_entered_training": False,
         "normalization": normalization,
         "provenance": provenance,
-        "candidate_order": list(CANDIDATE_MODALITIES),
+        "candidate_order": list(FIXED_VALIDATION_CANDIDATES),
         "selection_order": [
             "accuracy",
             "macro_f1",

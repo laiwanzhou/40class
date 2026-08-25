@@ -20,8 +20,8 @@ from src.experiments.hierarchical_midfusion_config import (
 )
 from src.models.ir_depth_videomaev2_teacher import sha256_file
 from src.train_hierarchical_multimodal_teacher import (
-    CANDIDATE_MODALITIES,
-    select_grouped_candidate,
+    FIXED_VALIDATION_CANDIDATES,
+    select_candidate,
 )
 
 
@@ -100,10 +100,10 @@ def build_fixed_validation_report(run_report: Path) -> dict[str, Any]:
         raise RuntimeError("development validation marker changed")
     if report.get("independent_final_test") is not False:
         raise RuntimeError("independent final-test marker changed")
-    if report.get("candidate_order") != list(CANDIDATE_MODALITIES):
+    if report.get("candidate_order") != list(FIXED_VALIDATION_CANDIDATES):
         raise RuntimeError("candidate order changed")
     candidate_results = report.get("candidate_results", {})
-    if list(candidate_results) != list(CANDIDATE_MODALITIES):
+    if list(candidate_results) != list(FIXED_VALIDATION_CANDIDATES):
         raise RuntimeError("candidate result set changed")
 
     train_identity = None
@@ -145,7 +145,9 @@ def build_fixed_validation_report(run_report: Path) -> dict[str, Any]:
         )
         recomputed_candidates[candidate] = validation_metrics
 
-    selected = select_grouped_candidate(recomputed_candidates)
+    selected = select_candidate(
+        recomputed_candidates, FIXED_VALIDATION_CANDIDATES
+    )
     if selected != report.get("selected_candidate"):
         raise RuntimeError("selected candidate changed during recomputation")
     report["metrics_recomputed_from_archives"] = True

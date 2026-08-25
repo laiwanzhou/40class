@@ -25,7 +25,7 @@ from src.models.hierarchical_action_query_fusion import HierarchicalActionQueryF
 from src.models.hierarchical_multimodal_teacher import HierarchicalMultimodalTeacher
 from src.models.structured_ir_depth_visual_encoder import StructuredIRDepthVisualEncoder
 from src.train_hierarchical_multimodal_teacher import (
-    CANDIDATE_MODALITIES,
+    FIXED_VALIDATION_CANDIDATES,
     run_fixed_validation,
     train_candidate_split,
 )
@@ -256,7 +256,7 @@ def test_candidate_split_resume_rejects_changed_validation_samples(
         )
 
 
-def test_fixed_runner_orchestrates_four_candidates_without_grouped_cv(
+def test_fixed_runner_orchestrates_three_candidates_without_grouped_cv(
     tmp_path: Path,
 ) -> None:
     config = yaml.safe_load(CONFIG.read_text(encoding="utf-8"))
@@ -282,7 +282,7 @@ def test_fixed_runner_orchestrates_four_candidates_without_grouped_cv(
     assert report["evaluation_protocol"] == "fixed_user6_user7"
     assert report["train_population_samples"] == 4
     assert report["validation_population_samples"] == 4
-    assert list(report["candidate_results"]) == list(CANDIDATE_MODALITIES)
+    assert list(report["candidate_results"]) == list(FIXED_VALIDATION_CANDIDATES)
     assert report["validation_users_entered_training"] is False
     assert report["development_validation"] is True
     assert report["independent_final_test"] is False

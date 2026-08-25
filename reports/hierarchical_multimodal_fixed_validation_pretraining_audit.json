@@ -24,9 +24,12 @@
   "candidate_order": [
     "visual_only",
     "visual_skeleton",
-    "visual_imu",
     "visual_skeleton_imu"
   ],
+  "omitted_candidate": {
+    "name": "visual_imu",
+    "reason": "Explicit user decision based on weak existing IMU-only evidence; IMU marginal value remains measurable as visual_skeleton_imu versus visual_skeleton."
+  },
   "grouped_cv": {
     "authorized": false,
     "stored_fold_fit_class_counts": [39, 40, 40],
@@ -58,8 +61,8 @@
   },
   "formal_command": "D:\\Anaconda\\envs\\PyTorch2.7\\python.exe scripts\\run_hierarchical_multimodal_teacher.py --mode fixed-validation",
   "formal_command_executed": false,
-  "training_authorized": false,
-  "estimated_gpu_hours": "54-58",
+  "training_authorized": true,
+  "estimated_gpu_hours": "41-44",
   "expected_artifacts": {
     "output_root": "outputs/hierarchical_multimodal_midfusion_stage1/fixed_user6_user7",
     "json_report": "reports/hierarchical_multimodal_teacher_fixed_user6_user7.json",

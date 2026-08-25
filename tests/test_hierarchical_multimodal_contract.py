@@ -19,6 +19,11 @@ def test_midfusion_contract_freezes_fixed_user6_user7_protocol() -> None:
 
     assert config["stage"] == "P5-HMF0"
     assert config["evaluation_protocol"] == "fixed_user6_user7"
+    assert config["fixed_validation_candidates"] == [
+        "visual_only",
+        "visual_skeleton",
+        "visual_skeleton_imu",
+    ]
     assert config["modalities"] == ["ir", "depth_color", "skeleton", "imu"]
     assert config["segment_count"] == 8
     assert config["population"]["train_samples"] == 2039

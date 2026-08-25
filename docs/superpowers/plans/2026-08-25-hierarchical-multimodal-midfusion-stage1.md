@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build and evaluate four pre-registered IR+Depth+Skeleton+raw-IMU hierarchical mid-fusion teacher candidates on the fixed 2,039-row train12 to 388-row user6/user7 development boundary without training-data leakage.
+**Goal:** Build and evaluate three pre-registered IR+Depth+Skeleton+raw-IMU hierarchical mid-fusion teacher candidates on the fixed 2,039-row train12 to 388-row user6/user7 development boundary without training-data leakage.
 
 **Architecture:** Aligned IR+Depth feature maps produce persistent context and wrist segment tokens. Gap-aware Skeleton and role-aware raw IMU produce body-motion segment tokens. Forty learned action queries fuse the three semantic groups through masked cross-attention; auxiliary heads and group dropout prevent token starvation. The fixed-validation runner trains every candidate on train12, transfers train12-only normalization to a separate user6/user7 Dataset, evaluates train and validation once after epoch 15, and labels selection as development-set selection.
 
@@ -19,7 +19,7 @@
 - Class order is exactly `0..39`.
 - The default protocol is exactly `fixed_user6_user7`; grouped CV is unauthorized.
 - Grouped CV may run only after every fold fit and validation scope contains class IDs `0..39` and the user explicitly authorizes it.
-- All four pre-registered candidates evaluate user6/user7 once for development selection.
+- All three pre-registered candidates evaluate user6/user7 once for development selection.
 - No user6/user7 row may enter gradients, normalization, sampling, epoch selection, loss design, threshold fitting, fallback fitting, or distillation-target generation.
 - Final reporting sets `independent_final_test=false` and never describes user6/user7 as an untouched test set.
 - Thermal and Radar models, logits, and embeddings are forbidden in this plan.
@@ -1096,7 +1096,7 @@ git commit -m "feat: add fixed validation candidate training"
 
 ---
 
-### Task 13: Orchestrate four candidates and freeze evidence before authorization
+### Task 13: Orchestrate three candidates and freeze evidence before authorization
 
 **Files:**
 - Modify: `configs/experiments/hierarchical_multimodal_midfusion_stage1.yaml`
@@ -1109,12 +1109,12 @@ git commit -m "feat: add fixed validation candidate training"
 **Interfaces:**
 - Produces: `run_fixed_validation(config_path: Path, output_root: Path | None = None, dataset_factory: FixedDatasetFactory | None = None, model_factory: ModelFactory | None = None, device: torch.device | None = None) -> dict[str, Any]`
 - Produces: `build_fixed_validation_report(run_report: Path) -> dict[str, Any]`
-- Produces: four train archives, four 388-row validation archives, and one atomic report
+- Produces: three train archives, three 388-row validation archives, and one atomic report
 
 - [ ] **Step 1: Write failing orchestration and archive tests**
 
 ```python
-def test_fixed_runner_uses_exact_populations_and_four_candidates(tmp_path: Path) -> None:
+def test_fixed_runner_uses_exact_populations_and_three_candidates(tmp_path: Path) -> None:
     report = run_tiny_fixed_validation(output_root=tmp_path)
     assert report["evaluation_protocol"] == "fixed_user6_user7"
     assert report["train_population_samples"] == 2039
@@ -1198,7 +1198,7 @@ Do not run this command yet:
 D:\Anaconda\envs\PyTorch2.7\python.exe scripts/run_hierarchical_multimodal_teacher.py --mode fixed-validation
 ```
 
-Report the verified state, expected `54-58` GPU-hour envelope, and exact output
+Report the verified state, expected `41-44` GPU-hour envelope, and exact output
 paths. Ask the user to authorize the formal launch. Status or audit requests are
 not authorization.
 
@@ -1380,7 +1380,7 @@ git commit -m "report: freeze hierarchical multimodal teacher result"
 - Sequence-level Skeleton/IMU fusion: Tasks 3, 4, 7.
 - Masked 40-query cross-group fusion: Task 8.
 - Auxiliary heads and anti-collapse: Task 9.
-- Fixed train12 to user6/user7 isolation, grouped hard gate, and four-candidate
+- Fixed train12 to user6/user7 isolation, grouped hard gate, and three-candidate
   development selection: Tasks 11-13.
 - Canonical missing-pattern fallback: Tasks 2, 5, 12, 13.
 - Metrics, rescue/harm, attention, size, and provenance: Task 13.

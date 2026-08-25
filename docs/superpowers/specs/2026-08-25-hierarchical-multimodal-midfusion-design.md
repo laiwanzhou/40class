@@ -335,7 +335,7 @@ usable.
 
 ## 7. Training and Leakage Policy
 
-The architecture, loss weights, fixed 15-epoch schedule, four candidate set,
+The architecture, loss weights, fixed 15-epoch schedule, three-candidate set,
 metric order, masks, and fallback behavior are frozen before user6/user7 model
 evaluation. For each candidate:
 
@@ -345,14 +345,17 @@ evaluation. For each candidate:
 4. evaluate the canonical 388-row user6/user7 development validation once;
 5. store logits, masks, quality, action/group attention, and provenance.
 
-User6/user7 rows may enter metric computation and the pre-registered four-way
+User6/user7 rows may enter metric computation and the pre-registered three-way
 candidate selection. They may not enter gradients, normalization, the sampler,
 class-prior fitting, epoch selection, loss design, threshold fitting, or
 fallback fitting. Repeated candidate comparison makes this a development-set
 selection result, not an untouched independent final-test estimate.
 
-The candidate order is fixed as `visual_only`, `visual_skeleton`, `visual_imu`,
-and `visual_skeleton_imu`. Selection uses Accuracy, Macro-F1, worst-user
+The candidate order is fixed as `visual_only`, `visual_skeleton`, and
+`visual_skeleton_imu`. The standalone `visual_imu` candidate is omitted by
+explicit user decision because existing IMU-only evidence is weak. IMU's
+incremental value is still measured conditionally by comparing
+`visual_skeleton_imu` against `visual_skeleton`. Selection uses Accuracy, Macro-F1, worst-user
 Accuracy, negative NLL, then fixed candidate order. Because every candidate is
 already trained on all train12 users, no second selected-candidate retraining or
 second user6/user7 evaluation event is performed.
@@ -376,11 +379,10 @@ The experiment must still report each modality's removal ablation:
 ```text
 visual only
 visual + Skeleton
-visual + IMU
 visual + Skeleton + IMU
 ```
 
-All four pre-registered candidates receive one user6/user7 metric evaluation.
+All three pre-registered candidates receive one user6/user7 metric evaluation.
 Only the metric-selected candidate is eligible for later teacher promotion.
 
 ### Thermal admission gate
@@ -439,7 +441,7 @@ Every result reports:
 - exact cache, split, checkpoint, config, and code hashes.
 
 The report must label user6/user7 as `development_validation`, record that all
-four candidates were compared on it, and set `independent_final_test=False`.
+three candidates were compared on it, and set `independent_final_test=False`.
 It must report final dropout-disabled train12 and validation metrics for every
 candidate so the train-to-validation generalization gap is directly auditable.
 
@@ -495,7 +497,7 @@ the exported inference model is reloaded and shown to reproduce final logits.
 - No exhaustive artificial generation of all modality subsets.
 - No user6/user7 rows in gradients, normalization, sampling, class-prior
   fitting, epoch selection, loss design, threshold fitting, or fallback
-  fitting. Their labels are allowed only for the pre-registered four-candidate
+  fitting. Their labels are allowed only for the pre-registered three-candidate
   development comparison and reporting.
 - No three-fold execution without both complete `0..39` class coverage in each
   fit and validation scope and explicit user authorization.
@@ -503,7 +505,7 @@ the exported inference model is reloaded and shown to reproduce final logits.
 
 ## 13. First Implementation Boundary
 
-The first implementation ends after all four pre-registered candidates are
+The first implementation ends after all three pre-registered candidates are
 trained on train12, evaluated once on fixed user6/user7 development validation,
 and compared in one atomic report. There is no second selected-only retraining
 or evaluation event.

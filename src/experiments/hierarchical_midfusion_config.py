@@ -10,6 +10,11 @@ import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 EXPECTED_MODALITIES = ["ir", "depth_color", "skeleton", "imu"]
+EXPECTED_FIXED_CANDIDATES = [
+    "visual_only",
+    "visual_skeleton",
+    "visual_skeleton_imu",
+]
 EXPECTED_TRAIN_USERS = {
     "user1", "user2", "user3", "user5", "user8", "user9",
     "user16", "user18", "user19", "user20", "user21", "user22",
@@ -30,6 +35,8 @@ def load_midfusion_config(path: Path) -> dict[str, Any]:
         raise ValueError("midfusion stage changed")
     if config.get("evaluation_protocol") != "fixed_user6_user7":
         raise ValueError("midfusion evaluation protocol changed")
+    if config.get("fixed_validation_candidates") != EXPECTED_FIXED_CANDIDATES:
+        raise ValueError("fixed validation candidates changed")
     if config.get("modalities") != EXPECTED_MODALITIES:
         raise ValueError("midfusion modalities changed")
     if int(config.get("segment_count", -1)) != 8:
