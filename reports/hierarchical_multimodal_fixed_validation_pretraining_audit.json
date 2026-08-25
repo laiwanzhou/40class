@@ -45,6 +45,14 @@
     "development_validation": true,
     "independent_final_test": false
   },
+  "pose_fallback_audit": {
+    "policy": "Only a dedicated no-valid-YOLO-person-pose condition may retain global IR/Depth while masking person and both wrist views.",
+    "train_visual_trials_scanned": 1935,
+    "train_global_only_fallback_trials": 11,
+    "validation_visual_trials_scanned": 385,
+    "validation_global_only_fallback_trials": 0,
+    "other_pose_preflight_errors": 0
+  },
   "verification": {
     "command": "D:\\Anaconda\\envs\\PyTorch2.7\\python.exe -m pytest -q",
     "passed": 384,

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from PIL import Image
+import pytest
 import torch
 
 from src.data.hierarchical_multimodal_dataset import (
@@ -9,6 +11,7 @@ from src.data.hierarchical_multimodal_dataset import (
     HierarchicalMultimodalDataset,
     make_midfusion_dataset,
     RawIMULoader,
+    StrictVisualLoader,
 )
 from src.data.canonical_multimodal_index import CanonicalTrial
 from src.experiments.hierarchical_midfusion_config import load_midfusion_config
@@ -112,3 +115,61 @@ def test_imu_manifest_path_missing_is_present_but_unusable(tmp_path: Path) -> No
     assert bool(item["present"][3]) is True
     assert bool(item["usable"][3]) is False
     assert item["failure_reasons"][3] == "manifest_path_missing"
+
+
+class FailingPoseDataset:
+    def __init__(self, message: str) -> None:
+        self.message = message
+
+    def __getitem__(self, index: int) -> dict[str, object]:
+        raise ValueError(self.message)
+
+
+def _visual_trial(tmp_path: Path) -> CanonicalTrial:
+    ir = tmp_path / "ir"
+    depth = tmp_path / "depth"
+    ir.mkdir()
+    depth.mkdir()
+    timestamp = "2025-01-01_00-00-00.000_00000001"
+    Image.new("L", (16, 16), color=128).save(ir / f"IR_{timestamp}.png")
+    Image.new("RGB", (16, 16), color=(64, 96, 128)).save(
+        depth / f"Depth_{timestamp}_Color.png"
+    )
+    paths = {name: None for name in ("ir", "depth_color", "skeleton", "imu", "radar", "thermal")}
+    paths.update({"ir": ir, "depth_color": depth})
+    return CanonicalTrial(
+        sample_id="no_pose_sample",
+        user_id="user1",
+        class_id=0,
+        paths=paths,
+        availability={name: paths[name] is not None for name in paths},
+    )
+
+
+def test_visual_loader_degrades_only_exact_no_person_pose_failure(
+    tmp_path: Path,
+) -> None:
+    trial = _visual_trial(tmp_path)
+    loader = object.__new__(StrictVisualLoader)
+    loader.lookup = {trial.sample_id: 0}
+    loader.image_size = 224
+    loader.dataset = FailingPoseDataset(
+        "fixed trial context has no valid pose probe; full-frame fallback forbidden"
+    )
+
+    result = loader(trial)
+
+    assert result["availability"].tolist() == [
+        [True, False, False, False],
+        [True, False, False, False],
+    ]
+    assert result["failure_reasons"] == (
+        "no_valid_yolo_person_pose_global_only",
+        "no_valid_yolo_person_pose_global_only",
+    )
+    assert torch.count_nonzero(result["values"][:, 0]) > 0
+    assert torch.count_nonzero(result["values"][:, 1:]) == 0
+
+    loader.dataset = FailingPoseDataset("person_boxes must have shape [T,4]")
+    with pytest.raises(ValueError, match="shape"):
+        loader(trial)

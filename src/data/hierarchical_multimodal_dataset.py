@@ -30,11 +30,15 @@ from src.data.ir_depth_videomaev2_dataset import (
     IRDepthVideoMAEV2Dataset,
     uniform_trial_indices,
 )
+from src.data.pose_roi_dataset import paired_frame_paths
 from src.data.raw_imu_segments import apply_imu_normalization, load_raw_imu_segments
 from src.experiments.hierarchical_midfusion_config import project_path
 
 
 ModalityLoader = Callable[[CanonicalTrial | None], dict[str, Any]]
+NO_VALID_YOLO_PERSON_POSE = (
+    "fixed trial context has no valid pose probe; full-frame fallback forbidden"
+)
 
 
 class EmptyModalityLoader:
@@ -133,13 +137,58 @@ class StrictVisualLoader:
         output["failure_reasons"] = ("", "not_present_or_unusable")
         return output
 
+    def _paired_global_fallback(
+        self, trial: CanonicalTrial
+    ) -> dict[str, Any]:
+        output = EmptyModalityLoader.visual()(trial)
+        ir_path = trial.paths["ir"]
+        depth_path = trial.paths["depth_color"]
+        if ir_path is None or depth_path is None:
+            raise ValueError("no-pose paired fallback requires IR and Depth")
+        depth_paths, ir_paths = paired_frame_paths(depth_path, ir_path)
+        indices = uniform_trial_indices(len(depth_paths), 16, jitter=0.0)
+        ir_frames, depth_frames = [], []
+        for index in indices:
+            with Image.open(ir_paths[int(index)]) as ir_image:
+                resized_ir = TF.resize(
+                    ir_image.convert("L"),
+                    [self.image_size, self.image_size],
+                    antialias=True,
+                )
+                ir_tensor = TF.to_tensor(resized_ir).repeat(3, 1, 1)
+                ir_frames.append((ir_tensor - IMAGENET_MEAN) / IMAGENET_STD)
+            with Image.open(depth_paths[int(index)]) as depth_image:
+                resized_depth = TF.resize(
+                    depth_image.convert("RGB"),
+                    [self.image_size, self.image_size],
+                    antialias=True,
+                )
+                depth_tensor = TF.to_tensor(resized_depth)
+                depth_frames.append(
+                    (depth_tensor - IMAGENET_MEAN) / IMAGENET_STD
+                )
+        output["values"][0, 0] = torch.stack(ir_frames, dim=1)
+        output["values"][1, 0] = torch.stack(depth_frames, dim=1)
+        output["availability"][:, 0] = True
+        output["modality_usable"][:] = True
+        output["failure_reasons"] = (
+            "no_valid_yolo_person_pose_global_only",
+            "no_valid_yolo_person_pose_global_only",
+        )
+        return output
+
     def __call__(self, trial: CanonicalTrial | None) -> dict[str, Any]:
         if trial is None:
             return EmptyModalityLoader.visual()(trial)
         index = self.lookup.get(trial.sample_id)
         if index is None:
             return self._ir_global_fallback(trial)
-        item = self.dataset[index]
+        try:
+            item = self.dataset[index]
+        except ValueError as error:
+            if str(error) != NO_VALID_YOLO_PERSON_POSE:
+                raise
+            return self._paired_global_fallback(trial)
         availability = item["availability"].bool()
         return {
             "values": item["clips"].float(),

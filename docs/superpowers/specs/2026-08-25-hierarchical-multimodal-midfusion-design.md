@@ -410,6 +410,10 @@ satisfies all of:
 Every forward call accepts an availability mask. Required exact behaviors:
 
 - with visual only, return the visual action-query model;
+- when and only when YOLO produces no valid person pose at every fixed trial
+  probe, retain the global IR/Depth view and mark person plus both wrist views
+  unavailable; do not apply this fallback to cache, pairing, shape, or geometry
+  errors;
 - with Skeleton or IMU missing, use the remaining body stream;
 - with the complete body group missing, mask all body attention;
 - with visual missing but body available, return a body-only prediction;

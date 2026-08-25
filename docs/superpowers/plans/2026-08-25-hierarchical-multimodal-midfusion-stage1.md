@@ -15,6 +15,7 @@
 - Stage-1 modalities are exactly `IR`, `Depth_Color`, `Skeleton`, and raw `IMU`.
 - Canonical train12 population is exactly 2,039 rows; user6/user7 population is exactly 388 rows.
 - Primary metrics include all 388 rows, including the three Thermal-only rows with no Stage-1 modality.
+- A visual trial may degrade to global-only only for the dedicated no-valid-YOLO-person-pose condition; all other visual contract errors remain fatal.
 - Normalized segment count is exactly `8`.
 - Class order is exactly `0..39`.
 - The default protocol is exactly `fixed_user6_user7`; grouped CV is unauthorized.
