@@ -98,7 +98,11 @@ class HierarchicalMultimodalTeacher(nn.Module):
         dropout_policy: GroupDropout | None = None,
         enabled_modalities: tuple[str, ...] | None = None,
     ) -> dict[str, torch.Tensor]:
-        enabled = set(enabled_modalities or ("ir", "depth_color", "skeleton", "imu"))
+        enabled = set(
+            ("ir", "depth_color", "skeleton", "imu")
+            if enabled_modalities is None
+            else enabled_modalities
+        )
         unknown = enabled - {"ir", "depth_color", "skeleton", "imu"}
         if unknown:
             raise ValueError(f"unknown Stage-1 modalities: {sorted(unknown)}")

@@ -101,6 +101,19 @@ def test_teacher_supports_visual_only_and_body_only() -> None:
     assert torch.isfinite(body_output["logits"]).all()
 
 
+def test_explicit_empty_enabled_modalities_disables_every_group() -> None:
+    model = tiny_teacher()
+
+    output = model(
+        complete_batch(batch=1),
+        dropout_policy=GroupDropout.disabled(),
+        enabled_modalities=(),
+    )
+
+    assert not output["core_available"].any()
+    assert not output["effective_group_mask"].any()
+
+
 def test_no_core_rows_are_excluded_from_teacher_loss() -> None:
     model = tiny_teacher()
     batch = complete_batch(batch=1)

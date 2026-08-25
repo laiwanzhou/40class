@@ -27,4 +27,3 @@ class GroupTokens:
             raise ValueError("non-finite available group token")
         if bool((self.tokens[~self.mask] != 0).any()):
             raise ValueError("masked group tokens must be zero")
-
