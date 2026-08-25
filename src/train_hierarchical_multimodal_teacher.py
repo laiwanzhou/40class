@@ -20,11 +20,11 @@ from scripts.cache_ir_depth_videomaev2_p2a import (
     _metrics,
 )
 from src.data.hierarchical_multimodal_dataset import make_midfusion_dataset
-from src.data.clean_skeleton_segments import (
-    SkeletonSegments,
-    fit_skeleton_normalization,
+from src.data.body_normalization_state import (
+    apply_body_normalization_state,
+    body_normalization_provenance,
+    fit_body_normalization_state,
 )
-from src.data.raw_imu_segments import IMUSegments, fit_imu_normalization
 from src.experiments.hierarchical_midfusion_config import (
     assert_grouped_cv_authorized,
     load_midfusion_config,
@@ -179,59 +179,26 @@ def _optimizer_to_device(
                 state[key] = value.to(device)
 
 
-def _array_sha256(value: np.ndarray) -> str:
-    contiguous = np.ascontiguousarray(value)
-    return hashlib.sha256(contiguous.view(np.uint8)).hexdigest()
+def _string_sequence_sha256(values: np.ndarray) -> str:
+    payload = json.dumps(
+        np.asarray(values).astype(str).tolist(),
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _config_sha256(config: dict[str, Any]) -> str:
+    payload = yaml.safe_dump(config, sort_keys=True).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
 
 
 def fit_body_normalization(
     dataset: Dataset[dict[str, object]], fit_indices: np.ndarray
 ) -> dict[str, Any]:
-    if not hasattr(dataset, "trials"):
-        raise TypeError("body normalization requires canonical trial access")
-    if not hasattr(dataset.skeleton_loader, "set_normalization"):
-        raise TypeError("Skeleton loader cannot accept normalization")
-    if not hasattr(dataset.imu_loader, "set_normalization"):
-        raise TypeError("IMU loader cannot accept normalization")
-    skeleton_samples: list[SkeletonSegments] = []
-    imu_samples: list[IMUSegments] = []
-    fit_sample_ids: list[str] = []
-    for index in np.asarray(fit_indices, dtype=np.int64).tolist():
-        trial = dataset.trials[index]
-        fit_sample_ids.append(str(trial.sample_id))
-        skeleton = dataset.skeleton_loader(trial)
-        if bool(skeleton["modality_usable"]):
-            skeleton_samples.append(
-                SkeletonSegments(
-                    features=skeleton["values"],
-                    mask=skeleton["mask"],
-                    quality=skeleton["quality"],
-                )
-            )
-        imu = dataset.imu_loader(trial)
-        if bool(imu["modality_usable"]):
-            imu_samples.append(
-                IMUSegments(
-                    features=imu["values"],
-                    role_mask=imu["role_mask"],
-                    quality=imu["quality"],
-                )
-            )
-    if not skeleton_samples or not imu_samples:
-        raise ValueError("fit scope lacks Skeleton or IMU normalization samples")
-    skeleton_mean, skeleton_std = fit_skeleton_normalization(skeleton_samples)
-    imu_mean, imu_std = fit_imu_normalization(imu_samples)
-    dataset.skeleton_loader.set_normalization(skeleton_mean, skeleton_std)
-    dataset.imu_loader.set_normalization(imu_mean, imu_std)
-    return {
-        "fit_sample_ids": fit_sample_ids,
-        "skeleton_mean_sha256": _array_sha256(skeleton_mean),
-        "skeleton_std_sha256": _array_sha256(skeleton_std),
-        "imu_mean_sha256": _array_sha256(imu_mean),
-        "imu_std_sha256": _array_sha256(imu_std),
-        "skeleton_samples": len(skeleton_samples),
-        "imu_samples": len(imu_samples),
-    }
+    state = fit_body_normalization_state(dataset, fit_indices)
+    apply_body_normalization_state(dataset, state)
+    return body_normalization_provenance(state)
 
 
 def _set_seed(seed: int) -> None:
@@ -498,6 +465,34 @@ def _candidate_eligible(
     return any(bool(trial.availability[name]) for name in CANDIDATE_MODALITIES[candidate])
 
 
+class _JoinedSplitDataset(Dataset[dict[str, object]]):
+    def __init__(
+        self,
+        train_dataset: Dataset[dict[str, object]],
+        validation_dataset: Dataset[dict[str, object]],
+    ) -> None:
+        self.train_dataset = train_dataset
+        self.validation_dataset = validation_dataset
+        train_identity = _dataset_identity(train_dataset)
+        validation_identity = _dataset_identity(validation_dataset)
+        self.labels = np.concatenate((train_identity[0], validation_identity[0]))
+        self.user_ids = np.concatenate((train_identity[1], validation_identity[1]))
+        self.sample_ids = np.concatenate((train_identity[2], validation_identity[2]))
+        if hasattr(train_dataset, "trials") and hasattr(validation_dataset, "trials"):
+            self.trials = [
+                *list(getattr(train_dataset, "trials")),
+                *list(getattr(validation_dataset, "trials")),
+            ]
+
+    def __len__(self) -> int:
+        return len(self.train_dataset) + len(self.validation_dataset)
+
+    def __getitem__(self, index: int) -> dict[str, object]:
+        if index < len(self.train_dataset):
+            return self.train_dataset[index]
+        return self.validation_dataset[index - len(self.train_dataset)]
+
+
 @torch.no_grad()
 def _predict_indices(
     *,
@@ -573,6 +568,11 @@ def train_candidate_fold(
     validation_users = set(users[validation_indices].tolist())
     if fit_users & validation_users:
         raise ValueError("fit and validation users overlap")
+    fit_sample_ids_sha256 = _string_sequence_sha256(sample_ids[fit_indices])
+    validation_sample_ids_sha256 = _string_sequence_sha256(
+        sample_ids[validation_indices]
+    )
+    config_sha256 = _config_sha256(config)
     eligible_fit = np.asarray(
         [
             index
@@ -601,6 +601,21 @@ def train_candidate_fold(
         payload = torch.load(latest, map_location="cpu", weights_only=False)
         if payload["candidate"] != candidate:
             raise RuntimeError("resume candidate changed")
+        if payload.get("evaluation_protocol") != config["evaluation_protocol"]:
+            raise RuntimeError("resume evaluation protocol changed")
+        if payload.get("config_sha256") != config_sha256:
+            raise RuntimeError("resume config changed")
+        if payload.get("fit_sample_ids_sha256") != fit_sample_ids_sha256:
+            raise RuntimeError("resume fit samples changed")
+        if (
+            payload.get("validation_sample_ids_sha256")
+            != validation_sample_ids_sha256
+        ):
+            raise RuntimeError("resume validation samples changed")
+        if payload.get("fit_user_ids") != sorted(fit_users):
+            raise RuntimeError("resume fit users changed")
+        if payload.get("validation_user_ids") != sorted(validation_users):
+            raise RuntimeError("resume validation users changed")
         model.load_state_dict(payload["model_state_dict"], strict=True)
         optimizer.load_state_dict(payload["optimizer_state_dict"])
         _optimizer_to_device(optimizer, device)
@@ -686,6 +701,10 @@ def train_candidate_fold(
             latest,
             {
                 "candidate": candidate,
+                "evaluation_protocol": config["evaluation_protocol"],
+                "config_sha256": config_sha256,
+                "fit_sample_ids_sha256": fit_sample_ids_sha256,
+                "validation_sample_ids_sha256": validation_sample_ids_sha256,
                 "epoch": epoch,
                 "model_state_dict": model.state_dict(),
                 "optimizer_state_dict": optimizer.state_dict(),
@@ -713,6 +732,22 @@ def train_candidate_fold(
             flush=True,
         )
 
+    train_prediction = _predict_indices(
+        model=model,
+        dataset=dataset,
+        indices=fit_indices,
+        candidate=candidate,
+        prior_logits=prior_logits,
+        device=device,
+    )
+    _atomic_npz(
+        run_dir / "train_predictions.npz",
+        sample_ids=train_prediction["sample_ids"],
+        user_ids=train_prediction["user_ids"],
+        labels=train_prediction["labels"],
+        logits=train_prediction["logits"],
+        core_available=train_prediction["core_available"],
+    )
     prediction = _predict_indices(
         model=model,
         dataset=dataset,
@@ -731,20 +766,66 @@ def train_candidate_fold(
     )
     summary = {
         "candidate": candidate,
+        "evaluation_protocol": config["evaluation_protocol"],
+        "config_sha256": config_sha256,
+        "fit_sample_ids_sha256": fit_sample_ids_sha256,
+        "validation_sample_ids_sha256": validation_sample_ids_sha256,
         "epochs_completed": fixed_epochs,
         "history": history,
         "fit_user_ids": sorted(fit_users),
+        "fit_sample_ids": train_prediction["sample_ids"].astype(str).tolist(),
         "validation_user_ids": sorted(validation_users),
+        "train_sample_ids": train_prediction["sample_ids"].astype(str).tolist(),
         "validation_sample_ids": prediction["sample_ids"].astype(str).tolist(),
+        "train_evaluation_count": 1,
         "validation_evaluation_count": 1,
+        "train_metrics": train_prediction["metrics"],
         "validation_metrics": prediction["metrics"],
         "checkpoint": str(latest),
         "checkpoint_sha256": sha256_file(latest),
         "predictions": str(run_dir / "validation_predictions.npz"),
         "predictions_sha256": sha256_file(run_dir / "validation_predictions.npz"),
+        "train_predictions": str(run_dir / "train_predictions.npz"),
+        "train_predictions_sha256": sha256_file(run_dir / "train_predictions.npz"),
     }
     _atomic_write_text(run_dir / "summary.json", json.dumps(summary, indent=2) + "\n")
     return summary
+
+
+def train_candidate_split(
+    *,
+    config: dict[str, Any],
+    candidate: str,
+    train_dataset: Dataset[dict[str, object]],
+    validation_dataset: Dataset[dict[str, object]],
+    run_dir: Path,
+    model_factory: ModelFactory | None = None,
+    device: torch.device | None = None,
+) -> dict[str, Any]:
+    train_labels, train_users, train_samples = _dataset_identity(train_dataset)
+    validation_labels, validation_users, validation_samples = _dataset_identity(
+        validation_dataset
+    )
+    del train_labels, validation_labels
+    if set(train_users.tolist()) & set(validation_users.tolist()):
+        raise ValueError("train and validation users overlap")
+    if set(train_samples.tolist()) & set(validation_samples.tolist()):
+        raise ValueError("train and validation samples overlap")
+    joined = _JoinedSplitDataset(train_dataset, validation_dataset)
+    fit_indices = np.arange(len(train_dataset), dtype=np.int64)
+    validation_indices = np.arange(
+        len(train_dataset), len(joined), dtype=np.int64
+    )
+    return train_candidate_fold(
+        config=config,
+        candidate=candidate,
+        dataset=joined,
+        fit_indices=fit_indices,
+        validation_indices=validation_indices,
+        run_dir=run_dir,
+        model_factory=model_factory,
+        device=device,
+    )
 
 
 def _comparison(

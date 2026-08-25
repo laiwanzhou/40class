@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
+import pytest
 import torch
 from torch import nn
 from torch.utils.data import Dataset
@@ -89,6 +90,19 @@ class TinyGroupedDataset(Dataset[dict[str, object]]):
         }
 
 
+class InterruptOnSecondEpochDataset(TinyGroupedDataset):
+    def __init__(self) -> None:
+        super().__init__()
+        self.calls = 0
+        self.interrupt = True
+
+    def __getitem__(self, index: int) -> dict[str, object]:
+        self.calls += 1
+        if self.interrupt and self.calls > 16:
+            raise RuntimeError("synthetic epoch-2 interruption")
+        return super().__getitem__(index)
+
+
 def test_sampler_changes_sequence_each_epoch_and_balances_classes() -> None:
     dataset = TinyGroupedDataset()
     sampler = EpochClassUserBalancedSampler(
@@ -164,25 +178,24 @@ def test_tiny_fold_runs_fixed_epochs_and_validates_once(tmp_path: Path) -> None:
 
 def test_tiny_fold_resumes_model_optimizer_and_history(tmp_path: Path) -> None:
     config = load_midfusion_config(CONFIG)
-    config["training"] = {**config["training"], "fixed_epochs": 1}
-    dataset = TinyGroupedDataset()
+    config["training"] = {**config["training"], "fixed_epochs": 2}
+    dataset = InterruptOnSecondEpochDataset()
     fit, validation = partition_fold_indices(
         dataset.user_ids, validation_users={"c"}
     )
     run_dir = tmp_path / "resume_fold"
-    first = train_candidate_fold(
-        config=config,
-        candidate="visual_skeleton_imu",
-        dataset=dataset,
-        fit_indices=fit,
-        validation_indices=validation,
-        run_dir=run_dir,
-        model_factory=tiny_model,
-        device=torch.device("cpu"),
-    )
-    (run_dir / "summary.json").unlink()
-    (run_dir / "validation_predictions.npz").unlink()
-    config["training"] = {**config["training"], "fixed_epochs": 2}
+    with pytest.raises(RuntimeError, match="synthetic epoch-2 interruption"):
+        train_candidate_fold(
+            config=config,
+            candidate="visual_skeleton_imu",
+            dataset=dataset,
+            fit_indices=fit,
+            validation_indices=validation,
+            run_dir=run_dir,
+            model_factory=tiny_model,
+            device=torch.device("cpu"),
+        )
+    dataset.interrupt = False
 
     resumed = train_candidate_fold(
         config=config,
@@ -195,7 +208,6 @@ def test_tiny_fold_resumes_model_optimizer_and_history(tmp_path: Path) -> None:
         device=torch.device("cpu"),
     )
 
-    assert first["epochs_completed"] == 1
     assert resumed["epochs_completed"] == 2
     assert [row["epoch"] for row in resumed["history"]] == [1, 2]
 
