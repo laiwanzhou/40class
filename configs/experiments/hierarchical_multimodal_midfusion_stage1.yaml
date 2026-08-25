@@ -1,0 +1,72 @@
+schema_version: 1
+stage: P5-HMF0
+modalities: [ir, depth_color, skeleton, imu]
+segment_count: 8
+class_ids: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39]
+
+population:
+  manifest: metadata/manifest.csv
+  development_split: metadata/splits/train12_val2_user6_user7_development.json
+  grouped_split: metadata/splits/train12_grouped_3fold_midfusion.json
+  train_samples: 2039
+  validation_samples: 388
+  train_user_ids: [user1, user2, user3, user5, user8, user9, user16, user18, user19, user20, user21, user22]
+  validation_user_ids: [user6, user7]
+  class_count: 40
+
+data:
+  root: D:\work\2026.7.14_kaggle\datasets\Small-Model-Track\train
+  pose_cache: D:\work\2026.7.14_kaggle\40class\outputs\depth_ir_pose_roi_40class_probe\pose_tracks.npz
+  p0_config: configs/experiments/ir_depth_videomaev2_vit_b_p0.yaml
+  skeleton_retained_index: reports/skeleton_clean_frame_index/skeleton_retained_frame_index.csv
+  skeleton_ambiguous_index: reports/skeleton_clean_frame_index/skeleton_ambiguous_frame_index.csv
+  skeleton_clean_views: reports/midfusion_skeleton_clean_views
+  image_size: 224
+  frames: 16
+
+model:
+  teacher_dim: 256
+  action_queries: 40
+  fusion_layers: 2
+  attention_heads: 8
+  visual_checkpoint: C:\Users\LaiWanzhou\.cache\torch\hub\checkpoints\vit_b_k710_dl_from_giant.pth
+  visual_checkpoint_sha256: 8141a6955e0700d11bf15928fe6d61e5cfe482606fed8cfdddb1b922c0fd88ec
+
+training:
+  seed: 20260715
+  fixed_epochs: 15
+  batch_size: 1
+  gradient_accumulation: 8
+  learning_rate: 0.0001
+  weight_decay: 0.05
+  context_dropout: 0.10
+  wrist_dropout: 0.10
+  body_dropout: 0.15
+  visual_dropout: 0.10
+  synthetic_dropout_loss_weight: 0.50
+
+decision_gates:
+  reject_below_accuracy: 0.76
+  full_teacher_worthy_accuracy: 0.80
+  full_teacher_worthy_worst_user: 0.78
+  teacher_target_accuracy: 0.90
+  teacher_target_macro_f1: 0.86
+  teacher_target_worst_user: 0.88
+
+outputs:
+  root: outputs/hierarchical_multimodal_midfusion_stage1
+  grouped_report_json: reports/hierarchical_multimodal_teacher_grouped_cv.json
+  grouped_report_markdown: reports/hierarchical_multimodal_teacher_grouped_cv.md
+  final_report_json: reports/hierarchical_multimodal_teacher_result.json
+  final_report_markdown: reports/hierarchical_multimodal_teacher_result.md
+
+policy:
+  validation_users_enter_training: false
+  validation_users_enter_normalization: false
+  validation_users_enter_sampler: false
+  validation_users_enter_selection: false
+  nonselected_candidates_enter_final_evaluation: false
+  thermal_allowed: false
+  radar_allowed: false
+  competition_test_allowed: false
+

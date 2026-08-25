@@ -35,6 +35,7 @@
 |---|---|
 | `configs/experiments/hierarchical_multimodal_midfusion_stage1.yaml` | Frozen population, modalities, model dimensions, training policy, gates, paths |
 | `metadata/splits/train12_grouped_3fold_midfusion.json` | Persisted train12 user ownership for grouped model selection |
+| `src/experiments/hierarchical_midfusion_config.py` | Frozen config and grouped-fold validation |
 | `src/data/multimodal_segment_contract.py` | Segment token dataclasses and mask validation |
 | `src/data/canonical_multimodal_index.py` | Canonical-union membership, availability, fallback and split validation |
 | `src/data/clean_skeleton_segments.py` | Ported strict Skeleton cleaning, scale normalization, velocity and gap-aware eight-segment loading |
@@ -58,6 +59,7 @@
 **Files:**
 - Create: `configs/experiments/hierarchical_multimodal_midfusion_stage1.yaml`
 - Create: `metadata/splits/train12_grouped_3fold_midfusion.json`
+- Create: `src/experiments/hierarchical_midfusion_config.py`
 - Create: `tests/test_hierarchical_multimodal_contract.py`
 
 **Interfaces:**
@@ -162,7 +164,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit the contract**
 
 ```powershell
-git add configs/experiments/hierarchical_multimodal_midfusion_stage1.yaml metadata/splits/train12_grouped_3fold_midfusion.json tests/test_hierarchical_multimodal_contract.py
+git add configs/experiments/hierarchical_multimodal_midfusion_stage1.yaml metadata/splits/train12_grouped_3fold_midfusion.json src/experiments/hierarchical_midfusion_config.py tests/test_hierarchical_multimodal_contract.py docs/superpowers/plans/2026-08-25-hierarchical-multimodal-midfusion-stage1.md
 git commit -m "experiment: freeze hierarchical midfusion contract"
 ```
 

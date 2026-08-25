@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "seed": 20260715,
+  "folds": [
+    {
+      "fold": 0,
+      "validation_user_ids": ["user1", "user18", "user21", "user5"]
+    },
+    {
+      "fold": 1,
+      "validation_user_ids": ["user16", "user19", "user22", "user8"]
+    },
+    {
+      "fold": 2,
+      "validation_user_ids": ["user2", "user20", "user3", "user9"]
+    }
+  ]
+}
+
