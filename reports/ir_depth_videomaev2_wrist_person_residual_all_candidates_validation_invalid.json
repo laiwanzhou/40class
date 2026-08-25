@@ -1,6 +1,7 @@
 {
   "stage": "P4-WP0",
-  "status": "completed",
+  "status": "invalidated_by_review",
+  "invalidation_reason": "The run evaluated every grouped-CV candidate on user6/user7 instead of evaluating only the preselected candidate. Retained only as audit evidence.",
   "selected_by_train_user_grouped_cv": "person_fixed10",
   "decision": "reject_cached_fusion",
   "cache_provenance": {

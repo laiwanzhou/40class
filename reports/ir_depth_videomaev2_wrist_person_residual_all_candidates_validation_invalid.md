@@ -1,4 +1,8 @@
-# VideoMAE wrist-person residual result
+# INVALID: all-candidates wrist-person validation result
+
+This report is retained only as audit evidence. It evaluated every grouped-CV
+candidate on user6/user7 rather than evaluating only the preselected candidate.
+Use the selected-only result instead.
 
 - Selected by train-user grouped CV: `person_fixed10`
 - Decision: `reject_cached_fusion`

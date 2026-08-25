@@ -7,6 +7,7 @@ import torch
 
 from scripts.run_ir_depth_videomaev2_wrist_person_residual import (
     _candidate_seed_offset,
+    _final_evaluation_candidates,
     load_wrist_person_config,
     train_cv_fold,
 )
@@ -114,6 +115,10 @@ def test_margin_auxiliary_ablation_uses_paired_seed() -> None:
     assert _candidate_seed_offset("person_margin") == _candidate_seed_offset(
         "person_margin_no_aux"
     )
+
+
+def test_final_evaluation_contains_only_grouped_cv_selected_candidate() -> None:
+    assert _final_evaluation_candidates("person_fixed10") == ("person_fixed10",)
 
 
 def test_wrist_person_config_preserves_validation_isolation() -> None:

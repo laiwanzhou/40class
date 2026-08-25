@@ -129,6 +129,11 @@ def _candidate_seed_offset(candidate: str) -> int:
     raise ValueError(f"unknown wrist-person candidate: {candidate}")
 
 
+def _final_evaluation_candidates(selected: str) -> tuple[str]:
+    _candidate_contract(selected)
+    return (selected,)
+
+
 def _model_factory(candidate: str, config: dict[str, Any], classes: int) -> nn.Module:
     gating_mode, _ = _candidate_contract(candidate)
     model = config["model"]
@@ -474,7 +479,7 @@ def run(config_path: Path) -> dict[str, Any]:
     train_indices = np.arange(len(train["labels"]), dtype=np.int64)
     validation_indices = np.arange(len(validation["labels"]), dtype=np.int64)
     final_results: dict[str, Any] = {}
-    for candidate in candidates:
+    for candidate in _final_evaluation_candidates(selected):
         model, history = _train_fixed(
             candidate=candidate,
             config=config,
@@ -568,6 +573,7 @@ def run(config_path: Path) -> dict[str, Any]:
             "The frozen base checkpoint saw all train12 samples; grouped folds isolate only the new fusion module.",
             "The cached experiment cannot determine whether end-to-end auxiliary person training would improve the person embedding itself.",
             "user6/user7 remain a repeatedly inspected development boundary, not untouched final evidence.",
+            "Earlier invalid audit runs evaluated multiple candidates on user6/user7; this selected-only run does not use those scores for selection.",
         ],
     }
     report_json = _project_path(str(config["outputs"]["report_json"]))
@@ -580,18 +586,34 @@ def run(config_path: Path) -> dict[str, Any]:
         f"- Decision: `{report['decision']}`",
         "- Validation users entered training/CV selection: `False`",
         "",
-        "| Candidate | Grouped Acc | Val Acc | Macro-F1 | Worst-user | Person-only | Gate | Rescue/Harm |",
-        "|---|---:|---:|---:|---:|---:|---:|---:|",
+        "## Grouped-CV candidate selection",
+        "",
+        "| Candidate | Grouped Acc | Grouped Macro-F1 |",
+        "|---|---:|---:|",
     ]
     for candidate in candidates:
-        metrics = final_results[candidate]["validation_metrics"]
-        comparison = final_results[candidate]["comparison_to_anchor"]
         lines.append(
             f"| {candidate} | {cv_results[candidate]['metrics']['accuracy']:.6f} | "
-            f"{metrics['accuracy']:.6f} | {metrics['macro_f1']:.6f} | "
-            f"{metrics['worst_user_accuracy']:.6f} | {metrics['person_only_accuracy']:.6f} | "
-            f"{metrics['mean_person_gate']:.6f} | {comparison['rescued']}/{comparison['harmed']} |"
+            f"{cv_results[candidate]['metrics']['macro_f1']:.6f} |"
         )
+    selected_result = final_results[selected]
+    selected_validation = selected_result["validation_metrics"]
+    selected_comparison = selected_result["comparison_to_anchor"]
+    lines.extend(
+        [
+            "",
+            "## Selected-only final development evaluation",
+            "",
+            "| Candidate | Val Acc | Macro-F1 | Worst-user | Person-only | Gate | Rescue/Harm |",
+            "|---|---:|---:|---:|---:|---:|---:|",
+            f"| {selected} | {selected_validation['accuracy']:.6f} | "
+            f"{selected_validation['macro_f1']:.6f} | "
+            f"{selected_validation['worst_user_accuracy']:.6f} | "
+            f"{selected_validation['person_only_accuracy']:.6f} | "
+            f"{selected_validation['mean_person_gate']:.6f} | "
+            f"{selected_comparison['rescued']}/{selected_comparison['harmed']} |",
+        ]
+    )
     _atomic_write_text(report_markdown, "\n".join(lines) + "\n")
     return report
 
