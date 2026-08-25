@@ -162,6 +162,44 @@ def test_tiny_fold_runs_fixed_epochs_and_validates_once(tmp_path: Path) -> None:
     assert (tmp_path / "fold/latest_checkpoint.pt").is_file()
 
 
+def test_tiny_fold_resumes_model_optimizer_and_history(tmp_path: Path) -> None:
+    config = load_midfusion_config(CONFIG)
+    config["training"] = {**config["training"], "fixed_epochs": 1}
+    dataset = TinyGroupedDataset()
+    fit, validation = partition_fold_indices(
+        dataset.user_ids, validation_users={"c"}
+    )
+    run_dir = tmp_path / "resume_fold"
+    first = train_candidate_fold(
+        config=config,
+        candidate="visual_skeleton_imu",
+        dataset=dataset,
+        fit_indices=fit,
+        validation_indices=validation,
+        run_dir=run_dir,
+        model_factory=tiny_model,
+        device=torch.device("cpu"),
+    )
+    (run_dir / "summary.json").unlink()
+    (run_dir / "validation_predictions.npz").unlink()
+    config["training"] = {**config["training"], "fixed_epochs": 2}
+
+    resumed = train_candidate_fold(
+        config=config,
+        candidate="visual_skeleton_imu",
+        dataset=dataset,
+        fit_indices=fit,
+        validation_indices=validation,
+        run_dir=run_dir,
+        model_factory=tiny_model,
+        device=torch.device("cpu"),
+    )
+
+    assert first["epochs_completed"] == 1
+    assert resumed["epochs_completed"] == 2
+    assert [row["epoch"] for row in resumed["history"]] == [1, 2]
+
+
 class SkeletonNormalizationLoader:
     def __init__(self) -> None:
         self.normalization = None
