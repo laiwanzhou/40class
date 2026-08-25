@@ -1,0 +1,57 @@
+schema_version: 1
+stage: P4-WP0
+role: frozen_cached_wrist_person_residual_fusion
+
+source:
+  p3r1_config: configs/experiments/ir_depth_videomaev2_p3r1.yaml
+  cache_report: reports/ir_depth_videomaev2_p3r1_corrected_cache.json
+  train_cache: outputs/ir_depth_videomaev2_aggressive_dev/ir_depth_videomaev2_midfusion_train12_val_user6_user7_seed20260715/p3r1_corrected_train_routes.npz
+  validation_cache: outputs/ir_depth_videomaev2_aggressive_dev/ir_depth_videomaev2_midfusion_train12_val_user6_user7_seed20260715/p3r1_corrected_validation_routes.npz
+
+split:
+  train_user_ids: [user1, user2, user3, user5, user8, user9, user16, user18, user19, user20, user21, user22]
+  validation_user_ids: [user6, user7]
+  train_samples: 1935
+  validation_samples: 385
+  class_count: 40
+
+cv:
+  folds:
+    - [user1, user18, user21, user5]
+    - [user16, user19, user22, user8]
+    - [user2, user20, user3, user9]
+
+model:
+  embedding_dim: 768
+  class_embedding_dim: 16
+  hidden_dim: 128
+  maximum_logit_delta: 2.0
+  candidates: [person_fixed10, person_no_margin, person_margin, person_margin_no_aux]
+
+training:
+  seed: 20260715
+  fixed_epochs: 10
+  batch_size: 64
+  learning_rate: 0.0003
+  weight_decay: 0.01
+  person_aux_weight: 0.20
+  guard_weight: 0.20
+
+references:
+  wrist_anchor_accuracy: 0.7220779220779221
+  fixed_both_wrists_accuracy: 0.7454545454545455
+  minimum_worst_user_accuracy: 0.7114427860696517
+
+outputs:
+  root: outputs/ir_depth_videomaev2_wrist_person_residual
+  report_json: reports/ir_depth_videomaev2_wrist_person_residual_result.json
+  report_markdown: reports/ir_depth_videomaev2_wrist_person_residual_result.md
+
+policy:
+  update_videomae: false
+  validation_users_enter_gradient: false
+  validation_users_enter_sampler: false
+  validation_users_enter_cv_selection: false
+  p2b_authorized: false
+  oof_authorized: false
+
