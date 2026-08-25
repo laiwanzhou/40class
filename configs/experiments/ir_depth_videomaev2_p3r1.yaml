@@ -1,0 +1,67 @@
+schema_version: 1
+stage: P3-R1
+role: frozen_aggressive_checkpoint_cached_margin_top3_reranker
+
+source:
+  aggressive_config: configs/experiments/ir_depth_videomaev2_aggressive_user6_user7.yaml
+  checkpoint: outputs/ir_depth_videomaev2_aggressive_dev/ir_depth_videomaev2_midfusion_train12_val_user6_user7_seed20260715/selected_checkpoint.pt
+  checkpoint_sha256: 5ea4c325056590fb3b0a7be2ac3523e99d650f5450d1a5f1660cb5af7b1f712e
+  checkpoint_bytes: 346850159
+  selected_epoch: 14
+  selected_validation_predictions: outputs/ir_depth_videomaev2_aggressive_dev/ir_depth_videomaev2_midfusion_train12_val_user6_user7_seed20260715/selected_validation_predictions.npz
+  selected_validation_predictions_sha256: 9f6e3b013af275cfb8afabe157b7990881e01d31066bd5f9b237d7676286365b
+  selected_validation_predictions_bytes: 150364
+  maximum_anchor_logit_delta: 0.00001
+  uniform_validation_cache: outputs/ir_depth_videomaev2_teacher/ir_depth_videomaev2_vit_b_train12_val2_seed20260715/p2a_view_cache.npz
+  uniform_validation_cache_sha256: 1b5685833bfbae1839d4121f67686f3262a4155e33f96537e528bb898d9b6a83
+  uniform_validation_cache_bytes: 4653209
+
+split:
+  train_user_ids: [user1, user2, user3, user5, user8, user9, user16, user18, user19, user20, user21, user22]
+  validation_user_ids: [user6, user7]
+  train_samples: 1935
+  validation_samples: 385
+  class_count: 40
+
+cache:
+  train: outputs/ir_depth_videomaev2_aggressive_dev/ir_depth_videomaev2_midfusion_train12_val_user6_user7_seed20260715/p3r1_corrected_train_routes.npz
+  validation: outputs/ir_depth_videomaev2_aggressive_dev/ir_depth_videomaev2_midfusion_train12_val_user6_user7_seed20260715/p3r1_corrected_validation_routes.npz
+  report: reports/ir_depth_videomaev2_p3r1_corrected_cache.json
+  embedding_dtype: float16
+
+cv:
+  folds:
+    - [user1, user18, user21, user5]
+    - [user16, user19, user22, user8]
+    - [user2, user20, user3, user9]
+
+reranker:
+  class_top_k: 3
+  class_embedding_dim: 16
+  hidden_dim: 64
+  batch_size: 64
+  max_epochs: 50
+  early_stopping_patience: 8
+  learning_rate: 0.0003
+  weight_decay: 0.01
+  guard_weight: 0.20
+  seed: 20260715
+
+references:
+  aggressive_accuracy: 0.7220779220779221
+  fixed_both_wrists_accuracy: 0.7454545454545455
+  minimum_accuracy: 0.75
+
+outputs:
+  root: outputs/ir_depth_videomaev2_p3r1
+  report_json: reports/ir_depth_videomaev2_p3r1_result.json
+  report_markdown: reports/ir_depth_videomaev2_p3r1_result.md
+
+policy:
+  update_videomae: false
+  validation_users_enter_gradient: false
+  validation_users_enter_normalization: false
+  validation_users_enter_sampler: false
+  validation_users_enter_cv_selection: false
+  p2b_authorized: false
+  oof_authorized: false

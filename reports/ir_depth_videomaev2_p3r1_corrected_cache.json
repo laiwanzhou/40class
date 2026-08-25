@@ -1,0 +1,42 @@
+{
+  "stage": "P3-R1-cache",
+  "status": "completed",
+  "checkpoint": {
+    "path": "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\ir_depth_videomaev2_aggressive_dev\\ir_depth_videomaev2_midfusion_train12_val_user6_user7_seed20260715\\selected_checkpoint.pt",
+    "bytes": 346850159,
+    "sha256": "5ea4c325056590fb3b0a7be2ac3523e99d650f5450d1a5f1660cb5af7b1f712e",
+    "epoch": 14
+  },
+  "route_names": [
+    "full_hard2",
+    "ir_hard2",
+    "full_hard3",
+    "full_hard4",
+    "full_soft",
+    "full_group_context10",
+    "full_group_context25",
+    "full_group_context50",
+    "ir_group_context25",
+    "full_context_only",
+    "full_wrists_only"
+  ],
+  "artifacts": {
+    "train": {
+      "path": "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\ir_depth_videomaev2_aggressive_dev\\ir_depth_videomaev2_midfusion_train12_val_user6_user7_seed20260715\\p3r1_corrected_train_routes.npz",
+      "bytes": 26346553,
+      "sha256": "1ca3613baeae2c3ab2ec2a052ff63522349abd32b0806308e89bdc3c5bf7d96c",
+      "samples": 1935
+    },
+    "validation": {
+      "path": "D:\\work\\2026.7.14_kaggle\\40class-x3d-adaptive-multiclip\\outputs\\ir_depth_videomaev2_aggressive_dev\\ir_depth_videomaev2_midfusion_train12_val_user6_user7_seed20260715\\p3r1_corrected_validation_routes.npz",
+      "bytes": 5279504,
+      "sha256": "3178460e96705dc3cd43b77b7b36d3d4999e53fe7d95cbc005c50be4061dd8d2",
+      "samples": 385
+    }
+  },
+  "selected_prediction_reproduction": {
+    "maximum_logit_delta": 0.0,
+    "prediction_disagreement": 0
+  },
+  "validation_users_entered_training": false
+}
