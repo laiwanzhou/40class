@@ -185,6 +185,12 @@ Skeleton preprocessing uses the accepted H36M-17 representation:
 - gap-aware masks;
 - no interpolation across disconnected retained segments.
 
+Multi-person Skeleton candidate identity and image-to-Skeleton projection are
+rebuilt separately for every train12 grouped fold. Projection fitting uses only
+that fold's fit users; the fold-validation users influence neither projection
+nor candidate-selection thresholds. Existing train14 OOF clean views are not
+reused because their user ownership differs from this experiment.
+
 Raw IMU preserves five device-role slots and 16 channels per role. Missing
 roles have explicit role masks. It is resampled into the same eight normalized
 segments without converting the complete trial to summary statistics.
