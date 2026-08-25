@@ -43,9 +43,9 @@ references:
   minimum_worst_user_accuracy: 0.7114427860696517
 
 outputs:
-  root: outputs/ir_depth_videomaev2_wrist_person_residual
-  report_json: reports/ir_depth_videomaev2_wrist_person_residual_result.json
-  report_markdown: reports/ir_depth_videomaev2_wrist_person_residual_result.md
+  root: outputs/ir_depth_videomaev2_wrist_person_residual_shared_person
+  report_json: reports/ir_depth_videomaev2_wrist_person_residual_shared_person_result.json
+  report_markdown: reports/ir_depth_videomaev2_wrist_person_residual_shared_person_result.md
 
 policy:
   update_videomae: false
@@ -53,5 +53,5 @@ policy:
   validation_users_enter_sampler: false
   validation_users_enter_cv_selection: false
   p2b_authorized: false
-  oof_authorized: false
-
+  fusion_grouped_cv_authorized: true
+  full_videomae_oof_authorized: false

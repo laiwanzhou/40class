@@ -39,4 +39,3 @@ worst-user Accuracy, Top-3/Top-5, rescue/harm, gate statistics, checkpoint
 hashes, exact cache provenance, and per-class recall deltas against the wrist
 anchor. The experiment is useful only if it exceeds the historical fixed
 wrists `0.745455` reference without regressing worst-user `0.711443`.
-

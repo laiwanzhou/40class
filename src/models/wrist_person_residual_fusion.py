@@ -41,6 +41,10 @@ class WristPersonResidualFusion(nn.Module):
         )
         nn.init.zeros_(self.residual[-1].weight)
         nn.init.zeros_(self.residual[-1].bias)
+        self.person_adapter_norm = nn.LayerNorm(embedding_dim)
+        self.person_adapter = nn.Linear(embedding_dim, embedding_dim)
+        nn.init.zeros_(self.person_adapter.weight)
+        nn.init.zeros_(self.person_adapter.bias)
         self.person_head = nn.Linear(embedding_dim, num_classes)
         self.person_norm = nn.LayerNorm(embedding_dim)
         self.gate_context = nn.Sequential(
@@ -86,7 +90,10 @@ class WristPersonResidualFusion(nn.Module):
         hand_features = torch.einsum(
             "bcv,bvd->bcd", normalized_wrist, view_embeddings[:, 2:]
         )
-        person_features = view_embeddings[:, 1]
+        raw_person_features = view_embeddings[:, 1]
+        person_features = raw_person_features + self.person_adapter(
+            self.person_adapter_norm(raw_person_features)
+        )
         no_wrist = wrist_mass.squeeze(2) == 0
         hand_features = torch.where(
             no_wrist[:, :, None], person_features[:, None], hand_features
@@ -188,4 +195,3 @@ def wrist_person_loss(
         "guard_loss": guard,
         "anchor_ce": anchor_ce.mean(),
     }
-

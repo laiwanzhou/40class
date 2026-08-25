@@ -6,6 +6,7 @@ import numpy as np
 import torch
 
 from scripts.run_ir_depth_videomaev2_wrist_person_residual import (
+    _candidate_seed_offset,
     load_wrist_person_config,
     train_cv_fold,
 )
@@ -105,6 +106,14 @@ def test_person_auxiliary_loss_gives_person_head_gradient_at_initialization() ->
 
     assert model.person_head.weight.grad is not None
     assert torch.count_nonzero(model.person_head.weight.grad) > 0
+    assert model.person_adapter.weight.grad is not None
+    assert torch.count_nonzero(model.person_adapter.weight.grad) > 0
+
+
+def test_margin_auxiliary_ablation_uses_paired_seed() -> None:
+    assert _candidate_seed_offset("person_margin") == _candidate_seed_offset(
+        "person_margin_no_aux"
+    )
 
 
 def test_wrist_person_config_preserves_validation_isolation() -> None:
@@ -114,6 +123,8 @@ def test_wrist_person_config_preserves_validation_isolation() -> None:
     assert config["split"]["validation_user_ids"] == ["user6", "user7"]
     assert config["policy"]["validation_users_enter_gradient"] is False
     assert config["policy"]["validation_users_enter_cv_selection"] is False
+    assert config["policy"]["fusion_grouped_cv_authorized"] is True
+    assert config["policy"]["full_videomae_oof_authorized"] is False
 
 
 def test_fixed_epoch_grouped_fold_runs_on_cached_embeddings() -> None:
@@ -155,4 +166,3 @@ def test_fixed_epoch_grouped_fold_runs_on_cached_embeddings() -> None:
 
     assert result["epochs"] == 2
     assert result["validation_sample_ids"] == [f"sample_{index}" for index in range(20, 30)]
-

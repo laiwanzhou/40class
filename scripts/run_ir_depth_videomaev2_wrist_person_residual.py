@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import copy
 import json
 from pathlib import Path
 import random
@@ -94,6 +93,10 @@ def load_wrist_person_config(path: Path) -> dict[str, Any]:
     ):
         if policy.get(key) is not False:
             raise ValueError("wrist-person isolation policy changed")
+    if policy.get("fusion_grouped_cv_authorized") is not True:
+        raise ValueError("wrist-person grouped CV authorization changed")
+    if policy.get("full_videomae_oof_authorized") is not False:
+        raise ValueError("wrist-person full VideoMAE OOF policy changed")
     return config
 
 
@@ -113,6 +116,16 @@ def _candidate_contract(candidate: str) -> tuple[str, bool]:
         return "margin", True
     if candidate == "person_margin_no_aux":
         return "margin", False
+    raise ValueError(f"unknown wrist-person candidate: {candidate}")
+
+
+def _candidate_seed_offset(candidate: str) -> int:
+    if candidate == "person_fixed10":
+        return 0
+    if candidate == "person_no_margin":
+        return 100
+    if candidate in {"person_margin", "person_margin_no_aux"}:
+        return 200
     raise ValueError(f"unknown wrist-person candidate: {candidate}")
 
 
@@ -303,7 +316,6 @@ def train_cv_fold(
         "epochs": int(config["training"]["fixed_epochs"]),
         "metrics": prediction["metrics"],
         "logits": prediction["logits"],
-        "model_state_dict": copy.deepcopy(model.state_dict()),
         "history": history,
         "validation_indices": np.asarray(validation_indices, dtype=np.int64),
         "validation_sample_ids": cache["sample_ids"][validation_indices]
@@ -396,7 +408,7 @@ def run(config_path: Path) -> dict[str, Any]:
     device = torch.device("cpu")
     candidates = tuple(str(value) for value in config["model"]["candidates"])
     cv_results: dict[str, Any] = {}
-    for candidate_index, candidate in enumerate(candidates):
+    for candidate in candidates:
         pooled = np.full_like(train["route_logits"][:, 0], np.nan, dtype=np.float32)
         folds = []
         for fold_index, fold_users in enumerate(config["cv"]["folds"]):
@@ -409,7 +421,9 @@ def run(config_path: Path) -> dict[str, Any]:
                 cache=train,
                 train_indices=train_indices,
                 validation_indices=validation_indices,
-                seed=int(config["training"]["seed"]) + candidate_index * 100 + fold_index,
+                seed=int(config["training"]["seed"])
+                + _candidate_seed_offset(candidate)
+                + fold_index,
                 device=device,
             )
             pooled[validation_indices] = result["logits"]
@@ -460,13 +474,15 @@ def run(config_path: Path) -> dict[str, Any]:
     train_indices = np.arange(len(train["labels"]), dtype=np.int64)
     validation_indices = np.arange(len(validation["labels"]), dtype=np.int64)
     final_results: dict[str, Any] = {}
-    for candidate_index, candidate in enumerate(candidates):
+    for candidate in candidates:
         model, history = _train_fixed(
             candidate=candidate,
             config=config,
             cache=train,
             indices=train_indices,
-            seed=int(config["training"]["seed"]) + 1000 + candidate_index,
+            seed=int(config["training"]["seed"])
+            + 1000
+            + _candidate_seed_offset(candidate),
             device=device,
         )
         train_prediction = _predict(
@@ -518,7 +534,9 @@ def run(config_path: Path) -> dict[str, Any]:
                 candidate_logits=validation_prediction["logits"],
             ),
             "history": history,
-            "checkpoint": str(Path(config["outputs"]["root"]) / f"{candidate}.pt"),
+            "checkpoint": (
+                Path(config["outputs"]["root"]) / f"{candidate}.pt"
+            ).as_posix(),
             "checkpoint_bytes": checkpoint.stat().st_size,
             "checkpoint_sha256": sha256_file(checkpoint),
         }
@@ -600,4 +618,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

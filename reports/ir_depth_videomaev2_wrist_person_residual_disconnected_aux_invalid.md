@@ -1,4 +1,8 @@
-# VideoMAE wrist-person residual result
+# INVALID: disconnected auxiliary wrist-person residual result
+
+This report is retained only as audit evidence. The person auxiliary head did
+not share a projection with the fusion path, and its ablation used unpaired
+seeds. Use the shared-person result instead.
 
 - Selected by train-user grouped CV: `person_fixed10`
 - Decision: `reject_cached_fusion`
