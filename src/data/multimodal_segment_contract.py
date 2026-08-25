@@ -35,4 +35,3 @@ class SegmentBatch:
             raise ValueError("masked segment tokens must be zero")
         if not bool(torch.isfinite(self.quality[self.quality_mask]).all()):
             raise ValueError("non-finite available segment quality")
-

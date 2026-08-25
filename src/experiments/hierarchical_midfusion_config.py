@@ -86,4 +86,3 @@ def load_midfusion_config(path: Path) -> dict[str, Any]:
         raise ValueError("midfusion grouped ownership incomplete")
     config["grouped_folds"] = folds
     return config
-

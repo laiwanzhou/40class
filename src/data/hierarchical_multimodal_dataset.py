@@ -323,4 +323,3 @@ def make_midfusion_dataset(
         imu_loader=imu_loader,
         metadata_only=metadata_only,
     )
-

@@ -98,7 +98,6 @@ def load_raw_imu_segments(path: Path, segment_count: int = 8) -> IMUSegments:
         quality=torch.from_numpy(quality),
     )
 
-
 def fit_imu_normalization(
     samples: Iterable[IMUSegments],
 ) -> tuple[np.ndarray, np.ndarray]:
@@ -139,4 +138,3 @@ def apply_imu_normalization(
         role_mask=sample.role_mask.clone(),
         quality=sample.quality.clone(),
     )
-

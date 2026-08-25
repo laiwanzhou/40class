@@ -99,4 +99,3 @@ def build_canonical_trials(
             )
         )
     return trials
-

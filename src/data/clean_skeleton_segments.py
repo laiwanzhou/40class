@@ -113,7 +113,6 @@ def resample_skeleton_segments(
         quality=torch.from_numpy(quality),
     )
 
-
 def _read_candidate(path: Path, candidate_index: int) -> np.ndarray:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, list) or not 0 <= candidate_index < len(payload):
@@ -159,4 +158,3 @@ def load_skeleton_segments(
         poses,
         segment_count=segment_count,
     )
-
