@@ -602,9 +602,19 @@ def _predict_indices(
         "metrics": _metrics(labels_np, logits_np, users_np),
     }
     result.update(
-        {name: torch.cat(values).numpy() for name, values in diagnostics.items()}
+        {
+            name: _diagnostic_tensor_to_numpy(torch.cat(values))
+            for name, values in diagnostics.items()
+        }
     )
     return result
+
+
+def _diagnostic_tensor_to_numpy(value: torch.Tensor) -> np.ndarray:
+    value = value.detach().cpu()
+    if value.dtype == torch.bfloat16:
+        value = value.float()
+    return value.numpy()
 
 
 def _save_prediction_archive(path: Path, prediction: dict[str, Any]) -> None:
@@ -661,6 +671,7 @@ def train_candidate_fold(
     if not len(eligible_fit):
         raise ValueError("candidate has no usable fit rows")
     training = config["training"]
+    fixed_epochs = int(training["fixed_epochs"])
     seed = int(training["seed"])
     _set_seed(seed)
     device = device or torch.device("cuda")
@@ -673,6 +684,8 @@ def train_candidate_fold(
     prior_logits = fit_class_prior(labels[fit_indices], classes=40)
     history: list[dict[str, float | int]] = []
     start_epoch = 1
+    evaluation_only_recovery = False
+    training_config_sha256 = config_sha256
     latest = run_dir / "latest_checkpoint.pt"
     if latest.is_file():
         payload = torch.load(latest, map_location="cpu", weights_only=False)
@@ -680,8 +693,20 @@ def train_candidate_fold(
             raise RuntimeError("resume candidate changed")
         if payload.get("evaluation_protocol") != config["evaluation_protocol"]:
             raise RuntimeError("resume evaluation protocol changed")
-        if payload.get("config_sha256") != config_sha256:
-            raise RuntimeError("resume config changed")
+        payload_config_sha256 = payload.get("config_sha256")
+        if payload_config_sha256 != config_sha256:
+            recovery = config.get("recovery", {}).get(
+                "evaluation_only_checkpoint", {}
+            )
+            evaluation_only_recovery = (
+                recovery.get("candidate") == candidate
+                and recovery.get("config_sha256") == payload_config_sha256
+                and int(recovery.get("completed_epoch", -1)) == fixed_epochs
+                and int(payload.get("epoch", -1)) == fixed_epochs
+            )
+            if not evaluation_only_recovery:
+                raise RuntimeError("resume config changed")
+            training_config_sha256 = str(payload_config_sha256)
         if payload.get("fit_sample_ids_sha256") != fit_sample_ids_sha256:
             raise RuntimeError("resume fit samples changed")
         if (
@@ -715,7 +740,6 @@ def train_candidate_fold(
     )
     loader = DataLoader(fit_dataset, batch_size=1, sampler=sampler, num_workers=0)
     accumulation_target = int(training["gradient_accumulation"])
-    fixed_epochs = int(training["fixed_epochs"])
     for epoch in range(start_epoch, fixed_epochs + 1):
         epoch_started = time.perf_counter()
         sampler.set_epoch(epoch)
@@ -831,6 +855,9 @@ def train_candidate_fold(
         "candidate": candidate,
         "evaluation_protocol": config["evaluation_protocol"],
         "config_sha256": config_sha256,
+        "training_config_sha256": training_config_sha256,
+        "evaluation_config_sha256": config_sha256,
+        "evaluation_only_recovery": evaluation_only_recovery,
         "fit_sample_ids_sha256": fit_sample_ids_sha256,
         "validation_sample_ids_sha256": validation_sample_ids_sha256,
         "epochs_completed": fixed_epochs,
@@ -1076,6 +1103,9 @@ def run_fixed_validation(
         validation_accuracy = float(summary["validation_metrics"]["accuracy"])
         candidate_results[candidate] = {
             "config_sha256": summary["config_sha256"],
+            "training_config_sha256": summary["training_config_sha256"],
+            "evaluation_config_sha256": summary["evaluation_config_sha256"],
+            "evaluation_only_recovery": summary["evaluation_only_recovery"],
             "train_metrics": summary["train_metrics"],
             "validation_metrics": summary["validation_metrics"],
             "accuracy_generalization_gap": train_accuracy - validation_accuracy,

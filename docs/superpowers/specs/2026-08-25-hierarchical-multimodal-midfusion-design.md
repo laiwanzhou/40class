@@ -345,6 +345,12 @@ evaluation. For each candidate:
 4. evaluate the canonical 388-row user6/user7 development validation once;
 5. store logits, masks, quality, action/group attention, and provenance.
 
+Diagnostic tensors produced under BF16 autocast are converted to FP32 only at
+the NumPy archive boundary. A completed-training checkpoint may cross a source
+hash change only through an explicitly registered evaluation-only recovery
+whose candidate, prior config hash, and completed epoch all match; incomplete
+training checkpoints remain strict-hash only.
+
 User6/user7 rows may enter metric computation and the pre-registered three-way
 candidate selection. They may not enter gradients, normalization, the sampler,
 class-prior fitting, epoch selection, loss design, threshold fitting, or

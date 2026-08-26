@@ -50,6 +50,13 @@ training:
   visual_dropout: 0.10
   synthetic_dropout_loss_weight: 0.50
 
+recovery:
+  evaluation_only_checkpoint:
+    candidate: visual_only
+    config_sha256: 18f767aa751bf0892eabdf37484ff5c022e059ee859016542b4baccdd3407120
+    completed_epoch: 15
+    reason: bf16_diagnostic_numpy_conversion_after_completed_training
+
 decision_gates:
   reject_below_accuracy: 0.76
   full_teacher_worthy_accuracy: 0.80

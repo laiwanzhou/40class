@@ -53,6 +53,13 @@
     "validation_global_only_fallback_trials": 0,
     "other_pose_preflight_errors": 0
   },
+  "evaluation_recovery": {
+    "candidate": "visual_only",
+    "completed_epoch": 15,
+    "training_config_sha256": "18f767aa751bf0892eabdf37484ff5c022e059ee859016542b4baccdd3407120",
+    "reason": "Training completed before BF16 diagnostic tensors failed NumPy conversion.",
+    "policy": "Allow the exact completed checkpoint to resume evaluation only; incomplete or nonmatching checkpoints remain rejected."
+  },
   "verification": {
     "command": "D:\\Anaconda\\envs\\PyTorch2.7\\python.exe -m pytest -q",
     "passed": 384,

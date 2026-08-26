@@ -27,6 +27,7 @@ from src.models.structured_ir_depth_visual_encoder import StructuredIRDepthVisua
 from src.train_hierarchical_multimodal_teacher import (
     FIXED_VALIDATION_CANDIDATES,
     run_fixed_validation,
+    _diagnostic_tensor_to_numpy,
     train_candidate_split,
 )
 
@@ -106,6 +107,15 @@ def test_normalization_state_fits_train_and_applies_to_validation() -> None:
     assert np.allclose(state.imu_mean, 2.0)
     assert np.allclose(train.imu_loader.normalization[0], 2.0)
     assert np.allclose(validation.imu_loader.normalization[0], 2.0)
+
+
+def test_bfloat16_diagnostics_are_archived_as_float32_numpy() -> None:
+    values = torch.tensor([[1.0, 2.0]], dtype=torch.bfloat16)
+
+    archived = _diagnostic_tensor_to_numpy(values)
+
+    assert archived.dtype == np.float32
+    np.testing.assert_array_equal(archived, [[1.0, 2.0]])
 
 
 class TinyTemporalBackbone(nn.Module):
@@ -254,6 +264,51 @@ def test_candidate_split_resume_rejects_changed_validation_samples(
             model_factory=tiny_model,
             device=torch.device("cpu"),
         )
+
+
+def test_completed_checkpoint_allows_explicit_evaluation_only_recovery(
+    tmp_path: Path,
+) -> None:
+    config = load_midfusion_config(CONFIG)
+    config["training"] = {**config["training"], "fixed_epochs": 1}
+    config["recovery"] = {}
+    train = TinySplitDataset(prefix="train", users=("user1", "user2"))
+    validation = TinySplitDataset(prefix="validation", users=("user6", "user7"))
+    run_dir = tmp_path / "evaluation_recovery"
+    first = train_candidate_split(
+        config=config,
+        candidate="visual_only",
+        train_dataset=train,
+        validation_dataset=validation,
+        run_dir=run_dir,
+        model_factory=tiny_model,
+        device=torch.device("cpu"),
+    )
+    (run_dir / "summary.json").unlink()
+    (run_dir / "train_predictions.npz").unlink()
+    (run_dir / "validation_predictions.npz").unlink()
+    config["recovery"] = {
+        "evaluation_only_checkpoint": {
+            "candidate": "visual_only",
+            "config_sha256": first["config_sha256"],
+            "completed_epoch": 1,
+        }
+    }
+
+    recovered = train_candidate_split(
+        config=config,
+        candidate="visual_only",
+        train_dataset=train,
+        validation_dataset=validation,
+        run_dir=run_dir,
+        model_factory=tiny_model,
+        device=torch.device("cpu"),
+    )
+
+    assert recovered["evaluation_only_recovery"] is True
+    assert recovered["training_config_sha256"] == first["config_sha256"]
+    assert recovered["evaluation_config_sha256"] != first["config_sha256"]
+    assert recovered["history"] == first["history"]
 
 
 def test_fixed_runner_orchestrates_three_candidates_without_grouped_cv(
