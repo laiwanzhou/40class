@@ -1,0 +1,31 @@
+{
+  "stage": "P6-B0",
+  "status": "smoke_passed",
+  "pretrained_element_coverage": 1.0,
+  "pretrained_missing_keys": [],
+  "pretrained_unexpected_keys": [],
+  "pretrained_shape_mismatches": [],
+  "finite_forward_backward": true,
+  "loss": 4.166774749755859,
+  "changed_parameter_groups": [
+    "head"
+  ],
+  "pretrained_random_embedding_max_abs_delta": 4.890307903289795,
+  "gradient_user_ids": [
+    "user16",
+    "user16"
+  ],
+  "validation_forward_rows": 2,
+  "head_reload_exact": true,
+  "peak_cuda_mib": 201.79443359375,
+  "seconds": 1.531604800000423,
+  "checkpoint_sha256": "6a6ad0055c7ad50da083af0549a24c52ec1c21f89e440912645054d74be0a461",
+  "config_sha256": "7f46e1cec9b18704a42bc190f026bf28132782a430373b2365eda55bbb6d9db8",
+  "clean_view_sha256": "005f0082c48d7b9f84717ade5efa4fdbe151ccba86588f2ec5bfc8aabb8b2060",
+  "projection_sha256": "c5dda55d4be48ce8eb334812cde6ff5589265ec6a645ff804702796d511b3e3e",
+  "source_sha256": {
+    "DSTformer.py": "681d0b9c5aaa024edb50ef6b2fcc9cea43ec73d9222a786df96cb3441df6b161",
+    "drop.py": "44b1af7912ae46c62c5b74712dae31697afc697e788c8dd9c5050602a2397173",
+    "adapter": "24490f8e106eede887e34f00d8fe561a4a97e75e28d0bbdaf09f3ef9addfad16"
+  }
+}
