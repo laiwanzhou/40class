@@ -14,7 +14,11 @@ from src.experiments.motionbert_p6b_config import (
     load_motionbert_p6b_config,
     project_path,
 )
-from src.train_motionbert_lite_skeleton_expert import run_motionbert_smoke
+from src.train_motionbert_lite_skeleton_expert import (
+    cache_motionbert_embeddings,
+    run_motionbert_b1,
+    run_motionbert_smoke,
+)
 
 
 def main() -> None:
@@ -24,20 +28,46 @@ def main() -> None:
         type=Path,
         default=PROJECT_ROOT / "configs/experiments/motionbert_lite_skeleton_expert_p6b.yaml",
     )
-    parser.add_argument("--mode", choices=("smoke",), default="smoke")
+    parser.add_argument("--mode", choices=("smoke", "b1"), default="smoke")
     parser.add_argument("--output-root", type=Path)
     args = parser.parse_args()
     config = load_motionbert_p6b_config(args.config.resolve())
-    output = args.output_root or project_path(str(config["outputs"]["root"])) / "smoke"
-    report = run_motionbert_smoke(args.config.resolve(), output_root=output)
-    formal_report = project_path(str(config["outputs"]["smoke_report"]))
+    root = args.output_root or project_path(str(config["outputs"]["root"]))
+    if args.mode == "smoke":
+        output = root / "smoke"
+        report = run_motionbert_smoke(args.config.resolve(), output_root=output)
+        formal_report = project_path(str(config["outputs"]["smoke_report"]))
+    else:
+        cache_path = root / "embedding_cache.npz"
+        if not cache_path.is_file():
+            cache_motionbert_embeddings(
+                args.config.resolve(), output_path=cache_path
+            )
+        report = run_motionbert_b1(
+            args.config.resolve(),
+            output_root=root / "b1",
+            cache_path=cache_path,
+            visual_predictions_path=project_path(
+                str(config["data"]["visual_validation_predictions"])
+            ),
+        )
+        formal_report = project_path(str(config["outputs"]["b1_report"]))
     if formal_report.exists():
         raise FileExistsError(formal_report)
     formal_report.parent.mkdir(parents=True, exist_ok=True)
     temporary = formal_report.with_suffix(formal_report.suffix + ".tmp")
     temporary.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     temporary.replace(formal_report)
-    print(json.dumps({"status": report["status"], "peak_cuda_mib": report["peak_cuda_mib"]}))
+    print(
+        json.dumps(
+            {
+                "status": report["status"],
+                "stage": report["stage"],
+                "b1_passed": report.get("b1_passed"),
+                "peak_cuda_mib": report.get("peak_cuda_mib"),
+            }
+        )
+    )
 
 
 if __name__ == "__main__":

@@ -48,8 +48,10 @@ class MotionBERTLiteSkeletonExpert(nn.Module):
         if available.shape != (sequence.shape[0],) or available.dtype != torch.bool:
             raise ValueError("MotionBERT availability must be bool [B]")
         sequence_features = self.backbone.get_representation(sequence)
-        embedding = self.head_norm(sequence_features.mean(dim=(1, 2)))
-        mask = available[:, None].to(embedding.dtype)
+        backbone_embedding = sequence_features.mean(dim=(1, 2))
+        mask = available[:, None].to(backbone_embedding.dtype)
+        backbone_embedding = backbone_embedding * mask
+        embedding = self.head_norm(backbone_embedding)
         embedding = embedding * mask
         logits = self.classifier(self.dropout(embedding)) * mask
         sequence_features = sequence_features * available[:, None, None, None].to(
@@ -57,6 +59,7 @@ class MotionBERTLiteSkeletonExpert(nn.Module):
         )
         return {
             "sequence_features": sequence_features,
+            "backbone_embedding": backbone_embedding,
             "embedding": embedding,
             "logits": logits,
             "available": available,

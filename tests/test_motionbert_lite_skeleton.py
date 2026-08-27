@@ -46,6 +46,7 @@ def test_motionbert_expert_returns_embedding_and_prior_safe_logits() -> None:
     output = model(sequence, available)
 
     assert output["sequence_features"].shape == (2, 96, 17, 64)
+    assert output["backbone_embedding"].shape == (2, 64)
     assert output["embedding"].shape == (2, 64)
     assert output["logits"].shape == (2, 40)
     assert torch.isfinite(output["logits"]).all()
