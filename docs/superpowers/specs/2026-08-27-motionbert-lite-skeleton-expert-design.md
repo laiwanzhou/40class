@@ -53,7 +53,11 @@ joint/bone TCN variants did not satisfy their stability/replacement gates.
 - Weight path: `checkpoint/pretrain/MB_lite/latest_epoch.bin`.
 - Expected bytes: `64,099,897`.
 - Expected SHA-256:
-  `d8fea532c99311114000f08ce0fa037170cffa9f19310f329c9b2826daba28be`.
+  `6a6ad0055c7ad50da083af0549a24c52ec1c21f89e440912645054d74be0a461`.
+
+The SHA is the Hugging Face LFS object OID. The Xet transport hash
+`d8fea532c99311114000f08ce0fa037170cffa9f19310f329c9b2826daba28be`
+is recorded separately and must not be substituted for the file SHA-256.
 
 Any source, license, weight size, or SHA mismatch blocks smoke and training.
 

@@ -17,7 +17,7 @@
 - Skeleton-supported rows are 1,956 train and 385 validation; unsupported canonical rows use train12 prior fallback in metrics.
 - No three-fold, multiple seed, P6-A, CTR-GCN, PoseC3D, full MotionBERT, fusion, or distillation.
 - Upstream source commit is `705d3a95354db8bdb696b3492e47a3b5537174ff`, Apache-2.0.
-- Checkpoint revision is `370a9196aa3c89198b134c82476143b01c0fb32c`; bytes `64,099,897`; SHA-256 `d8fea532c99311114000f08ce0fa037170cffa9f19310f329c9b2826daba28be`.
+- Checkpoint revision is `370a9196aa3c89198b134c82476143b01c0fb32c`; bytes `64,099,897`; SHA-256/LFS OID `6a6ad0055c7ad50da083af0549a24c52ec1c21f89e440912645054d74be0a461`.
 - MotionBERT input is exactly `[T=96,J=17,C=3]` projected normalized xy plus confidence.
 - B1 is frozen-backbone only. B2 may run only from an atomically written B1 pass decision.
 - Use `D:\Anaconda\envs\PyTorch2.7\python.exe` for every command.
