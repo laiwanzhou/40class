@@ -79,7 +79,9 @@ For each supported trial:
 2. choose the longest retained contiguous segment by frame count, breaking ties
    by the smallest retained-segment index;
 3. load H36M-17 coordinates and apply the accepted root/scale normalization;
-4. apply the train12-fit 3D-to-2D projection from `selected_final` provenance;
+4. apply the train12-fit 3D-to-2D projection from `selected_final` provenance
+   directly to normalized H36M points while preserving official H36M-17 joint
+   order;
 5. resample only inside that retained segment to exactly `T=96`;
 6. form MotionBERT input `[96,17,3]` as normalized projected `x`, normalized
    projected `y`, and confidence/validity;
