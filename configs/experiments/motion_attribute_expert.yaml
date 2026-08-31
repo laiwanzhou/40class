@@ -1,0 +1,87 @@
+schema_version: 1
+stage: MOTION-ATTRIBUTE-1
+seed: 20260715
+class_ids: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39]
+
+population:
+  manifest: metadata/manifest.csv
+  split: metadata/splits/train12_val2_user6_user7_development.json
+  train_samples: 2039
+  validation_samples: 388
+  train_user_ids: [user1, user2, user3, user5, user8, user9, user16, user18, user19, user20, user21, user22]
+  validation_user_ids: [user6, user7]
+
+data:
+  root: D:\work\2026.7.14_kaggle\datasets\Small-Model-Track\train
+  clean_view: outputs/midfusion_skeleton_clean_views/selected_final/clean_view.csv
+  visual_train_predictions: outputs/hierarchical_multimodal_midfusion_stage1/fixed_user6_user7/visual_only/train_predictions.npz
+  visual_validation_predictions: outputs/hierarchical_multimodal_midfusion_stage1/fixed_user6_user7/visual_only/validation_predictions.npz
+
+input:
+  frames: 96
+  joints: 17
+  channels: [x, y, z, vx, vy, vz]
+
+attributes:
+  count: 16
+
+families:
+  - locomotion
+  - posture_transition
+  - exercise
+  - whole_body_motion
+  - upper_body_dominant
+  - mostly_static_fine
+
+model:
+  channels: [128, 192, 256]
+  kernels: [3, 5, 9]
+  dilations: [1, 2, 4]
+  embedding_dim: 256
+  dropout: 0.2
+  maximum_parameters: 3000000
+
+loss_weights:
+  families: 1.0
+  attributes: 0.5
+  action: 0.25
+
+training:
+  epochs: 15
+  batch_size: 32
+  learning_rate: 0.0003
+  weight_decay: 0.0001
+  gradient_clip: 1.0
+  num_workers: 0
+
+expert_gates:
+  family_macro_f1: 0.65
+  locomotion_recall: 0.65
+  posture_transition_recall: 0.65
+  exercise_recall: 0.65
+  normalized_attribute_mae: 0.35
+  unique_rescues: 15
+  visual_oracle_accuracy: 0.77
+  unique_rescue_each_user: 1
+
+residual_budgets:
+  static_object: 0.05
+  whole_body_mixed: 0.20
+  motion: 0.50
+
+outputs:
+  root: outputs/motion_attribute_expert
+  smoke_report: reports/motion_attribute_expert_smoke.json
+  result_json: reports/motion_attribute_expert_result.json
+  result_markdown: reports/motion_attribute_expert_result.md
+  residual_json: reports/motion_attribute_residual_result.json
+
+policy:
+  grouped_cv_allowed: false
+  multiple_seeds_allowed: false
+  early_stopping_allowed: false
+  visual_finetuning_allowed: false
+  imu_allowed: false
+  thermal_allowed: false
+  radar_allowed: false
+  competition_test_allowed: false
