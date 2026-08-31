@@ -1,0 +1,24 @@
+{
+  "stage": "MOTION-ATTRIBUTE-SMOKE",
+  "status": "smoke_passed",
+  "finite_forward_backward": true,
+  "changed_parameter_groups": [
+    "encoder",
+    "family_head",
+    "attribute_head",
+    "action_head"
+  ],
+  "gradient_user_ids": [
+    "user16",
+    "user16"
+  ],
+  "validation_forward_rows": 2,
+  "unsupported_fallback_finite": true,
+  "reload_max_abs_logit_delta": 0.0,
+  "peak_cuda_mib": 55.75732421875,
+  "seconds": 0.7892735000000357,
+  "parameter_count": 1701950,
+  "cache_sha256": "be78e07338b237348fd8fb95e65cedf3e1c4d5a7110f19e4c5a8a1be9acb3d9d",
+  "config_sha256": "c780547290916dd3ff4fa522eb851b9ab1c5ed2c66ce290a857d9d09fb4ed090",
+  "checkpoint_sha256": "b30a720a4e017ddc6437676083f9eacff233b80e36dee40dacde6e5fb009697c"
+}
