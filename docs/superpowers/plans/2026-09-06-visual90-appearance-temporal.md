@@ -8,7 +8,7 @@
 
 **Tech Stack:** Windows PowerShell; existing Python `D:/Anaconda/envs/PyTorch2.7/python.exe`; PyTorch, NumPy, pandas, Pillow, pytest; local VideoMAE implementation and revision-pinned official DINOv2.
 
-**Spec:** `docs/superpowers/specs/2026-09-05-visual90-appearance-temporal-design.md`, revision v2, commit `a2bf8e5`.
+**Spec:** `docs/superpowers/specs/2026-09-05-visual90-appearance-temporal-design.md`, revision v3 (retains the reviewed v2 contracts, adds the user's training timestamp-exclusion authorization and competition modality context).
 
 ## Global Constraints
 
@@ -18,7 +18,8 @@
 - New output root `outputs/visual90_appearance_temporal`; reports prefix `reports/visual90_appearance_temporal`.
 - Fixed30 epochs, batch32, seed20260715; shared sample order and common initial parameters; no validation-selected epoch.
 - Existing dirty Motion Attribute files are out of scope. Stage only explicit new-task paths and check every native exit code before committing.
-- Geometry/continuity unverified stops formal caching. Encoder AND full-batch backward smoke precede full extraction. Do not silently relax input or resource gates.
+- Geometry/continuity unverified stops formal caching except the explicitly authorized numeric-only missing-timestamp TRAIN exclusions, which cannot enter any fitting or smoke. Encoder AND full-batch backward smoke precede full extraction. Validation rows are not excluded by this permission.
+- Test may naturally lack modalities; train/validation are expected complete according to user context. Record observed development-data missing paths as data/correspondence issues, not normal competition missingness. No automatic thermal-to-visual trial matching or validation denominator changes.
 
 ## Task 1: Input provenance and continuous clips
 
@@ -87,7 +88,7 @@
   assert torch.isfinite(z.grad).all()
   ```
 - [ ] Implement fixed class/user pair sampling, first-ID-only contrastive sets, CE across physical examples, loss weights and stable logsumexp. AdamW3e-4/0.05,2-epoch warmup then cosine through epoch30, gradient clip5. Save model/optimizer/scheduler and Python/NumPy/Torch/CUDA RNG, exact sampler state, hashes and progress atomically.
-- [ ] Keep train-only prior for unsupported canonical rows. Final unaugmented eval includes all2039/388, fixed40-class macro metrics, per-user and paired rescue/harm. Keep all checkpoint selection rules independent from validation until both candidates finish.
+- [ ] Keep a prior fitted only to eligible training labels for unsupported canonical rows. Report train_acc on actual fit samples and train_canonical_acc on2039 separately; final validation includes388, fixed40-class macro metrics, per-user and paired rescue/harm. Assert excluded sample IDs cannot reach sampler, loss, normalization or prior fitting. Keep all checkpoint selection rules independent from validation until both candidates finish.
 - [ ] Run tiny real training/recovery tests green, corruption tests, changed-population/config rejection. Commit explicit new files.
 
 ## Task 5: Training resource qualification and batch audit
@@ -115,3 +116,4 @@
 
 - 2026-09-06: plan created from approved v2; existing worktree/branch preserved. Task1 starts with data preflight. No formal training started.
 - 2026-09-06: source inventory completed over2039/388;22 training trials have numeric-only legacy frame names without verified continuity evidence. Spec3.1 hard gate blocked; Task1 remains partial, geometry/resource qualification and Tasks2–6 not started. See `reports/visual90_appearance_temporal_input_preflight.md`; input-support amendment requires user direction before continuing.
+- 2026-09-06 follow-up: user authorized exclusion of missing-timestamp training trials. Audit v3 now excludes22 from fitting, finds1935 IR-present training candidates covering40 classes, and has no remaining continuity blockers. Geometry remains unverified, not blocked by the old timestamp issue. The85 IR-empty canonical rows (82train/3val) are Thermal-only manifest rows with no exact corresponding raw IR/Depth folder; cause/mapping remains unresolved and no rows were paired or deleted. See `reports/visual90_appearance_temporal_input_preflight_v3.md`.

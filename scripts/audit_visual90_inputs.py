@@ -7,6 +7,7 @@ from datetime import datetime
 import hashlib
 import json
 from pathlib import Path
+import re
 import sys
 
 import numpy as np
@@ -29,7 +30,7 @@ def sha256(path: Path) -> str:
 
 
 def inspect_frame_sequence(paths: list[Path], modality: str) -> dict:
-    keys, unparsed = [], []
+    keys, unparsed, missing_timestamps = [], [], []
     for path in paths:
         try:
             key = paired_frame_key(path, modality)
@@ -37,9 +38,12 @@ def inspect_frame_sequence(paths: list[Path], modality: str) -> dict:
             keys.append(key)
         except ValueError:
             unparsed.append(path.name)
+            if re.fullmatch(rf'{modality}_\d+' + (r'_Color' if modality == 'Depth' else ''), path.stem):
+                missing_timestamps.append(path.name)
     result = {
         'frame_count': len(paths), 'unparsed_frames': len(unparsed),
         'unparsed_examples': unparsed[:3], 'continuity_status': 'continuity_unverified',
+        'missing_timestamp_frames': len(missing_timestamps),
     }
     if not paths:
         result['continuity_status'] = 'not_present'
@@ -61,6 +65,22 @@ def inspect_frame_sequence(paths: list[Path], modality: str) -> dict:
     return result
 
 
+def training_disposition(row: dict) -> str:
+    """Apply only the user's timestamp exclusion; never remove validation rows."""
+    if row['partition'] == 'validation':
+        return 'validation_only'
+    if row['partition'] != 'train':
+        raise ValueError('unknown partition')
+    sequences = row['sequences'].values()
+    if any(seq.get('missing_timestamp_frames', 0) > 0 for seq in sequences):
+        return 'excluded_missing_timestamps'
+    if any(seq['continuity_status'] == 'continuity_unverified' for seq in sequences):
+        return 'blocked_other_continuity'
+    if row['ir_frames'] == 0:
+        return 'unsupported_visual_data_issue'
+    return 'eligible_pending_geometry'
+
+
 def choose_smoke_rows(rows: list[dict]) -> list[dict]:
     if any(row['partition'] != 'train' for row in rows):
         raise ValueError('smoke selection requires training rows only')
@@ -77,7 +97,7 @@ def choose_smoke_rows(rows: list[dict]) -> list[dict]:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument('--data-root', type=Path, default=Path('D:/work/2026.7.14_kaggle/datasets/Small-Model-Track/train'))
-    parser.add_argument('--report', type=Path, default=ROOT / 'reports/visual90_appearance_temporal_input_preflight.json')
+    parser.add_argument('--report', type=Path, default=ROOT / 'reports/visual90_appearance_temporal_input_preflight_v3.json')
     args = parser.parse_args()
     if args.report.exists():
         raise FileExistsError(args.report)
@@ -107,6 +127,7 @@ def main() -> None:
             row['pairing_status'] = 'verified_keys' if (
                 seq['ir'].get('key_digest') and seq['ir'].get('key_digest') == seq['depth_color'].get('key_digest')
             ) else 'unverified_or_unpaired'
+            row['training_disposition'] = training_disposition(row)
             rows.append(row)
         print(f'indexed {partition}; cumulative rows={len(rows)}', flush=True)
     blockers = [
@@ -114,8 +135,13 @@ def main() -> None:
          'examples': seq['unparsed_examples']}
         for row in rows for name, seq in row['sequences'].items()
         if seq['continuity_status'] == 'continuity_unverified'
+        and row['training_disposition'] != 'excluded_missing_timestamps'
     ]
-    paired = [row for row in rows if row['partition'] == 'train' and row['pairing_status'] == 'verified_keys']
+    excluded = [row for row in rows if row['training_disposition'] == 'excluded_missing_timestamps']
+    fit_candidates = [row for row in rows if row['training_disposition'] == 'eligible_pending_geometry']
+    if {row['class_id'] for row in fit_candidates} != set(range(40)):
+        raise ValueError('timestamp exclusion loses training class coverage')
+    paired = [row for row in fit_candidates if row['pairing_status'] == 'verified_keys']
     smoke = choose_smoke_rows(paired)
     report = {
         'status': 'blocked_continuity' if blockers else 'awaiting_geometry',
@@ -124,6 +150,15 @@ def main() -> None:
         'pose_sha256': sha256(pose), 'pose_path': str(pose),
         'source_integrity': 'frame-key inventory only; full pixel hashes/readability not yet certified',
         'continuity_blockers': blockers,
+        'authorized_timestamp_exclusions': [row['sample_id'] for row in excluded],
+        'training_dispositions': dict(Counter(row['training_disposition'] for row in rows if row['partition']=='train')),
+        'fit_candidates_before_geometry': len(fit_candidates),
+        'fit_candidate_class_count': len({row['class_id'] for row in fit_candidates}),
+        'missing_visual_data_issues': [
+            {'sample_id':row['sample_id'],'partition':row['partition'],
+             'reason':'no_ir_frames_in_index_not_assumed_natural_missing_modality'}
+            for row in rows if row['ir_frames']==0
+        ],
         'pairing_counts': dict(Counter(row['pairing_status'] for row in rows)),
         'provisional_smoke_sample_ids': [row['sample_id'] for row in smoke],
         'smoke_selection_note': 'key-paired inventory; verify readability before final geometry selection',
