@@ -1,0 +1,38 @@
+schema_version: 1
+role: measured_smoke_recommendation_not_formal_launch_config
+formal_training_enabled: false
+measurement_date: 2026-09-06
+hardware:
+  gpu: NVIDIA GeForce RTX 5060 Laptop GPU
+  gpu_memory_mib: 8151
+  cpu: AMD Ryzen 9 8945HX
+  cpu_physical_cores: 16
+  cpu_logical_processors: 32
+fusion_training:
+  device: cuda
+  amp_dtype: bfloat16
+  physical_batch_size: 32
+  effective_batch_size: 32
+  num_workers: 4
+  prefetch_factor: 1
+  persistent_workers: true
+  pin_memory: true
+  main_torch_threads: 8
+  worker_torch_threads: 1
+  note: Batch64 also passed capacity testing, but does not replace the fixed batch32 experimental protocol.
+feature_extraction:
+  videomae_clip_batch: 1
+  dino_image_batch_recommended: 16
+  num_workers_recommended: 4
+  prefetch_factor: 1
+  note: DINO batch16 measured on repeated real images; cross-record bucketing is not implemented in the smoke extractor, which used image batch4.
+cpu_debug:
+  torch_threads: 8
+  physical_batch_size: 4
+  note: Debug only. CPU batch32 works but is much slower; microbatch accumulation does not preserve the same SupCon negative set automatically.
+evidence_limits:
+  - Eight real training trials, repeated for loader and integrated tests; not full-corpus cold IO.
+  - Full valid-layout pressure cases used synthetic features; they make no accuracy claim.
+  - Timing excludes feature extraction unless explicitly listed as an encoder test.
+  - Reported RSS is observed process-tree memory, not a continuously sampled peak or unique physical memory.
+  - Full corpus cache, resumable formal runner, and full-population geometry applicability remain pending.

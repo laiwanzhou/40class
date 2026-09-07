@@ -1,0 +1,22 @@
+{
+  "status": "verified",
+  "scope": "prescribed_eight_training_trials_only",
+  "reviewer": "Codex primary agent, direct visual inspection of geometry_1.jpg through geometry_8.jpg",
+  "date": "2026-09-06",
+  "pose_sha256": "239f2b88cb2a481e3fefbae3dd6390d6c9c21c5ee73df38b29adc7cd9b0b624d",
+  "source_sha256": "cb1e6e369120abfd2e29a08dd27d98ceb2dda8f451b57bf8155e6aefcd5e612f",
+  "source_detail": "outputs/visual90_appearance_temporal/smoke/evidence.json records original-file SHA256 values",
+  "configurations": [{"ir_size": [640,480], "depth_size": [640,480], "coordinates": "original image top-left x-right y-down", "pose_source": "original IR images; producer scripts/build_pose_roi_40class_cache.py", "crop_to_original": "identity; no person-local coordinates used"}],
+  "observations": [
+    {"trial_index":0,"clips_reviewed":[0,1,2,3],"verdict":"pass","note":"Shared person and wrist-region boxes cover corresponding body regions; mild depth edge artifacts, no systematic ROI displacement."},
+    {"trial_index":1,"clips_reviewed":[1,2,3],"verdict":"pass","note":"Clip0 is empty and not encoded. Available person/wrist regions correspond; small right crop remains within corresponding forearm/hand region."},
+    {"trial_index":2,"clips_reviewed":[0,1,2,3],"verdict":"pass","note":"Standing/bending positions and forearm regions correspond in both images."},
+    {"trial_index":3,"clips_reviewed":[0,1,2,3],"verdict":"pass","note":"Right view unavailable in first three clips and not assessed as available. Remaining shared regions correspond; boxes are sometimes broad."},
+    {"trial_index":4,"clips_reviewed":[0,1,2,3],"verdict":"pass","note":"Person and arms correspond; depth holes do not shift the covered region outside the boxes."},
+    {"trial_index":5,"clips_reviewed":[0,1,2,3],"verdict":"pass","note":"Shared boxes cover corresponding person/arm regions across the different camera framing."},
+    {"trial_index":6,"clips_reviewed":[0,1,2,3],"verdict":"pass","note":"Available shared local boxes cover the same interacting hand/forearm areas."},
+    {"trial_index":7,"clips_reviewed":[0,1,2,3],"verdict":"pass","note":"Corresponding arm/head interaction regions remain inside available local boxes."}
+  ],
+  "limitations": ["Qualitative local-region correspondence, not metric/pixel registration or exact occluded-wrist localization.", "Prescribed length-quartile/sample-ID selection yielded only class0 examples; cannot certify all acquisition configurations in full population.", "Full-population geometry applicability and runtime dimension checks remain required before full caching."],
+  "formal_training_authorized": false
+}

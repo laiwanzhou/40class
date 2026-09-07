@@ -12,6 +12,7 @@
 
 ## Global Constraints
 
+- Latest user boundary (2026-09-06): advance implementation and CPU/GPU batch/workers smoke, then STOP BEFORE FORMAL TRAINING. Do not execute Task6 training or start30 epochs. Benchmark workers0/2/4 and several physical batches without silently changing the eventual fixed effective batch32 protocol. Mark synthetic-layout pressure tests separately from real-input qualification.
 - train2039 / validation388, 40 classes; only user6/user7 validation. No threefold, extra seeds, heldout4 or test.
 - Only `temporal_visual` and `appearance_temporal`; no extra modalities or automatic finetuning/distillation.
 - Four clips of16 frames; DINO uses positions0/5/10/15 within those clips; four independent views;224 pixels.
@@ -114,6 +115,9 @@
 
 ## Progress log
 
+- 2026-09-07 closeout: actual smoke-only implementation map: `src/data/visual90_evidence.py` builds selected view boxes and raw clips; `src/models/visual90_encoders.py` exposes `VideoEncoder.forward` and `AppearanceEncoder.forward`; `src/data/visual90_feature_cache.py` supplies lazy mmap with parent-side hash verification; `scripts/prepare_visual90_smoke.py` prepares8 training examples; `scripts/smoke_visual90_resources.py` offers extract/benchmark/integrated/encoder-batches only, never formal train. No full-cache resume or formal training runner is implemented yet.
+- 2026-09-07: completed8-trial real extraction,18 synthetic-layout CPU/GPU backward cases, real A/B batch32 backward, workers0/2/4 two-epoch loading and B12-step integrated cases, and encoder batch sweep. Prescribed8-trial geometry scope reviewed; no claim of full-population geometry qualification. Full metrics and limits are in `reports/visual90_appearance_temporal_resource_smoke.md`. User's stop-before-formal boundary remains active; Task6 must not run.
+- 2026-09-07: independent closeout audit accepted resource conclusions. Fixed caller CUDA RNG disturbance and centralized pre-worker feature-array hash verification with red-to-green tests; original performance data remain marked as pre-fix observations. Formal sampler/runner/recovery and corpus-wide qualification remain pending, so whole Tasks2/4/6 are not marked complete.
 - 2026-09-06: plan created from approved v2; existing worktree/branch preserved. Task1 starts with data preflight. No formal training started.
 - 2026-09-06: source inventory completed over2039/388;22 training trials have numeric-only legacy frame names without verified continuity evidence. Spec3.1 hard gate blocked; Task1 remains partial, geometry/resource qualification and Tasks2–6 not started. See `reports/visual90_appearance_temporal_input_preflight.md`; input-support amendment requires user direction before continuing.
 - 2026-09-06 follow-up: user authorized exclusion of missing-timestamp training trials. Audit v3 now excludes22 from fitting, finds1935 IR-present training candidates covering40 classes, and has no remaining continuity blockers. Geometry remains unverified, not blocked by the old timestamp issue. The85 IR-empty canonical rows (82train/3val) are Thermal-only manifest rows with no exact corresponding raw IR/Depth folder; cause/mapping remains unresolved and no rows were paired or deleted. See `reports/visual90_appearance_temporal_input_preflight_v3.md`.
