@@ -1,0 +1,31 @@
+schema_version: 1
+formal_authorization: user_2026_09_08
+run_root: outputs/visual90_appearance_temporal/formal_v1
+preflight: reports/visual90_appearance_temporal_input_preflight_v3.json
+geometry: reports/visual90_appearance_temporal_geometry_corpus.json
+encoder_lock: configs/experiments/visual90_encoder_lock.json
+candidates: [temporal_visual, appearance_temporal]
+seed: 20260715
+epochs: 30
+batch_size: 32
+num_workers: 4
+prefetch_factor: 1
+main_torch_threads: 8
+worker_torch_threads: 1
+amp_dtype: bfloat16
+learning_rate: 0.0003
+weight_decay: 0.05
+label_smoothing: 0.05
+supcon_weight: 0.10
+supcon_temperature: 0.10
+warmup_epochs: 2
+gradient_clip: 5.0
+videomae_clip_batch: 1
+dino_image_batch: 16
+maximum_allocated_mib: 7300
+expected_cache_budget_gib: 10
+preflight_expected_train: 2039
+preflight_expected_validation: 388
+validation_users: [6, 7]
+allow_threefold: false
+automatic_recipe_changes: false

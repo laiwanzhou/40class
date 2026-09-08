@@ -1,0 +1,1021 @@
+{
+  "status": "verified",
+  "date": "2026-09-08",
+  "scope": "native_640x480_timestamp_paired_export; qualitative_train_scene_coverage",
+  "reviewer": "Codex primary agent; directly viewed all eight QA pages (40 paired training examples)",
+  "preflight_sha256": "6ed0b829e9f19f0456a88faff216b4b8cd5f2b0c192376008ee225850105c124",
+  "pose_sha256": "239f2b88cb2a481e3fefbae3dd6390d6c9c21c5ee73df38b29adc7cd9b0b624d",
+  "dimension_inventory": {
+    "ir:(640, 480)": 2320,
+    "depth_color:(640, 480)": 2320
+  },
+  "selection_rule": "lexicographically first eligible TRAIN trial per class; first nonempty clip; position7",
+  "observations": [
+    {
+      "qa_index": 1,
+      "sample_id": "train__c00__user16__1-1-1",
+      "class_id": 0,
+      "partition": "train",
+      "clip": 0,
+      "available_views": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "sources": [
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\IR\\0_Wash_face\\user16\\1-1-1\\IR_2025-06-10_10-43-49.516_00000156.png",
+          "sha256": "589f2384dddaf30d61be820b8380287ae5e781103bc4d59121bd083d77b7584d"
+        },
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\Depth_Color\\0_Wash_face\\user16\\1-1-1\\Depth_2025-06-10_10-43-49.516_00000156_Color.png",
+          "sha256": "35f74e3f0cf64d762271caba20c5eaa7e153407cde04071339f5bfb23e9db37f"
+        }
+      ],
+      "verdict": "pass_local_region_correspondence",
+      "note": "Shared available ROI covers corresponding person/arm/interaction region; no gross displacement observed. Occluded anatomical wrist precision is not certified."
+    },
+    {
+      "qa_index": 2,
+      "sample_id": "train__c01__user16__1-1-1",
+      "class_id": 1,
+      "partition": "train",
+      "clip": 0,
+      "available_views": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "sources": [
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\IR\\1_Brush_teeth\\user16\\1-1-1\\IR_2025-06-10_10-43-43.816_00000099.png",
+          "sha256": "4371d76223964f4846fb1a715d33b7d0d19fe221a267bf634fb3b2eb09f40ac1"
+        },
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\Depth_Color\\1_Brush_teeth\\user16\\1-1-1\\Depth_2025-06-10_10-43-43.816_00000099_Color.png",
+          "sha256": "6e1ca5dee5336055a41b70e3cc78d176e584106801ad92f3bf93380831b94b61"
+        }
+      ],
+      "verdict": "pass_local_region_correspondence",
+      "note": "Shared available ROI covers corresponding person/arm/interaction region; no gross displacement observed. Occluded anatomical wrist precision is not certified."
+    },
+    {
+      "qa_index": 3,
+      "sample_id": "train__c02__user16__2-2-1",
+      "class_id": 2,
+      "partition": "train",
+      "clip": 0,
+      "available_views": [
+        true,
+        true,
+        true,
+        false
+      ],
+      "sources": [
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\IR\\2_Comb_hair\\user16\\2-2-1\\IR_2025-06-10_10-48-27.816_00000089.png",
+          "sha256": "a7d8e4a52c56e1014981e9c4cce910beb6fcbedb5a4eda24e3665ab9210037ab"
+        },
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\Depth_Color\\2_Comb_hair\\user16\\2-2-1\\Depth_2025-06-10_10-48-27.816_00000089_Color.png",
+          "sha256": "58c882f4558f39aa76351a250e123fbff4eda2f6679a3f6c2131637fa7e23a18"
+        }
+      ],
+      "verdict": "pass_local_region_correspondence",
+      "note": "Shared available ROI covers corresponding person/arm/interaction region; no gross displacement observed. Occluded anatomical wrist precision is not certified."
+    },
+    {
+      "qa_index": 4,
+      "sample_id": "train__c03__user18__6-1-1",
+      "class_id": 3,
+      "partition": "train",
+      "clip": 0,
+      "available_views": [
+        true,
+        true,
+        false,
+        true
+      ],
+      "sources": [
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\IR\\3_Take_off_clothes\\user18\\6-1-1\\IR_2025-06-09_17-10-17.716_00000048.png",
+          "sha256": "cf95331d8bd406b86d86017856ac528b2e2a30967a5012bf4e0544982a1300f4"
+        },
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\Depth_Color\\3_Take_off_clothes\\user18\\6-1-1\\Depth_2025-06-09_17-10-17.716_00000048_Color.png",
+          "sha256": "9c482d41c895d58349cdaba883a4323983d0409196919d5802eb054b9cda5480"
+        }
+      ],
+      "verdict": "pass_local_region_correspondence",
+      "note": "Shared available ROI covers corresponding person/arm/interaction region; no gross displacement observed. Occluded anatomical wrist precision is not certified."
+    },
+    {
+      "qa_index": 5,
+      "sample_id": "train__c04__user16__2-2-1",
+      "class_id": 4,
+      "partition": "train",
+      "clip": 0,
+      "available_views": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "sources": [
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\IR\\4_Wipe_hands\\user16\\2-2-1\\IR_2025-06-10_10-48-22.516_00000036.png",
+          "sha256": "7779cf311066fe9ca1ec455b8702088ec1a665c91ff227980152ce9975b7533b"
+        },
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\Depth_Color\\4_Wipe_hands\\user16\\2-2-1\\Depth_2025-06-10_10-48-22.516_00000036_Color.png",
+          "sha256": "e7a173fb0612056bbf7868d307bf5e3d8aa9565d9a798b858a72f98da14c9aa5"
+        }
+      ],
+      "verdict": "pass_local_region_correspondence",
+      "note": "Shared available ROI covers corresponding person/arm/interaction region; no gross displacement observed. Occluded anatomical wrist precision is not certified."
+    },
+    {
+      "qa_index": 6,
+      "sample_id": "train__c05__user18__6-1-1",
+      "class_id": 5,
+      "partition": "train",
+      "clip": 0,
+      "available_views": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "sources": [
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\IR\\5_Put_on_clothes\\user18\\6-1-1\\IR_2025-06-09_17-10-24.216_00000113.png",
+          "sha256": "56860cf22843c44c150fad3bfd467e7dba12ca1c5be08e321ef936f8e08ca68a"
+        },
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\Depth_Color\\5_Put_on_clothes\\user18\\6-1-1\\Depth_2025-06-09_17-10-24.216_00000113_Color.png",
+          "sha256": "82cac078f3108c382a11eb56f49a2dc54a1845ff1bba2e92864377cbd3bc8be7"
+        }
+      ],
+      "verdict": "pass_local_region_correspondence",
+      "note": "Shared available ROI covers corresponding person/arm/interaction region; no gross displacement observed. Occluded anatomical wrist precision is not certified."
+    },
+    {
+      "qa_index": 7,
+      "sample_id": "train__c06__user16__1-2-1",
+      "class_id": 6,
+      "partition": "train",
+      "clip": 0,
+      "available_views": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "sources": [
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\IR\\6_Drink_water\\user16\\1-2-1\\IR_2025-06-11_14-18-34.116_00000182.png",
+          "sha256": "7dd1157213d08cfe1159e5f1215d4f95cd824fa9ca8e490a3761c85e26f741cc"
+        },
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\Depth_Color\\6_Drink_water\\user16\\1-2-1\\Depth_2025-06-11_14-18-34.116_00000182_Color.png",
+          "sha256": "3c62284a676fd1b3a650b7c54b479414d46a3fc7715591bd35db6ac03da610f7"
+        }
+      ],
+      "verdict": "pass_local_region_correspondence",
+      "note": "Shared available ROI covers corresponding person/arm/interaction region; no gross displacement observed. Occluded anatomical wrist precision is not certified."
+    },
+    {
+      "qa_index": 8,
+      "sample_id": "train__c07__user16__1-2-1",
+      "class_id": 7,
+      "partition": "train",
+      "clip": 0,
+      "available_views": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "sources": [
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\IR\\7_Eat_food\\user16\\1-2-1\\IR_2025-06-11_14-18-23.416_00000075.png",
+          "sha256": "343a3d48f5f7cd9f7944ed645cfffa004001f6f990ab533748c6c4bd36edb037"
+        },
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\Depth_Color\\7_Eat_food\\user16\\1-2-1\\Depth_2025-06-11_14-18-23.416_00000075_Color.png",
+          "sha256": "32912d82285e91913100d38ee6fccd638584161c548d28681b4c9636058096e2"
+        }
+      ],
+      "verdict": "pass_local_region_correspondence",
+      "note": "Shared available ROI covers corresponding person/arm/interaction region; no gross displacement observed. Occluded anatomical wrist precision is not certified."
+    },
+    {
+      "qa_index": 9,
+      "sample_id": "train__c08__user16__6-2-1",
+      "class_id": 8,
+      "partition": "train",
+      "clip": 0,
+      "available_views": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "sources": [
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\IR\\8_Take_and_use_tableware\\user16\\6-2-1\\IR_2025-06-11_14-52-49.116_00000332.png",
+          "sha256": "e0b1e4e94474dc221beed51c9e8684516dd2b1f8e17a5ce74a517a44df0bc993"
+        },
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\Depth_Color\\8_Take_and_use_tableware\\user16\\6-2-1\\Depth_2025-06-11_14-52-49.116_00000332_Color.png",
+          "sha256": "d0e20ee75a63cf9d837bc0bf6b0d04e6a536347e467251597d49921bc7ab18fb"
+        }
+      ],
+      "verdict": "pass_local_region_correspondence",
+      "note": "Shared available ROI covers corresponding person/arm/interaction region; no gross displacement observed. Occluded anatomical wrist precision is not certified."
+    },
+    {
+      "qa_index": 10,
+      "sample_id": "train__c09__user16__1-2-1",
+      "class_id": 9,
+      "partition": "train",
+      "clip": 0,
+      "available_views": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "sources": [
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\IR\\9_Pour_drinks\\user16\\1-2-1\\IR_2025-06-11_14-18-26.916_00000110.png",
+          "sha256": "0a97926bc4ad618d024461a8b5c3f3a289e9b85151b37adb883f9fe914c767c6"
+        },
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\Depth_Color\\9_Pour_drinks\\user16\\1-2-1\\Depth_2025-06-11_14-18-26.916_00000110_Color.png",
+          "sha256": "dd99ad53940c41f6826d8b0af909e9bc6faee73459140b17d7bda214b7700c33"
+        }
+      ],
+      "verdict": "pass_local_region_correspondence",
+      "note": "Shared available ROI covers corresponding person/arm/interaction region; no gross displacement observed. Occluded anatomical wrist precision is not certified."
+    },
+    {
+      "qa_index": 11,
+      "sample_id": "train__c10__user16__1-2-1",
+      "class_id": 10,
+      "partition": "train",
+      "clip": 0,
+      "available_views": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "sources": [
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\IR\\10_Stir_drinks\\user16\\1-2-1\\IR_2025-06-11_14-18-31.516_00000156.png",
+          "sha256": "7e472bb51139ef09514e3edaa335c5c873c0d7c713e18901b1bd148047f0f700"
+        },
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\Depth_Color\\10_Stir_drinks\\user16\\1-2-1\\Depth_2025-06-11_14-18-31.516_00000156_Color.png",
+          "sha256": "745746c36279d5718495003858ab14472c07c61fceb8e49a1c04e5da1c2b99b6"
+        }
+      ],
+      "verdict": "pass_local_region_correspondence",
+      "note": "Shared available ROI covers corresponding person/arm/interaction region; no gross displacement observed. Occluded anatomical wrist precision is not certified."
+    },
+    {
+      "qa_index": 12,
+      "sample_id": "train__c11__user16__1-2-1",
+      "class_id": 11,
+      "partition": "train",
+      "clip": 0,
+      "available_views": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "sources": [
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\IR\\11_Peel_fruits\\user16\\1-2-1\\IR_2025-06-11_14-18-18.116_00000022.png",
+          "sha256": "711b082ec3400c4107136fa1d63a1f035411edfd933f479f51b5e1e6e0f82260"
+        },
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\Depth_Color\\11_Peel_fruits\\user16\\1-2-1\\Depth_2025-06-11_14-18-18.116_00000022_Color.png",
+          "sha256": "68cd967556894ff16898bf8d3bcbe3fd618a3d024568c47c663d6e60b2751397"
+        }
+      ],
+      "verdict": "pass_local_region_correspondence",
+      "note": "Shared available ROI covers corresponding person/arm/interaction region; no gross displacement observed. Occluded anatomical wrist precision is not certified."
+    },
+    {
+      "qa_index": 13,
+      "sample_id": "train__c12__user16__3-1-1",
+      "class_id": 12,
+      "partition": "train",
+      "clip": 0,
+      "available_views": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "sources": [
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\IR\\12_Sweep_the_floor\\user16\\3-1-1\\IR_2025-06-09_10-46-09.016_00000031.png",
+          "sha256": "bc92fe16cf10e160fc65466f2c1e74064a6ade3f0dacb9a86133c1089b2254c0"
+        },
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\Depth_Color\\12_Sweep_the_floor\\user16\\3-1-1\\Depth_2025-06-09_10-46-09.016_00000031_Color.png",
+          "sha256": "cf2b14c3ccce97676a272f32dc422f5ff6902f1c8d5f11aaffc55433d769e2d4"
+        }
+      ],
+      "verdict": "pass_local_region_correspondence",
+      "note": "Shared available ROI covers corresponding person/arm/interaction region; no gross displacement observed. Occluded anatomical wrist precision is not certified."
+    },
+    {
+      "qa_index": 14,
+      "sample_id": "train__c13__user16__3-1-1",
+      "class_id": 13,
+      "partition": "train",
+      "clip": 0,
+      "available_views": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "sources": [
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\IR\\13_Mop_the_floor\\user16\\3-1-1\\IR_2025-06-09_10-46-30.116_00000242.png",
+          "sha256": "040e5a6bfa70f33792fcab48546e759fbc6423303915eab211354915a3bd7ecf"
+        },
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\Depth_Color\\13_Mop_the_floor\\user16\\3-1-1\\Depth_2025-06-09_10-46-30.116_00000242_Color.png",
+          "sha256": "c6c4420fbc6e13f5707546919305c43cfb08eee565fc79d62c7ce524d9fa0c11"
+        }
+      ],
+      "verdict": "pass_local_region_correspondence",
+      "note": "Shared available ROI covers corresponding person/arm/interaction region; no gross displacement observed. Occluded anatomical wrist precision is not certified."
+    },
+    {
+      "qa_index": 15,
+      "sample_id": "train__c14__user16__3-2-1",
+      "class_id": 14,
+      "partition": "train",
+      "clip": 0,
+      "available_views": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "sources": [
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\IR\\14_Wipe_bowls\\user16\\3-2-1\\IR_2025-06-11_14-38-34.116_00000052.png",
+          "sha256": "7df1187e8f3d6a3fdfbf90a930fa0c6c8bc3a50896907fda03db03cf0369a440"
+        },
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\Depth_Color\\14_Wipe_bowls\\user16\\3-2-1\\Depth_2025-06-11_14-38-34.116_00000052_Color.png",
+          "sha256": "6a22ba4d2f44fddfff8d3f34fe70eac338e132693dddd12775fe5cc7cf62bbac"
+        }
+      ],
+      "verdict": "pass_local_region_correspondence",
+      "note": "Shared available ROI covers corresponding person/arm/interaction region; no gross displacement observed. Occluded anatomical wrist precision is not certified."
+    },
+    {
+      "qa_index": 16,
+      "sample_id": "train__c15__user16__3-3-1",
+      "class_id": 15,
+      "partition": "train",
+      "clip": 0,
+      "available_views": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "sources": [
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\IR\\15_Wipe_windows_and_tables\\user16\\3-3-1\\IR_2025-06-11_15-56-11.516_00000086.png",
+          "sha256": "cb54bf0bdddce602cba7edb4ba27530f66aa00157e1d2910d3986793e305518d"
+        },
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\Depth_Color\\15_Wipe_windows_and_tables\\user16\\3-3-1\\Depth_2025-06-11_15-56-11.516_00000086_Color.png",
+          "sha256": "5bb027f09f79fd2292f2118ca69651a0cc0976188dd0e7a829af5332a1d7c989"
+        }
+      ],
+      "verdict": "pass_local_region_correspondence",
+      "note": "Shared available ROI covers corresponding person/arm/interaction region; no gross displacement observed. Occluded anatomical wrist precision is not certified."
+    },
+    {
+      "qa_index": 17,
+      "sample_id": "train__c16__user18__2-1-1",
+      "class_id": 16,
+      "partition": "train",
+      "clip": 0,
+      "available_views": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "sources": [
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\IR\\16_Fold_clothes\\user18\\2-1-1\\IR_2025-06-09_13-59-42.916_00000060.png",
+          "sha256": "34de5432b852403fb8ea6649318fb525346bd2357ecff72a5b188625cd2f93c2"
+        },
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\Depth_Color\\16_Fold_clothes\\user18\\2-1-1\\Depth_2025-06-09_13-59-42.916_00000060_Color.png",
+          "sha256": "80ad2cbb7ebbe69d3920c65598174cd26ea0016b6d3451063ba62d9fc6fdf22d"
+        }
+      ],
+      "verdict": "pass_local_region_correspondence",
+      "note": "Shared available ROI covers corresponding person/arm/interaction region; no gross displacement observed. Occluded anatomical wrist precision is not certified."
+    },
+    {
+      "qa_index": 18,
+      "sample_id": "train__c17__user16__4-1-1",
+      "class_id": 17,
+      "partition": "train",
+      "clip": 0,
+      "available_views": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "sources": [
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\IR\\17_Tap_the_keyboard\\user16\\4-1-1\\IR_2025-06-09_17-52-53.616_00000017.png",
+          "sha256": "eda8d03d74efb9905dede1934f6ed7044669cdeb39a5557bd30074549b782867"
+        },
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\Depth_Color\\17_Tap_the_keyboard\\user16\\4-1-1\\Depth_2025-06-09_17-52-53.616_00000017_Color.png",
+          "sha256": "9e91a147ff2d501b3dee6403a2d3d206dc566be84517229665985f82b56bec6c"
+        }
+      ],
+      "verdict": "pass_local_region_correspondence",
+      "note": "Shared available ROI covers corresponding person/arm/interaction region; no gross displacement observed. Occluded anatomical wrist precision is not certified."
+    },
+    {
+      "qa_index": 19,
+      "sample_id": "train__c18__user18__4-1-1",
+      "class_id": 18,
+      "partition": "train",
+      "clip": 0,
+      "available_views": [
+        true,
+        true,
+        true,
+        false
+      ],
+      "sources": [
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\IR\\18_Write\\user18\\4-1-1\\IR_2025-06-09_17-00-26.416_00000165.png",
+          "sha256": "6c72ba9f9224cbc8cb7d1590e0e14ff956df52113c5f3812c0c6be87c0c831e4"
+        },
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\Depth_Color\\18_Write\\user18\\4-1-1\\Depth_2025-06-09_17-00-26.416_00000165_Color.png",
+          "sha256": "07a7ca4b9adc1f26b449d9a70334bdd3ef5090e962d03d9e664e911d44992048"
+        }
+      ],
+      "verdict": "pass_local_region_correspondence",
+      "note": "Shared available ROI covers corresponding person/arm/interaction region; no gross displacement observed. Occluded anatomical wrist precision is not certified."
+    },
+    {
+      "qa_index": 20,
+      "sample_id": "train__c19__user16__4-1-1",
+      "class_id": 19,
+      "partition": "train",
+      "clip": 0,
+      "available_views": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "sources": [
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\IR\\19_Make_a_phone_call\\user16\\4-1-1\\IR_2025-06-09_17-53-17.116_00000252.png",
+          "sha256": "f6499a61e0c73a21ae669341862bb3a5be89231abe51c821e8fee66e8aa5f092"
+        },
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\Depth_Color\\19_Make_a_phone_call\\user16\\4-1-1\\Depth_2025-06-09_17-53-17.116_00000252_Color.png",
+          "sha256": "becf9e3221853706d750f2b4bc1786c4c5d673ab6450bc66e35004b9fee8f305"
+        }
+      ],
+      "verdict": "pass_local_region_correspondence",
+      "note": "Shared available ROI covers corresponding person/arm/interaction region; no gross displacement observed. Occluded anatomical wrist precision is not certified."
+    },
+    {
+      "qa_index": 21,
+      "sample_id": "train__c20__user16__4-1-1",
+      "class_id": 20,
+      "partition": "train",
+      "clip": 0,
+      "available_views": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "sources": [
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\IR\\20_Check_the_time\\user16\\4-1-1\\IR_2025-06-09_17-53-07.116_00000152.png",
+          "sha256": "69f0b66d0cf2f756f464a763ab317707cc02c74d4ae8a983c927b8f6749d146f"
+        },
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\Depth_Color\\20_Check_the_time\\user16\\4-1-1\\Depth_2025-06-09_17-53-07.116_00000152_Color.png",
+          "sha256": "a5d93df88e1fe9a1600f31815842c7212822e818ab9e169c0c521a6aaffd49dd"
+        }
+      ],
+      "verdict": "pass_local_region_correspondence",
+      "note": "Shared available ROI covers corresponding person/arm/interaction region; no gross displacement observed. Occluded anatomical wrist precision is not certified."
+    },
+    {
+      "qa_index": 22,
+      "sample_id": "train__c21__user16__4-1-1",
+      "class_id": 21,
+      "partition": "train",
+      "clip": 0,
+      "available_views": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "sources": [
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\IR\\21_Read_documents\\user16\\4-1-1\\IR_2025-06-09_17-53-34.116_00000422.png",
+          "sha256": "c6bd415cde3e74a073d11230cb5ff1ee614b07e4675c7761559e18881ef11c72"
+        },
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\Depth_Color\\21_Read_documents\\user16\\4-1-1\\Depth_2025-06-09_17-53-34.116_00000422_Color.png",
+          "sha256": "980d1aae9a8b8e0b76d027b5d5b7937dddd588c45038b64927861d857130b832"
+        }
+      ],
+      "verdict": "pass_local_region_correspondence",
+      "note": "Shared available ROI covers corresponding person/arm/interaction region; no gross displacement observed. Occluded anatomical wrist precision is not certified."
+    },
+    {
+      "qa_index": 23,
+      "sample_id": "train__c22__user16__4-1-1",
+      "class_id": 22,
+      "partition": "train",
+      "clip": 0,
+      "available_views": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "sources": [
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\IR\\22_Turn_pages\\user16\\4-1-1\\IR_2025-06-09_17-53-36.916_00000450.png",
+          "sha256": "1a1e98e809d366c3bc012e0f27f758012fd5dee0952b57db536a8582fe705d6d"
+        },
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\Depth_Color\\22_Turn_pages\\user16\\4-1-1\\Depth_2025-06-09_17-53-36.916_00000450_Color.png",
+          "sha256": "899e08af8029a50b6d66498881b547904dc281946b8f39df014890d0d552605e"
+        }
+      ],
+      "verdict": "pass_local_region_correspondence",
+      "note": "Shared available ROI covers corresponding person/arm/interaction region; no gross displacement observed. Occluded anatomical wrist precision is not certified."
+    },
+    {
+      "qa_index": 24,
+      "sample_id": "train__c23__user16__4-1-1",
+      "class_id": 23,
+      "partition": "train",
+      "clip": 0,
+      "available_views": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "sources": [
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\IR\\23_Listen_to_music_with_headphones\\user16\\4-1-1\\IR_2025-06-09_17-53-11.416_00000195.png",
+          "sha256": "dd5f6996d1c617d2e474c230e797204063f35a24513ed02a0205e08492dc1c7d"
+        },
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\Depth_Color\\23_Listen_to_music_with_headphones\\user16\\4-1-1\\Depth_2025-06-09_17-53-11.416_00000195_Color.png",
+          "sha256": "a9889e41647c26ae2e501fb22e3c7718e872c35e44d4d814c065b20a5d76f61e"
+        }
+      ],
+      "verdict": "pass_local_region_correspondence",
+      "note": "Shared available ROI covers corresponding person/arm/interaction region; no gross displacement observed. Occluded anatomical wrist precision is not certified."
+    },
+    {
+      "qa_index": 25,
+      "sample_id": "train__c24__user16__6-2-1",
+      "class_id": 24,
+      "partition": "train",
+      "clip": 0,
+      "available_views": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "sources": [
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\IR\\24_Use_a_mobile_phone\\user16\\6-2-1\\IR_2025-06-11_14-52-28.516_00000126.png",
+          "sha256": "f34c8ad1154af2571562a4ef1f6e1644dd196060d586ab1235f4cb6014bfe486"
+        },
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\Depth_Color\\24_Use_a_mobile_phone\\user16\\6-2-1\\Depth_2025-06-11_14-52-28.516_00000126_Color.png",
+          "sha256": "96096f118857e7dcb259f21aa906175005fa93d3a6850c9b43b57e4eb8dd0288"
+        }
+      ],
+      "verdict": "pass_local_region_correspondence",
+      "note": "Shared available ROI covers corresponding person/arm/interaction region; no gross displacement observed. Occluded anatomical wrist precision is not certified."
+    },
+    {
+      "qa_index": 26,
+      "sample_id": "train__c25__user1__5-1-1",
+      "class_id": 25,
+      "partition": "train",
+      "clip": 0,
+      "available_views": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "sources": [
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\IR\\25_Watch_TV\\user1\\5-1-1\\IR_2025-05-07_14-48-55.516_00000386.png",
+          "sha256": "d6b3fc5e1e754faf17dc5fd6315cf30e6950617e7356d76eb1913a39b3542bcc"
+        },
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\Depth_Color\\25_Watch_TV\\user1\\5-1-1\\Depth_2025-05-07_14-48-55.516_00000386_Color.png",
+          "sha256": "79a9b924a274630c10c69f46e3891ee545409f1fe435311ebad64c4ad6b44bf8"
+        }
+      ],
+      "verdict": "pass_local_region_correspondence",
+      "note": "Shared available ROI covers corresponding person/arm/interaction region; no gross displacement observed. Occluded anatomical wrist precision is not certified."
+    },
+    {
+      "qa_index": 27,
+      "sample_id": "train__c26__user16__5-3-1",
+      "class_id": 26,
+      "partition": "train",
+      "clip": 0,
+      "available_views": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "sources": [
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\IR\\26_Play_games\\user16\\5-3-1\\IR_2025-06-09_11-02-58.616_00000487.png",
+          "sha256": "c763d22dbc6d2acc3e1341c65bb25214b4b0c2aa5601f62aed9dc8029f547aab"
+        },
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\Depth_Color\\26_Play_games\\user16\\5-3-1\\Depth_2025-06-09_11-02-58.616_00000487_Color.png",
+          "sha256": "9d6a9c3818f76ee0c495233b3f0df2f1cf5804f039fe844c31dfd943378bc074"
+        }
+      ],
+      "verdict": "pass_local_region_correspondence",
+      "note": "Shared available ROI covers corresponding person/arm/interaction region; no gross displacement observed. Occluded anatomical wrist precision is not certified."
+    },
+    {
+      "qa_index": 28,
+      "sample_id": "train__c27__user18__1-2-1",
+      "class_id": 27,
+      "partition": "train",
+      "clip": 0,
+      "available_views": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "sources": [
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\IR\\27_Take_a_selfie\\user18\\1-2-1\\IR_2025-06-11_16-16-13.816_00000259.png",
+          "sha256": "bc743d928e472128f24ebefffe4447275d175d3f06e117a4406cbc1a0c9c483c"
+        },
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\Depth_Color\\27_Take_a_selfie\\user18\\1-2-1\\Depth_2025-06-11_16-16-13.816_00000259_Color.png",
+          "sha256": "af7b1b9e54b25dc2608a4250dd8b94b38393a2da96cf5016dec9ea2de63448e4"
+        }
+      ],
+      "verdict": "pass_local_region_correspondence",
+      "note": "Shared available ROI covers corresponding person/arm/interaction region; no gross displacement observed. Occluded anatomical wrist precision is not certified."
+    },
+    {
+      "qa_index": 29,
+      "sample_id": "train__c28__user16__4-1-1",
+      "class_id": 28,
+      "partition": "train",
+      "clip": 0,
+      "available_views": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "sources": [
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\IR\\28_Jog_in_place\\user16\\4-1-1\\IR_2025-06-09_17-53-27.416_00000355.png",
+          "sha256": "9fdb5085d8ecc55c93d4fefe1ba918c04f1d543a250a884cb5b2bf357ad70eab"
+        },
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\Depth_Color\\28_Jog_in_place\\user16\\4-1-1\\Depth_2025-06-09_17-53-27.416_00000355_Color.png",
+          "sha256": "898c99f015288420fa92c6202122c0e527eb16329d95750ade05dbdf4fe1a01a"
+        }
+      ],
+      "verdict": "pass_local_region_correspondence",
+      "note": "Shared available ROI covers corresponding person/arm/interaction region; no gross displacement observed. Occluded anatomical wrist precision is not certified."
+    },
+    {
+      "qa_index": 30,
+      "sample_id": "train__c29__user16__3-1-1",
+      "class_id": 29,
+      "partition": "train",
+      "clip": 0,
+      "available_views": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "sources": [
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\IR\\29_Do_squats\\user16\\3-1-1\\IR_2025-06-09_10-46-20.716_00000148.png",
+          "sha256": "89d0322797ef8d7b25a65365421482ce6d0e9f500f5adeca6a1cec9d8a680d86"
+        },
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\Depth_Color\\29_Do_squats\\user16\\3-1-1\\Depth_2025-06-09_10-46-20.716_00000148_Color.png",
+          "sha256": "0978088c6bfc01f5339e3d8028748eaa094d8e081e2389ef8fe657c5eb2df797"
+        }
+      ],
+      "verdict": "pass_local_region_correspondence",
+      "note": "Shared available ROI covers corresponding person/arm/interaction region; no gross displacement observed. Occluded anatomical wrist precision is not certified."
+    },
+    {
+      "qa_index": 31,
+      "sample_id": "train__c30__user16__6-1-1",
+      "class_id": 30,
+      "partition": "train",
+      "clip": 0,
+      "available_views": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "sources": [
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\IR\\30_Do_jumping_jacks\\user16\\6-1-1\\IR_2025-06-09_11-11-21.216_00000043.png",
+          "sha256": "d235daa6f8a2ca99332c8693ab5fd95683c8a2f8561cbe82c347354beb9bed77"
+        },
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\Depth_Color\\30_Do_jumping_jacks\\user16\\6-1-1\\Depth_2025-06-09_11-11-21.216_00000043_Color.png",
+          "sha256": "4e45734e4d8a7dd1e3d794e90226c76a0facc1b833609343e1cb52506bef97db"
+        }
+      ],
+      "verdict": "pass_local_region_correspondence",
+      "note": "Shared available ROI covers corresponding person/arm/interaction region; no gross displacement observed. Occluded anatomical wrist precision is not certified."
+    },
+    {
+      "qa_index": 32,
+      "sample_id": "train__c31__user18__5-1-1",
+      "class_id": 31,
+      "partition": "train",
+      "clip": 0,
+      "available_views": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "sources": [
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\IR\\31_Do_stretching_exercises\\user18\\5-1-1\\IR_2025-06-09_14-20-48.016_00000061.png",
+          "sha256": "70f17a5c7218bc45120fc13ee1a1a778d8957e1da0850fef9ee0c62df494ba08"
+        },
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\Depth_Color\\31_Do_stretching_exercises\\user18\\5-1-1\\Depth_2025-06-09_14-20-48.016_00000061_Color.png",
+          "sha256": "c6aee3f4b21fdb2cdb58371aca9d3ad5cf99721a96392853d290164128d62545"
+        }
+      ],
+      "verdict": "pass_local_region_correspondence",
+      "note": "Shared available ROI covers corresponding person/arm/interaction region; no gross displacement observed. Occluded anatomical wrist precision is not certified."
+    },
+    {
+      "qa_index": 33,
+      "sample_id": "train__c32__user16__3-1-1",
+      "class_id": 32,
+      "partition": "train",
+      "clip": 0,
+      "available_views": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "sources": [
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\IR\\32_Stand_up\\user16\\3-1-1\\IR_2025-06-09_10-46-18.616_00000127.png",
+          "sha256": "78f28116942e4d4aa7e94b1369620082434ba9388243a38376eacdd7654639d2"
+        },
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\Depth_Color\\32_Stand_up\\user16\\3-1-1\\Depth_2025-06-09_10-46-18.616_00000127_Color.png",
+          "sha256": "e9b5d0360c7e7712f269e15a64b5b8bdc165130d1fe5350d749687c4f15c2bd0"
+        }
+      ],
+      "verdict": "pass_local_region_correspondence",
+      "note": "Shared available ROI covers corresponding person/arm/interaction region; no gross displacement observed. Occluded anatomical wrist precision is not certified."
+    },
+    {
+      "qa_index": 34,
+      "sample_id": "train__c33__user16__5-3-1",
+      "class_id": 33,
+      "partition": "train",
+      "clip": 0,
+      "available_views": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "sources": [
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\IR\\33_Lie_down\\user16\\5-3-1\\IR_2025-06-09_11-02-30.216_00000203.png",
+          "sha256": "f4512a056de15c7436cd93f093ca598c2d167e4b58e746a13afbf73a2f48cd55"
+        },
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\Depth_Color\\33_Lie_down\\user16\\5-3-1\\Depth_2025-06-09_11-02-30.216_00000203_Color.png",
+          "sha256": "f6b234908c1e643bcd417b9cfee1739132484efc11a34a0d8d5800029b40680a"
+        }
+      ],
+      "verdict": "pass_local_region_correspondence",
+      "note": "Shared available ROI covers corresponding person/arm/interaction region; no gross displacement observed. Occluded anatomical wrist precision is not certified."
+    },
+    {
+      "qa_index": 35,
+      "sample_id": "train__c34__user16__4-1-1",
+      "class_id": 34,
+      "partition": "train",
+      "clip": 0,
+      "available_views": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "sources": [
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\IR\\34_Sit_down\\user16\\4-1-1\\IR_2025-06-09_17-53-30.916_00000390.png",
+          "sha256": "cdf2255147710d1a204a152a2499b5a8236641f83a105f7ab2c2debd8b26e61c"
+        },
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\Depth_Color\\34_Sit_down\\user16\\4-1-1\\Depth_2025-06-09_17-53-30.916_00000390_Color.png",
+          "sha256": "03e39bd263714b20e30eccb675a5dd952ffe1d4d71e11e6339bdb645ff125beb"
+        }
+      ],
+      "verdict": "pass_local_region_correspondence",
+      "note": "Shared available ROI covers corresponding person/arm/interaction region; no gross displacement observed. Occluded anatomical wrist precision is not certified."
+    },
+    {
+      "qa_index": 36,
+      "sample_id": "train__c35__user16__6-1-1",
+      "class_id": 35,
+      "partition": "train",
+      "clip": 0,
+      "available_views": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "sources": [
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\IR\\35_Do_lunges\\user16\\6-1-1\\IR_2025-06-09_11-11-43.716_00000268.png",
+          "sha256": "28656b78d6a4a55ceddf99f28ba0439a1c675c80cec1f9a73779a04ad9a5023a"
+        },
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\Depth_Color\\35_Do_lunges\\user16\\6-1-1\\Depth_2025-06-09_11-11-43.716_00000268_Color.png",
+          "sha256": "aca40f264debaa5ebb96c71251390f46dd86d0b143d8b83007fefed6f824cf92"
+        }
+      ],
+      "verdict": "pass_local_region_correspondence",
+      "note": "Shared available ROI covers corresponding person/arm/interaction region; no gross displacement observed. Occluded anatomical wrist precision is not certified."
+    },
+    {
+      "qa_index": 37,
+      "sample_id": "train__c36__user16__1-1-1",
+      "class_id": 36,
+      "partition": "train",
+      "clip": 0,
+      "available_views": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "sources": [
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\IR\\36_Walk\\user16\\1-1-1\\IR_2025-06-10_10-43-38.116_00000042.png",
+          "sha256": "11c20a7c9d9926188112b756c511d8cd6bddae47dea6dddd34f6219df4c49d30"
+        },
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\Depth_Color\\36_Walk\\user16\\1-1-1\\Depth_2025-06-10_10-43-38.116_00000042_Color.png",
+          "sha256": "f857790e6231740dd6cc7e524af3666c63b250bbe1efb283cb7d4df809b74cb3"
+        }
+      ],
+      "verdict": "pass_local_region_correspondence",
+      "note": "Shared available ROI covers corresponding person/arm/interaction region; no gross displacement observed. Occluded anatomical wrist precision is not certified."
+    },
+    {
+      "qa_index": 38,
+      "sample_id": "train__c37__user16__6-2-1",
+      "class_id": 37,
+      "partition": "train",
+      "clip": 0,
+      "available_views": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "sources": [
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\IR\\37_Take_medicine\\user16\\6-2-1\\IR_2025-06-11_14-52-23.116_00000072.png",
+          "sha256": "fab7e9f92c4195e4c91c18b812fe1cd174316662bd88b97b4726b65a3968286b"
+        },
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\Depth_Color\\37_Take_medicine\\user16\\6-2-1\\Depth_2025-06-11_14-52-23.116_00000072_Color.png",
+          "sha256": "862c631ecb81a98f64a125dbf39a72c36cb5c02b3e053b5e393777b6ced13755"
+        }
+      ],
+      "verdict": "pass_local_region_correspondence",
+      "note": "Shared available ROI covers corresponding person/arm/interaction region; no gross displacement observed. Occluded anatomical wrist precision is not certified."
+    },
+    {
+      "qa_index": 39,
+      "sample_id": "train__c38__user16__7-1-1",
+      "class_id": 38,
+      "partition": "train",
+      "clip": 0,
+      "available_views": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "sources": [
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\IR\\38_Massage_oneself\\user16\\7-1-1\\IR_2025-06-09_18-05-17.816_00000099.png",
+          "sha256": "6b537bb349f17fd7980ba8c9aea5dc724d1a57631c3aa7644f7b4773c45a42df"
+        },
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\Depth_Color\\38_Massage_oneself\\user16\\7-1-1\\Depth_2025-06-09_18-05-17.816_00000099_Color.png",
+          "sha256": "a2a87a4db70613d8470f266245eb962a6d485220fcb997ad803021cfea5ecda0"
+        }
+      ],
+      "verdict": "pass_local_region_correspondence",
+      "note": "Shared available ROI covers corresponding person/arm/interaction region; no gross displacement observed. Occluded anatomical wrist precision is not certified."
+    },
+    {
+      "qa_index": 40,
+      "sample_id": "train__c39__user16__6-2-1",
+      "class_id": 39,
+      "partition": "train",
+      "clip": 0,
+      "available_views": [
+        true,
+        true,
+        true,
+        true
+      ],
+      "sources": [
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\IR\\39_Take_body_temperature\\user16\\6-2-1\\IR_2025-06-11_14-52-17.216_00000013.png",
+          "sha256": "67c1ec55daed0a415e94bfe38c9df1c3f869cbaa8283939ae62ba183f8121d22"
+        },
+        {
+          "path": "D:\\work\\2026.7.14_kaggle\\datasets\\Small-Model-Track\\train\\Depth_Color\\39_Take_body_temperature\\user16\\6-2-1\\Depth_2025-06-11_14-52-17.216_00000013_Color.png",
+          "sha256": "46b24811683a521ac1a760334449a72064826f4b77158873ffa5e2875f45ed10"
+        }
+      ],
+      "verdict": "pass_local_region_correspondence",
+      "note": "Shared available ROI covers corresponding person/arm/interaction region; no gross displacement observed. Occluded anatomical wrist precision is not certified."
+    }
+  ],
+  "limitations": [
+    "Qualitative regional correspondence, not pixel-level metric calibration.",
+    "Some IR scenes are very dark and some wrists occluded; this cannot establish object visibility or pose correctness.",
+    "One prescribed training example per class plus earlier eight-trial smoke; not a proof for every frame.",
+    "All eligible source frames will be required to retain640x480 dimensions at extraction; new/unreadable configurations stop the run."
+  ]
+}
