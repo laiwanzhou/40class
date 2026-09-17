@@ -1,0 +1,52 @@
+{
+  "name": "p101_f1_coarse_anchored_fine_vsi_teacher",
+  "protocol": "P100 coarse VS anchor plus P101 fine local VSI residual; fixed 4-fold; nested coarse-VS subject OOF; no H3",
+  "model": {
+    "model_dim": 384,
+    "motion_dim": 192,
+    "heads": 8,
+    "dropout": 0.15,
+    "local_radius": 0.18,
+    "workspace_arm_prior": 0.35,
+    "evidence_layers": 2
+  },
+  "nested_model": {
+    "model_dim": 384,
+    "heads": 8,
+    "modality_layers": 2,
+    "fusion_layers": 4,
+    "fusion_latents": 8,
+    "dropout": 0.2,
+    "evidence_dropout": 0.1
+  },
+  "training": {
+    "nested_epochs": 24,
+    "adapter_epochs": 16,
+    "batch_size": 16,
+    "eval_batch_size": 32,
+    "learning_rate": 0.00012,
+    "adapter_learning_rate": 0.00018,
+    "weight_decay": 0.02,
+    "warmup_fraction": 0.1,
+    "label_smoothing": 0.02,
+    "gradient_clip": 1.0,
+    "nested_error_ce_multiplier": 1.5,
+    "anchor_kl_temperature": 2.0,
+    "anchor_kl_correct_weight": 0.5,
+    "anchor_kl_wrong_weight": 0.05,
+    "correspondence_weight": 0.2,
+    "seed": 20260823,
+    "amp": true,
+    "checkpoint_selection": "fixed_final_epoch_before_any_held_label_metric"
+  },
+  "gate": {
+    "candidate_minus_anchor_min_net": 10,
+    "mcnemar_max_p": 0.1,
+    "min_nonnegative_subjects": 8,
+    "min_positive_subjects": 4,
+    "max_subject_drop_pp": 2.0,
+    "top5_only_min_rows": 10,
+    "top5_only_max_top1_drop_rows": 2,
+    "top5_only_max_macro_f1_drop": 0.002
+  }
+}

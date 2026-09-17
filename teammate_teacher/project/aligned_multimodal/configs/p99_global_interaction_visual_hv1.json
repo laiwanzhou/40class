@@ -1,0 +1,39 @@
+{
+  "name": "p99_hv1_global_interaction_visual",
+  "hypothesis": "Hand interaction tokens can improve hard cross-user boundaries when global VideoMAE context is retained in the same classifier, resolving HV0's context-loss failure.",
+  "cohorts": {
+    "exploration_users": ["user17", "user23", "user6", "user8"],
+    "source_only_users": ["user1", "user2", "user21"],
+    "confirmation_users": ["user16", "user18", "user19", "user5", "user7"]
+  },
+  "sources": {
+    "global_videomae": "runs/p90_videomaev2_distilled_teacher_v1/complete_features.npz",
+    "local_hand": "runs/p91_videomaev2_hand_fold0_v1/complete_features.npz",
+    "matched_global_h1": "runs/p99_visual_expert_v0_h1_v1/h1_predictions.npz",
+    "hv0_summary": "runs/p99_hand_object_visual_hv0_h1_v1/summary.json"
+  },
+  "expert": {
+    "name": "global_plus_interaction",
+    "alpha": 3000.0,
+    "class_weight_power": 0.75
+  },
+  "focus_groups": {
+    "phone_game_call": [19, 24, 26],
+    "read_turn": [21, 22],
+    "drink_medicine": [6, 37],
+    "tableware_related": [8, 9, 10, 11, 14],
+    "phone_headphones": [19, 23]
+  },
+  "calibration": "inner_leave_one_training_user_out_temperature",
+  "local_interventions": ["outer_train_mean", "within_held_user_shuffle"],
+  "seed": 20260822,
+  "selection_gate": {
+    "minimum_net_gain": 5,
+    "minimum_positive_users": 2,
+    "minimum_nonnegative_users": 3,
+    "maximum_worst_user_accuracy_drop_pp": 1.0,
+    "direct_must_exceed_local_zero": true,
+    "direct_must_exceed_local_shuffle": true
+  },
+  "h2_policy": "Only a Teacher and equal-budget Student recipe separately frozen after H1 may receive one H2 confirmation. H3 has no code path."
+}

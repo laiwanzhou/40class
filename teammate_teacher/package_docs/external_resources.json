@@ -1,0 +1,217 @@
+{
+  "schema_version": "1.0",
+  "scope": "CUHK-X 小模型赛道训练期教师、蒸馏与推理外部资源",
+  "repository": {
+    "remote": "https://github.com/zdymgs/small_model.git",
+    "revision": "4577ff3306025bd119ebe5113ba7c7f6fd6727ad"
+  },
+  "budget_boundary": {
+    "final_inference_weight_limit_bytes": 100000000,
+    "counts": "现场推理实际加载的全部权重，包括 YOLO；最终需以单一 checkpoint/交付清单核验",
+    "does_not_count": "仅训练教师、冻结特征、源码仓库、训练资料 ZIP 和未被现场推理加载的缓存",
+    "warning": "训练资料 ZIP 总大小不等于最终推理权重大小"
+  },
+  "resources": [
+    {
+      "name": "YOLO11n-pose",
+      "role": "preprocess",
+      "in_final_inference": true,
+      "source_url": "https://github.com/ultralytics/ultralytics",
+      "license": "AGPL-3.0; checkpoint条款须核对",
+      "evidence_paths": [
+        "Small-Model-Track/assets/models/yolo11n-pose.pt",
+        "code/training/project/aligned_multimodal/audit_yolo11_pose_skeleton.py"
+      ],
+      "file_size_bytes": 6255593,
+      "sha256": "869e83fcdffdc7371fa4e34cd8e51c838cc729571d1635e5141e3075e9319dc0",
+      "revision": "runtime package; ultralytics revision not recorded",
+      "acquisition": "included in package"
+    },
+    {
+      "name": "Kinetics-400 MC3-18 (torchvision)",
+      "role": "student_initialization_and_training_cache",
+      "in_final_inference": true,
+      "source_url": "https://download.pytorch.org/models/mc3_18-a90a0ba3.pth",
+      "source_page": "https://pytorch.org/vision/stable/models.html",
+      "license": "Torchvision BSD-3-Clause; Kinetics dataset terms apply",
+      "evidence_paths": [
+        "Small-Model-Track/aligned_multimodal/*mc3*",
+        "Small-Model-Track/docs/learning/03_视觉锚点与视频流.md"
+      ],
+      "revision": "torchvision 0.24.1+cu130; MC3_18_Weights.KINETICS400_V1",
+      "sha256": null,
+      "acquisition": "torchvision enum URL; not bundled",
+      "inference_note": "The trained MC3 backbone is embedded in Student; the pretrained initialization is not loaded as a second checkpoint."
+    },
+    {
+      "name": "VideoMAE (Kinetics base/large)",
+      "role": "training_teacher_and_frozen_features",
+      "in_final_inference": false,
+      "source_url": "https://huggingface.co/MCG-NJU/videomae-base-finetuned-kinetics",
+      "additional_model_urls": [
+        "https://huggingface.co/MCG-NJU/videomae-large-finetuned-kinetics",
+        "https://huggingface.co/MCG-NJU/videomae-small-finetuned-kinetics"
+      ],
+      "license": "Hugging Face model-card/license and Kinetics dataset terms",
+      "evidence_paths": [
+        "Small-Model-Track/aligned_multimodal/build_p46_videomae_cache.py",
+        "code/training/project/aligned_multimodal/configs/p86_visual_student_protocol.json"
+      ],
+      "revision": "model ids fixed in code: MCG-NJU/videomae-base-finetuned-kinetics; MCG-NJU/videomae-large-finetuned-kinetics; MCG-NJU/videomae-small-finetuned-kinetics",
+      "sha256": null,
+      "acquisition": "Hugging Face from_pretrained; not bundled"
+    },
+    {
+      "name": "VideoMAEv2",
+      "role": "training_teacher_and_frozen_features",
+      "in_final_inference": false,
+      "source_url": "https://github.com/OpenGVLab/VideoMAEv2",
+      "license": "source Apache-2.0; checkpoint/data terms must be checked",
+      "evidence_paths": [
+        "code/training/project/aligned_multimodal/p90_videomaev2_large_teacher.py",
+        "code/training/project/aligned_multimodal/p90_videomaev2_distilled_teacher.py"
+      ],
+      "revision": "29eab1e8a588d1b3ec0cdec7b03a86cca491b74b",
+      "sha256": null,
+      "acquisition": "clone fixed revision, then official model-zoo checkpoint",
+      "model_locations": [
+        {
+          "repository": "OpenGVLab/VideoMAEv2-Large",
+          "revision": "9981a9c8f77118c421e5228e1b219468a4b0238d",
+          "filename": "model.safetensors"
+        },
+        {
+          "repository": "OpenGVLab/VideoMAE2",
+          "filename": "distill/vit_b_k710_dl_from_giant.pth"
+        }
+      ]
+    },
+    {
+      "name": "InternVideo2-L K400",
+      "role": "training_teacher_and_frozen_features",
+      "in_final_inference": false,
+      "source_url": "https://github.com/OpenGVLab/InternVideo",
+      "license": "source Apache-2.0; checkpoint/data terms must be checked",
+      "evidence_paths": [
+        "external_data/InternVideo",
+        "Small-Model-Track/aligned_multimodal/runs/p90_internvideo2_l_k400_teacher_v1"
+      ],
+      "revision": "3965eef16e2dadd0ea6c8d0cc29c8a3039df52e3",
+      "sha256": null,
+      "acquisition": "clone fixed revision, then official model-zoo checkpoint",
+      "model_repository": "OpenGVLab/InternVideo2_distillation_models",
+      "model_revision": "449f7ea1d7d3b70b6b5630e70d238b44d3b7aaac",
+      "model_filename": "stage1/L14/L14_ft_k710_ft_k400_f8/pytorch_model.bin"
+    },
+    {
+      "name": "V-JEPA2 ViT-L FPC16 256 SSV2",
+      "role": "historical_training_teacher_or_frozen_tokens",
+      "in_final_inference": false,
+      "source_url": "https://huggingface.co/facebook/vjepa2-vitl-fpc16-256-ssv2",
+      "source_page": "https://github.com/facebookresearch/vjepa2",
+      "license": "official model-card/checkpoint terms",
+      "evidence_paths": [
+        "Small-Model-Track/aligned_multimodal/p96_vjepa2_dense24_extractor.py",
+        "Small-Model-Track/aligned_multimodal/p142_vjepa_token_transformer_oof.py",
+        "Small-Model-Track/runs/p96_vjepa2_vitl_ssv2_dense24_fold0_v1/cache_summary.json"
+      ],
+      "revision": "model id facebook/vjepa2-vitl-fpc16-256-ssv2; cache snapshot 4aa02df83918538fc21cfaf576382fa20e489a80",
+      "sha256": null,
+      "acquisition": "Hugging Face from_pretrained; not bundled"
+    },
+    {
+      "name": "MotionBERT",
+      "role": "training_skeleton_teacher",
+      "in_final_inference": false,
+      "source_url": "https://github.com/Walter0807/MotionBERT",
+      "license": "see repository and checkpoint terms; do not assume permissive license",
+      "evidence_paths": [
+        "external_data/MotionBERT",
+        "Small-Model-Track/aligned_multimodal/runs/p90_motionbert*"
+      ],
+      "revision": "705d3a95354db8bdb696b3492e47a3b5537174ff",
+      "sha256": null,
+      "acquisition": "clone fixed revision, then official checkpoint",
+      "model_repository": "walterzhu/MotionBERT",
+      "model_filenames": [
+        "checkpoint/action/FT_MB_release_MB_ft_NTU60_xsub/best_epoch.bin",
+        "checkpoint/pretrain/MB_release/latest_epoch.bin",
+        "checkpoint/pretrain/MB_lite/latest_epoch.bin"
+      ]
+    },
+    {
+      "name": "HD-GCN",
+      "role": "historical_training_skeleton_teacher_or_baseline",
+      "in_final_inference": false,
+      "source_url": "https://github.com/Jho-Yonsei/HD-GCN",
+      "license": "repository, NTU data and checkpoint terms",
+      "evidence_paths": [
+        "external_data/HD-GCN",
+        "Small-Model-Track/docs/research/50_teacher_ceiling/68_0.91+教师融合蒸馏执行协议.md"
+      ],
+      "revision": "672da2c3d84c9ea41dab124b7be8b3f82a83b6b2",
+      "sha256": null,
+      "acquisition": "clone fixed revision, then official checkpoint",
+      "model_filenames": [
+        "ntu60_xsub_joint_com1.pt",
+        "ntu60_xsub_joint_com2.pt",
+        "ntu60_xsub_joint_com21.pt",
+        "ntu60_xsub_bone_com1.pt",
+        "ntu60_xsub_bone_com2.pt",
+        "ntu60_xsub_bone_com21.pt"
+      ]
+    },
+    {
+      "name": "LaViLa",
+      "role": "historical_training_video_token_teacher",
+      "in_final_inference": false,
+      "source_url": "https://github.com/facebookresearch/LaViLa",
+      "license": "official repository/checkpoint and Ego4D data terms",
+      "evidence_paths": [
+        "code/training/project/aligned_multimodal/p155_lavila_teacher.py",
+        "code/training/project/aligned_multimodal/p157_lavila_frame_token_cache.py"
+      ],
+      "revision": null,
+      "sha256": null,
+      "acquisition": "Use model_url; source download_lavila.py also records that exact URL.",
+      "binding_confidence": "explicit checkpoint constant in visual teacher and imported by token extractor",
+      "model_url": "https://dl.fbaipublicfiles.com/lavila/checkpoints/dual_encoders/ego4d/clip_openai_timesformer_base.narrator_rephraser.ep_0005.md5sum_d73a9c.pth",
+      "file_size_bytes": 710793107
+    },
+    {
+      "name": "EgoVLP",
+      "role": "available_external_candidate_not_confirmed_in_current_chain",
+      "in_final_inference": false,
+      "source_url": "https://github.com/showlab/EgoVLP",
+      "license": "official repository, checkpoint and Ego4D/video data terms",
+      "evidence_paths": [
+        "external_data/EgoVLP/EgoVLP_PT_BEST.pth",
+        "external_data/EgoVLP/EgoVLP-main.zip"
+      ],
+      "revision": null,
+      "sha256": "e5c13b7a084331bcd3f46361b1ad66ca0088e2eeef0769529d19bb2a3a4df09d",
+      "acquisition": "do not download unless a separate historical experiment explicitly requires it",
+      "binding_confidence": "not_confirmed"
+    },
+    {
+      "name": "SlowFast / Epic-Kitchens",
+      "role": "available_historical_candidate_not_confirmed_in_current_chain",
+      "in_final_inference": false,
+      "source_url": "https://github.com/facebookresearch/SlowFast",
+      "license": "Apache-2.0 source; dataset/checkpoint terms apply",
+      "evidence_paths": [
+        "external_data/epic-kitchens-slowfast-master"
+      ],
+      "revision": null,
+      "sha256": null,
+      "acquisition": "do not download or assemble unless explicitly required",
+      "binding_confidence": "not_confirmed"
+    }
+  ],
+  "verification_notes": [
+    "大型权重未重新读取或下载；null hash 表示没有安全取得本地可核对 hash，不表示文件不存在。",
+    "最终推理资源以交付包 manifest 和 inference 脚本实际加载路径为准。",
+    "代码归档中出现历史实验名不等于最终方案使用；请结合 evidence_paths 和缓存 provenance。",
+    "Exact model locations above were read from supplied source constants; training was not rerun. Full source-file hashes are authoritative for the delivered snapshot."
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "name": "p99_hv0_hand_workspace_visual_expert",
+  "hypothesis": "Dynamic hand/workspace crops encoded before VideoMAE pooling preserve small object-interaction evidence that is diluted in global early/late visual features.",
+  "cohorts": {
+    "exploration_users": ["user17", "user23", "user6", "user8"],
+    "source_only_users": ["user1", "user2", "user21"],
+    "confirmation_users": ["user16", "user18", "user19", "user5", "user7"]
+  },
+  "source": "runs/p91_videomaev2_hand_fold0_v1/complete_features.npz",
+  "experts": {
+    "hand_all": {
+      "recipe": "full_and_peak_x_left_right_interaction",
+      "alpha": 3000.0,
+      "class_weight_power": 0.75
+    },
+    "mean_windows": {
+      "recipe": "mean_full_peak_keep_left_right_interaction",
+      "alpha": 3000.0,
+      "class_weight_power": 0.75
+    },
+    "interaction_only": {
+      "recipe": "full_and_peak_two_hand_interaction_only",
+      "alpha": 3000.0,
+      "class_weight_power": 0.75
+    }
+  },
+  "focus_groups": {
+    "phone_game_call": [19, 24, 26],
+    "read_turn": [21, 22],
+    "drink_medicine": [6, 37],
+    "tableware_related": [8, 9, 10, 11, 14],
+    "phone_headphones": [19, 23]
+  },
+  "calibration": "inner_leave_one_training_user_out_temperature",
+  "shuffle": "within_held_user",
+  "seed": 20260822,
+  "selection": "The main hand_all representation must be information-bearing, improve hard complementarity over the same-backbone global VideoMAEv2 expert, and rescue anchor errors in at least three held users before any anchor fusion is designed.",
+  "h2_policy": "H1-only representation audit. H2 and Student require a separately frozen recipe after H1; H3 has no code path."
+}

@@ -1,0 +1,41 @@
+{
+  "name": "p100a_a0_global_multimodal_teacher",
+  "protocol": "fixed 4-fold 12-subject OOF; no H3; no historical 40-class expert logits",
+  "variants": [
+    "V",
+    "VS",
+    "VI",
+    "VSI"
+  ],
+  "model": {
+    "model_dim": 384,
+    "heads": 8,
+    "modality_layers": 2,
+    "fusion_layers": 4,
+    "fusion_latents": 8,
+    "dropout": 0.2,
+    "evidence_dropout": 0.1
+  },
+  "training": {
+    "epochs": 24,
+    "batch_size": 32,
+    "eval_batch_size": 64,
+    "learning_rate": 0.00012,
+    "weight_decay": 0.02,
+    "warmup_fraction": 0.1,
+    "label_smoothing": 0.02,
+    "gradient_clip": 1.0,
+    "seed": 20260823,
+    "amp": true,
+    "checkpoint_selection": "fixed_final_epoch_before_outer_label_evaluation"
+  },
+  "gate": {
+    "vsi_minus_v_min_net_correct": 10,
+    "min_nonnegative_subjects": 8,
+    "min_positive_subjects": 4,
+    "max_subject_drop_pp": 2.0,
+    "mcnemar_max_p": 0.1,
+    "top1_and_top5_must_both_improve": true,
+    "aligned_must_beat_shuffle": true
+  }
+}

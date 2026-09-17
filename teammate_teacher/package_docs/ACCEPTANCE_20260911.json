@@ -1,0 +1,62 @@
+{
+  "date": "2026-09-11",
+  "clean_venv": true,
+  "user_site_enabled": false,
+  "old_feature_caches_used": false,
+  "raw_inputs_copied_to_independent_directory": true,
+  "ground_truth_used": false,
+  "powershell": {
+    "rows": 405,
+    "prediction_differences": 0,
+    "csv_sha256": "a9796cde28c8a999623a1ee388047c97d2d1553fd9bf10a9ed30f8ca7768561c",
+    "wall_seconds": 349.01834540000027
+  },
+  "bash": {
+    "rows": 405,
+    "csv_sha256": "a9796cde28c8a999623a1ee388047c97d2d1553fd9bf10a9ed30f8ca7768561c",
+    "wall_seconds": 296.6612233000001,
+    "platform": "Git Bash on Windows with clean Windows Python; not native Linux"
+  },
+  "unit_tests": {
+    "count": 18,
+    "passed": 18
+  },
+  "pip_check": "pass",
+  "model_sha256": "28d41bf833c191ddf354e8da27b2c9c91ac58d30b7b58aa5f9cd4096d42febde",
+  "model_bytes": 56471879,
+  "model_weights_changed": false,
+  "native_linux_tested": false,
+  "signed_declaration_present": false,
+  "environment": {
+    "python": "3.12.7 | packaged by Anaconda, Inc. | (main, Oct  4 2024, 13:17:27) [MSC v.1929 64 bit (AMD64)]",
+    "executable": "C:\\kaggle_CUNK_X\\small model\\CUHK-X_\u72ec\u7acb\u590d\u73b0\u9a8c\u6536_20260911\\package\\.venv\\Scripts\\python.exe",
+    "user_site": false,
+    "torch": "2.9.1+cu130",
+    "torchvision": "0.24.1+cu130",
+    "numpy": "2.4.4",
+    "cuda": true,
+    "sys_path": [
+      "",
+      "C:\\ProgramData\\anaconda3\\python312.zip",
+      "C:\\ProgramData\\anaconda3\\DLLs",
+      "C:\\ProgramData\\anaconda3\\Lib",
+      "C:\\ProgramData\\anaconda3",
+      "C:\\kaggle_CUNK_X\\small model\\CUHK-X_\u72ec\u7acb\u590d\u73b0\u9a8c\u6536_20260911\\package\\.venv",
+      "C:\\kaggle_CUNK_X\\small model\\CUHK-X_\u72ec\u7acb\u590d\u73b0\u9a8c\u6536_20260911\\package\\.venv\\Lib\\site-packages"
+    ]
+  },
+  "repairs": [
+    "missing Hugging Face utility dependencies declared",
+    "isolated venv and dependency lock",
+    "Unicode filename-safe image validation",
+    "all-row CSV validation",
+    "isolated library settings and model caches",
+    "entrypoints prefer local venv"
+  ],
+  "current_runtime_hashes": {
+    "bundle.py": "66f8f1c09e2a2e31a52d352b5f0f458b809857b433b987f6b09e370395a233b0",
+    "infer_student.py": "040bc278f441d11fcd2ac033b596a1b20a31c6c50de5095a89f0418861ccb2a2",
+    "runtime.py": "423ae9446f1b246e90bd1ed983f48805516cb7b3712b67ff950e0e0e43c93b61",
+    "stage_runner.py": "b62dd0f0d06d30a2b40a3338b28dcd794b2a4d55814e856754f2a34abd90033f"
+  }
+}

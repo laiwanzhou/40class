@@ -1,0 +1,8 @@
+{
+  "rows": 405,
+  "prediction_mismatches": 0,
+  "seconds": 1.6985340000101132,
+  "device": "cuda",
+  "scope": "FP16 full model from historical pixels/motion; NOT raw preprocessing",
+  "test_ground_truth_loaded": false
+}

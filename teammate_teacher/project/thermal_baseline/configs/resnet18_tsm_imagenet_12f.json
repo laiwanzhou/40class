@@ -1,0 +1,19 @@
+{
+  "seed": 20260720,
+  "num_frames": 12,
+  "image_height": 144,
+  "image_width": 192,
+  "batch_size": 32,
+  "epochs": 15,
+  "learning_rate": 0.0007,
+  "weight_decay": 0.0002,
+  "label_smoothing": 0.1,
+  "dropout": 0.3,
+  "num_workers": 4,
+  "val_num_workers": 0,
+  "balanced_sampling": true,
+  "use_amp": true,
+  "max_grad_norm": 5.0,
+  "imagenet_pretrained": true,
+  "normalization": "legacy"
+}

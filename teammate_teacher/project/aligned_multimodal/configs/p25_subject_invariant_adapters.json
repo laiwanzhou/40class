@@ -1,0 +1,176 @@
+{
+  "protocol_version": "p25-v1-fixed-before-training",
+  "source": {
+    "cache_dir": "aligned_multimodal/runs/p22_joint_pooled_fusion/cache",
+    "outer_folds": 3,
+    "sample_alignment": "explicit sample_id join",
+    "rerun_encoders": false
+  },
+  "modalities": {
+    "skeleton": 512,
+    "depth": 1024,
+    "thermal": 1024,
+    "imu": 320
+  },
+  "variants": {
+    "P25-C": {
+      "action_ce_weight": 1.0,
+      "cross_subject_supcon_weight": 0.0,
+      "subject_adversarial_ce_weight": 0.0
+    },
+    "P25-S": {
+      "action_ce_weight": 1.0,
+      "cross_subject_supcon_weight": 0.1,
+      "subject_adversarial_ce_weight": 0.0
+    },
+    "P25-A": {
+      "action_ce_weight": 1.0,
+      "cross_subject_supcon_weight": 0.1,
+      "subject_adversarial_ce_weight": 0.05
+    }
+  },
+  "adapter": {
+    "hidden_dim": 128,
+    "representation_dim": 64,
+    "dropout": 0.2,
+    "representation_normalization": "L2",
+    "action_classes": 40,
+    "subject_head_inference": false
+  },
+  "training": {
+    "epochs": 50,
+    "batch_size": 128,
+    "optimizer": "AdamW",
+    "learning_rate": 0.001,
+    "weight_decay": 0.001,
+    "seed": 20260729,
+    "checkpoint_selection": "fixed final epoch 50",
+    "held_fold_early_stopping": false,
+    "held_fold_evaluation": "final epoch only",
+    "hyperparameter_sweep": false,
+    "deterministic_algorithms": true
+  },
+  "sampler": {
+    "type": "class-subject balanced",
+    "classes_per_batch": 32,
+    "subject_slots_per_class": 4,
+    "steps_per_epoch": "ceil(number of present outer-train samples / 128)",
+    "subject_slot_fallback": "include every available subject once, then fill remaining slots with replacement when a class has fewer than four train subjects",
+    "sample_within_class_subject": "uniform with replacement across steps",
+    "same_batches_across_variants": true
+  },
+  "supervised_contrastive": {
+    "temperature": 0.1,
+    "positive_rule": "same action class and different subject",
+    "same_subject_positive": false,
+    "anchors_without_positive": "excluded from contrastive mean and counted"
+  },
+  "gradient_reversal": {
+    "schedule": "linear",
+    "start": 0.0,
+    "end": 0.05,
+    "epoch_formula": "0.05 * (epoch_index / 49)",
+    "note": "P25-A also multiplies subject CE by 0.05, so maximum adapter-side adversarial coefficient is 0.0025"
+  },
+  "subject_probe": {
+    "scope": "outer-train subjects only",
+    "model": "StandardScaler + LogisticRegression",
+    "C": 1.0,
+    "solver": "lbfgs",
+    "max_iter": 2000,
+    "cv": "StratifiedKFold",
+    "n_splits": 3,
+    "shuffle": true,
+    "seed": 20260729,
+    "selection_use": false
+  },
+  "prototype": {
+    "protocol": "identical to P23",
+    "distances": [
+      "cosine",
+      "standardized_euclidean"
+    ],
+    "gate_distance": "standardized_euclidean"
+  },
+  "evaluation": {
+    "small_action_ids": [
+      1,
+      2,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      37,
+      39
+    ],
+    "hard_class_ids": [
+      7,
+      8,
+      9,
+      10,
+      11,
+      13,
+      14,
+      15,
+      16,
+      18,
+      19,
+      20,
+      21,
+      22,
+      24,
+      25,
+      26,
+      35,
+      37,
+      38,
+      39
+    ],
+    "focus_class_ids": [
+      19,
+      24,
+      26,
+      25,
+      37,
+      21,
+      22,
+      9,
+      10,
+      12,
+      13
+    ]
+  },
+  "gates": {
+    "overall_delta_pp_min": 2.0,
+    "hard_delta_pp_min": 3.0,
+    "improved_outer_fold_count_min": 2,
+    "prototype_gap_reduction_pp_min": 5.0,
+    "prototype_same_subject_drop_pp_max": 5.0,
+    "subject_probe_drop_pp_min": 10.0,
+    "passing_modality_count_min": 2,
+    "adversarial_action_degradation_rule": "lower subject probe with lower action accuracy is deletion of action information and cannot pass"
+  },
+  "forbidden": [
+    "four-modality learned feature concatenation",
+    "encoder rerun or unfreezing",
+    "P22-B",
+    "Transformer",
+    "Local ROI",
+    "P12 modification",
+    "held-fold model selection",
+    "post-result weight, epoch, seed, or structure changes"
+  ]
+}

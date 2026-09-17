@@ -1,0 +1,20 @@
+{
+  "name": "p99_h1_fixed_budget_transfer_probe",
+  "base_checkpoint": "aligned_multimodal/runs/p87s_fusion_holdout1_c0_v1/unified_student.pt",
+  "reference_structured_run": "aligned_multimodal/runs/p87s_fusion_holdout1_c2_structured_v1",
+  "reference_structured_targets": "aligned_multimodal/runs/p87s_holdout1_structured_targets_v1/structured_targets.npz",
+  "d0_predictions": "runs/p99_depth_d0_h1_v1/h1_predictions.npz",
+  "t1_predictions": "runs/p99_depth_anchor_t1_h1_v1/h1_predictions.npz",
+  "epochs": 4,
+  "batch_size": 64,
+  "workers": 0,
+  "fusion_learning_rate": 0.00005,
+  "visual_head_learning_rate": 0.00001,
+  "minimum_learning_rate": 0.000002,
+  "weight_decay": 0.02,
+  "temperature": 1.0,
+  "seed": 20260812,
+  "trainable_scope": "frozen encoders; visual temporal head plus fusion/residual head",
+  "targets": ["anchor", "depth_d0", "anchor_depth_t1"],
+  "h2_h3_access": false
+}

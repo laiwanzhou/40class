@@ -1,0 +1,8 @@
+{
+  "rows": 405,
+  "prediction_mismatches": 0,
+  "seconds": 2.0484208000125363,
+  "device": "cuda",
+  "scope": "FP16-stored head/motion forward on historical cached MC3 sequences; NOT raw reconstruction",
+  "test_ground_truth_loaded": false
+}

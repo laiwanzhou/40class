@@ -1,0 +1,16 @@
+# Keep this source-only branch free of competition data and generated artifacts.
+*.bin
+*.ckpt
+*.npy
+*.npz
+*.pt
+*.pth
+*.safetensors
+*.zip
+__pycache__/
+.pytest_cache/
+.venv/
+data/
+datasets/
+outputs/
+runs/

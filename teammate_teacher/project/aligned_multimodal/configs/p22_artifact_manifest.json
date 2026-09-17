@@ -1,0 +1,271 @@
+{
+  "protocol": "P22-A fixed-final outer-fold encoders",
+  "created_for_commit": "169d338935098a4306bfe66fd58f913bd3927f2f plus P22 stage-one changes",
+  "checkpoint_policy": "Only fixed-final checkpoints are eligible. best_accuracy checkpoints are forbidden.",
+  "folds": [
+    {
+      "fold": 0,
+      "train_users": [
+        "user1",
+        "user2",
+        "user5",
+        "user6",
+        "user7",
+        "user8",
+        "user16",
+        "user17",
+        "user18",
+        "user19",
+        "user21",
+        "user23"
+      ],
+      "val_users": [
+        "user3",
+        "user4",
+        "user9",
+        "user20",
+        "user22",
+        "user24"
+      ],
+      "checkpoints": {
+        "skeleton": {
+          "path": "aligned_multimodal/runs/p0_tracking/fold_0_skeleton_first/last.pt",
+          "bytes": 1338797,
+          "sha256": "d28dfc031270a8ee358a92a50688861f62e055d504b90798ec6e2658843a5b17",
+          "epoch": 15,
+          "model_config": {
+            "modalities": [
+              "skeleton"
+            ],
+            "num_frames": 12,
+            "dropout": 0.3
+          }
+        },
+        "depth": {
+          "path": "aligned_multimodal/runs/p5_depth_imagenet/fold_0/last.pt",
+          "bytes": 47367157,
+          "sha256": "2e588c6512d1c9ab56b9c10e4ddd9478b875dd0b905732a447fcba74bf2c59d5",
+          "epoch": 15,
+          "model_config": {
+            "modalities": [
+              "depth"
+            ],
+            "num_frames": 12,
+            "dropout": 0.3,
+            "depth_representation": "jet_rgb",
+            "imagenet_pretrained": true
+          }
+        },
+        "thermal": {
+          "path": "thermal_baseline/runs/p11_thermal_imagenet/fold_0/last.pt",
+          "bytes": 47365621,
+          "sha256": "a47f2affc091edacd81403a9d1d3f8795771724d50613b3370b30addbe4d9402",
+          "epoch": 15,
+          "model_config": {
+            "num_frames": 12,
+            "dropout": 0.3,
+            "normalization": "legacy",
+            "imagenet_pretrained": true
+          }
+        },
+        "imu": {
+          "path": "aligned_multimodal/runs/p20_tiny_imu_student_oof/fold_0/final.pt",
+          "bytes": 241878,
+          "sha256": "18bd7dff8f115f3103445e11209a1e5ef3514b2f10ec584788eea0ab1f009733",
+          "epoch": 120,
+          "fixed_final_epoch": true,
+          "model_config": {
+            "dropout": 0.15,
+            "features_per_device": 48,
+            "masks_per_device": 2,
+            "devices": 5
+          }
+        }
+      }
+    },
+    {
+      "fold": 1,
+      "train_users": [
+        "user3",
+        "user4",
+        "user5",
+        "user7",
+        "user9",
+        "user16",
+        "user18",
+        "user19",
+        "user20",
+        "user21",
+        "user22",
+        "user24"
+      ],
+      "val_users": [
+        "user1",
+        "user2",
+        "user6",
+        "user8",
+        "user17",
+        "user23"
+      ],
+      "checkpoints": {
+        "skeleton": {
+          "path": "aligned_multimodal/runs/p0_tracking/fold_1_skeleton_first/last.pt",
+          "bytes": 1338797,
+          "sha256": "b87d853887fa5472ec991eb0b82927e96fdaa6ab58b3b4e3740948271724e552",
+          "epoch": 15
+        },
+        "depth": {
+          "path": "aligned_multimodal/runs/p5_depth_imagenet/fold_1/last.pt",
+          "bytes": 47367157,
+          "sha256": "c8ada9151d4996c25383b4aa099efcab32245ba53e570066472e705f54d109d9",
+          "epoch": 15
+        },
+        "thermal": {
+          "path": "thermal_baseline/runs/p11_thermal_imagenet/fold_1/last.pt",
+          "bytes": 47365621,
+          "sha256": "4d193f993f5a6d9d1c0cd0f35a346dae090fd216c79ffa6e978363cc798de0d7",
+          "epoch": 15
+        },
+        "imu": {
+          "path": "aligned_multimodal/runs/p20_tiny_imu_student_oof/fold_1/final.pt",
+          "bytes": 241878,
+          "sha256": "2803eed61d422972e82865dcd21d9375fa43e73c059d8009933edd4ef04b39ec",
+          "epoch": 120,
+          "fixed_final_epoch": true
+        }
+      }
+    },
+    {
+      "fold": 2,
+      "train_users": [
+        "user1",
+        "user2",
+        "user3",
+        "user4",
+        "user6",
+        "user8",
+        "user9",
+        "user17",
+        "user20",
+        "user22",
+        "user23",
+        "user24"
+      ],
+      "val_users": [
+        "user5",
+        "user7",
+        "user16",
+        "user18",
+        "user19",
+        "user21"
+      ],
+      "checkpoints": {
+        "skeleton": {
+          "path": "aligned_multimodal/runs/p0_tracking/fold_2_skeleton_first/last.pt",
+          "bytes": 1338797,
+          "sha256": "4c7afe900590e1e9a353a48d3a5c1eebca41877b7494311c7bc0bb05c5504ee4",
+          "epoch": 15
+        },
+        "depth": {
+          "path": "aligned_multimodal/runs/p5_depth_imagenet/fold_2/last.pt",
+          "bytes": 47367157,
+          "sha256": "7391f92df04c9e7b22104edebd9150ae7315c506503fbbbeb7986d8bcf4214ee",
+          "epoch": 15
+        },
+        "thermal": {
+          "path": "thermal_baseline/runs/p11_thermal_imagenet/fold_2/last.pt",
+          "bytes": 47365621,
+          "sha256": "1ccf727e45db5388966b76960c503ec60f781d7b7b6a23190e47400cbf7ae1f2",
+          "epoch": 15
+        },
+        "imu": {
+          "path": "aligned_multimodal/runs/p20_tiny_imu_student_oof/fold_2/final.pt",
+          "bytes": 241878,
+          "sha256": "b2ea61e5d2874e8fdb77d8e01f6a60a5e668d718309f23b6b1309f10b84e2a4b",
+          "epoch": 120,
+          "fixed_final_epoch": true
+        }
+      }
+    }
+  ],
+  "manifests": {
+    "visual_base": {
+      "path": "aligned_multimodal/data/manifest.csv",
+      "bytes": 1122267,
+      "sha256": "29ecaf62328dd395bed449dd1af2c27cfb63b53d1fce39870adca7bef1931955"
+    },
+    "fold_summary": {
+      "path": "aligned_multimodal/data/subject_folds/folds_summary.json",
+      "bytes": 2234,
+      "sha256": "7b8a28d683cf4dd91d78c151e56d2e9c92e1c954cdaae2bd7012e94036d72c09"
+    },
+    "visual_cache_metadata": {
+      "path": "aligned_multimodal/cache/aligned_192x144/metadata.json",
+      "bytes": 120640,
+      "sha256": "fefbc32828e15edc0b7dfd86b705c7ed1075454d68a9ba02a0fbd1780e61400a"
+    },
+    "imu_cache_index": {
+      "path": "aligned_multimodal/cache/imu_32/index.csv",
+      "bytes": 679305,
+      "sha256": "a815c1ddb68f3967a61b0ae3749167c55291bb826f17c8850de9a23e353fef8a"
+    },
+    "imu_cache_metadata": {
+      "path": "aligned_multimodal/data/imu_32_metadata.json",
+      "bytes": 889,
+      "sha256": "ebcf7a8d4e068eb3451fc759db5cd990fcf1225554a98f2d4026398faea83b96"
+    },
+    "fold_0_visual": {
+      "path": "aligned_multimodal/data/subject_folds/fold_0.csv",
+      "sha256": "ca65000f0782aff9106eef4f74b403b85a2031cb779948b47cc0f34a0962944a"
+    },
+    "fold_0_thermal": {
+      "path": "thermal_baseline/data/subject_folds/fold_0.csv",
+      "sha256": "507085349c6af8588f974ad214db506bbdeed81c7c17ce0891ad39afe4c90393"
+    },
+    "fold_1_visual": {
+      "path": "aligned_multimodal/data/subject_folds/fold_1.csv",
+      "sha256": "e528b195b657b8b3da3c2a0708f9ad8ea57f14d924cb33e2e7607f2fb6e8001f"
+    },
+    "fold_1_thermal": {
+      "path": "thermal_baseline/data/subject_folds/fold_1.csv",
+      "sha256": "383580f271c69c24d6f2a63ba483f61c2b1d0f24b28ff7a8eb1ea0db4a4d6851"
+    },
+    "fold_2_visual": {
+      "path": "aligned_multimodal/data/subject_folds/fold_2.csv",
+      "sha256": "be31a75114a289c43080660fba7ea94296cbbdfb357227bdc6cda1bbe5ccb1ba"
+    },
+    "fold_2_thermal": {
+      "path": "thermal_baseline/data/subject_folds/fold_2.csv",
+      "sha256": "6006457331b9716cd3d3acd9c2f74ffdcd47ac318faaf240cdadd0d9220ef23b"
+    }
+  },
+  "preprocess": {
+    "skeleton_depth": {
+      "sample_universe": "2914 common aligned trials",
+      "num_frames": 12,
+      "image_height": 144,
+      "image_width": 192,
+      "augment": false,
+      "depth_representation": "jet_rgb",
+      "visual_normalization": "legacy",
+      "skeleton_strategy": "first",
+      "skeleton_representation": "frame_joint"
+    },
+    "thermal": {
+      "num_frames": 12,
+      "image_height": 144,
+      "image_width": 192,
+      "augment": false,
+      "normalization": "legacy",
+      "alignment_claim": "sample id plus normalized trial progress; not exact timestamps"
+    },
+    "imu": {
+      "cache_time_steps": 32,
+      "devices": 5,
+      "statistics_per_device": 48,
+      "mask_values_per_device": 2,
+      "presence_source": "parsed aligned_multimodal/cache/imu_32/index.csv usable flag",
+      "normalizer_source": "fold-local Tiny IMU checkpoint"
+    }
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "name": "p101_f2_source_safe_crossfit_adapter_teacher",
+  "protocol": "P100 coarse VS outer anchor plus shared fine local VSI residual trained on three source-safe nested anchors per outer fold; fixed 4-fold; no H3",
+  "nested_source": "p101_f1_coarse_anchor_oof_v1/nested_coarse_vs",
+  "model": {
+    "model_dim": 384,
+    "motion_dim": 192,
+    "heads": 8,
+    "dropout": 0.15,
+    "local_radius": 0.18,
+    "workspace_arm_prior": 0.35,
+    "evidence_layers": 2
+  },
+  "training": {
+    "adapter_epochs": 16,
+    "batch_size": 16,
+    "eval_batch_size": 32,
+    "adapter_learning_rate": 0.00018,
+    "weight_decay": 0.02,
+    "warmup_fraction": 0.1,
+    "label_smoothing": 0.02,
+    "gradient_clip": 1.0,
+    "nested_error_ce_multiplier": 1.5,
+    "anchor_kl_temperature": 2.0,
+    "anchor_kl_correct_weight": 0.5,
+    "anchor_kl_wrong_weight": 0.05,
+    "correspondence_weight": 0.2,
+    "seed": 20260823,
+    "amp": true,
+    "checkpoint_selection": "fixed_final_epoch_before_any_outer-held label metric",
+    "nested_anchor_order": "deterministic rotating order per epoch"
+  },
+  "gate": {
+    "candidate_minus_anchor_min_net": 10,
+    "mcnemar_max_p": 0.1,
+    "min_nonnegative_subjects": 8,
+    "min_positive_subjects": 4,
+    "max_subject_drop_pp": 2.0,
+    "top5_only_min_rows": 10,
+    "top5_only_max_top1_drop_rows": 2,
+    "top5_only_max_macro_f1_drop": 0.002
+  }
+}

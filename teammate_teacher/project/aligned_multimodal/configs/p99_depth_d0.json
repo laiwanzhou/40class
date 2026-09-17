@@ -1,0 +1,20 @@
+{
+  "name": "p99_depth_d0_source_oof",
+  "hypothesis": "The P98 Depth result mixed representation quality with the absence of a legal source-OOF Depth classification head. A calibrated subject-OOF head on the frozen VideoMAEv2 Depth views can reveal whether Depth carries independent and transferable class knowledge.",
+  "cohorts": {
+    "exploration_users": ["user17", "user23", "user6", "user8"],
+    "source_only_users": ["user1", "user2", "user21"],
+    "confirmation_users": ["user16", "user18", "user19", "user5", "user7"]
+  },
+  "recipes": {
+    "roi_all": {"alpha": 3000.0, "class_weight_power": 0.75},
+    "roi_mean": {"alpha": 1000.0, "class_weight_power": 0.75},
+    "k710_logits": {"alpha": 1000.0, "class_weight_power": 0.50},
+    "roi_all_plus_k710": {"alpha": 3000.0, "class_weight_power": 0.75}
+  },
+  "calibration": "inner_leave_one_training_user_out_temperature",
+  "shuffle": "within_held_user",
+  "seed": 20260822,
+  "selection": "highest H1 correct, then balanced accuracy, Top-5, lower log loss, lexical recipe name",
+  "student_probe": "all information-bearing D0 candidates use the same frozen P87-S transfer budget; no D0-specific Student tuning"
+}

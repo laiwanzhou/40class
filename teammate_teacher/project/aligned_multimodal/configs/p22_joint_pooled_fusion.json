@@ -1,0 +1,162 @@
+{
+  "protocol_version": "p22-a-v1-fixed-before-training",
+  "outer_folds": 3,
+  "sample_universe": "p12_complete_oof 2914 Depth+Skeleton samples",
+  "modality_order": [
+    "skeleton",
+    "depth",
+    "thermal",
+    "imu"
+  ],
+  "embedding_dims": {
+    "skeleton": 512,
+    "depth": 1024,
+    "thermal": 1024,
+    "imu": 320
+  },
+  "models": {
+    "P22-L": {
+      "description": "matched logit fusion control",
+      "input": "4x40 masked unimodal logits + 4 presence bits",
+      "architecture": "LayerNorm(164)-Linear(164,128)-GELU-Dropout(0.20)-Linear(128,40)"
+    },
+    "P22-F": {
+      "description": "pooled feature fusion",
+      "projection_dim": 64,
+      "hidden_dim": 128,
+      "dropout": 0.2
+    },
+    "P22-U": {
+      "description": "feature plus raw-logit bypass diagnostic",
+      "input": "256 projected features + 160 masked logits + 4 presence bits",
+      "projection_dim": 64,
+      "hidden_dim": 128,
+      "dropout": 0.2
+    }
+  },
+  "training": {
+    "seed": 20260729,
+    "epochs": 80,
+    "batch_size": 256,
+    "optimizer": "AdamW",
+    "learning_rate": 0.001,
+    "weight_decay": 0.0001,
+    "scheduler": "none",
+    "loss": "ordinary_cross_entropy",
+    "imu_modality_dropout": 0.2,
+    "thermal_modality_dropout": 0.2,
+    "skeleton_modality_dropout": 0.0,
+    "depth_modality_dropout": 0.0,
+    "held_fold_early_stopping": false,
+    "hyperparameter_sweep": false,
+    "checkpoint_selection": "fixed final epoch 80"
+  },
+  "cache": {
+    "storage_dtype": "float16",
+    "visual_batch_size": 32,
+    "thermal_batch_size": 32,
+    "imu_batch_size": 512,
+    "num_workers": 0,
+    "deterministic_segment_midpoints": true,
+    "fold_conditioned_full_sample_caches": true
+  },
+  "evaluation": {
+    "bootstrap_repeats": 5000,
+    "bootstrap_seed": 20260729,
+    "shuffle_seed": 20260729,
+    "shuffle_rule": "within held fold, permute present rows for one modality; absent rows remain zero and absent",
+    "zero_out_rule": "set selected modality embedding/logits/presence to zero on all held-fold rows",
+    "small_action_ids": [
+      1,
+      2,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      37,
+      39
+    ],
+    "hard_class_ids": [
+      7,
+      8,
+      9,
+      10,
+      11,
+      13,
+      14,
+      15,
+      16,
+      18,
+      19,
+      20,
+      21,
+      22,
+      24,
+      25,
+      26,
+      35,
+      37,
+      38,
+      39
+    ],
+    "p12_reference": {
+      "overall_accuracy": 0.6218256691832532,
+      "small_action_accuracy": 0.4746307000642261,
+      "hard_class_accuracy": 0.39234104046242774,
+      "per_fold_accuracy": {
+        "0": 0.6238437821171634,
+        "1": 0.5934291581108829,
+        "2": 0.6483971044467425
+      }
+    }
+  },
+  "gates": {
+    "mechanism": {
+      "overall_delta_pp_min": 0.5,
+      "small_delta_pp_min": 0.0,
+      "hard_delta_pp_min": 0.0,
+      "improved_fold_count_min": 2,
+      "worst_fold_delta_pp_min": -1.0,
+      "bootstrap_probability_positive_min": 0.95
+    },
+    "strong_mechanism": {
+      "overall_delta_pp_min": 1.5
+    },
+    "accuracy_reference": {
+      "overall_accuracy_min": 0.6318,
+      "small_action_accuracy_min": 0.4896,
+      "hard_class_accuracy_min": 0.4073,
+      "improved_fold_count_min": 2,
+      "bootstrap_ci95_lower_pp_min": 0.0,
+      "model_size_mib_max": 100.0
+    }
+  },
+  "forbidden": [
+    "P22-B",
+    "Transformer",
+    "encoder unfreezing",
+    "best_accuracy Depth/Thermal checkpoints",
+    "full18 checkpoints for OOF",
+    "P16/P20/P21 oracle-assisted visual features",
+    "class weights",
+    "auxiliary heads",
+    "margin losses",
+    "distillation",
+    "Local ROI",
+    "routing",
+    "post-result hyperparameter changes"
+  ]
+}

@@ -1,0 +1,90 @@
+{
+  "stage": "P86-v2",
+  "protocol_version": 1,
+  "created_before_candidate_metrics": true,
+  "objective": "Improve a deployable <=100 MB single-sample Student using subject-disjoint Train-only evidence.",
+  "embargo": {
+    "subjects": [
+      "user1",
+      "user2",
+      "user21"
+    ],
+    "expected_samples": 444,
+    "policy": "Exclude these rows from both development training and evaluation. They are the exhausted P86-v1 permanent validation set.",
+    "kaggle_test_policy": "Do not read Test predictions, pseudo-labels, submissions, leaderboard scores, or Test-derived thresholds."
+  },
+  "allowed_train_subjects": [
+    "user3",
+    "user4",
+    "user5",
+    "user6",
+    "user7",
+    "user8",
+    "user9",
+    "user16",
+    "user17",
+    "user18",
+    "user19",
+    "user20",
+    "user22",
+    "user23",
+    "user24"
+  ],
+  "development": {
+    "name": "fresh_balanced_holdout_a",
+    "holdout_subjects": [
+      "user16",
+      "user18",
+      "user23",
+      "user7"
+    ],
+    "expected_samples": 679,
+    "expected_classes_present": 40,
+    "fixed_epochs": 16,
+    "validation_during_training": false,
+    "rationale": "These subjects were P86-v1 training subjects, never members of its repeatedly inspected six-subject proxy. The set was selected from labels and counts before P86-v2 predictions were read; it covers all 40 classes."
+  },
+  "confirmation": {
+    "name": "sealed_holdout_b",
+    "holdout_subjects": [
+      "user17",
+      "user19",
+      "user5",
+      "user6",
+      "user8"
+    ],
+    "expected_samples": 818,
+    "expected_classes_present": 39,
+    "known_absent_classes": [
+      25
+    ],
+    "fixed_epochs": 16,
+    "validation_during_training": false,
+    "policy": "Do not evaluate candidate predictions on this fold until the candidate mechanism, architecture, loss, and epoch budget are frozen. Retrain from the generic pretrained initialization with this fold excluded."
+  },
+  "historical_proxy_subjects": [
+    "user3",
+    "user4",
+    "user9",
+    "user20",
+    "user22",
+    "user24"
+  ],
+  "selection_metrics": [
+    "accuracy",
+    "macro_f1",
+    "balanced_accuracy",
+    "worst_subject_accuracy",
+    "negative_log_likelihood",
+    "brier_score",
+    "ece_15",
+    "per_subject",
+    "per_class",
+    "rescue_harm"
+  ],
+  "deployment": {
+    "checkpoint_max_bytes_exclusive": 100000000,
+    "large_teacher_at_inference": false,
+    "test_time_trainable_components": false
+  }
+}

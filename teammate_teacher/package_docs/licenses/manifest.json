@@ -1,0 +1,32 @@
+[
+  {
+    "component": "VideoMAEv2",
+    "file": "VideoMAEv2_LICENSE.txt",
+    "sha256": "fc1e582f4c782c5e11a9a0718fcf7514e237c1677a166ca9d9733012b9121c10"
+  },
+  {
+    "component": "InternVideo",
+    "file": "InternVideo_LICENSE.txt",
+    "sha256": "7ef6610e3f947b278c8625b5268984014b417282c48555387adef93531e75e84"
+  },
+  {
+    "component": "MotionBERT",
+    "file": "MotionBERT_LICENSE.txt",
+    "sha256": "88e7b0d0f67b9eee55591807e4c16c20cd5f13a24a0bb7d3a419ea2b49881d47"
+  },
+  {
+    "component": "HD-GCN",
+    "file": "HD-GCN_LICENSE.txt",
+    "sha256": "dfbcf16dfe06a64a812df2bf94cec9cfa327d9c05d0e3db23c376b522c3772aa"
+  },
+  {
+    "component": "LaViLa",
+    "file": "LaViLa_LICENSE.txt",
+    "sha256": "e16b8d6ba8de2b8bfe25ed3d641cb3311e1cde53c31a16eebf03dccd162cb057"
+  },
+  {
+    "component": "Ultralytics",
+    "file": "Ultralytics_LICENSE.txt",
+    "sha256": "0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0"
+  }
+]

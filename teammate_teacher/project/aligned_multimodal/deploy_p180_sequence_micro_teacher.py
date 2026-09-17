@@ -1,0 +1,128 @@
+"""Freeze P180: P179 sequence teacher followed by non-conflicting micro-union."""
+
+from __future__ import annotations
+
+import csv
+import hashlib
+import json
+from pathlib import Path
+
+import numpy as np
+
+import p89_build_dual_consensus_submission as submission_io
+
+
+HERE = Path(__file__).resolve().parent
+OUTPUT = HERE / "runs/p180_sequence_micro_teacher_v1"
+P89 = HERE / "runs/p89_imu_probability_blend_test_v1/submission_p89_imu_probability_blend.csv"
+P179 = HERE / "runs/p179_p177_soft_sequence_gate_v1/submission_p179_p177_soft_sequence.csv"
+P168 = HERE / "runs/p168_historical_micro_union_test_v1/submission_p168_historical_micro_union.csv"
+P167 = HERE / "runs/p167_combined_teacher_test_v1/submission_p167_combined_teacher.csv"
+OOF_P179 = HERE / "runs/p179_p177_soft_sequence_gate_v1/predictions.npz"
+OOF_MICRO = HERE / "runs/p89_verified_micro_union_audit_v1/validation_predictions.npz"
+OOF_BASE = HERE.parent / "runs/a18_p89_selective_replacement_v1/crossfit_predictions.npz"
+SPLITS = ("H1_selection", "H2_confirmation", "H3_independent_fold0")
+
+
+def digest(path: Path) -> str:
+    value = hashlib.sha256()
+    with path.open("rb") as handle:
+        while chunk := handle.read(1024 * 1024):
+            value.update(chunk)
+    return value.hexdigest()
+
+
+def read_prediction(path: Path) -> np.ndarray:
+    with path.open("r", encoding="utf-8-sig", newline="") as handle:
+        return np.asarray([int(row["prediction"]) for row in csv.DictReader(handle)])
+
+
+def main() -> None:
+    with np.load(OOF_BASE, allow_pickle=False) as saved:
+        sample_ids = saved["sample_ids"].astype(str)
+        labels = saved["labels"].astype(np.int64)
+        base = saved["p89_safe_prediction"].astype(np.int64)
+    with np.load(OOF_P179, allow_pickle=False) as saved:
+        sequence = np.concatenate(
+            [saved[f"{name}_held_prediction"].astype(np.int64) for name in SPLITS]
+        )
+    with np.load(OOF_MICRO, allow_pickle=False) as saved:
+        micro = np.concatenate(
+            [saved["h1_union"], saved["h2_union"], saved["h3_union"]]
+        ).astype(np.int64)
+    prediction = np.where(sequence != base, sequence, np.where(micro != base, micro, base))
+    correct = int(np.sum(prediction == labels))
+    if correct != 2185:
+        raise RuntimeError(f"P180 OOF count changed: {correct}")
+    fold_nets = [
+        int(np.sum(prediction[low:high] == labels[low:high]))
+        - int(np.sum(base[low:high] == labels[low:high]))
+        for low, high in ((0, 663), (663, 1497), (1497, 2470))
+    ]
+    if fold_nets != [21, 28, 19]:
+        raise RuntimeError(f"P180 fold nets changed: {fold_nets}")
+    base_test = read_prediction(P89)
+    sequence_test = read_prediction(P179)
+    p168_test = read_prediction(P168)
+    p167_test = read_prediction(P167)
+    micro_test = np.where(p168_test != p167_test, p168_test, base_test)
+    test_prediction = np.where(
+        sequence_test != base_test,
+        sequence_test,
+        np.where(micro_test != base_test, micro_test, base_test),
+    ).astype(np.int64)
+    OUTPUT.mkdir(parents=True, exist_ok=True)
+    submission = OUTPUT / "submission_p180_sequence_micro.csv"
+    submission_io.write_submission(submission, submission_io.read_rows(P89), test_prediction)
+    probability = np.full((len(test_prediction), 40), 0.0005, dtype=np.float32)
+    probability[np.arange(len(test_prediction)), test_prediction] = 0.9805
+    targets = OUTPUT / "student_test_targets.npz"
+    np.savez_compressed(
+        targets,
+        sample_ids=np.asarray([f"SM_test_{row:04d}" for row in range(1, 406)]),
+        target_mask=np.ones(405, dtype=bool),
+        emission_probability=probability,
+        structured_distillation_probability=probability,
+        structured_confidence=np.full(405, 0.9805, dtype=np.float32),
+        emission_prediction=test_prediction,
+        structured_distillation_prediction=test_prediction,
+    )
+    report = {
+        "stage": "P180_sequence_micro_deployable_teacher",
+        "status": "complete_no_test_label",
+        "oof": {
+            "rows": len(labels),
+            "base_correct": int(np.sum(base == labels)),
+            "correct": correct,
+            "accuracy": correct / len(labels),
+            "net_vs_p89": correct - int(np.sum(base == labels)),
+            "held_fold_nets": fold_nets,
+            "changed": int(np.sum(prediction != base)),
+            "gap_to_0.91_correct": int(np.ceil(0.91 * len(labels))) - correct,
+        },
+        "test": {
+            "sequence_routes": int(np.sum(sequence_test != base_test)),
+            "micro_only_routes": int(np.sum(micro_test != base_test)),
+            "changes_vs_p89": int(np.sum(test_prediction != base_test)),
+            "submission": str(submission.resolve()),
+            "submission_sha256": digest(submission),
+            "targets": str(targets.resolve()),
+            "targets_sha256": digest(targets),
+            "test_labels_read": False,
+        },
+    }
+    np.savez_compressed(
+        OUTPUT / "oof_predictions.npz",
+        sample_ids=sample_ids,
+        labels=labels,
+        base_prediction=base,
+        prediction=prediction,
+    )
+    (OUTPUT / "summary.json").write_text(
+        json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    print(json.dumps(report, ensure_ascii=False, indent=2), flush=True)
+
+
+if __name__ == "__main__":
+    main()

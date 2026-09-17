@@ -1,0 +1,64 @@
+{
+  "protocol": "p24-no-training-domain-normalization-v1-fixed-before-run",
+  "source_protocol": "p23-subject-generalization-ceiling-v1-fixed-before-run",
+  "sample_universe": "P23/P22 aligned 2914 samples",
+  "restrictions": {
+    "neural_network_training": false,
+    "encoder_inference": false,
+    "checkpoint_changes": false,
+    "existing_oof_overwrite": false,
+    "post_result_tuning": false,
+    "subject_adversarial_training": false,
+    "contrastive_training": false
+  },
+  "prototype": {
+    "same_subject": "P23 exact subject/class/trial-stem complete triplets; two repeats train and one tests, rotating three ways",
+    "cross_subject": "P23 exact leave-one-subject-out 40-class prototypes",
+    "distances": [
+      "cosine",
+      "standardized_euclidean"
+    ],
+    "gate_distance": "standardized_euclidean",
+    "gap_sample_rule": "cross predictions restricted to the exact same-subject evaluable sample_ids"
+  },
+  "skeleton": {
+    "joint_order": "Human3.6M-17: pelvis, right hip/knee/ankle, left hip/knee/ankle, spine, thorax, neck, head, left shoulder/elbow/wrist, right shoulder/elbow/wrist",
+    "frames": 12,
+    "resampling": "linear normalized-progress interpolation over all present raw frames; retain real clip duration for velocity",
+    "variants": {
+      "S0_raw": "12x17x3 raw coordinates",
+      "S1_root_center": "per-frame pelvis/root centering",
+      "S2_scale": "S1 divided by one clip-level median of per-frame mean shoulder-width and pelvis-to-thorax length",
+      "S3_facing": "S2 plus one clip-level yaw rotation aligning signed shoulder/hip left-right direction",
+      "S4_body_local": "S2 represented in one clip-level orthonormal left-right/front/up body basis",
+      "S5_relational_motion": "S4 coordinates plus eight joint angles, all 136 pairwise relative distances, and 17 joint speed magnitudes"
+    }
+  },
+  "imu": {
+    "source": "existing aligned_multimodal/cache/imu_32 raw resampled sequence; no encoder",
+    "variants": {
+      "I0_raw": "five-device acc/gyro plus relative quaternion waveforms and masks",
+      "I1_device_robust": "per-sequence, per-device acc/gyro mean removal and IQR/MAD robust scaling; relative quaternion retained",
+      "I2_magnitude": "per-device acceleration magnitude, gyro magnitude, relative rotation angle and masks",
+      "I3_gravity_aligned": "per-device median acceleration gravity vector rotated to +Z; aligned acc/gyro plus relative rotation angle and masks",
+      "I4_rotation_invariant": "rotation-invariant acc/gyro/jerk/quaternion-angle waveforms plus amplitude, energy and robust distribution summaries"
+    }
+  },
+  "subject_id": {
+    "protocol": "class-conditioned complete-triplet 2-to-1 subject prototypes",
+    "distance": "standardized_euclidean",
+    "purpose": "measure whether subject identity remains predictable after each transformation"
+  },
+  "gate_reference": {
+    "Skeleton": "P23 skeleton_embedding standardized_euclidean on exact matched sample_ids",
+    "IMU": "P23 imu_embedding standardized_euclidean on exact matched sample_ids"
+  },
+  "pass_thresholds": {
+    "cross_subject_overall_gain_pp_min": 5.0,
+    "cross_subject_hard_gain_pp_min": 7.0,
+    "same_cross_gap_reduction_pp_min": 8.0,
+    "same_subject_accuracy_delta_pp_min": -5.0,
+    "improved_subjects_min": 14,
+    "subjects_total": 18
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "name": "a18_subject_safe_revalidation",
+  "protocol": "reuse the frozen P90 three subject-disjoint folds over all 18 source subjects",
+  "variant": "VS",
+  "model": {
+    "model_dim": 384,
+    "heads": 8,
+    "modality_layers": 2,
+    "fusion_layers": 4,
+    "fusion_latents": 8,
+    "dropout": 0.2,
+    "evidence_dropout": 0.1
+  },
+  "training": {
+    "epochs": 24,
+    "batch_size": 32,
+    "eval_batch_size": 64,
+    "learning_rate": 0.00012,
+    "weight_decay": 0.02,
+    "warmup_fraction": 0.1,
+    "label_smoothing": 0.02,
+    "gradient_clip": 1.0,
+    "seed": 20260823,
+    "amp": true
+  },
+  "checkpoint_selection": {
+    "eligible_epoch_min": 1,
+    "eligible_epoch_max": 23,
+    "final_epoch_is_control_only": 24,
+    "primary": "mean_held_subject_top1",
+    "tie_breakers": [
+      "held_overall_top1",
+      "held_macro_f1",
+      "lower_held_nll",
+      "earlier_epoch"
+    ],
+    "train_fit_used": false,
+    "selection_scope": "outer held subjects; validation-selected OOF, not untouched confirmation"
+  },
+  "session": {
+    "gap_seconds": 30.0,
+    "transition_weight": 0.3,
+    "trigram_backoff": 1.0,
+    "beam_width": 50,
+    "posterior_temperature": 1.0,
+    "selection": "single frozen P102 recipe; source-only transition fit in every outer fold"
+  },
+  "baseline": {
+    "name": "P89_safe_H1_H2_H3",
+    "path": "runs/p90_crossuser_visual_router_v1/full_predictions.npz",
+    "scope_rows": 2470,
+    "expected_correct": 2117,
+    "expected_accuracy": 0.857085020242915
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "name": "p99_i0_left_right_intensity_duration_imu_expert",
+  "hypothesis": "Five-device time-domain IMU statistics with explicit left/right coordination, motion intensity, phase and duration may provide transferable dynamic boundaries without relying on complex frequency features.",
+  "cohorts": {
+    "exploration_users": ["user17", "user23", "user6", "user8"],
+    "source_only_users": ["user1", "user2", "user21"],
+    "confirmation_users": ["user16", "user18", "user19", "user5", "user7"]
+  },
+  "orientation_feature_cache": "aligned_multimodal/runs/p89_imu_orientation_expert_v1/features.npy",
+  "orientation_index": "aligned_multimodal/cache/imu_32/index.csv",
+  "devices": ["WTC", "WTLA", "WTRA", "WTLL", "WTRL"],
+  "device_roles": ["torso", "left_arm", "right_arm", "left_leg", "right_leg"],
+  "feature_contract": "per-device raw/orientation-compensated motion statistics + four-phase statistics + all device-pair intensity relations + log duration/device coverage",
+  "removed_statistics": ["spectral_centroid", "spectral_entropy", "low_band_power", "high_band_power"],
+  "classifier": {
+    "family": "extra_trees",
+    "n_estimators": 400,
+    "max_depth": 24,
+    "min_samples_leaf": 2,
+    "max_features": "sqrt",
+    "class_weight": "balanced"
+  },
+  "calibration": "inner-leave-one-user-out temperature on available-IMU log probabilities",
+  "missing_policy": "uniform probability; missing rows never train the IMU head",
+  "zero": "outer-training available-row descriptor median",
+  "shuffle": "within-held-user and device-count stratum",
+  "focus_groups": {
+    "phone_game_call": [19, 24, 26],
+    "read_turn": [21, 22],
+    "drink_medicine": [6, 37],
+    "tableware_related": [8, 9, 10, 11, 14],
+    "phone_headphones": [19, 23]
+  },
+  "seed": 20260822,
+  "selection": "Information-bearing requires direct above zero/shuffle, rescue on at least three H1 users, stable calibration and no evidence that missingness drives predictions.",
+  "h2_policy": "H1-only standalone audit; H2 requires a separately frozen Teacher+Student shortlist.",
+  "h3_code_path": false
+}

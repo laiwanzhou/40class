@@ -1,0 +1,71 @@
+{
+  "protocol": "p27-r2-fold0-nested-subject-development-v1",
+  "seed": 27032,
+  "outer_fold": 0,
+  "inner_splits": {
+    "0": ["user1", "user5", "user17", "user18"],
+    "1": ["user2", "user7", "user16", "user21"],
+    "2": ["user6", "user8", "user19", "user23"]
+  },
+  "held_gate": "No new fold-0 held predictions may be generated or read before the final configuration is frozen.",
+  "event_steps": 32,
+  "event_audit": {
+    "minimum_outer_train_coverage": 0.55,
+    "minimum_inner_fold_coverage": 0.40,
+    "minimum_iqr": 0.025,
+    "maximum_subject_eta_squared": 0.35,
+    "minimum_nonlinear_mae_improvement": 0.10,
+    "minimum_positive_inner_folds": 2,
+    "minimum_anchor_agreement": 0.65
+  },
+  "p12_core": {
+    "name": "P12-core-ET",
+    "description": "Fold-pure Skeleton + Depth + Tiny-IMU independent ExtraTrees experts with fixed log-probability fusion.",
+    "n_estimators": 96,
+    "max_depth": 14,
+    "min_samples_leaf": 2,
+    "max_features": "sqrt",
+    "weights": {
+      "skeleton": 0.50,
+      "depth": 0.35,
+      "imu": 0.15
+    },
+    "residual_train_prediction_protocol": "leave-one-subject-out core prediction within the residual training subjects"
+  },
+  "residual": {
+    "epochs": 36,
+    "batch_size": 128,
+    "learning_rate": 0.001,
+    "weight_decay": 0.0002,
+    "dropout": 0.20,
+    "hidden_channels": 64,
+    "event_dim": 96,
+    "event_loss_weight": 0.10,
+    "event_target_weights": {
+      "role_exchange": 0.25,
+      "unilateral_head_proximity": 1.0,
+      "head_contact_dwell": 1.0,
+      "approach_phase_strength": 1.0,
+      "hold_phase_strength": 1.0,
+      "return_phase_strength": 1.0,
+      "single_tilt_return": 0.10,
+      "repeated_periodicity": 0.25,
+      "sparse_event_density": 0.25
+    },
+    "base_kl_anchor_weight": 0.50,
+    "alpha_initial": 0.0,
+    "alpha_limit": 0.15,
+    "delta_logit_limit": 2.0,
+    "label_smoothing": 0.03,
+    "selection": "fixed final epoch; no inner trajectory selection after configuration freeze"
+  },
+  "development_policy": {
+    "allowed_iterations": 3,
+    "freeze_gate": "Every fold event-vs-CE Overall and Hard >= -1 pp; mean Hard > 0; at least one fold Hard > 0; all strongly weighted event targets beat train-mean baseline in all inner folds.",
+    "selection_scope": "outer-train inner subject-disjoint only",
+    "outer_held_evaluations": 1,
+    "thermal": false,
+    "radar": false,
+    "p12_distillation": false
+  }
+}

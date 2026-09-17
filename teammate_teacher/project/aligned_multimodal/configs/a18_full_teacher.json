@@ -1,0 +1,35 @@
+{
+  "name": "a18_full_teacher_visual_skeleton",
+  "protocol": "single fixed full refit on all 18 source subjects; no validation split and no held-label selection",
+  "variant": "VS",
+  "model": {
+    "model_dim": 384,
+    "heads": 8,
+    "modality_layers": 2,
+    "fusion_layers": 4,
+    "fusion_latents": 8,
+    "dropout": 0.2,
+    "evidence_dropout": 0.1
+  },
+  "training": {
+    "epochs": 24,
+    "batch_size": 32,
+    "eval_batch_size": 64,
+    "learning_rate": 0.00012,
+    "weight_decay": 0.02,
+    "warmup_fraction": 0.1,
+    "label_smoothing": 0.02,
+    "gradient_clip": 1.0,
+    "seed": 20260823,
+    "amp": true,
+    "checkpoint_selection": "fixed_final_epoch; no validation metric or held data"
+  },
+  "session": {
+    "gap_seconds": 30.0,
+    "transition_weight": 0.3,
+    "trigram_backoff": 1.0,
+    "beam_width": 50,
+    "posterior_temperature": 1.0,
+    "selection": "single frozen P102-validated recipe; no A18 grid or held-label selection"
+  }
+}

@@ -1,0 +1,100 @@
+{
+  "rows": 405,
+  "prediction_mismatches": 0,
+  "raw_to_csv_seconds": 232.9105825000006,
+  "ground_truth_used": false,
+  "scope": "fresh raw Kaggle inputs through packaged pose, ROI, motion and quantized Student",
+  "submission_sha256": "a9796cde28c8a999623a1ee388047c97d2d1553fd9bf10a9ed30f8ca7768561c",
+  "arrays_vs_historical": {
+    "pixels/completed.npy": {
+      "shape_dtype_match": true,
+      "elements_differ": 0,
+      "max_absolute_difference": 0.0
+    },
+    "pixels/images.npy": {
+      "shape_dtype_match": true,
+      "elements_differ": 0,
+      "max_absolute_difference": 0.0
+    },
+    "pixels/source_frame_indices.npy": {
+      "shape_dtype_match": true,
+      "elements_differ": 0,
+      "max_absolute_difference": 0.0
+    },
+    "pixels/view_quality.npy": {
+      "shape_dtype_match": true,
+      "elements_differ": 0,
+      "max_absolute_difference": 0.0
+    },
+    "pixels/view_valid.npy": {
+      "shape_dtype_match": true,
+      "elements_differ": 0,
+      "max_absolute_difference": 0.0
+    },
+    "motion/completed.npy": {
+      "shape_dtype_match": true,
+      "elements_differ": 0,
+      "max_absolute_difference": 0.0
+    },
+    "motion/imu_bin_mask.npy": {
+      "shape_dtype_match": true,
+      "elements_differ": 0,
+      "max_absolute_difference": 0.0
+    },
+    "motion/imu_bin_statistics.npy": {
+      "shape_dtype_match": true,
+      "elements_differ": 0,
+      "max_absolute_difference": 0.0
+    },
+    "motion/imu_global_mask.npy": {
+      "shape_dtype_match": true,
+      "elements_differ": 0,
+      "max_absolute_difference": 0.0
+    },
+    "motion/imu_global_statistics.npy": {
+      "shape_dtype_match": true,
+      "elements_differ": 0,
+      "max_absolute_difference": 0.0
+    },
+    "motion/imu_sequences.npy": {
+      "shape_dtype_match": true,
+      "elements_differ": 0,
+      "max_absolute_difference": 0.0
+    },
+    "motion/imu_sequence_mask.npy": {
+      "shape_dtype_match": true,
+      "elements_differ": 0,
+      "max_absolute_difference": 0.0
+    },
+    "motion/skeleton_features.npy": {
+      "shape_dtype_match": true,
+      "elements_differ": 5956,
+      "max_absolute_difference": 7.54296875
+    },
+    "motion/skeleton_feature_mask.npy": {
+      "shape_dtype_match": true,
+      "elements_differ": 0,
+      "max_absolute_difference": 0.0
+    },
+    "motion/skeleton_frame_quality.npy": {
+      "shape_dtype_match": true,
+      "elements_differ": 0,
+      "max_absolute_difference": 0.0
+    },
+    "motion/skeleton_joint_mask.npy": {
+      "shape_dtype_match": true,
+      "elements_differ": 0,
+      "max_absolute_difference": 0.0
+    },
+    "motion/skeleton_relations.npy": {
+      "shape_dtype_match": true,
+      "elements_differ": 470,
+      "max_absolute_difference": 0.676513671875
+    },
+    "motion/skeleton_relation_mask.npy": {
+      "shape_dtype_match": true,
+      "elements_differ": 0,
+      "max_absolute_difference": 0.0
+    }
+  }
+}

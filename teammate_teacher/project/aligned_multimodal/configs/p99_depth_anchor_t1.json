@@ -1,0 +1,11 @@
+{
+  "name": "p99_depth_anchor_t1_geometric_pool",
+  "hypothesis": "D0 rescues anchor errors across every H1 user but is unsafe as a replacement. A class-agnostic geometric probability pool can expose complementary Depth knowledge while exact removal of Depth returns the anchor.",
+  "anchor_confidence": 0.94,
+  "weight_objective": "inner-user-OOF negative log likelihood",
+  "weight_bounds": [0.0, 1.0],
+  "depth_recipe_source": "frozen P99-D0 H1 summary",
+  "matched_without_depth": "exact anchor probability",
+  "student_probe": "same 4-epoch P87-S full-logits KL budget as both controls",
+  "seed": 20260822
+}

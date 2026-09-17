@@ -1,0 +1,46 @@
+{
+  "name": "p100a_a1_protected_imu_adapter",
+  "protocol": "fixed 4-fold 12-subject OOF; source-safe VS anchor; no H3; no historical 40-class expert logits",
+  "source_run": "aligned_multimodal/runs/p100a_a0_global_teacher_oof_v1",
+  "variant": "VSI",
+  "model": {
+    "model_dim": 384,
+    "heads": 8,
+    "modality_layers": 2,
+    "fusion_layers": 4,
+    "fusion_latents": 8,
+    "dropout": 0.2,
+    "evidence_dropout": 0.0,
+    "protected_imu_residual": true,
+    "protected_imu_max_scale": 0.5
+  },
+  "training": {
+    "epochs": 12,
+    "batch_size": 32,
+    "eval_batch_size": 64,
+    "learning_rate": 0.00012,
+    "weight_decay": 0.02,
+    "warmup_fraction": 0.1,
+    "label_smoothing": 0.02,
+    "gradient_clip": 1.0,
+    "protection_temperature": 2.0,
+    "protection_weight": 1.0,
+    "anchor_correct_weight": 1.0,
+    "anchor_wrong_weight": 0.1,
+    "seed": 20260823,
+    "amp": true,
+    "checkpoint_selection": "fixed_final_epoch_before_outer_label_evaluation"
+  },
+  "gate": {
+    "a1_must_improve_vs_top1": true,
+    "a1_must_improve_vs_top5": true,
+    "a1_minus_vs_min_net_correct": 10,
+    "a1_vs_vs_mcnemar_max_p": 0.1,
+    "vsi_minus_v_min_net_correct": 10,
+    "min_nonnegative_subjects": 8,
+    "min_positive_subjects": 4,
+    "max_subject_drop_pp": 2.0,
+    "mcnemar_max_p": 0.1,
+    "aligned_imu_must_beat_shuffle": true
+  }
+}

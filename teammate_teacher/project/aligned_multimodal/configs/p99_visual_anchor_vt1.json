@@ -1,0 +1,15 @@
+{
+  "name": "p99_vt1_anchor_internvideo2_geometric_pool",
+  "hypothesis": "InternVideo2 is unsafe as a replacement target but retains cross-user Top-K and confusion-group signal. A source-safe class-agnostic pool may add that signal without discarding the stronger P91 anchor boundary.",
+  "visual_expert": "internvideo2_early_late_k400",
+  "anchor_confidence": 0.94,
+  "weight_objective": "inner-user-OOF negative log likelihood",
+  "weight_bounds": [0.0, 1.0],
+  "matched_without_visual": "exact anchor probability",
+  "student_gate": "run the fixed four-epoch probe only if H1 gains at least five correct rows, improves at least two held users, and is non-negative on at least three held users",
+  "student_gate_min_net": 5,
+  "student_gate_min_positive_users": 2,
+  "student_gate_min_nonnegative_users": 3,
+  "seed": 20260822,
+  "h3_code_path": false
+}

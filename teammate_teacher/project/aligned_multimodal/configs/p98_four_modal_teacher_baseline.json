@@ -1,0 +1,36 @@
+{
+  "name": "p98_four_modal_teacher_baseline",
+  "modalities": [
+    "ir",
+    "depth",
+    "skeleton",
+    "imu"
+  ],
+  "model": {
+    "model_dim": 192,
+    "layers": 3,
+    "heads": 8,
+    "dropout": 0.22,
+    "modality_dropout": 0.1,
+    "max_stream_tokens": 16
+  },
+  "training": {
+    "epochs": 80,
+    "patience": 14,
+    "batch_size": 64,
+    "learning_rate": 0.0003,
+    "weight_decay": 0.005,
+    "statistics_dim": 64,
+    "seeds": [
+      17,
+      43,
+      71
+    ],
+    "label_smoothing": 0.025,
+    "family_weight": 0.18,
+    "modality_aux_weight": 0.1,
+    "reliability_weight": 0.08,
+    "anchor_correct_weight": 0.2,
+    "anchor_wrong_weight": 0.025
+  }
+}

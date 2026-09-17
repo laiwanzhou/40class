@@ -1,0 +1,44 @@
+{
+  "name": "p99_s2_pretrained_skeleton_single_expert_pool",
+  "hypothesis": "External action-pretrained temporal and graph representations may produce more transferable Skeleton boundaries than the closed hand-crafted statistics route.",
+  "cohorts": {
+    "exploration_users": ["user17", "user23", "user6", "user8"],
+    "source_only_users": ["user1", "user2", "user21"],
+    "confirmation_users": ["user16", "user18", "user19", "user5", "user7"]
+  },
+  "sources": {
+    "motionbert": "runs/p90_motionbert_teacher_v1/features_pretrain_front_t81.npz",
+    "hdgcn": "runs/p91_hdgcn_ntu60_xsub_fold0_v1/complete_features.npz"
+  },
+  "experts": {
+    "motionbert_fullpretrain_front": {
+      "backbone": "MotionBERT full-pretrain DSTformer",
+      "alpha": 3000.0,
+      "class_weight_power": 0.75
+    },
+    "hdgcn_ntu60_sixstream": {
+      "backbone": "HD-GCN NTU60 xsub joint/bone six-stream",
+      "alpha": 3000.0,
+      "class_weight_power": 0.75
+    }
+  },
+  "focus_groups": {
+    "phone_game_call": [19, 24, 26],
+    "read_turn": [21, 22],
+    "drink_medicine": [6, 37],
+    "tableware_related": [8, 9, 10, 11, 14],
+    "phone_headphones": [19, 23]
+  },
+  "calibration": "inner_leave_one_training_user_out_temperature",
+  "shuffle": "within_held_user",
+  "seed": 20260822,
+  "selection_gate": {
+    "minimum_accuracy": 0.45,
+    "minimum_anchor_rescue": 20,
+    "minimum_users_with_rescue": 3,
+    "require_every_user_rescue": true,
+    "direct_must_exceed_zero": true,
+    "direct_must_exceed_shuffle": true
+  },
+  "h2_policy": "Standalone H1 only. A non-dominated passing expert must be frozen before any Skeleton combination or Student/H2 experiment; H3 has no code path."
+}

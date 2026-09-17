@@ -1,0 +1,69 @@
+{
+  "protocol": "p27-r3-selective-component-audit-outer-train-only-v1",
+  "seed": 27071,
+  "outer_fold": 0,
+  "sequence_definition": "32 x 51 explicit class-agnostic channels: 16 Skeleton relation/delta, 25 IMU invariant, 10 Depth/IR motion/context",
+  "models": [
+    "selective_ce",
+    "selective_rank",
+    "selective_supcon",
+    "selective_probe",
+    "selective_order"
+  ],
+  "primary_method": "selective_probe",
+  "ce_method": "selective_ce",
+  "passed_event_indices": [2, 5, 6, 7, 8, 9, 11, 12, 13],
+  "architecture": {
+    "modality_hidden": 32,
+    "gru_hidden": 64,
+    "gru_layers": 2,
+    "segment_count": 4,
+    "base_hidden": 64,
+    "representation_dim": 128,
+    "projection_dim": 64,
+    "dropout": 0.2,
+    "delta_limit": 4.0,
+    "scale_limit": 2.0
+  },
+  "training": {
+    "epochs": 64,
+    "batch_size": 128,
+    "learning_rate": 0.0008,
+    "weight_decay": 0.0003,
+    "label_smoothing": 0.03,
+    "class_weight_power": 0.35,
+    "final_ce_weight": 1.0,
+    "event_ce_weight": 0.4,
+    "base_error_bce_weight": 0.2,
+    "base_kl_anchor_weight": 0.25,
+    "mix_scale_l1_weight": 0.01,
+    "fine_rank_weight": 0.25,
+    "fine_supcon_weight": 0.1,
+    "fine_event_probe_weight": 0.04,
+    "fine_order_weight": 0.05,
+    "supcon_temperature": 0.15,
+    "rank_margin": 0.4,
+    "gradient_clip": 5.0,
+    "checkpoint_policy": "fixed final epoch; no inner-held trajectory selection"
+  },
+  "ablations": [
+    "event_zero",
+    "event_cross_sample_shuffle",
+    "time_reverse",
+    "within_sample_time_permutation",
+    "skeleton_zero",
+    "imu_zero",
+    "visual_zero"
+  ],
+  "development_hypothesis": "The combined fine objective is positive in two Hard folds but regresses one fold and Small. A shared-seed one-factor decomposition will identify whether confusion ranking, cross-subject contrast, reliable weak event probes or order discrimination caused the negative transfer.",
+  "freeze_gate": {
+    "fine_minus_ce_mean_hard_pp": 999.0,
+    "minimum_positive_hard_folds": 3,
+    "fine_minus_ce_mean_overall_pp": 999.0,
+    "small_balanced_macro_must_not_regress": true,
+    "rescues_must_exceed_new_errors": true
+  },
+  "thermal": false,
+  "radar": false,
+  "outer_held_predictions_allowed": false
+}

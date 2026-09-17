@@ -1,0 +1,13 @@
+"""All-Train/Test counterpart of strict P306 with 10 recovered rows."""
+from __future__ import annotations
+import json
+from pathlib import Path
+import numpy as np,torch
+from p90_teacher_common import load_protocol
+from p142_vjepa_token_transformer_oof import train_fold,build_repeat_pairs
+from p253_repeat_physical_transformer_oof import PATHS as TR,SEEDS,cfg
+from p254_repeat_physical_transformer_test import align_tokens,IR,D,T,IDS
+H=Path(__file__).resolve().parent;O=H/"runs/p308_union_repeat_physical_test_v1";EXTRA=H/"runs/p302_union_full_physical_features_v1/features.npz"
+def main():
+ p=load_protocol();pairs=build_repeat_pairs(p);sources=[np.load(x) for x in TR];main=np.concatenate([z["features"].astype(np.float16).reshape(len(p.labels),-1,768) for z in sources],1);e=np.load(EXTRA);ex=np.concatenate([e["ir_videomaev2"],e["ir_internvideo2"],e["depth_videomaev2"],e["thermal_videomaev2"]],1).astype(np.float16);trainx=np.concatenate((main,ex));trainy=np.concatenate((p.labels,e["labels"].astype(int)));ids=np.load(IDS)["sample_ids"].astype(str);a,ma=align_tokens(np.load(IR[0]),ids);b,mb=align_tokens(np.load(IR[1]),ids);d,md=align_tokens(np.load(D),ids);t,mt=align_tokens(np.load(T),ids);testx=np.concatenate((a,b,d,t),1);values=np.concatenate((trainx,testx));labels=np.concatenate((trainy,np.zeros(len(ids),np.int64)));domains=np.zeros(len(labels),np.int64);tr=np.arange(len(trainy));va=np.arange(len(trainy),len(labels));device=torch.device("cuda" if torch.cuda.is_available() else "cpu");members=[train_fold(values,labels,tr,va,domains,s,cfg(),device,pairs,None) for s in SEEDS];logits=np.mean(members,0);prob=np.exp(logits-logits.max(1,keepdims=True));prob/=prob.sum(1,keepdims=True);available=ma&mb&md;O.mkdir(parents=True,exist_ok=True);np.savez_compressed(O/"test_predictions.npz",sample_ids=ids,logits=logits.astype(np.float32),probability=prob.astype(np.float32),available=available,thermal_available=mt);report={"stage":"P308_P306_allTrain_to_Test","status":"complete","protocol":{"main_train_rows":len(p.labels),"recovered_extra_rows":len(e["labels"]),"total_train_rows":len(trainy),"tokens":18,"seeds":list(SEEDS),"epochs":35,"repeat_consistency_weight":.10,"repeat_pairs":len(pairs),"repeat_pairs_include_extra":False,"test_labels_read":False},"test":{"rows":len(ids),"available":int(available.sum()),"thermal_available":int(mt.sum()),"mean_confidence":float(prob[available].max(1).mean())}};(O/"summary.json").write_text(json.dumps(report,ensure_ascii=False,indent=2)+"\n",encoding="utf-8");print(json.dumps(report,ensure_ascii=False,indent=2))
+if __name__=="__main__":main()

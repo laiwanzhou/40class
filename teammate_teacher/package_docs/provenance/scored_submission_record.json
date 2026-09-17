@@ -1,0 +1,44 @@
+{
+  "stage": "P315_compact_union_repeat_precedence_candidate",
+  "status": "scored_kaggle_0.91542_current_best",
+  "validation": {
+    "p310_correct": 2211,
+    "rows": 2470,
+    "accuracy": 0.8951417004048583,
+    "p270_correct": 2210,
+    "net_vs_p270": 1,
+    "fold_nets_vs_p270": [
+      0,
+      0,
+      1
+    ]
+  },
+  "student": {
+    "checkpoint": "C:\\kaggle_CUNK_X\\small model\\Small-Model-Track\\aligned_multimodal\\runs\\p310_student_test_adapt_e40_v1\\unified_student.pt",
+    "bytes": 94393969,
+    "mb_decimal": 94.393969,
+    "sha256": "bbd9e6e800d73edcce03d18eb657988d31987ca5d659699bb863a1b27beab829",
+    "under_100MB": true,
+    "teacher_agreement": 1.0,
+    "decoder_rejected": false,
+    "decoder_changes": 0
+  },
+  "submission": {
+    "path": "C:\\kaggle_CUNK_X\\small model\\Small-Model-Track\\aligned_multimodal\\runs\\p315_final_kaggle_candidate_v1\\submission_p315_compact_student_raw.csv",
+    "sha256": "a9796cde28c8a999623a1ee388047c97d2d1553fd9bf10a9ed30f8ca7768561c",
+    "rows": 405,
+    "changes_vs_p199": 12,
+    "changes_vs_p246": 4,
+    "changes_vs_p280": 2,
+    "changed_rows_vs_p280_zero_based": [
+      77,
+      283
+    ],
+    "test_labels_read": false,
+    "uploaded_to_kaggle": true,
+    "kaggle_score": 0.91542,
+    "score_reported_by": "user",
+    "score_recorded_date": "2026-08-29"
+  },
+  "accuracy_boundary": "Strict OOF is 89.5142%; user-reported Kaggle Test score is 0.91542 for this exact CSV SHA256. P315 differs from the scored P280 by exactly two rows and gains exactly two of the 402 scored cases. These rows are frozen external evidence and must not be used for row-level leaderboard tuning."
+}

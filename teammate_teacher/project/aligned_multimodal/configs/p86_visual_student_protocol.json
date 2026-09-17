@@ -1,0 +1,43 @@
+{
+  "stage": "P86_unified_small_multimodal",
+  "objective": "Build one deployable full-40 visual student, then admit Skeleton and IMU only through subject-disjoint incremental evidence before one joint temporal classifier.",
+  "frozen_universe": {
+    "samples": 2914,
+    "classes": 40,
+    "subjects": 18,
+    "outer_folds": 3,
+    "fold_source": "runs/p12_complete_oof/complete_oof.npz"
+  },
+  "selection_policy": {
+    "test_or_public_leaderboard_selection": false,
+    "p46_development290_as_unbiased_final_validation": false,
+    "outer_fold_subject_overlap_allowed": false,
+    "primary_metrics": [
+      "accuracy",
+      "balanced_accuracy",
+      "macro_f1",
+      "worst_subject_accuracy"
+    ],
+    "modality_admission": "A new modality must improve at least two of three outer folds and must not create a material worst-subject regression."
+  },
+  "teacher": {
+    "model": "MCG-NJU/videomae-large-finetuned-kinetics",
+    "training_only": true,
+    "primary_soft_target": "group-OOF early_late full-40 logits",
+    "knn_teacher_role": "diagnostic_only_initially",
+    "allowed_inputs": ["IR scene", "IR person", "IR workspace"],
+    "windows": ["early_0_70", "late_30_100"]
+  },
+  "visual_student_comparison": [
+    "mechanism_only_hard_labels",
+    "same_architecture_logit_distillation",
+    "same_architecture_hybrid_mechanism_and_distillation"
+  ],
+  "deployment": {
+    "large_videomae_in_final_forward": false,
+    "late_logit_ensemble": false,
+    "single_full40_head": true,
+    "single_checkpoint_max_bytes_exclusive": 100000000,
+    "engineering_target_max_bytes": 80000000
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "protocol": "p27-r3-conditional-sequence-outer-train-only-v1",
+  "seed": 27042,
+  "outer_fold": 0,
+  "sequence_definition": "32 x 51 explicit class-agnostic channels: 16 Skeleton relation/delta, 25 IMU invariant, 10 Depth/IR motion/context",
+  "models": [
+    "base_only",
+    "event_sequence",
+    "event_sequence_orderless"
+  ],
+  "architecture": {
+    "modality_hidden": 32,
+    "gru_hidden": 64,
+    "gru_layers": 2,
+    "segment_count": 4,
+    "base_hidden": 96,
+    "joint_hidden": 160,
+    "dropout": 0.2,
+    "delta_limit": 4.0,
+    "gate_initial_bias": -2.5
+  },
+  "training": {
+    "epochs": 64,
+    "batch_size": 128,
+    "learning_rate": 0.0008,
+    "weight_decay": 0.0003,
+    "label_smoothing": 0.03,
+    "class_weight_power": 0.5,
+    "base_kl_anchor_weight": 0.1,
+    "gate_l1_weight": 0.005,
+    "gradient_clip": 5.0,
+    "checkpoint_policy": "fixed final epoch; no inner-held trajectory selection"
+  },
+  "ablations": [
+    "event_zero",
+    "event_cross_sample_shuffle",
+    "time_reverse",
+    "within_sample_time_permutation"
+  ],
+  "development_hypothesis": "The 32-step explicit sequence contains order-dependent conditional information, but R2 lost it through scalar supervision, mean/max pooling and a global small residual. A sample-adaptive gate with phase-preserving segment states should add information while retaining the legal base.",
+  "iteration_decision": "Continue if event_sequence improves mean Hard over the same base_only architecture with at least two positive folds, or if causal ablations show stable unused information that motivates a better decision objective. Do not evaluate fold-0 outer-held.",
+  "thermal": false,
+  "radar": false,
+  "outer_held_predictions_allowed": false
+}

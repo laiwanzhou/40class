@@ -1,0 +1,34 @@
+{
+  "name": "p99_v0_visual_single_expert_pool",
+  "hypothesis": "Frozen foundation-video representations may carry stronger and more transferable subject-disjoint knowledge than the closed Depth route, but all candidates must be re-evaluated under the new E0+H1 firewall rather than inheriting old H2/H3 decisions.",
+  "cohorts": {
+    "exploration_users": ["user17", "user23", "user6", "user8"],
+    "source_only_users": ["user1", "user2", "user21"],
+    "confirmation_users": ["user16", "user18", "user19", "user5", "user7"]
+  },
+  "sources": {
+    "videomaev2_distilled_base": "runs/p90_videomaev2_distilled_teacher_v1/complete_features.npz",
+    "internvideo2_l_k400": "runs/p90_internvideo2_l_k400_teacher_v1/complete_features.npz",
+    "vjepa2_dense24_features": "runs/p96_vjepa2_vitl_ssv2_dense24_fold0_v1/features.npy",
+    "vjepa2_dense24_action_logits": "runs/p96_vjepa2_vitl_ssv2_dense24_fold0_v1/ssv2_logits.npy",
+    "vjepa2_dense24_done": "runs/p96_vjepa2_vitl_ssv2_dense24_fold0_v1/done.npy"
+  },
+  "experts": {
+    "videomaev2_early_late": {"backbone": "videomaev2_distilled_base", "recipe": "early_late", "alpha": 3000.0, "class_weight_power": 0.75},
+    "internvideo2_early_late_k400": {"backbone": "internvideo2_l_k400", "recipe": "early_late_plus_k400", "alpha": 3000.0, "class_weight_power": 0.75},
+    "vjepa2_dense24_group8_ssv2": {"backbone": "vjepa2_dense24", "recipe": "dense24_group8_ssv2", "alpha": 4000.0, "class_weight_power": 0.75}
+  },
+  "focus_groups": {
+    "phone_game_call": [19, 24, 26],
+    "read_turn": [21, 22],
+    "drink_medicine": [6, 37],
+    "tableware_related": [8, 9, 10, 11, 14],
+    "phone_headphones": [19, 23]
+  },
+  "calibration": "inner_leave_one_training_user_out_temperature",
+  "shuffle": "within_held_user",
+  "seed": 20260822,
+  "selection": "No automatic winner. Build a Pareto audit over Top-1/Top-5, anchor rescue-harm, worst user, focus groups, and equal-budget Student transfer.",
+  "student_probe": "Every non-dominated information-bearing visual expert uses the frozen P99 four-epoch Student protocol; no expert-specific Student tuning.",
+  "h2_policy": "Only a recipe and Student target frozen from H1 may be confirmed once on H2. H3 has no code path."
+}

@@ -1,0 +1,64 @@
+{
+  "protocol": "p27-a-v1-fixed-before-training",
+  "seed": 2701,
+  "manifest": "runs/p27_0_audit/p27_train_manifest.csv",
+  "num_frames": 12,
+  "image_height": 144,
+  "image_width": 192,
+  "roi_padding": 0.3,
+  "imu_attention_window_bins": 1,
+  "event_dim": 192,
+  "dropout": 0.2,
+  "batch_size": 24,
+  "num_workers": 0,
+  "balanced_sampling": true,
+  "label_smoothing": 0.05,
+  "weight_decay": 0.0002,
+  "max_grad_norm": 5.0,
+  "use_amp": true,
+  "modality_dropout": {
+    "depth": 0.05,
+    "ir": 0.15,
+    "skeleton": 0.05,
+    "imu": 0.15
+  },
+  "a0": {
+    "epochs": 15,
+    "learning_rate": 0.0003,
+    "backbone_learning_rate": 0.00005,
+    "temporal_mask_probability": 0.0,
+    "event_loss_weight": 0.0
+  },
+  "a1_pretrain": {
+    "epochs": 10,
+    "learning_rate": 0.0002,
+    "backbone_learning_rate": 0.00003,
+    "temporal_mask_probability": 0.2
+  },
+  "a1_classifier": {
+    "epochs": 12,
+    "learning_rate": 0.0005
+  },
+  "a2": {
+    "epochs": 8,
+    "learning_rate": 0.00008,
+    "backbone_learning_rate": 0.000015,
+    "temporal_mask_probability": 0.1,
+    "event_base_weight": 0.25,
+    "target_event_to_class_gradient_ratio": 0.25,
+    "event_weight_multiplier_min": 0.5,
+    "event_weight_multiplier_max": 8.0
+  },
+  "event_component_weights": {
+    "skeleton": 1.0,
+    "visual": 1.0,
+    "imu": 1.0,
+    "shared_motion": 0.5,
+    "clip": 0.5
+  },
+  "deployment_fp16_mib_hard_limit": 40.0,
+  "held_fold_policy": "fixed final epoch only; no early stopping or held-fold model selection",
+  "p12_distillation": false,
+  "thermal": false,
+  "radar": false
+}

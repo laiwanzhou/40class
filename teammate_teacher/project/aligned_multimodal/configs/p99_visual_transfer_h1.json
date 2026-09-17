@@ -1,0 +1,33 @@
+{
+  "name": "p99_h1_visual_single_expert_transfer_probe",
+  "base_checkpoint": "aligned_multimodal/runs/p87s_fusion_holdout1_c0_v1/unified_student.pt",
+  "anchor_control_run": "aligned_multimodal/runs/p99_transfer_probe_h1_v1/student_anchor",
+  "anchor_control_target": "aligned_multimodal/runs/p99_transfer_probe_h1_v1/targets/anchor_targets.npz",
+  "reference_structured_run": "aligned_multimodal/runs/p87s_fusion_holdout1_c2_structured_v1",
+  "reference_structured_targets": "aligned_multimodal/runs/p87s_holdout1_structured_targets_v1/structured_targets.npz",
+  "visual_predictions": "runs/p99_visual_expert_v0_h1_v1/h1_predictions.npz",
+  "epochs": 4,
+  "batch_size": 64,
+  "workers": 0,
+  "fusion_learning_rate": 0.00005,
+  "visual_head_learning_rate": 0.00001,
+  "minimum_learning_rate": 0.000002,
+  "weight_decay": 0.02,
+  "temperature": 1.0,
+  "seed": 20260812,
+  "trainable_scope": "frozen encoders; visual temporal head plus fusion/residual head",
+  "targets": [
+    "videomaev2_early_late",
+    "internvideo2_early_late_k400",
+    "vjepa2_dense24_group8_ssv2"
+  ],
+  "focus_groups": {
+    "phone_game_call": [19, 24, 26],
+    "read_turn": [21, 22],
+    "drink_medicine": [6, 37],
+    "tableware_related": [8, 9, 10, 11, 14],
+    "phone_headphones": [19, 23]
+  },
+  "selection": "Compare final Student Top-1, macro-F1, Top-5, rescue/harm, worst user, and Teacher-to-Student gap against the already completed identical anchor control.",
+  "h2_h3_access": false
+}

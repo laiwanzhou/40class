@@ -1,0 +1,15 @@
+{
+  "seed": 20260717,
+  "num_frames": 16,
+  "image_size": 160,
+  "batch_size": 8,
+  "epochs": 30,
+  "learning_rate": 0.001,
+  "weight_decay": 0.0001,
+  "label_smoothing": 0.1,
+  "dropout": 0.25,
+  "num_workers": 4,
+  "balanced_sampling": true,
+  "use_amp": true,
+  "early_stopping_patience": 8
+}

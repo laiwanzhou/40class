@@ -1,0 +1,39 @@
+{
+  "name": "p99_i1_full_orientation_frequency_imu_expert",
+  "hypothesis": "I0 proves time-domain IMU correspondence but has weak 40-class boundaries. Restoring only spectral centroid/entropy/low/high-band statistics tests whether periodicity is the missing representation rather than assuming frequency features are useful.",
+  "cohorts": {
+    "exploration_users": ["user17", "user23", "user6", "user8"],
+    "source_only_users": ["user1", "user2", "user21"],
+    "confirmation_users": ["user16", "user18", "user19", "user5", "user7"]
+  },
+  "orientation_feature_cache": "aligned_multimodal/runs/p89_imu_orientation_expert_v1/features.npy",
+  "orientation_index": "aligned_multimodal/cache/imu_32/index.csv",
+  "devices": ["WTC", "WTLA", "WTRA", "WTLL", "WTRL"],
+  "device_roles": ["torso", "left_arm", "right_arm", "left_leg", "right_leg"],
+  "feature_contract": "I0 time-domain features plus spectral centroid/entropy/low/high band for each device signal",
+  "include_spectral_statistics": true,
+  "added_statistics": ["spectral_centroid", "spectral_entropy", "low_band_power", "high_band_power"],
+  "classifier": {
+    "family": "extra_trees",
+    "n_estimators": 400,
+    "max_depth": 24,
+    "min_samples_leaf": 2,
+    "max_features": "sqrt",
+    "class_weight": "balanced"
+  },
+  "calibration": "inner-leave-one-user-out temperature on available-IMU log probabilities",
+  "missing_policy": "uniform probability; missing rows never train the IMU head",
+  "zero": "outer-training available-row descriptor median",
+  "shuffle": "within-held-user and device-count stratum",
+  "focus_groups": {
+    "phone_game_call": [19, 24, 26],
+    "read_turn": [21, 22],
+    "drink_medicine": [6, 37],
+    "tableware_related": [8, 9, 10, 11, 14],
+    "phone_headphones": [19, 23]
+  },
+  "seed": 20260822,
+  "selection": "I1 must materially improve I0 Top-1/Top-5 and rescue distribution; otherwise frequency statistics are rejected and the current IMU statistics route closes.",
+  "h2_policy": "H1-only structural revision; no H2 unless a frozen Teacher+Student shortlist emerges.",
+  "h3_code_path": false
+}

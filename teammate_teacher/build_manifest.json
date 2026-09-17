@@ -1,0 +1,14 @@
+{
+  "status": "candidate_not_certified",
+  "checkpoint_bytes": 56471879,
+  "checkpoint_sha256": "28d41bf833c191ddf354e8da27b2c9c91ac58d30b7b58aa5f9cd4096d42febde",
+  "student_storage": "float16",
+  "student_execution": "float32 with CUDA AMP",
+  "includes_pose_weights": true,
+  "historical_csv_sha256": "a9796cde28c8a999623a1ee388047c97d2d1553fd9bf10a9ed30f8ca7768561c",
+  "historical_score_user_reported": 0.91542,
+  "original_student_sha256": "bbd9e6e800d73edcce03d18eb657988d31987ca5d659699bb863a1b27beab829",
+  "yolo_sha256": "869e83fcdffdc7371fa4e34cd8e51c838cc729571d1635e5141e3075e9319dc0",
+  "legacy_modules": 32,
+  "warning": "See docs/*regression.json for validated scopes; no new leaderboard score or compliance certification claimed."
+}

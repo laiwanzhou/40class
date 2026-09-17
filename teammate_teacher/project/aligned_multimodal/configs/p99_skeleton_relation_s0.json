@@ -1,0 +1,37 @@
+{
+  "name": "p99_s0_hand_arm_relation_skeleton_expert",
+  "hypothesis": "A body-local Skeleton expert centered on bilateral shoulder-elbow-wrist kinematics and hand-head/hand-body relations may provide more transferable confusion-boundary knowledge than whole-body joint pooling.",
+  "cohorts": {
+    "exploration_users": ["user17", "user23", "user6", "user8"],
+    "source_only_users": ["user1", "user2", "user21"],
+    "confirmation_users": ["user16", "user18", "user19", "user5", "user7"]
+  },
+  "motion_cache": "aligned_multimodal/runs/p86_motion_window_cache_t16_v1",
+  "arm_joint_indices": [0, 8, 10, 11, 12, 13, 14, 15, 16],
+  "arm_joint_names": ["pelvis", "thorax", "head", "left_shoulder", "left_elbow", "left_wrist", "right_shoulder", "right_elbow", "right_wrist"],
+  "relation_indices": [0, 1, 2, 3, 4, 5, 6, 9, 11, 12, 13, 14, 15, 16, 17],
+  "relation_names": ["left_wrist_head_distance", "right_wrist_head_distance", "hand_to_hand_distance", "left_wrist_pelvis_distance", "right_wrist_pelvis_distance", "left_elbow_angle_cosine", "right_elbow_angle_cosine", "shoulder_width", "pelvis_head_height", "torso_direction_x", "torso_direction_y", "torso_direction_z", "left_wrist_speed", "right_wrist_speed", "whole_body_motion_energy"],
+  "statistics": "15 robust statistics + eight-bin mean/std + early/late relation statistics + validity coverage",
+  "classifier": {
+    "family": "extra_trees",
+    "n_estimators": 320,
+    "max_depth": 24,
+    "min_samples_leaf": 2,
+    "max_features": "sqrt",
+    "class_weight": "balanced"
+  },
+  "calibration": "inner-leave-one-user-out temperature on log probabilities",
+  "zero": "outer-training descriptor median",
+  "shuffle": "within-held-user descriptor permutation",
+  "focus_groups": {
+    "phone_game_call": [19, 24, 26],
+    "read_turn": [21, 22],
+    "drink_medicine": [6, 37],
+    "tableware_related": [8, 9, 10, 11, 14],
+    "phone_headphones": [19, 23]
+  },
+  "seed": 20260822,
+  "selection": "Information-bearing requires direct above zero/shuffle, rescue on at least three H1 users, and finite stable calibration. Combination/Student is decided only after standalone audit.",
+  "h2_policy": "H1-only pool construction; H2 requires a separately frozen Teacher+Student shortlist.",
+  "h3_code_path": false
+}

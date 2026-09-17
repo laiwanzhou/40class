@@ -1,0 +1,106 @@
+{
+  "protocol": "p27-r-fold0-v1-fixed-before-r0-audit",
+  "seed": 27031,
+  "outer_fold": 0,
+  "manifest": "runs/p27_0_audit/p27_train_manifest.csv",
+  "num_frames": 12,
+  "evidence_sources": {
+    "summary": "../docs/research/20_events_and_sequence/30_困难样本与小动作六模态直观分析总结.md",
+    "hard_bundle": "../analysis_bundle/hard_cases_v1",
+    "six_modal_validation": "../analysis_bundle/hard_cases_v1/six_modal_validation_v2",
+    "p27_0_report": "../docs/research/20_events_and_sequence/28_P27-0事件级多模态联合表示审计.md",
+    "p27_a_partial_report": "../docs/research/20_events_and_sequence/29_P27-A事件级多模态联合表示实验结果_中止版.md"
+  },
+  "candidate_groups": {
+    "coarse_head_event": {
+      "source": "skeleton",
+      "targets": [
+        "unilateral_head_proximity",
+        "head_zone_dwell",
+        "approach_phase",
+        "hold_phase",
+        "return_phase"
+      ]
+    },
+    "hand_roles": {
+      "source": "IMU WTLA/WTRA bilateral wrist activity",
+      "targets": [
+        "left_activity_share",
+        "role_stability",
+        "role_exchange",
+        "bilateral_synchrony",
+        "bilateral_alternation"
+      ]
+    },
+    "motion_shape": {
+      "source": "imu",
+      "targets": [
+        "periodicity",
+        "spectral_irregularity",
+        "sparse_event_count",
+        "event_interval_regularity"
+      ]
+    },
+    "visual_imu_soft_alignment": {
+      "source": "depth+ir+imu",
+      "targets": [
+        "local_visual_motion",
+        "work_center_stability",
+        "visual_wrist_peak_alignment"
+      ]
+    },
+    "signed_tilt": {
+      "source": "imu_quaternion",
+      "audit_only": true
+    },
+    "object_shape_context": {
+      "source": "depth+ir",
+      "audit_only": true
+    }
+  },
+  "r0_gates": {
+    "minimum_valid_train_samples": 500,
+    "minimum_valid_held_samples": 200,
+    "minimum_held_coverage": 0.65,
+    "minimum_nonconstant_iqr": 0.05,
+    "maximum_subject_eta_squared": 0.45,
+    "minimum_ridge_mae_improvement_fraction": 0.1,
+    "minimum_pair_subject_direction_agreement": 0.6,
+    "minimum_manual_trace_alignment_fraction": 0.7,
+    "group_pass_rule": "coverage and nonconstant and subject_eta2 and ridge; pair separation and manual trace agreement are required supporting evidence, not label-construction inputs"
+  },
+  "fold_fit": {
+    "head_distance_quantile": 0.25,
+    "phase_velocity_quantile": 0.7,
+    "imu_activity_scale_quantile": 0.95,
+    "imu_peak_prominence_quantile": 0.75,
+    "visual_motion_scale_quantile": 0.95,
+    "soft_alignment_lag_bins": 1
+  },
+  "pilot": {
+    "enabled_only_if_r0_passes": true,
+    "base": "strict fold-0 frozen P12-compatible logits; full-data checkpoints and cross-fold-contaminated train OOF logits forbidden",
+    "alpha_initialization": 0.0,
+    "epochs": 18,
+    "batch_size": 48,
+    "learning_rate": 0.0003,
+    "weight_decay": 0.0002,
+    "event_loss_weight": 0.2,
+    "event_loss": "quality-weighted SmoothL1",
+    "classification_loss": "cross_entropy",
+    "held_fold_early_stopping": false,
+    "checkpoint_selection": "fixed final epoch",
+    "thermal_new_branch": false,
+    "radar_new_branch": false,
+    "p12_distillation": false
+  },
+  "stop_rules": {
+    "event_held_not_better_than_mean": true,
+    "initial_p12_max_abs_logit_error": 0.001,
+    "ce_only_drop_pp": -1.0,
+    "event_vs_ce_drop_pp": -1.0,
+    "hard_drop_forbidden": true,
+    "focus_class_mass_zero_forbidden": true,
+    "single_subject_only_gain_forbidden": true
+  }
+}

@@ -1,0 +1,18 @@
+"""Paired strict OOF control for adding 122 union rows to a Thermal scene expert."""
+from __future__ import annotations
+import json
+from pathlib import Path
+from types import SimpleNamespace
+import numpy as np,torch
+from p90_teacher_common import load_protocol
+from p142_vjepa_token_transformer_oof import train_fold
+H=Path(__file__).resolve().parent;O=H/"runs/p295_union_thermal_scene_v1";CACHE=H/"runs/p294_thermal_scene_union_v1/train_features.npz";TEST=H/"runs/p294_thermal_scene_union_v1/test_features.npz";SEEDS=(29501,29517,29533)
+def cfg():return SimpleNamespace(hidden_dim=192,heads=6,layers=2,dropout=.25,view_dropout=.10,epochs=30,batch_size=128,learning_rate=3e-4,weight_decay=.05,mixup_alpha=.2,repeat_consistency_weight=0.,repeat_embedding_weight=0.,repeat_same_label_only=False,class_triplet_weight=0.,triplet_margin=.2,teacher_weight=0.,domain_adversarial_weight=0.)
+def main():
+ p=load_protocol();z=np.load(CACHE);ids=z["sample_ids"].astype(str);users=z["users"].astype(str);y=z["labels"].astype(int);av=z["available"].astype(bool);x=z["features"].astype(np.float16);pos={q:i for i,q in enumerate(ids)};main=np.asarray([pos[q] for q in p.sample_ids]);is_extra=np.char.startswith(ids,"extra__");domain=np.zeros(len(ids),int);oof={"control":np.full((len(p.labels),40),1/40,np.float32),"augmented":np.full((len(p.labels),40),1/40,np.float32)};folds={k:[] for k in oof};device=torch.device("cuda" if torch.cuda.is_available() else "cpu")
+ for f in range(3):
+  held_main=p.val_indices(f);held_cache=main[held_main];held_users=set(p.users[held_main].tolist());base_train=main[(p.fold_id!=f)&av[main]];extra=np.flatnonzero(is_extra&av&~np.isin(users,list(held_users)))
+  for name,tr in (("control",base_train),("augmented",np.concatenate((base_train,extra)))):
+   members=[train_fold(x,y,tr,held_cache,domain,s+f*1000,cfg(),device,None,None) for s in SEEDS];log=np.mean(members,0);prob=np.exp(log-log.max(1,keepdims=True));prob/=prob.sum(1,keepdims=True);valid=av[held_cache];oof[name][held_main[valid]]=prob[valid];folds[name].append({"fold":f,"train_rows":len(tr),"extra_train_rows":0 if name=="control" else len(extra),"held_rows":len(held_main),"held_available":int(valid.sum()),"correct":int(np.sum(oof[name][held_main].argmax(1)==p.labels[held_main]))})
+ te=np.load(TEST);tx=te["features"].astype(np.float16);tav=te["available"].astype(bool);values=np.concatenate((x,tx));labels=np.concatenate((y,np.zeros(len(tx),int)));domains=np.zeros(len(values),int);tr=np.flatnonzero(av);va=np.arange(len(x),len(values));members=[train_fold(values,labels,tr,va,domains,s,cfg(),device,None,None) for s in SEEDS];log=np.mean(members,0);tp=np.exp(log-log.max(1,keepdims=True));tp/=tp.sum(1,keepdims=True);tp[~tav]=1/40;report={"stage":"P295_union_thermal_scene_OOF_Test","status":"complete","protocol":{"paired_control_same_model_seeds":True,"extra_rows_total":int(is_extra.sum()),"extra_available":int(np.sum(is_extra&av)),"extra_held_subject_excluded":True,"validation_universe":"original 2914 only","test_labels_read":False},"variants":{n:{"correct":int(np.sum(v.argmax(1)==p.labels)),"accuracy":float(np.mean(v.argmax(1)==p.labels)),"folds":folds[n]} for n,v in oof.items()},"test":{"rows":len(tx),"available":int(tav.sum())}};O.mkdir(parents=True,exist_ok=True);np.savez_compressed(O/"predictions.npz",sample_ids=p.sample_ids,labels=p.labels,control_probability=oof["control"],augmented_probability=oof["augmented"],test_sample_ids=te["sample_ids"],test_probability=tp.astype(np.float32),test_available=tav);(O/"summary.json").write_text(json.dumps(report,ensure_ascii=False,indent=2)+"\n",encoding="utf-8");print(json.dumps(report,ensure_ascii=False,indent=2))
+if __name__=="__main__":main()

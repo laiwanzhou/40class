@@ -1,0 +1,36 @@
+{
+  "name": "p99_vt1_frozen_joint_h2_confirmation",
+  "teacher_config": "aligned_multimodal/configs/p99_visual_anchor_vt1.json",
+  "visual_config": "aligned_multimodal/configs/p99_visual_expert_v0.json",
+  "v0_h1_summary": "runs/p99_visual_expert_v0_h1_v1/summary.json",
+  "vt1_h1_summary": "runs/p99_visual_anchor_vt1_h1_v1/summary.json",
+  "teacher_h2_output": "runs/p99_visual_anchor_vt1_h2_v1",
+  "base_checkpoint": "aligned_multimodal/runs/p87s_fusion_confirm2_c0_v1/unified_student.pt",
+  "reference_structured_run": "aligned_multimodal/runs/p87s_fusion_confirm2_c2_structured4_v1",
+  "reference_structured_targets": "aligned_multimodal/runs/p87s_confirm2_structured_targets_v1/structured_targets.npz",
+  "epochs": 4,
+  "batch_size": 64,
+  "workers": 0,
+  "fusion_learning_rate": 0.00005,
+  "visual_head_learning_rate": 0.00001,
+  "minimum_learning_rate": 0.000002,
+  "weight_decay": 0.02,
+  "temperature": 1.0,
+  "seed": 20260812,
+  "focus_groups": {
+    "phone_game_call": [19, 24, 26],
+    "read_turn": [21, 22],
+    "drink_medicine": [6, 37],
+    "tableware_related": [8, 9, 10, 11, 14],
+    "phone_headphones": [19, 23]
+  },
+  "joint_confirmation_gate": {
+    "minimum_net": 1,
+    "minimum_positive_users": 3,
+    "minimum_nonnegative_users": 4,
+    "maximum_worst_user_regression_pp": 1.0,
+    "maximum_paired_exact_pvalue": 0.05
+  },
+  "failure_policy": "If either frozen Teacher or frozen Student fails any joint gate, close VT1 without H2 tuning and do not access H3.",
+  "h3_access": false
+}

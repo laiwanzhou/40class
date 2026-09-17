@@ -1,0 +1,36 @@
+{
+  "name": "p99_c0_conditional_confusion_specialist_lower_bound",
+  "hypothesis": "Global Skeleton/IMU experts may be weak because they must solve unrelated classes. Conditional specialists can reveal whether the modalities carry strong local ranking knowledge before any routing mechanism is considered.",
+  "cohorts": {
+    "exploration_users": ["user17", "user23", "user6", "user8"],
+    "source_only_users": ["user1", "user2", "user21"],
+    "confirmation_users": ["user16", "user18", "user19", "user5", "user7"]
+  },
+  "skeleton_config": "aligned_multimodal/configs/p99_skeleton_relation_s1.json",
+  "imu_config": "aligned_multimodal/configs/p99_imu_statistics_i0.json",
+  "specialists": {
+    "skeleton_phone_game_call": {
+      "modality": "skeleton",
+      "classes": [19, 24, 26],
+      "class_names": ["Phone call", "Mobile phone", "Play games"]
+    },
+    "imu_read_turn": {
+      "modality": "imu",
+      "classes": [21, 22],
+      "class_names": ["Read documents", "Turn pages"]
+    }
+  },
+  "calibration": "inner-leave-one-user-out temperature restricted to the known candidate group",
+  "shuffle": "within-held-user candidate rows; missing IMU remains uniform",
+  "selection_gate": {
+    "minimum_accuracy": 0.70,
+    "minimum_balanced_accuracy": 0.65,
+    "minimum_gain_over_prior_pp": 15.0,
+    "minimum_gain_over_shuffle_pp": 15.0,
+    "minimum_nonnegative_users_vs_prior": 3
+  },
+  "scope": "conditional lower bound only; true group membership is not available to a deployment router",
+  "seed": 20260822,
+  "h2_policy": "Only a specialist passing the frozen H1 gate may receive one conditional H2 confirmation; no router is designed in C0.",
+  "h3_code_path": false
+}

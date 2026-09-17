@@ -1,0 +1,7 @@
+# Preserve every copied source/provenance byte exactly as supplied.
+teammate_teacher/project/** -text
+teammate_teacher/source_manifest.json -text
+teammate_teacher/build_manifest.json -text
+teammate_teacher/ORIGINAL_PACKAGE_README.md -text
+teammate_teacher/ORIGINAL_PACKAGE_README_zh-CN.md -text
+teammate_teacher/package_docs/** -text

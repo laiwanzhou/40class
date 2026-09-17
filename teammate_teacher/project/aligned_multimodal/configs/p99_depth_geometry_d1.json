@@ -1,0 +1,29 @@
+{
+  "name": "p99_d1_explicit_hand_workspace_depth_geometry",
+  "hypothesis": "D0 retained only globally pooled Depth semantics. Explicit per-frame hand/body/workspace position and local depth-surface relations may turn Depth candidate coverage into subject-disjoint hard rescues without changing the visual backbone, fusion rule, Student loss, or training budget.",
+  "manifest": "aligned_multimodal/data/six_modality_audit/train_union_manifest.csv",
+  "roi_run": "aligned_multimodal/runs/p29_dir_multiscale_roi_full",
+  "cohorts": {
+    "exploration_users": ["user17", "user23", "user6", "user8"],
+    "source_only_users": ["user1", "user2", "user21"],
+    "confirmation_users": ["user16", "user18", "user19", "user5", "user7"]
+  },
+  "descriptor": {
+    "regions": ["full_body", "left_hand", "right_hand", "hand_workspace"],
+    "depth_rank": "OpenCV HSV hue / 120 on saturated nonblack Depth_Color pixels; black pixels are invalid",
+    "depth_statistics": ["valid_fraction", "mean", "std", "q10", "median", "q90"],
+    "geometry": "normalized ROI centers/scales/quality plus shoulder-elbow-wrist coordinates and hand/body/workspace relations",
+    "temporal_statistics": ["mean", "std", "q10", "median", "q90", "mean_abs_delta", "max_abs_delta", "linear_slope", "early_mean", "middle_mean", "late_mean"]
+  },
+  "recipes": {
+    "geometry_only": {"groups": ["geometry"], "alpha": 1000.0, "class_weight_power": 0.75},
+    "depth_surface_only": {"groups": ["depth_surface"], "alpha": 1000.0, "class_weight_power": 0.75},
+    "depth_geometry": {"groups": ["geometry", "depth_surface"], "alpha": 1000.0, "class_weight_power": 0.75}
+  },
+  "calibration": "inner_leave_one_training_user_out_temperature",
+  "shuffle": "within_held_user",
+  "seed": 20260822,
+  "selection": "highest H1 correct, then balanced accuracy, Top-5, lower log loss, lexical recipe name",
+  "h2_policy": "H2 descriptor extraction and confirmation require the frozen H1 summary; H3 has no code path",
+  "stop_rule": "If depth_geometry produces no stable hard complementarity beyond geometry_only and cannot beat D0 rescue/harm quality, close this Depth representation route rather than tuning alpha, thresholds, seed, or Student hyperparameters."
+}

@@ -1,0 +1,32 @@
+{
+  "status": "pass",
+  "rows": 2,
+  "renamed_sample_directories": true,
+  "non_405_input": true,
+  "input_order_preserved": true,
+  "historical_prediction_mismatches": 0,
+  "entrypoint": "inference.ps1 in extracted archive, cwd outside original repository",
+  "seconds": 29.200779299993883,
+  "archive_sha256": "edc2cf41de1ff0dd869209ee931eb0733e5db98912239227eb5f67d0844ffe82",
+  "operator_report": {
+    "rows": 2,
+    "partial": false,
+    "labels_read": false,
+    "history": "fresh raw preprocessing and Student forward only",
+    "bundle_sha256": "28d41bf833c191ddf354e8da27b2c9c91ac58d30b7b58aa5f9cd4096d42febde",
+    "input_csv_sha256": "59ba4a35e1140e32884133301534274e1beec0efe705ce43bc8e5a0772658c0a",
+    "manifest_sha256": "e503550f185b8fc00af342e07d57afa5363e3e609d7ce8cc9ee0ce77769401d1",
+    "submission_sha256": "b46f03e82861238f3a8762cedae557d65bf470fc50354ea6dcbfd8220f7246d1",
+    "elapsed_seconds": 27.685284899998805,
+    "device_requested": "auto",
+    "torch": "2.9.1+cu130",
+    "numpy": "2.4.4",
+    "student_metrics": {
+      "device": "cuda",
+      "rows": 2,
+      "student_seconds_including_load": 1.1922199000109686,
+      "cuda_peak_allocated_bytes": 1202553856
+    }
+  },
+  "local_private_scratch": "C:\\kaggle_CUNK_X\\small model\\tmp\\p315_isolated_6pqq_v8k"
+}

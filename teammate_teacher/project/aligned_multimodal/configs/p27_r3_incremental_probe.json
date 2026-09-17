@@ -1,0 +1,42 @@
+{
+  "protocol": "p27-r3-incremental-information-outer-train-only-v1",
+  "seed": 27041,
+  "outer_fold": 0,
+  "inner_splits": {
+    "0": ["user1", "user5", "user17", "user18"],
+    "1": ["user2", "user7", "user16", "user21"],
+    "2": ["user6", "user8", "user19", "user23"]
+  },
+  "feature_layers": {
+    "event_scalar": "18 class-agnostic event targets + 18 independent quality values + 4 modality-presence values",
+    "event_sequence": "32 steps x (16 Skeleton relation/delta + 25 IMU invariants + 10 visual motion/context scalars)",
+    "raw_token": "32 steps x all 43 Skeleton + 60 IMU + 106 Depth/IR token channels"
+  },
+  "classifier": {
+    "type": "ExtraTreesClassifier",
+    "n_estimators": 160,
+    "max_depth": 16,
+    "min_samples_leaf": 2,
+    "max_features": "sqrt",
+    "class_weight": "balanced_subsample",
+    "n_jobs": -1
+  },
+  "ablations": [
+    "zero",
+    "cross_sample_shuffle",
+    "time_reverse",
+    "within_sample_time_permutation"
+  ],
+  "pairwise_confusions": [
+    [19, 24],
+    [24, 25],
+    [24, 26],
+    [25, 26],
+    [37, 6],
+    [37, 7],
+    [9, 10],
+    [21, 22]
+  ],
+  "selection_boundary": "All models fit and evaluate only the three fixed subject-disjoint splits inside fold-0 outer-train. No fold-0 outer-held prediction is generated.",
+  "probe_success_signal": "A sequential layer must add held-subject Hard information over base-only in at least two folds and lose relevant performance under content/order ablations; a single best fold is insufficient."
+}
