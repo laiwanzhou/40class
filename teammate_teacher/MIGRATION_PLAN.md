@@ -22,6 +22,6 @@
 - [x] Create an isolated clone and orphan `teacher` branch.
 - [x] Copy the complete source snapshot and provenance documentation.
 - [x] Document capability differences and known evidence limits.
-- [ ] Run manifest, syntax, forbidden-artifact, credential, and tracked-layout checks.
-- [ ] Commit the verified snapshot.
-- [ ] Push `teacher` to `origin` and verify the remote head.
+- [x] Run manifest, syntax, forbidden-artifact, credential, and tracked-layout checks.
+- [x] Commit the verified snapshot.
+- [x] Push `teacher` to `origin` and verify the remote head.
