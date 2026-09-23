@@ -1,372 +1,220 @@
-# Visual-Motion Processing Without Teacher Voting Design
+# Fixed-Split Visual-Motion No-Vote Ablation Design
+
+## Status
+
+**BLOCKED BEFORE IMPLEMENTATION.**
+
+The fixed-split and label-isolation protocol is now specified, but exact reproduction of the teammate P86/MoBind fusion cannot proceed with the current fixed visual teacher. The visual representation contracts are incompatible, and the existing visual checkpoint is historically user6/user7-selected. No training or candidate generation may start until the user chooses one of the alternatives in §10.
 
 ## 1. Objective
 
-Measure how much accuracy is added by the teammate's non-voting training and processing pipeline when applied to the owner's correct visual teacher.
+Condition on the existing correct four-view IR+Depth VideoMAEv2 teacher, then measure the descriptive accuracy change from recreating the teammate's Skeleton, IMU, fusion, repeat/session, and unlabeled-adaptation processing without the 30-teacher bank.
 
-The experiment keeps the current four-view IR+Depth VideoMAEv2 teacher fixed, reconstructs only the Skeleton and IMU branches actually used by the teammate's compact P87-S/P315 Student, then measures fusion training, repeat/session processing, and unlabeled target adaptation as separate stages.
+This is a fixed-split development experiment, not an OOF experiment and not an independent unseen-user estimate.
 
-The experiment explicitly excludes the 30-teacher bank and its voting/router outputs. It does not attempt to reproduce the final 0.91542 submission. Its result is a stage-by-stage development ablation on user6/user7.
+## 2. Fixed Population Split
 
-## 2. Success Criteria
+### Final training population
 
-The primary success criterion is a trustworthy attribution of change from S0 through S6. A practically meaningful improvement is at least four additional correct rows on the full 388-row user6/user7 holdout, approximately 1.03 percentage points, without lowering either user's accuracy by more than two percentage points.
+The following 12 users are the complete supervised training population:
 
-Reaching 0.91 is not a completion requirement. A negative result is valid when the protocol and label isolation pass.
+`user1, user2, user3, user5, user8, user9, user16, user18, user19, user20, user21, user22`
 
-## 3. Branch and Isolation
+### Fixed internal development split
 
-Implementation work belongs to branch `experiment/single-visual-processing-replication`, based on commit `9e77f66a5102c5ca0bb282c0c1e9189e41497ec6`, in an isolated worktree.
+Only one internal split is used for epoch and hyperparameter selection:
 
-The following existing locations are read-only:
+- internal fit users: `user1, user2, user3, user9, user16, user18, user19, user20, user21, user22`;
+- internal development users: `user5, user8`.
 
-- `40class-x3d-adaptive-multiclip/` and all of its dirty working-tree files;
-- `40class/` and its dirty working tree;
-- both teammate submission packages;
-- all existing checkpoints, caches, reports, and predictions.
+The internal fit side contains all 40 classes. The internal development side contains 33 classes; missing development classes are allowed because it is used only for model/epoch comparison. All heads retain 40 outputs and all metrics use fixed class IDs 0–39.
 
-New generated artifacts live only under:
+After the training recipe and epoch budget are frozen, each Skeleton, IMU, and fusion model is refit once on all 12 users. There is no three-fold OOF generation and no OOF claim.
 
-`outputs/visual_motion_no_vote_ablation/`
+### Final development test
 
-## 4. Fixed Visual Teacher
+`user6` and `user7`, 388 rows, are used only by the final evaluator.
 
-The sole visual teacher is:
+No user6/user7 label may be read by cache generation, training, checkpoint selection, calibration, fusion fitting, repeat/session fitting, pseudo-target generation, or target adaptation.
+
+## 3. Consequence for the Class-25 Audit Finding
+
+The earlier class-25 blocker was caused by three-fold user OOF: all class-25 training rows belong to user1, so the fold holding out user1 has no class-25 fit examples.
+
+That blocker no longer applies under this fixed split because user1 remains on the internal fit side and in the final 12-user refit. The protocol must assert that the internal fit side contains all 40 classes before training.
+
+This does not make three-fold OOF valid; it removes OOF from the experiment entirely.
+
+## 4. Correct Fixed Visual Teacher
+
+The visual teacher is read-only:
 
 `outputs/ir_depth_videomaev2_teacher/ir_depth_videomaev2_vit_b_train12_val2_seed20260715/selected_checkpoint.pt`
 
 - SHA256: `4b3e89542abd33cb306814f277e3bb40bb7143833a3c0ac9ab23b2d38271429c`
 - selected epoch: 6
 - architecture: OpenGVLab VideoMAEv2 ViT-B
-- initialization: Kinetics-710, distilled from VideoMAEv2 ViT-Giant
 - modalities: IR and Depth
 - views: global, person context, left-hand object, right-hand object
-- frames: 16
-- historical result: 275/385 = 71.43% on the usable user6/user7 cache
+- cached representation: `[N, 2 modalities, 4 views, 768]`
+- historical usable-target result: 275/385 = 71.43%
 
-The visual teacher weights, view-fusion mechanism, and input geometry remain unchanged throughout S0-S6. The experiment may cache its embeddings and logits but may not fine-tune the visual teacher.
+The visual checkpoint is not retrained, fine-tuned, or replaced.
 
-Explicitly excluded visual alternatives:
+### Historical contamination limitation
 
-- P3-R1 `full_hard2` and other hard view routes;
-- wrist-person residual models;
-- `visual_skeleton`;
-- MCG-NJU VideoMAE-Large Ridge reconstruction;
-- any second pretrained visual teacher.
+This checkpoint was selected using user6/user7 validation metrics. Therefore user6/user7 cannot be described as an untouched test set for the complete pipeline, even if all new Skeleton/IMU/fusion code is label-isolated.
 
-## 5. Included and Excluded Modalities
+The revised experiment can prevent **new** target-label leakage, but it cannot undo this historical checkpoint-selection contamination. Final results are retrospective descriptive deltas conditional on this checkpoint.
 
-### Included
+If a genuinely leakage-free user6/user7 test is mandatory, the visual teacher must be retrained with epoch/hyperparameters selected exclusively inside the 12-user population, or a new untouched target population must be used. The current constraint forbids that retraining, so independent-test claims are unavailable.
 
-- Visual: fixed VideoMAEv2 IR+Depth teacher.
-- Skeleton: teammate-style P86 MoBind Skeleton branch.
-- IMU: teammate-style P86 MoBind IMU branch plus its statistical Random Forest teacher.
+## 5. Target-Label Isolation
 
-### Excluded from the first ablation
+The historical `p2a_view_cache.npz` contains a `labels` array and is forbidden as a generation input.
 
-- Thermal;
-- Radar;
-- LaViLa;
-- V-JEPA;
-- InternVideo2;
-- MotionBERT;
-- HD-GCN;
-- P128/P158/P231/P238/P253/P306 experts;
-- P310 structured targets derived from the 30-teacher bank.
-
-Thermal and Radar are not part of the deployed compact P87-S Student. Adding them in this experiment would reintroduce the historical expert-bank factor that the ablation is intended to exclude.
-
-## 6. Population and Fold Contract
-
-The frozen target holdout is all 388 user6/user7 rows.
-
-Training uses the same 12 users as the correct visual teacher:
-
-`user1, user2, user3, user5, user8, user9, user16, user18, user19, user20, user21, user22`
-
-All model or threshold selection inside the training population uses the existing three grouped folds:
-
-- fold 0 held users: `user1, user18, user21, user5`;
-- fold 1 held users: `user16, user19, user22, user8`;
-- fold 2 held users: `user2, user20, user3, user9`.
-
-Each train row receives exactly one OOF prediction per stage. After OOF evaluation freezes architecture and epoch budgets, the branch is refit on all 12 training users and predicts unlabeled user6/user7 inputs.
-
-Every outer source-fit partition must contain all 40 classes; otherwise that fold stops rather than silently training a reduced head. Held partitions may lack a class naturally. All heads retain 40 outputs, and macro-F1 is calculated over the fixed class IDs 0–39 with zero contribution for absent/zero-recall classes.
-
-The primary denominator is all 388 rows. Results on the historical 385-row visual-cache subset are secondary. Three rows missing from the historical visual cache remain in the primary denominator and use only actually available modalities.
-
-## 7. Common Teacher Artifact Contract
-
-Each stage writes a self-describing NPZ plus JSON provenance. Required arrays are:
+S0 must be rebuilt from raw user6/user7 visual inputs using the fixed checkpoint. The generated target cache uses an allowlist containing only:
 
 ```text
-sample_ids: [N] string
-user_ids: [N] string for training artifacts only
-fold_id: [N] int for OOF artifacts only
-logits: [N, 40] float32
-probabilities: [N, 40] float32
-availability: [N] bool
-quality_features: [N, Q] float32
-embedding: optional [N, D] float16/float32
+sample_ids
+view_logits
+view_embeddings
+full_logits
+availability
+quality_features
 ```
 
-Target artifacts must not contain labels or correctness fields. Training OOF artifacts may contain labels in a separate evaluation payload, but label arrays cannot be passed into target-generation datasets.
+The generation process cannot open historical user6/user7 prediction/report files containing labels, correctness, confusion matrices, selected metrics, or per-class outcomes.
 
-Each JSON record contains source hashes, configuration hash, exact user ownership, checkpoint hash, row count, class count, missing-row policy, and software versions.
+All S0–S6 predictions are generated and hashed before a separate evaluator receives the label path. Predictions must be identical when an inaccessible label file is deleted or randomly permuted.
 
-## 8. Label Isolation and Reveal Boundary
+## 6. Included Processing if the Interface Blocker Is Resolved
 
-Candidate generation and evaluation are separate processes.
+The intended non-voting path remains:
 
-Before the reveal, generation may read:
+| Stage | Processing |
+|---|---|
+| S0 | fixed visual teacher |
+| S1 | teammate-style compact Skeleton branch |
+| S2 | teammate-style compact IMU branch plus statistical RF teacher |
+| S3 | fixed simple Visual/Skeleton/IMU fusion controls |
+| S4 | teammate-style learned motion residual fusion |
+| S5 | repeat/session processing on the single fused probability |
+| S6 | unlabeled user6/user7 adaptation without P310 targets |
 
-- labels for the 12 training users;
-- raw and cached modalities for user6/user7;
-- user6/user7 sample IDs, timestamps, duration, modality availability, and device metadata.
+Excluded throughout: Thermal, Radar, MotionBERT, HD-GCN, LaViLa, V-JEPA, InternVideo2, P128/P158/P231/P238/P253/P306, P310 targets, and every expert-bank probability.
 
-Before the reveal, generation may not read:
+## 7. No OOF and No Learned Meta-Stacker
 
-- user6/user7 labels;
-- saved user6/user7 correctness indicators;
-- label-derived user6/user7 confusion tables;
-- historical reports when they expose candidate performance on user6/user7 for a candidate being selected.
+Because this experiment uses a fixed split:
 
-All S0-S6 predictions and hashes are written to `generation_complete.json` before the evaluator receives the label path. After reveal, no configuration, threshold, candidate set, confidence cutoff, epoch count, or seed may change.
+- do not generate or report three-fold OOF metrics;
+- do not train a stacker on in-sample base predictions and call it OOF;
+- do not learn fusion weights from user6/user7;
+- do not select session/repeat thresholds from user6/user7;
+- do not use historical target metrics to choose among candidates.
 
-## 9. Stage S0: Fixed Visual Baseline
+Allowed fusion controls are predeclared equal-probability means and a learned fusion model selected on the fixed internal user5/user8 development split, followed by a full-12-user refit.
 
-S0 reproduces the original 385-row predictions from `p2a_view_cache.npz`:
+## 8. Primary Result
 
-- exact sample IDs and order;
-- identical argmax prediction;
-- maximum logit difference no greater than `1e-5`;
-- 275/385 historical result after reveal.
+If the interface blocker is resolved, the unique primary artifact is predeclared as:
 
-For the three excluded cache rows, perform a fresh visual forward pass using available IR and/or Depth with the original availability mask. If neither modality is usable, S0 falls back to the 12-user training class prior. These three rows are reported individually.
+```text
+S4 full-12-user fused model
+→ fixed S5 repeat/session operator selected on user5/user8
+→ pseudo-target generation on unlabeled user6/user7
+→ two independently initialized 12-epoch S6 adaptations
+→ arithmetic mean of their logits
+→ reapply the same frozen S5 operator
+```
 
-S0 is the reference for every rescue/harm comparison.
+The primary contrast is `S6-primary − S0` on all 388 rows.
 
-## 10. Stage S1: Teammate-Style Skeleton Branch
+The 40-epoch S6 endpoint is exploratory and cannot replace the primary result. Individual seeds are sensitivity analyses and cannot be selected by target accuracy.
 
-S1 reconstructs the compact P86 MoBind Skeleton branch used by the deployed Student rather than selecting a new standalone Skeleton architecture.
+S5 and S6 are transductive because predictions depend on the complete target batch.
 
-### Input
+## 9. Fixed-Split Stage Selection
 
-- H36M-17 joints from official Skeleton predictions;
-- body-relative normalization matching the P31/P86 preprocessing;
-- 16 aligned visual-time bins;
-- part-aware joint groups;
-- position and local motion features;
-- explicit availability masks and quality summaries.
+Skeleton, IMU, fusion epochs, and all S5 thresholds are selected only on user5/user8 after fitting on the ten internal-fit users. After selection:
 
-### Model and supervision
+1. freeze architecture, losses, thresholds, epoch budgets, and seeds;
+2. refit on all 12 users without early stopping;
+3. generate unlabeled user6/user7 outputs;
+4. reveal labels once for descriptive evaluation;
+5. make no post-reveal changes.
 
-- P86 MoBind Skeleton encoder and Skeleton classification head;
-- supervised 40-class cross-entropy;
-- visual-teacher logit distillation;
-- visual-teacher feature cosine alignment;
-- local part/time token alignment where the fixed visual teacher exposes compatible embeddings;
-- reconstruction and contrastive terms from the teammate P86 pretraining recipe;
-- no MotionBERT, HD-GCN, C1-TCN, CTR-GCN, or Skeleton ensemble.
+Any later change is a new exploratory experiment and cannot reuse the same result as confirmation.
 
-For each outer fold, visual teacher targets for the held training users are generated by the frozen visual checkpoint. Skeleton normalization statistics and trainable parameters use source users only.
+## 10. Blocking Visual/P86 Interface Mismatch
 
-S1 produces Skeleton-only OOF/target probabilities and a Visual+Skeleton fusion candidate.
+The fixed visual teacher and teammate P86 fusion do not have matching representations.
 
-## 11. Stage S2: Teammate-Style IMU Branch
+### Fixed teacher output
 
-S2 reconstructs the P86 MoBind IMU branch and the selected statistical IMU teacher.
+```text
+view_embeddings: [B, 2 modalities, 4 views, 768]
+view_logits:     [B, 2 modalities, 4 views, 40]
+full_logits:     [B, 40]
+```
 
-### Input
+These are pooled clip-level representations. They have no early/late-window dimension and no per-time token dimension.
 
-- five device roles;
-- raw accelerometer and gyroscope channels;
-- device-relative compensated channels;
-- relative quaternion features;
-- exact 16-bin alignment to the visual time grid;
-- role and missing-device masks;
-- train-only normalization statistics.
+### Original P86 requirement
 
-### Teacher and supervision
+```text
+visual_sequence: [B, 2 windows, 3 views, T, 512]
+visual_width: 512
+teacher_features expected by P86 loaders: 1024-dimensional P85 features
+```
 
-- reproduce `stat_random_forest_device_dropout_aligned_oof` inside each outer training fold;
-- IMU teacher distillation weight `1.0`;
-- supervised IMU classification loss;
-- visual feature/logit alignment following P86 pretraining;
-- asymmetric IMU-to-Skeleton token, semantic, and logit alignment only in the combined S3 candidate;
-- no separate deep IMU ensemble.
+P86 performs local part/time attention between motion tokens and visual time tokens. A linear `768 → 512` layer only matches the final numeric width; it cannot recreate the missing windows, view semantics, or time-token structure. Repeating a pooled vector across time would fabricate evidence and is prohibited.
 
-S2 produces IMU-only OOF/target probabilities and a Visual+IMU fusion candidate.
+Therefore exact teammate MoBind reproduction is impossible without changing one of the approved constraints.
 
-## 12. Stage S3: Simple Three-Modality Controls
+### Available alternatives
 
-Before reproducing the teammate fusion trainer, S3 establishes low-capacity controls:
+#### Alternative A: retrain a compatible visual student
 
-- Visual only;
-- Visual + Skeleton calibrated probability mean;
-- Visual + IMU calibrated probability mean;
-- Visual + Skeleton + IMU calibrated probability mean;
-- confidence-weighted mean with weights learned only from training OOF;
-- a frozen linear stacker trained on OOF logits.
+Train the teammate MC3 visual Student from the fixed VideoMAEv2 teacher, then use the original P86 interface exactly. This does not retrain the large visual teacher, but it does create a new visual Student and changes the experiment from “fixed current visual model” to “fixed teacher plus compatible distilled visual Student.”
 
-All probability calibration is fitted on source folds only. These controls determine whether the other modalities contain usable complementary evidence before attributing gains to MoBind fusion.
+#### Alternative B: pooled P86-inspired fusion
 
-## 13. Stage S4: Teammate MoBind Fusion Training
-
-S4 adapts the teammate P86 fusion structure to the fixed VideoMAEv2 visual embedding dimension without changing the visual teacher.
-
-The frozen recipe is:
-
-- separate Skeleton and IMU encoders;
-- additive motion residual into visual representation;
-- stage A: 4 epochs;
-- stage B: 20 epochs;
-- pretrained motion encoders frozen during fusion training;
-- fusion learning rate: `4e-4`;
-- encoder learning rate: `1e-4` when an encoder is permitted to update in its own stage;
-- visual teacher remains frozen;
-- weight decay: `0.05`;
-- class-weight power: `0.35`;
-- label smoothing: `0.08`;
-- distillation temperature: `2.0`;
-- distillation weight: `1.0`;
-- relation weight: `0.1`;
-- motion auxiliary weight: `0.35`;
-- selective anchor weight: `0.3`;
-- visual corruption probability: `0.75`;
-- visual feature dropout: `0.3`;
-- visual view dropout: `0.4`;
-- seed: `20260811`.
-
-S4 generates strict training OOF predictions, then refits the frozen recipe on all 12 users and predicts user6/user7.
-
-## 14. Stage S5: Repeat and Session Processing Without Voting
-
-S5 applies the teammate's cross-sample processing to the single S4 fused probability only.
-
-- build label-free recording metadata from timestamps, duration, modality availability, and device signatures;
-- learn class transition counts from chronological sessions of training users;
-- use a 30-second maximum session gap and Laplace-smoothed transitions;
-- construct repeat candidates using time, duration, availability, and S4 probability similarity;
-- propagate only when at least two peers agree and confidence passes a frozen training-only threshold;
-- compare transition-only, repeat-only, and combined variants;
-- do not import P89/P128/P137/P165/P173/P307/P309 expert banks or their probabilities.
-
-All S5 strengths and thresholds are selected on training OOF only. User identity is not a target feature.
-
-## 15. Stage S6: Unlabeled Target Adaptation Without P310 Targets
-
-S6 uses all 388 user6/user7 inputs without labels and adapts the S4 compact multimodal model.
-
-Pseudo targets come only from the frozen best training-selected S5 emission. P310 and all 30-teacher structured targets are forbidden.
-
-Adaptation follows the teammate mechanism where compatible:
-
-- freeze the visual VideoMAEv2 teacher;
-- update fusion head plus compact motion encoder;
-- confidence threshold: `0.90`;
-- class-balanced pseudo-label cap: median non-empty predicted class count;
-- strong/weak augmentation consistency;
-- KL anchor to the pre-adaptation S4 model;
-- epochs: 12 for direct comparison with the original P87-S adaptation, plus a predeclared 40-epoch endpoint to measure the later P310 recipe;
-- learning rates: fusion `1e-4`, motion encoder `1e-4`, visual teacher `0`;
-- minimum learning rate: `5e-6`;
-- weight decay: `0.02`;
-- seeds: `20260811`, `20260826`;
-- no early stopping or target-label checkpoint selection.
-
-Both 12-epoch and 40-epoch outputs are frozen before reveal. This stage is explicitly reported as transductive.
-
-## 16. Ablation Matrix
-
-The evaluator reports the following fixed comparisons:
-
-| ID | Visual | Skeleton | IMU | MoBind | Session/repeat | Target adaptation |
-|---|---|---|---|---|---|---|
-| S0 | yes | no | no | no | no | no |
-| S1a | yes | yes | no | simple mean | no | no |
-| S2a | yes | no | yes | simple mean | no | no |
-| S3a | yes | yes | yes | simple mean | no | no |
-| S3b | yes | yes | yes | linear OOF stacker | no | no |
-| S4 | yes | yes | yes | teammate-style | no | no |
-| S5 | yes | yes | yes | teammate-style | yes | no |
-| S6-12 | yes | yes | yes | teammate-style | yes | 12 epochs |
-| S6-40 | yes | yes | yes | teammate-style | yes | 40 epochs |
-
-This matrix attributes gains without introducing multiple independent teachers per modality.
-
-## 17. Metrics
-
-Every stage reports:
-
-- correct/388 and accuracy;
-- correct/385 and accuracy on the historical visual subset;
-- 40-class macro-F1;
-- user6 and user7 accuracy;
-- per-class recall;
-- rescue, harm, net, and disagreement versus S0 and versus the immediately previous stage;
-- missing-modality subgroup metrics;
-- prediction entropy and calibration error;
-- OOF metrics for the 12-user training population;
-- Student/teacher agreement for S6.
-
-Oracle selection is permitted only as a clearly labeled upper-bound diagnostic and never as an inference result.
-
-## 18. Artifacts
-
-Required outputs under `outputs/visual_motion_no_vote_ablation/`:
-
-- `protocol.json`;
-- `fold_contract.json`;
-- `visual_baseline/`;
-- `skeleton_teacher/`;
-- `imu_teacher/`;
-- `simple_fusion/`;
-- `mobind_fusion/`;
-- `session_repeat/`;
-- `adaptation/seed_<seed>/`;
-- `candidate_registry.json`;
-- `predictions_unlabeled.npz` without labels;
-- `generation_complete.json` with artifact hashes;
-- `evaluation.json`, `evaluation.md`, per-user CSV, and per-class CSV;
-- immutable stdout/stderr logs.
-
-Completed fold artifacts are resumable only when protocol, source, checkpoint, input, and configuration hashes match exactly.
-
-## 19. Tests and Guards
-
-The implementation must test:
-
-- exact 385-row S0 reproduction;
-- complete, unique, ordered ownership of all 388 target rows;
-- no target label reaches generation code or artifacts;
-- source/held user disjointness for every fold;
-- fold-scoped normalization and Random Forest fitting;
-- all OOF rows predicted exactly once;
-- finite, normalized 40-class probabilities;
-- modality availability masks prevent missing tensors from contributing;
-- Skeleton and IMU-only branches can be disabled without changing S0;
-- simple fusion uses OOF predictions rather than in-sample training predictions;
-- MoBind updates only permitted parameters;
-- S5 is invariant to input row ordering after restoring sample IDs;
-- S5 disabled gates reproduce S4 exactly;
-- S6 cannot load P310 or any expert-bank artifact;
-- S6 cannot access target labels or select checkpoints from target metrics;
-- generated predictions and registry hashes are frozen before evaluation.
-
-## 20. Failure Handling
-
-- Stop on any source, checkpoint, split, cache, raw-input, or configuration hash mismatch.
-- Stop if S0 does not reproduce the original 385-row prediction within tolerance.
-- Stop if a training fold lacks a class required by a loss without a declared missing-class policy.
-- Stop if any stage drops or duplicates target rows.
-- Stop if target labels, correctness arrays, or historical label-derived target reports enter generation.
-- Preserve completed immutable fold outputs on interruption; never silently overwrite them.
-- Do not substitute MotionBERT, HD-GCN, C1-TCN, CTR-GCN, Thermal, Radar, or a teacher-bank probability when a required P86 component is unavailable.
-
-## 21. Interpretation Boundary
-
-This is development evidence on user6/user7. It does not estimate the official anonymous-test score independently because user6/user7 has already informed prior project decisions.
-
-The experiment measures the teammate's compact Visual+Skeleton+IMU processing path without the 30-teacher bank. It does not measure the contribution of Thermal, Radar, large external Skeleton teachers, or multi-teacher voting. Those require separate later specifications if this no-vote pipeline shows useful gains.
+Keep the current visual model and design a new 768-dimensional clip-level Skeleton/IMU residual adapter. This is feasible and can measure motion-modality value, but it is not an exact reproduction of the teammate P86/MoBind local temporal fusion.
+
+#### Alternative C: probability-level teacher fusion
+
+Keep the current visual teacher and combine independently trained Skeleton/IMU probabilities. This is the smallest and cleanest fixed-split ablation, but it measures teacher-probability fusion rather than the teammate compact Student processing.
+
+The user instructed execution to stop if simple matching is impossible. Accordingly, no implementation plan or training may proceed until one alternative is explicitly approved.
+
+## 11. Engineering Availability
+
+Present locally:
+
+- fixed visual checkpoint and K710 initialization;
+- 1,935 train and 385 target historical visual caches, usable only as reference because target cache contains labels;
+- raw IR, Depth, Skeleton, and IMU inputs;
+- P28/P31/P86 source modules;
+- CUDA environment and RTX 5060 Laptop GPU.
+
+Missing and requiring regeneration after an alternative is selected:
+
+- label-free target visual cache;
+- P28 pose cache;
+- P31 Skeleton/IMU cache;
+- P86 motion-window cache;
+- fixed-split RF IMU teacher artifacts;
+- fixed-split Skeleton/IMU/fusion checkpoints.
+
+The shipped final P87-S checkpoint cannot substitute for these artifacts because it contains an adapted MC3 visual path and motion residual trained with a different visual contract.
+
+## 12. Interpretation
+
+Under the fixed split, the class-25 OOF issue disappears and new target-label leakage can be prevented. Two limitations remain:
+
+1. the fixed visual teacher was historically selected on user6/user7, so the final result is not an independent test estimate;
+2. the visual/P86 representation mismatch prevents exact MoBind reproduction without a new compatible Student or a newly designed adapter.
+
+The specification is intentionally blocked at this decision point rather than silently substituting a different method.
