@@ -20,56 +20,56 @@ No historical teammate checkpoint, generated feature cache, OOF tensor, test pre
 
 ## 2. Claim Boundary
 
-This is a fixed-split development ablation on user6/user7. It is not a three-fold OOF experiment and does not estimate the anonymous official-test score.
+This is a fixed-split development ablation with user6/user7 used for model development and user4/user17/user23/user24 used for one frozen final evaluation. It is not a three-fold OOF experiment and does not estimate the anonymous official-test score.
 
 The primary question is:
 
-> On the fixed user6/user7 development test, how much accuracy is added by each teammate-style processing stage when the 30-teacher voting system is absent?
+> On the fixed four-user final development evaluation, how much accuracy is added by each teammate-style processing stage when the 30-teacher voting system is absent?
 
 A negative result is valid. Reaching 0.91 is not a completion criterion.
 
 ## 3. User Split
 
-### Internal fit users
+### Training users
 
-`user1, user2, user3, user9, user16, user18, user19, user20, user21, user22`
+`user1, user2, user3, user5, user8, user9, user16, user18, user19, user20, user21, user22`
 
-This 10-user fit population contains all 40 classes, including class 25 from user1.
+This 12-user training population contains all 40 classes, including class 25 from user1.
 
-### Internal development users
+### Development users
 
-`user5, user8`
+`user6, user7`
 
-This population is used only for selecting epoch budgets, visual-head configuration, calibration, fusion thresholds, and repeat/session strengths. It naturally contains 33 classes; all models retain 40 outputs and all metrics use fixed IDs 0–39.
+This population is used only for selecting epoch budgets, visual-head configuration, calibration, fusion thresholds, and repeat/session strengths. It covers all 40 classes and is not part of the final evaluation.
 
-### Final refit users
+### Final refit population
 
-All 12 users from the fit and internal development populations.
+All 14 users from the training and development populations.
 
-After a stage's recipe is frozen on the fixed fit/development split, it is retrained once on all 12 users for the selected fixed epoch budget. There is no early stopping during final refit.
+After a stage's recipe is frozen on the fixed 12-user training / two-user development split, it is retrained once on all 14 users for the selected fixed epoch budget. There is no early stopping during final refit.
 
-### Final development test
+### Final evaluation users
 
-`user6, user7`, 388 rows.
+`user4, user17, user23, user24`, 609 rows.
 
-Their labels are unavailable to every generation/training process and are read once by a separate evaluator after all candidate predictions are frozen and hashed.
+Their labels are unavailable to every generation/training process and are read once by a separate evaluator after all candidate predictions are frozen and hashed. The four-user population covers all 40 classes. IR is present for 591 rows, Depth and Skeleton for 590, and IMU for 584; 18 rows have none of the included Visual/Skeleton/IMU modalities and remain in the denominator through a frozen training-prior fallback.
 
 ## 4. Consequence of Using a Fixed Split
 
-The earlier class-25 OOF blocker no longer applies because user1 always remains in the fit side. The implementation must assert all 40 classes are present before every fit and final-refit run.
+The earlier class-25 OOF blocker no longer applies because user1 always remains in the 12-user training side and the 14-user final refit. The implementation must assert all 40 classes are present before every fit and final-refit run.
 
 No stage may use the terms “strict OOF,” “three-fold OOF,” or “outer-fold estimate.” Training reports use:
 
-- internal-fit metrics;
-- internal-development metrics;
-- full-12 refit diagnostics without accuracy-based selection;
-- final user6/user7 descriptive metrics after reveal.
+- 12-user training metrics;
+- user6/user7 development metrics;
+- full-14 refit diagnostics without accuracy-based selection;
+- final four-user descriptive metrics after reveal.
 
 No learned meta-stacker is trained from in-sample component predictions and reported as OOF.
 
 ## 5. Label Isolation
 
-All user6/user7 inputs are rebuilt from raw modalities. Historical target caches are forbidden because several contain labels.
+All user4/user17/user23/user24 inputs are rebuilt from raw modalities. Historical final-evaluation caches are forbidden when they contain labels.
 
 The target-generation process may read only:
 
@@ -81,9 +81,9 @@ The target-generation process may read only:
 
 It may not read:
 
-- user6/user7 labels;
+- user4/user17/user23/user24 labels;
 - correctness or confusion arrays;
-- historical user6/user7 predictions or reports;
+- historical label-derived predictions or reports for the four final-evaluation users;
 - Kaggle predictions or scores;
 - P310 targets;
 - any expert-bank artifact.
@@ -111,7 +111,7 @@ Thermal and Radar are excluded because the deployed compact P87-S Student does n
 
 ## 7. Stage A0: Raw Manifest and Automatic Geometry
 
-Build a new manifest from raw data for the 10-user fit, two-user internal development, 12-user refit, and unlabeled user6/user7 target partitions.
+Build a new manifest from raw data for the 12-user training, two-user development, 14-user refit, and unlabeled four-user final-evaluation partitions.
 
 Recreate teammate preprocessing:
 
@@ -122,7 +122,7 @@ Recreate teammate preprocessing:
 - timestamp-preserving Skeleton alignment;
 - explicit missing-modality masks and quality summaries.
 
-Outputs are split-neutral raw/geometry caches. They must not contain labels for user6/user7.
+Outputs are split-neutral raw/geometry caches. They must not contain labels for user4/user17/user23/user24.
 
 ## 8. Stage A1: Single Large Visual Teacher
 
@@ -136,9 +136,9 @@ Use exactly one large visual teacher family:
 - 16 frames per window;
 - 1024-dimensional features and 400 Kinetics logits.
 
-Generate features independently for fit, internal development, full-12 refit, and unlabeled target partitions. The backbone remains frozen, matching the teammate P85 teacher extraction.
+Generate features independently for 12-user training, user6/user7 development, full-14 refit, and unlabeled final-evaluation partitions. The backbone remains frozen, matching the teammate P85 teacher extraction.
 
-Train the P85 40-class Ridge head family on internal-fit users. Select the feature family, class-weight power, and alpha on user5/user8 using the teammate candidate grid:
+Train the P85 40-class Ridge head family on the 12 training users. Select the feature family, class-weight power, and alpha on user6/user7 using the teammate candidate grid:
 
 - feature families: early, late, window mean, early+late, temporal delta, Kinetics logits;
 - class-weight powers: `0.0, 0.5, 0.75`;
@@ -146,7 +146,7 @@ Train the P85 40-class Ridge head family on internal-fit users. Select the featu
 
 Tie-breaking order is accuracy, macro-F1, worst-user accuracy, then lower-dimensional feature family, then larger alpha.
 
-Refit the selected head on all 12 users and produce target probabilities. This is the single privileged visual teacher for every later distillation stage.
+Refit the selected head on all 14 users and produce unlabeled final-evaluation probabilities. This is the single privileged visual teacher for every later distillation stage.
 
 ## 9. Stage A2: Compact MC3 Visual Student
 
@@ -170,7 +170,7 @@ The fixed recipe is transferred from the teammate visual-Student path:
 - batch size `4`, gradient accumulation `4`;
 - seed `20260811`.
 
-Select the epoch budget on user5/user8 after fitting on the ten internal-fit users. Refit for the frozen budget on all 12 users without early stopping.
+Select the epoch budget on user6/user7 after fitting on the 12 training users. Refit for the frozen budget on all 14 users without early stopping.
 
 The resulting Student exposes the original P86-compatible seam:
 
@@ -190,9 +190,9 @@ Rebuild the teammate P31/P86 motion inputs from raw Skeleton and IMU:
 - device-relative compensated channels;
 - relative quaternion features;
 - exact missing-role masks;
-- normalization statistics fitted on internal-fit users only during selection and on all 12 users during final refit.
+- normalization statistics fitted on the 12 training users during selection and on all 14 users during final refit.
 
-The internal-development and target datasets reuse fitted statistics but never contribute to them.
+The development and final-evaluation datasets reuse fitted statistics but never contribute to them.
 
 ## 11. Stage A4: Statistical IMU Teacher
 
@@ -200,7 +200,7 @@ Reproduce one teammate-selected IMU teacher:
 
 `stat_random_forest_device_dropout_aligned`
 
-Train on internal-fit users, select only its fixed epoch-independent preprocessing and Random Forest hyperparameters on user5/user8, then refit on all 12 users. The teacher produces 40-class logits/probabilities and an availability mask.
+Train on the 12 training users, select its fixed epoch-independent preprocessing and Random Forest hyperparameters on user6/user7, then refit on all 14 users. The teacher produces 40-class logits/probabilities and an availability mask.
 
 No additional deep IMU teacher or ensemble is allowed.
 
@@ -222,7 +222,7 @@ Required losses and components:
 - 24 epochs;
 - missing-modality and role masks.
 
-Select the fixed training budget and any non-transferred coefficient only on user5/user8. Refit on all 12 users.
+Select the fixed training budget and any non-transferred coefficient only on user6/user7. Refit on all 14 users.
 
 The ablation records Skeleton-only, IMU-only, and combined motion probabilities before visual fusion.
 
@@ -235,7 +235,7 @@ Before training MoBind fusion, produce fixed controls:
 - equal calibrated mean of visual and IMU probabilities;
 - equal calibrated mean of visual, Skeleton, and IMU probabilities.
 
-Temperatures are fitted on internal-fit users and selected on user5/user8. No target label or historical target metric is used.
+Temperatures are fitted on the 12 training users and selected on user6/user7. No final-evaluation label or historical final-evaluation metric is used.
 
 These controls establish whether motion modalities contain useful evidence before adding fusion capacity.
 
@@ -266,7 +266,7 @@ Frozen transferred recipe:
 - additive global fusion;
 - seed `20260811`.
 
-Train on internal-fit users and select only the transferred-stage endpoint on user5/user8. Refit the frozen recipe on all 12 users.
+Train on the 12 training users and select only the transferred-stage endpoint on user6/user7. Refit the frozen recipe on all 14 users.
 
 Matched controls use the same architecture, optimizer, seed, and losses with:
 
@@ -284,22 +284,22 @@ Apply cross-sample processing only to the single A7 fused probability:
 
 - label-free timestamp/duration/device metadata;
 - 30-second maximum session gap;
-- class-transition counts learned from internal-fit users;
+- class-transition counts learned from the 12 training users;
 - repeat groups based on time, duration, availability, and A7 probability similarity;
 - at least two agreeing peers;
 - confidence-gated fallback to the unchanged A7 emission.
 
-Compare transition-only, repeat-only, and combined candidates on user5/user8. Freeze one primary operator by accuracy, macro-F1, then fewer changed rows. Refit transition counts/metadata statistics on all 12 users without changing thresholds.
+Compare transition-only, repeat-only, and combined candidates on user6/user7. Freeze one primary operator by accuracy, macro-F1, then fewer changed rows. Refit transition counts/metadata statistics on all 14 users without changing thresholds.
 
 A8 is transductive because target rows can influence other rows in the same target batch.
 
 ## 16. Stage A9: Unlabeled Target Adaptation Without P310
 
-Generate pseudo targets only from the frozen A8 output. P310 and all expert-bank artifacts are forbidden.
+Generate pseudo targets only from the frozen A8 output on the unlabeled four-user final-evaluation batch. P310 and all expert-bank artifacts are forbidden.
 
 Primary adaptation reproduces the teammate 12-epoch mechanism:
 
-- start from the all-12-user A7 model;
+- start from the all-14-user A7 model;
 - update fusion heads and the compact motion encoder;
 - keep the large A1 visual teacher frozen and absent from target inference;
 - 12 epochs;
@@ -339,7 +339,7 @@ Both outputs are generated and frozen before reveal. A9 is transductive and batc
 | A9-12 | A8 pseudo targets + 12-epoch adaptation, primary |
 | A9-40 | A8 pseudo targets + 40-epoch adaptation, exploratory |
 
-Primary contrast: `A9-12 − A1` on all 388 rows.
+Primary contrast: `A9-12 − A1` on all 609 rows.
 
 Stage contributions are also reported as:
 
@@ -357,10 +357,10 @@ Before reveal, write every candidate probability and artifact hash to an immutab
 
 The evaluator reports:
 
-- correct/388 and accuracy;
-- metrics on the 385 rows with visual input;
+- correct/609 and accuracy;
+- metrics on the 591 rows with visual input;
 - fixed-40-class macro-F1;
-- user6 and user7 separately;
+- user4, user17, user23, and user24 separately;
 - per-class recall;
 - rescue, harm, net, and disagreement against A1 and previous nested stage;
 - missing-modality subgroups;
@@ -399,10 +399,10 @@ The implementation stops when:
 
 - any source, pretrained weight, manifest, split, raw input, or parent artifact hash changes;
 - internal fit lacks any of the 40 classes;
-- user6/user7 labels or historical label-derived reports enter generation;
+- user4/user17/user23/user24 labels or historical label-derived final-evaluation reports enter generation;
 - any target cache contains labels or correctness fields;
 - any row is duplicated, lost, reordered without a recorded mapping, or produces non-finite probabilities;
-- any training statistic includes internal-development or target rows outside its declared stage;
+- any training statistic includes development or final-evaluation rows outside its declared stage;
 - A1 feature dimensions differ from the recorded P85 contract;
 - A2 fails to expose the exact P86 visual sequence contract;
 - A9 attempts to load P310 or an expert-bank artifact.
@@ -413,12 +413,12 @@ Interrupted stages resume only when protocol and artifact hashes match. Existing
 
 The local RTX 5060 Laptop GPU with 8 GiB VRAM is sufficient using batch-size-one teacher extraction, cached features, gradient accumulation, and the teammate's sequential multiview strategy.
 
-Expected wall-clock cost after implementation debugging is approximately 8–16 GPU-hours for teacher extraction, internal fit/development runs, 12-user refits, MoBind fusion, and both adaptation endpoints.
+Expected wall-clock cost after implementation debugging is approximately 10–20 GPU-hours for teacher extraction, 12-user training/development runs, 14-user refits, MoBind fusion, and both adaptation endpoints.
 
 At least 20 GiB free disk space is required before execution. Current free space is below this threshold, so execution must not start until output storage is expanded or redirected to a location with sufficient capacity.
 
 ## 22. Interpretation Boundary
 
-This experiment eliminates new user6/user7 label access and removes the 30-teacher voting system. It measures one rebuilt teammate-style privileged teacher → compact multimodal Student path under the owner's fixed split.
+This experiment uses user6/user7 for development, keeps user4/user17/user23/user24 labels outside generation, and removes the 30-teacher voting system. It measures one rebuilt teammate-style privileged teacher → compact multimodal Student path under the owner's fixed split.
 
 It does not prove independent unseen-user generalization because architecture and recipe choices are informed by prior project history. Confirmation requires new subjects or the anonymous official test.
