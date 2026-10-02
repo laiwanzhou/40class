@@ -110,3 +110,11 @@ def test_manifest_count_duplicates_and_escape_paths_are_rejected(no_vote_fixture
         else: body["files"][0]["path"] = "../outside.py"
         path.write_text(json.dumps(body))
         with pytest.raises(ValueError): verify_teammate_source(root, path)
+
+
+def test_external_standard_decorator_preserves_verified_callable_and_wrapper(no_vote_fixture):
+    from src.experiments.teammate_source import load_teammate_symbol
+    _,payload=no_vote_fixture
+    _replace_source_module(payload,'from contextlib import contextmanager\n@contextmanager\ndef wrapped():\n    yield 7\n')
+    symbol=load_teammate_symbol(_verify(payload),'unit_ops','wrapped')
+    with symbol() as value:assert value==7

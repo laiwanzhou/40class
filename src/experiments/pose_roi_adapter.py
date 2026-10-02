@@ -44,11 +44,36 @@ def compatible_frame_map(path: Path | None,modality: str,ir_path: Path | None=No
     if ir:
         counters={key.rsplit('_',1)[-1]:key for key in ir}
         if len(counters)!=len(ir):raise ValueError('Ambiguous IR acquisition counters')
+        grouped={}
+        for key,file in result.items():grouped.setdefault(key.rsplit('_',1)[-1],[]).append((key,file))
+        resolved={}
+        for counter,items in grouped.items():
+            if len(items)>1:
+                dated=[(key,file) for key,file in items if not key.isdigit()]
+                if len(items)!=2 or len(dated)!=1 or len({sha256_file(file) for _,file in items})!=1:
+                    raise ValueError('Ambiguous Skeleton acquisition counters or alias contents')
+                key,file=dated[0]
+            else:key,file=items[0]
+            resolved[key]=file
+        result=resolved
         mapped={counters[key.rsplit('_',1)[-1]]:file for key,file in result.items()
                 if key.rsplit('_',1)[-1] in counters}
-        if mapped and all(not key.isdigit() for key in mapped):return mapped
+        if mapped:return mapped
     if all(not key.isdigit() for key in result):return result
     raise ValueError('counter-only Skeleton lacks an absolute timeline')
+
+
+def acquisition_ids(maps,frame_ids):
+    """Keep observed timestamps separately from IR file lookup keys."""
+    observed=[]
+    for key in frame_ids:
+        stamp=key
+        if key.isdigit():
+            file=maps.get('skeleton',{}).get(key)
+            stamp=file.stem[len('Color_'):] if file is not None else ''
+            if stamp.isdigit():stamp=''
+        observed.append(stamp)
+    return np.asarray(observed,dtype=str)
 
 
 def _load_ops(protocol):
@@ -161,7 +186,10 @@ def _process_trial(maps,model,ops,args):
     semantic=base.semantic_pair_features(arrays['ir_keypoints_bbox_local'],arrays['skeleton_h36m_xyz_conf_normalised'])
     arrays['ir_skeleton_semantic_pairs']=semantic;arrays['depth_skeleton_semantic_pairs']=semantic
     arrays['depth_frame_valid']=depth_valid
-    return arrays,roi.build_trial_rois(arrays,args)
+    arrays['acquisition_ids']=acquisition_ids(maps,ids)
+    rois=roi.build_trial_rois(arrays,args)
+    rois['acquisition_ids']=arrays['acquisition_ids']
+    return arrays,rois
 
 
 def build_pose_roi(inputs: StageInputs,pose_weights: ArtifactRef,output: Path,*,
@@ -228,6 +256,7 @@ def build_pose_roi(inputs: StageInputs,pose_weights: ArtifactRef,output: Path,*,
                     'roi_quality':np.zeros((0,7),np.float32),'roi_source':np.zeros((0,7),np.uint8)}
                 reason=reason or 'missing_ir'
             for stage,arrays in (('p28',pose),('p29',rois)):
+                arrays.setdefault('acquisition_ids',np.full(len(arrays['frame_ids']),'',dtype='U1'))
                 arrays.update(sample_id=np.asarray(sid),available=np.asarray(available),completed=np.asarray(True))
                 _atomic_npz(caches[stage],arrays)
                 write_json(summaries[stage],{'sample_id':sid,'user_id':row['user_id'],'frames':len(ids),

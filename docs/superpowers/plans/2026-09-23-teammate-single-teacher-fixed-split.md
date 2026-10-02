@@ -1,6 +1,6 @@
 # 队友单视觉教师固定划分实施计划（Fixed-Split Single-Teacher Implementation Plan）
 
-> 执行者须按任务使用 superpowers:executing-plans；若用户另行明确选择子智能体实施，使用 superpowers:subagent-driven-development。Task1–3已完成相应实施/验收，其余任务尚未实施；Task3验收为真实一条partial缓存，非全量ROI；复选框只标记已完成验收，不能视为完整流水线训练通过。
+> 执行者须按任务使用 superpowers:executing-plans；若用户另行明确选择子智能体实施，使用 superpowers:subagent-driven-development。Task1–3已完成；本轮补齐refit14/final4完整ROI。Task4实现、合成测试和真实一条编码验收已完成，正式抽取/72grid/refit运行尚未完成；Task5–14尚未实施。复选框只标记对应实现验收，不能视为完整流水线训练通过。
 
 **目标（Goal）：** 在train12/development2/refit14/final4固定划分上移植一条无历史多教师投票的Visual/Skeleton/IMU流水线，并生成可解释的阶段比较。
 **架构（Architecture）：** 复用队友模型、预处理算子、增强和损失；新建标签无关缓存、固定划分训练循环和来源验证。旧CLI是源码参考，不是新接口。公共权重和原始数据缓存可共用，监督训练祖先按select/refit分离。
@@ -10,14 +10,14 @@
 
 ## 全局约束（Global Constraints）
 
-- 工作树：`D:/work/2026.7.14_kaggle/_single_visual_processing_replication`；分支：`experiment/single-visual-processing-replication`。只在此实施新代码。
+- 工作树：`D:/work/2026.7.14_kaggle/_single_visual_processing_replication`；分支：`experiment/teammate-single-teacher-task1`。只在此实施新代码。
 - train12=user1,user2,user3,user5,user8,user9,user16,user18,user19,user20,user21,user22，共2039行；development2=user6,user7，共388行；refit14为前两者并集2427行；final4=user4,user17,user23,user24，共609行。
 - final4的18条全部模态缺失始终保留refit14先验；IR可用591、Skeleton/Depth可用590、IMU CSV文件可用580（2026-10-02实际检测，早期估计584）。规范行数与模型实际可用拟合行数分开记录。
 - 不做三折OOF，不重新匹配旧视觉教师接口，不使用历史任务权重、缓存、标签衍生final报告、Kaggle分数、P310或expert bank。
 - 视觉六clip来自IR的早晚两窗/scene-person-workspace三视野；Depth提供几何同步，不增加第二视觉教师。所有模型都是40类，列顺序0–39。
 - select的全部监督祖先fit train12，dev仅预测/选择；refit的全部对应监督祖先fit refit14。A9单独记录final4无标签适配角色。
 - run根：`outputs/teammate_single_teacher_fixed_split/<run_id>/`；源码根：`D:/work/2026.7.14_kaggle/_teacher_branch_upload/teammate_teacher/project`。不能回落队友runs/cache默认目录。
-- 用户本轮授权在同分支推进Task2/3并分阶段commit/push；不进入Task4或教师/学生训练。
+- 用户最新授权独立复审Task2/3、修复Task4门槛，审计同意后在同分支推进Task4并提交推送；不进入Task5及学生训练。
 - 正式生成不得访问final标签路径；独立可信准备可以读取原规范清单，仅分离输入/标签，不拟合模型或选择参数。
 - 资源门槛至少20GiB，并须满足实测峰值加余量；2026-10-02观测D盘46.90GiB，可用性仍须执行前重新查询。
 - 所有超参数以规格v2为准，写入配置后先冻结身份，再选参。所有阶段为单seed描述性实验，不承诺0.91或显著性。
@@ -191,6 +191,7 @@ smoke是独立fixture protocol/run_id，使用合成小人口和模拟公开权�
 - [x] test_timestamp_alignment真实训练样本：Skeleton counter恢复为IR时间戳后共同帧非空，结果等于提交stage_runner验证过的映射；无匹配时明确标记，禁止按最近标签样本补齐。
 - [x] 在实际移植frame_map调用点接入映射，不在父进程定义未使用helper；ID同opaque值，排序不读class字段，JSON/CSV/NPZ都不输出类别。
 - [x] 写p28必要原字段，p29写ROI；缺ROI使用整帧回退，缺IR不伪造。同步记录帧时间/质量/原因及raw input hashes。
+- 2026-10-02复审修复：numeric IR与timestamp Skeleton按唯一counter匹配；numeric/timestamp别名仅内容SHA相同且唯一时合并。P28/P29另存acquisition_ids真实时间键；无真实时间留空，无IR也有同形空字段。后续pixels/motion/session必须优先使用acquisition_ids解析时间，frame_ids仅定位IR文件，不能把可恢复绝对时间错误替换为10Hz。
 - [x] 验证：`python -m pytest tests/test_no_vote_pose_roi.py -v`；真实一条仅train12：`python scripts/build_no_vote_pose_roi.py --config configs/experiments/teammate_single_teacher_fixed_split.yaml --partition train12 --max-trials 1`，产物标partial不能伪装正式完成。
 
 ### Task 4：移植A1抽取器与单Ridge头（Visual Teacher Port）
@@ -202,12 +203,18 @@ smoke是独立fixture protocol/run_id，使用合成小人口和模拟公开权�
 `fit_visual_head(refit: StageInputs, features: ArtifactRef, selection: Selection) -> ArtifactRef`；
 `predict_visual_teacher(model: ArtifactRef, features: ArtifactRef, rows: RowIndex, prior: ArtifactRef) -> TeacherTargets`。
 
-- [ ] test_arbitrary_label_free_population：N=1/388/609的模拟rows不要求detail_selected/class_id，不先断言1384再max-trials；shape分别[N,2,3,1024]/[N,2,3,400]。
-- [ ] test_single_selected_head：72grid按S规则决胜，只选一个head；生成targets只含标准键与40类顺序，不要求旧四头、labels/users/folds。
-- [ ] 移植P46的prepare_trial/模型编码/聚合，与P85 feature_sets、Ridge训练数学；禁用label读取、旧complete-count和P85历史缓存reuse。窗口0–.70/.30–1，各16帧，与pixels/motion同步；冻结公开骨干。
-- [ ] select模型fit train12预测train/dev，下游dev只用此头；selection记录配方/预算/开发ID。refit头重新fit refit14，预测refit/final。
-- [ ] 原始六clip features可共用；分类头、概率及监督祖先分开。缺IR预测先验且valid=false，KL/feature蒸馏loss按valid屏蔽。
-- [ ] 验证：`python -m pytest tests/test_no_vote_visual_teacher.py -v`；一条编码确认模型键和FP16数值，不执行72grid全训练直到阶段验收。
+上述接口实施时增加必传protocol关键字，与Task3一致，避免从全局路径推测本run。A1输出固定为Ridge decision scores，概率softmax(scores)，head temperature=1；不移植旧OOF校准。该变体写入A1产物config，不与后续KD温度或Task9融合校准混同。
+
+全量ROI和冻结特征按refit14/final4各生成一次；select从refit14原始特征按opaque ID取train12/development2子集。真实一条验收保留partial；正式抽取和72grid必须使用complete父产物。
+
+- [x] test_arbitrary_label_free_population：N=1/388/609的模拟rows不要求detail_selected/class_id，不先断言1384再max-trials；shape分别[N,2,3,1024]/[N,2,3,400]。
+- [x] test_single_selected_head：72grid按S规则决胜，只选一个head；生成targets只含标准键与40类顺序，不要求旧四头、labels/users/folds。
+- [x] 移植P46的prepare_trial/模型编码/聚合，与P85 feature_sets、Ridge训练数学；禁用label读取、旧complete-count和P85历史缓存reuse。窗口0–.70/.30–1，各16帧，与pixels/motion同步；冻结公开骨干。
+- [x] select模型fit train12预测train/dev，下游dev只用此头；selection记录配方/预算/开发ID。refit头重新fit refit14，预测refit/final。（接口及合成验收；正式拟合尚待完整features。）
+- [x] 原始六clip features可共用；分类头、概率及监督祖先分开。缺IR预测先验且valid=false，KL/feature蒸馏loss按valid屏蔽。
+- [x] 验证：`python -m pytest tests/test_no_vote_visual_teacher.py -v`；一条编码确认模型键和FP16数值，不执行72grid全训练直到阶段验收。
+
+Task4当前真实运行：相关72测试通过、全仓513通过/同名7个既有旧缓存失败；最新producer单样本FP16六clip编码通过，峰值1.449GiB。全量ROI已生成2427/609条，registry/schema验证与refit14正式features抽取进行中。不能由实现勾选推断72候选/refit或最终准确率已完成。动态状态见docs/handoffs/2026-10-02-task4-in-progress.md。
 
 ### Task 5：补像素缓存、固定划分A2和无标签sequence（Pixels, Student and Sequence）
 
@@ -397,4 +404,4 @@ CLI新增 `--endpoint 12|40`，无final-label或eval-accuracy参数。
 
 规格各项可定位到Task1–14；新接口类型均在Task1/2定义，训练来源和缓存身份见依赖表。旧CLI参数错误已从执行路径移除，剩余源码函数只是需移植的参考。测试步骤均对应具体缺陷和断言，不声称现已实现或已通过。
 
-此v2已完成文档修订，需要针对修改项做静态复审；独立审计通过之前不启动正式训练。Task1–3已完成实现与对应验收，证据见reports/2026-10-02-task23-verification.json。Task4–14尚未实施；Task3全量ROI由后续运行流程建立，不能将partial验收缓存作为正式学习输入。
+此v2本轮已完成Task2/3及Task4独立复审，三方GO。Task1–3实现完成，Task4接口及单样本验收完成，正式features/分类头运行尚未完成；Task5–14尚未实施。完整ROI已补齐，partial诊断仍不能作为正式学习输入。审计见reports/2026-10-02-task23-task4-independent-audit.md，动态执行见Task4交接。

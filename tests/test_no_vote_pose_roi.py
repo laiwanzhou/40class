@@ -58,6 +58,7 @@ def test_missing_pose_is_complete_unavailable_label_free_and_partial(no_vote_fix
         with np.load(caches[0],allow_pickle=False) as data:
             assert 'class_id' not in data.files and 'label' not in data.files
             assert not bool(data['available']) and bool(data['completed'])
+            assert data['acquisition_ids'].shape==data['frame_ids'].shape
     again=build_pose_roi(inputs,weight,p.run_root/'pose_smoke',protocol=p,max_trials=1)
     assert refs==again
     cache=next((p.run_root/'pose_smoke/p28').rglob('*.npz'))
@@ -96,3 +97,46 @@ def test_raw_membership_snapshot_detects_new_frames(tmp_path):
     before=snapshot_raw_files(row)
     (ir/'IR_20250717_120000_00000001.png').write_bytes(b'new')
     assert snapshot_raw_files(row)!=before
+
+
+def test_numeric_ir_matches_timestamped_skeleton_without_losing_acquisition_time(tmp_path):
+    from src.experiments.pose_roi_adapter import compatible_frame_map, acquisition_ids
+    ir=tmp_path/'ir';sk=tmp_path/'sk/predictions';ir.mkdir();sk.mkdir(parents=True)
+    stamp='2025-06-11_16-53-26.216_00000063'
+    (ir/'IR_00000063.png').write_bytes(b'')
+    (sk/f'Color_{stamp}.json').write_text('[]')
+    maps={'ir':compatible_frame_map(ir,'ir'),'skeleton':compatible_frame_map(sk.parent,'skeleton',ir)}
+    assert set(maps['skeleton'])=={'00000063'}
+    assert acquisition_ids(maps,['00000063']).tolist()==[stamp]
+
+
+def test_duplicate_skeleton_counters_cannot_silently_overwrite_frames(tmp_path):
+    from src.experiments.pose_roi_adapter import compatible_frame_map
+    ir=tmp_path/'ir';sk=tmp_path/'sk/predictions';ir.mkdir();sk.mkdir(parents=True)
+    (ir/'IR_00000063.png').write_bytes(b'')
+    for date in ('2025-06-11','2025-06-12'):
+        (sk/f'Color_{date}_16-53-26.216_00000063.json').write_text('[]')
+    with pytest.raises(ValueError,match='Ambiguous'):
+        compatible_frame_map(sk.parent,'skeleton',ir)
+
+
+def test_numeric_ir_and_skeleton_align_but_do_not_invent_absolute_time(tmp_path):
+    from src.experiments.pose_roi_adapter import compatible_frame_map,acquisition_ids
+    ir=tmp_path/'ir';sk=tmp_path/'sk/predictions';ir.mkdir();sk.mkdir(parents=True)
+    (ir/'IR_00000063.png').write_bytes(b'')
+    (sk/'Color_00000063.json').write_text('[]')
+    maps={'ir':compatible_frame_map(ir,'ir'),'skeleton':compatible_frame_map(sk.parent,'skeleton',ir)}
+    assert set(maps['skeleton'])=={'00000063'}
+    assert acquisition_ids(maps,['00000063']).tolist()==['']
+
+
+def test_equal_numeric_skeleton_alias_uses_unique_real_timestamp(tmp_path):
+    from src.experiments.pose_roi_adapter import compatible_frame_map
+    ir=tmp_path/'ir';sk=tmp_path/'sk/predictions';ir.mkdir();sk.mkdir(parents=True)
+    (ir/'IR_00000063.png').write_bytes(b'')
+    stamped=sk/'Color_2025-06-11_16-53-26.216_00000063.json'
+    stamped.write_text('[]');(sk/'Color_00000063.json').write_text('[]')
+    assert compatible_frame_map(sk.parent,'skeleton',ir)=={'00000063':stamped}
+    (sk/'Color_00000063.json').write_text('[1]')
+    with pytest.raises(ValueError,match='Ambiguous'):
+        compatible_frame_map(sk.parent,'skeleton',ir)

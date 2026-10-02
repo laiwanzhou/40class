@@ -68,6 +68,8 @@ P31读取P28的frame_ids、skeleton_h36m_xyz_conf_raw、skeleton_person_count等
 
 select头仅fit train12；refit同配方仅fit refit14。下游TeacherTargets采用一个选中头的logits/probabilities/valid，不强制构造旧四分类头、labels/users/folds或OOF字段；若需逐窗特征，只读取六clip原特征，不新增专家投票。
 
+2026-10-02实施口径：A1 head temperature固定1，logits为40列Ridge decision scores，probabilities=softmax(logits)。队友旧P85的OOF温度校准不在本固定划分实验中复用；此数值差异作为已冻结复刻变体记录，后续KD温度和融合校准另行处理。原模型数学仍为StandardScaler→RidgeClassifier(solver=lsqr,tol=1e-5,max_iter=5000)。
+
 ## 7. A2 MC3 视觉学生（Visual Student）
 
 MC3-18 Kinetics400公开初始化；frames16，resolution160，width512，temporal_modeling=true，freeze-through=layer2，subject_robust同步增强，batch4、accumulation4，seed20260811。训练端只用fit人口的标签和教师目标，推理Dataset不要求任何教师文件或标签。

@@ -106,7 +106,9 @@ def load_teammate_symbol(report: SourceVerification, module_name: str, symbol_na
         symbol = getattr(module, symbol_name)
         if callable(symbol):
             try:
-                origin = Path(inspect.getfile(symbol)).resolve()
+                # Standard/PyTorch decorators execute an external wrapper;
+                # verify the underlying definition, return the intact wrapper.
+                origin = Path(inspect.getfile(inspect.unwrap(symbol))).resolve()
             except (TypeError, OSError) as error:
                 raise ImportError("source callable origin cannot be verified") from error
             if origin not in verified_paths:
