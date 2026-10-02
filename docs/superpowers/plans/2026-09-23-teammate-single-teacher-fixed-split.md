@@ -1,6 +1,6 @@
 # 队友单视觉教师固定划分实施计划（Fixed-Split Single-Teacher Implementation Plan）
 
-> 执行者须按任务使用 superpowers:executing-plans；若用户另行明确选择子智能体实施，使用 superpowers:subagent-driven-development。Task1已完成并有本机验证记录，其余任务尚未实施；复选框只标记已完成验收，不能视为完整流水线训练通过。
+> 执行者须按任务使用 superpowers:executing-plans；若用户另行明确选择子智能体实施，使用 superpowers:subagent-driven-development。Task1–3已完成相应实施/验收，其余任务尚未实施；Task3验收为真实一条partial缓存，非全量ROI；复选框只标记已完成验收，不能视为完整流水线训练通过。
 
 **目标（Goal）：** 在train12/development2/refit14/final4固定划分上移植一条无历史多教师投票的Visual/Skeleton/IMU流水线，并生成可解释的阶段比较。
 **架构（Architecture）：** 复用队友模型、预处理算子、增强和损失；新建标签无关缓存、固定划分训练循环和来源验证。旧CLI是源码参考，不是新接口。公共权重和原始数据缓存可共用，监督训练祖先按select/refit分离。
@@ -12,12 +12,12 @@
 
 - 工作树：`D:/work/2026.7.14_kaggle/_single_visual_processing_replication`；分支：`experiment/single-visual-processing-replication`。只在此实施新代码。
 - train12=user1,user2,user3,user5,user8,user9,user16,user18,user19,user20,user21,user22，共2039行；development2=user6,user7，共388行；refit14为前两者并集2427行；final4=user4,user17,user23,user24，共609行。
-- final4的18条全部模态缺失始终保留refit14先验；IR可用591、Skeleton/Depth可用590、IMU可用584。规范行数与模型实际可用拟合行数分开记录。
+- final4的18条全部模态缺失始终保留refit14先验；IR可用591、Skeleton/Depth可用590、IMU CSV文件可用580（2026-10-02实际检测，早期估计584）。规范行数与模型实际可用拟合行数分开记录。
 - 不做三折OOF，不重新匹配旧视觉教师接口，不使用历史任务权重、缓存、标签衍生final报告、Kaggle分数、P310或expert bank。
 - 视觉六clip来自IR的早晚两窗/scene-person-workspace三视野；Depth提供几何同步，不增加第二视觉教师。所有模型都是40类，列顺序0–39。
 - select的全部监督祖先fit train12，dev仅预测/选择；refit的全部对应监督祖先fit refit14。A9单独记录final4无标签适配角色。
 - run根：`outputs/teammate_single_teacher_fixed_split/<run_id>/`；源码根：`D:/work/2026.7.14_kaggle/_teacher_branch_upload/teammate_teacher/project`。不能回落队友runs/cache默认目录。
-- 用户本轮授权新建实验分支、仅实现Task1并commit/push；不进入Task2或训练。后续任务由当时用户授权决定。
+- 用户本轮授权在同分支推进Task2/3并分阶段commit/push；不进入Task4或教师/学生训练。
 - 正式生成不得访问final标签路径；独立可信准备可以读取原规范清单，仅分离输入/标签，不拟合模型或选择参数。
 - 资源门槛至少20GiB，并须满足实测峰值加余量；2026-10-02观测D盘46.90GiB，可用性仍须执行前重新查询。
 - 所有超参数以规格v2为准，写入配置后先冻结身份，再选参。所有阶段为单seed描述性实验，不承诺0.91或显著性。
@@ -171,27 +171,27 @@ smoke是独立fixture protocol/run_id，使用合成小人口和模拟公开权�
 `load_stage_inputs(protocol: NoVoteProtocol, partition: str, phase: str) -> StageInputs`；
 `ArtifactRegistry.verify(ref: ArtifactRef, expected_stage: str, expected_phase: str, expected_ids: RowIndex) -> ArtifactRecord`。
 
-- [ ] test_final_whitelist：含action_name/class_id的原清单经独立准备后公共字段严格相等白名单，public中没有旧cXX ID，final标签只在private_output。
-- [ ] test_generation_never_reads_private_labels：移除/置换私有final标签后重新生成相同fixture预测；文件读取探针拒绝生成进程接触canonical labelled manifest或private目录。
-- [ ] test_ancestor_roles：dev拒绝fit refit14的A1/A4目标；refit拒绝select A2/A5；A9只允许本run refit A7/A8，伪装改名bank拒绝。
-- [ ] 实现prepare仅在独立CLI执行：读取3036行规范清单，按固定用户生成四分区，opaque ID=sha256固定命名空间+原sample_id，检查碰撞/唯一。先准备public与前三分区label表，再把final标签和旧ID映射写private；public运行配置不保存private_output。
-- [ ] 移植原路径解析与available检测，缺失保持规范行；unknown label fields拒绝。metadata后续从原始记录提取，不从action/trial排序推断。
-- [ ] 实现ArtifactRegistry完整DAG验证及规范ID索引、class order与stage-role规则；label表只允许前三分区supervised角色；所有公共缓存一律无标签。
-- [ ] 验证：`python -m pytest tests/test_no_vote_manifest.py tests/test_artifact_record.py -v`。独立准备命令：
+- [x] test_final_whitelist：含action_name/class_id的原清单经独立准备后公共字段严格相等白名单，public中没有旧cXX ID，final标签只在private_output。
+- [x] test_generation_never_reads_private_labels：移除/置换私有final标签后重新生成相同fixture预测；文件读取探针拒绝生成进程接触canonical labelled manifest或private目录。
+- [x] test_ancestor_roles：dev拒绝fit refit14的A1/A4目标；refit拒绝select A2/A5；A9只允许本run refit A7/A8，伪装改名bank拒绝。
+- [x] 实现prepare仅在独立CLI执行：读取3036行规范清单，按固定用户生成四分区，opaque ID=sha256固定命名空间+原sample_id，检查碰撞/唯一。先准备public与前三分区label表，再把final标签和旧ID映射写private；public运行配置不保存private_output。
+- [x] 移植原路径解析与available检测，缺失保持规范行；unknown label fields拒绝。metadata后续从原始记录提取，不从action/trial排序推断。
+- [x] 实现ArtifactRegistry完整DAG验证及规范ID索引、class order与stage-role规则；label表只允许前三分区supervised角色；所有公共缓存一律无标签。
+- [x] 验证：`python -m pytest tests/test_no_vote_manifest.py tests/test_artifact_record.py -v`。独立准备命令：
   `python scripts/prepare_no_vote_inputs.py --config configs/experiments/teammate_single_teacher_fixed_split.yaml --source-manifest metadata/manifest.csv --public-output outputs/teammate_single_teacher_fixed_split/<run_id>/protocol --private-output C:/Users/LaiWanzhou/AppData/Local/Temp/cuhkx_no_vote_labels/<run_id>`。
   生成入口不自动调用prepare，不自动接收原manifest或final标签。
 
 ### Task 3：移植P28/P29并接入时间戳恢复（Pose and ROI Port）
 
 **文件：** pose_roi_adapter.py、scripts/build_no_vote_pose_roi.py、tests/test_no_vote_pose_roi.py。
-**接口：** `build_pose_roi(inputs: StageInputs, pose_weights: ArtifactRef, output: Path) -> Mapping[str, ArtifactRef]`，返回p28/p29。只消费公共manifest；inputs.labels即使存在也不传入提取器。
+**接口：** `build_pose_roi(inputs: StageInputs, pose_weights: ArtifactRef, output: Path, *, protocol: NoVoteProtocol, device: str="cpu", max_trials: int=0) -> Mapping[str, ArtifactRef]`，返回p28/p29。只消费公共manifest；inputs.labels即使存在也不传入提取器。
 **复用：** audit_yolo11_pose_skeleton、build_adaptive_yolo11_pose_skeleton_cache、build_multiscale_dir_rois的frame/pose/track/ROI算子；迁移其read_rows/safe_name/summary与完成检查，不调用旧main。
 
-- [ ] test_label_free_pose_rows：无class_name、depth_color_usable旧列、斜杠source_id的行仍可处理；缺失行完成但available=false。
-- [ ] test_timestamp_alignment真实训练样本：Skeleton counter恢复为IR时间戳后共同帧非空，结果等于提交stage_runner验证过的映射；无匹配时明确标记，禁止按最近标签样本补齐。
-- [ ] 在实际移植frame_map调用点接入映射，不在父进程定义未使用helper；ID同opaque值，排序不读class字段，JSON/CSV/NPZ都不输出类别。
-- [ ] 写p28必要原字段，p29写ROI；缺ROI使用整帧回退，缺IR不伪造。同步记录帧时间/质量/原因及raw input hashes。
-- [ ] 验证：`python -m pytest tests/test_no_vote_pose_roi.py -v`；真实一条仅train12：`python scripts/build_no_vote_pose_roi.py --config configs/experiments/teammate_single_teacher_fixed_split.yaml --partition train12 --max-trials 1`，产物标partial不能伪装正式完成。
+- [x] test_label_free_pose_rows：无class_name、depth_color_usable旧列、斜杠source_id的行仍可处理；缺失行完成但available=false。
+- [x] test_timestamp_alignment真实训练样本：Skeleton counter恢复为IR时间戳后共同帧非空，结果等于提交stage_runner验证过的映射；无匹配时明确标记，禁止按最近标签样本补齐。
+- [x] 在实际移植frame_map调用点接入映射，不在父进程定义未使用helper；ID同opaque值，排序不读class字段，JSON/CSV/NPZ都不输出类别。
+- [x] 写p28必要原字段，p29写ROI；缺ROI使用整帧回退，缺IR不伪造。同步记录帧时间/质量/原因及raw input hashes。
+- [x] 验证：`python -m pytest tests/test_no_vote_pose_roi.py -v`；真实一条仅train12：`python scripts/build_no_vote_pose_roi.py --config configs/experiments/teammate_single_teacher_fixed_split.yaml --partition train12 --max-trials 1`，产物标partial不能伪装正式完成。
 
 ### Task 4：移植A1抽取器与单Ridge头（Visual Teacher Port）
 
@@ -397,4 +397,4 @@ CLI新增 `--endpoint 12|40`，无final-label或eval-accuracy参数。
 
 规格各项可定位到Task1–14；新接口类型均在Task1/2定义，训练来源和缓存身份见依赖表。旧CLI参数错误已从执行路径移除，剩余源码函数只是需移植的参考。测试步骤均对应具体缺陷和断言，不声称现已实现或已通过。
 
-此v2已完成文档修订，需要针对修改项做静态复审；独立审计通过之前不启动正式训练。当前用户授权仅完成Task1并推送新实验分支；Task1完成证据见reports/2026-10-02-task1-verification.json。Task2–14尚未实施，后续先做数据准备与无标签接口，再做模型任务。
+此v2已完成文档修订，需要针对修改项做静态复审；独立审计通过之前不启动正式训练。Task1–3已完成实现与对应验收，证据见reports/2026-10-02-task23-verification.json。Task4–14尚未实施；Task3全量ROI由后续运行流程建立，不能将partial验收缓存作为正式学习输入。

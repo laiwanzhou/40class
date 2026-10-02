@@ -1,0 +1,88 @@
+{
+  "date": "2026-10-02",
+  "branch": "experiment/teammate-single-teacher-task1",
+  "completed_tasks": [
+    2,
+    3
+  ],
+  "targeted_tests": {
+    "passed": 57,
+    "failed": 0
+  },
+  "full_suite": {
+    "passed": 498,
+    "failed": 7,
+    "existing_failures": [
+      "tests/test_motion_attribute_dataset.py::test_real_population_is_canonical_before_cache_generation",
+      "tests/test_motionbert_skeleton_dataset.py::test_real_population_and_projection_ownership_are_frozen",
+      "tests/test_report_motionbert_lite_skeleton_expert.py::test_report_recomputes_metrics_and_stops_after_failed_b1",
+      "tests/test_run_motion_attribute_expert.py::test_motion_attribute_smoke_updates_all_groups_without_validation_gradient",
+      "tests/test_run_motionbert_lite_skeleton_expert.py::test_smoke_loads_pretraining_and_updates_head_only",
+      "tests/test_x3d_s_online_roi_parity.py::test_real_online_pipeline_matches_exported_training_rois",
+      "tests/test_x3d_s_real_manifest_contract.py::test_real_manifest_is_split_safe_ordered_and_adaptive"
+    ],
+    "new_failures": []
+  },
+  "public_partitions": {
+    "train12": {
+      "rows": 2039,
+      "available": {
+        "ir": 1957,
+        "depth": 1956,
+        "skeleton": 1956,
+        "imu": 1914
+      },
+      "none_included": 82
+    },
+    "development2": {
+      "rows": 388,
+      "available": {
+        "ir": 385,
+        "depth": 385,
+        "skeleton": 385,
+        "imu": 369
+      },
+      "none_included": 3
+    },
+    "refit14": {
+      "rows": 2427,
+      "available": {
+        "ir": 2342,
+        "depth": 2341,
+        "skeleton": 2341,
+        "imu": 2283
+      },
+      "none_included": 85
+    },
+    "final4": {
+      "rows": 609,
+      "available": {
+        "ir": 591,
+        "depth": 590,
+        "skeleton": 590,
+        "imu": 580
+      },
+      "none_included": 18
+    }
+  },
+  "real_pose": {
+    "partition": "train12",
+    "user_id": "user5",
+    "processed_rows": 1,
+    "frames": 22,
+    "skeleton_aligned_frames": 22,
+    "available": true,
+    "partial": true,
+    "full_population_roi_complete": false
+  },
+  "private_labels_published": false,
+  "teacher_or_student_training": false,
+  "task4_started": false,
+  "independent_review": {
+    "important_findings": 2,
+    "fixed": [
+      "prediction ancestry and exact final target IDs",
+      "raw membership and interrupted cache producer/output hashes"
+    ]
+  }
+}

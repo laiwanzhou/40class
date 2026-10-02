@@ -1,6 +1,6 @@
 # 固定划分的队友单视觉教师流水线规格（Fixed-Split Single-Teacher Pipeline Specification）
 
-修订日期：2026-10-02，版本 v2。根据[独立审计报告](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/reports/2026-10-02-handoff-plan-independent-audit.md)修订；旧报告的行号只指向旧版本。当前为设计规格，尚未实现或训练。
+修订日期：2026-10-02，版本 v2。根据[独立审计报告](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/reports/2026-10-02-handoff-plan-independent-audit.md)修订；旧报告的行号只指向旧版本。当前为设计规格，Task1–3已实现对应接口并验收；模型训练尚未开始，Task3只有真实一条partial验收。
 
 ## 1. 目标与解释边界（Objective and Interpretation）
 
@@ -21,7 +21,7 @@
 
 四分区使用同一规范样本集合；不能把队友2914条人口断言移入本实验。train12/refit14的标签必须覆盖0–39，包括user1的class25。不要因为某模态缺失而删规范行。模型实际拟合支持由可用性掩码（availability mask）定义，另存拟合ID和缺失原因；对每个监督模型检查有效拟合样本的40类支持，缺类时停下并报告，不伪造样本。
 
-final4中IR可用591条、Depth/Skeleton可用590条、IMU可用584条，18条全部纳入模态缺失。所有正式候选都预测609行；全部缺失的18条始终使用refit14类别先验，不参与A8传播或A9损失。其他缺失组合按本阶段实际输入掩码处理，例如A1/A2对缺IR条使用先验。
+final4中IR可用591条、Depth/Skeleton可用590条、IMU CSV文件可用580条（2026-10-02实际检测，早期估计584条），18条全部纳入模态缺失。所有正式候选都预测609行；全部缺失的18条始终使用refit14类别先验，不参与A8传播或A9损失。其他缺失组合按本阶段实际输入掩码处理，例如A1/A2对缺IR条使用先验。
 
 选参阶段：所有监督训练祖先只拟合train12，development2只预测与选择。配方冻结后：A1/A4重新拟合refit14，A2从公开MC3初始化重新训练，A5从原始随机初始化重新训练，A7从对应A2/A5的refit14检查点重新训练。不能以select检查点继续训练替代refit；不得将refit14教师目标送入development2选模。
 
