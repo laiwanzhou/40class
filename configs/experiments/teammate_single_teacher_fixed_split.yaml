@@ -1,0 +1,217 @@
+# 固定划分协议（Fixed-split protocol）；只读路径在Task2之后才会建立。
+schema_version: 1
+execution_kind: formal
+project_root: ../..
+run_id: fixed-split-single-teacher-v2
+run_root: outputs/teammate_single_teacher_fixed_split/fixed-split-single-teacher-v2
+minimum_free_gib: 20
+source:
+  root: ../_teacher_branch_upload/teammate_teacher/project
+  manifest: ../_teacher_branch_upload/teammate_teacher/source_manifest.json
+  expected_files: 1167
+  expected_sha256: a80a20a0f6fe23a5b3288f51a9e4a02daf83157c4b6a598bfb6fa0ec8b73649a
+partitions:
+  train12:
+    users: [user1, user2, user3, user5, user8, user9, user16, user18, user19, user20, user21, user22]
+    expected_rows: 2039
+  development2:
+    users: [user6, user7]
+    expected_rows: 388
+  refit14:
+    users: [user1, user2, user3, user5, user6, user7, user8, user9, user16, user18, user19, user20, user21, user22]
+    expected_rows: 2427
+  final4:
+    users: [user4, user17, user23, user24]
+    expected_rows: 609
+public_manifests:
+  train12: outputs/teammate_single_teacher_fixed_split/fixed-split-single-teacher-v2/protocol/train12.csv
+  development2: outputs/teammate_single_teacher_fixed_split/fixed-split-single-teacher-v2/protocol/development2.csv
+  refit14: outputs/teammate_single_teacher_fixed_split/fixed-split-single-teacher-v2/protocol/refit14.csv
+  final4: outputs/teammate_single_teacher_fixed_split/fixed-split-single-teacher-v2/protocol/final4.csv
+supervised_labels:
+  train12: outputs/teammate_single_teacher_fixed_split/fixed-split-single-teacher-v2/protocol/train12_labels.csv
+  development2: outputs/teammate_single_teacher_fixed_split/fixed-split-single-teacher-v2/protocol/development2_labels.csv
+  refit14: outputs/teammate_single_teacher_fixed_split/fixed-split-single-teacher-v2/protocol/refit14_labels.csv
+weights:
+  videomae:
+    provider: huggingface
+    repo_id: MCG-NJU/videomae-large-finetuned-kinetics
+    revision: 0f6adcd5f6902900aa0281f9daacfe52bb3c4ad4
+    local_path: outputs/teammate_single_teacher_fixed_split/fixed-split-single-teacher-v2/weights/videomae
+    reuse_path: ../teacher_comparison_20260913/pretrained
+  mc3:
+    provider: url
+    url: https://download.pytorch.org/models/mc3_18-a90a0ba3.pth
+    local_path: outputs/teammate_single_teacher_fixed_split/fixed-split-single-teacher-v2/weights/mc3_18-a90a0ba3.pth
+  yolo:
+    provider: url
+    url: https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11n-pose.pt
+    local_path: outputs/teammate_single_teacher_fixed_split/fixed-split-single-teacher-v2/weights/yolo11n-pose.pt
+recipe:
+  class_ids: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39]
+  seed: 20260811
+  modalities: [ir, skeleton, imu]
+  geometry:
+    two_pass_pose: true
+    preserve_timestamps: true
+    missing_roi_policy: full_frame
+  windows: [[0.0, 0.70], [0.30, 1.0]]
+  views: [scene, person, workspace]
+  visual_teacher:
+    frozen_backbone: true
+    frames: 16
+    feature_width: 1024
+    kinetics_classes: 400
+    families: [early, late, window_mean, early_late, temporal_delta, kinetics]
+    class_weight_powers: [0.0, 0.5, 0.75]
+    alphas: [300, 1000, 3000, 10000]
+    tie_break: [accuracy, macro_f1, worst_user_accuracy, smaller_dimension, larger_alpha, candidate_id]
+    raw_public_features_shareable: true
+  visual_student:
+    backbone: mc3_18_temporal
+    width: 512
+    frames: 16
+    resolution: 160
+    freeze_through: layer2
+    mode: hybrid
+    enable_distillation_projection: false
+    augmentation_mode: subject_robust
+    epochs: {min: 1, max: 18, select_on: development2}
+    batch_size: 4
+    gradient_accumulation: 4
+    workers: 0
+    seed: 20260811
+    head_learning_rate: 0.0002
+    backbone_learning_rate: 0.00001
+    minimum_learning_rate: 0.00001
+    weight_decay: 0.08
+    class_weight_power: 0.35
+    label_smoothing: 0.1
+    distillation_temperature: 2.0
+    distillation_weight: 1.0
+    relation_weight: 0.2
+    feature_weight_configured: 0.5
+    feature_weight_effective: 0.0
+    stage_distillation_weight: 0.0
+  motion:
+    frames: 16
+    joints: 17
+    skeleton_channels: 13
+    device_roles: [WTC, WTLA, WTRA, WTLL, WTRL]
+    imu_points_per_bin: 4
+    imu_token_channels: 16
+    imu_bin_stat_channels: 52
+    imu_global_stat_channels: 48
+    normalization_std_floor: 0.0001
+    normalization_fit: {select: train12, refit: refit14}
+  imu_teacher:
+    name: stat_random_forest_device_dropout_aligned
+    statistical_bins: 32
+    raw_channels: 6
+    statistics_per_channel: 8
+    n_estimators: 400
+    max_depth: 18
+    min_samples_leaf: 2
+    max_features: sqrt
+    class_weight: balanced_subsample
+    seed: 20260811
+    device_dropout_copy: true
+    probability_floor: 1.0e-12
+  motion_pretrain:
+    width: 96
+    alignment_width: 64
+    epochs: {min: 1, max: 24, select_on: development2}
+    batch_size: 64
+    workers: 0
+    seed: 20260811
+    learning_rate: 0.0004
+    minimum_learning_rate: 0.00002
+    weight_decay: 0.05
+    class_weight_power: 0.35
+    label_smoothing: 0.08
+    mask_ratio: 0.35
+    dropout: 0.12
+    contrastive_temperature: 0.08
+    semantic_weight: 2.0
+    token_weight: 0.25
+    local_weight: 0.05
+    global_weight: 0.15
+    reconstruction_weight: 0.1
+    distillation_weight: 0.75
+    distillation_temperature: 2.0
+    teacher_feature_weight: 0.25
+    imu_teacher_weight: 1.0
+    imu_teacher_temperature: 1.0
+  calibration:
+    temperature_bounds: [0.25, 4.0]
+    policies: [identity, fitted]
+    fit_population: {select: train12, refit: refit14}
+    selection_candidate: A6-VSI
+  fusion:
+    variants: [full, mask_motion, shuffle_s, shuffle_i]
+    stage_a_epochs: 4
+    stage_b_epochs: 20
+    batch_size: 64
+    workers: 0
+    seed: 20260811
+    fusion_learning_rate: 0.0004
+    visual_head_learning_rate: 0.00002
+    weight_decay: 0.05
+    class_weight_power: 0.35
+    label_smoothing: 0.08
+    distillation_temperature: 2.0
+    distillation_weight: 1.0
+    relation_weight: 0.1
+    motion_aux_weight: 0.35
+    selective_anchor_weight: 0.3
+    anchor_source: frozen_a2_same_phase
+    live_visual_anchor: false
+    motion_aux_mask: controlled_motion_available
+    reliability_mask: controlled_motion_available
+    teacher_loss_mask: teacher_valid_and_controlled_modality_available
+    visual_corruption_probability: 0.75
+    visual_feature_dropout: 0.3
+    visual_view_dropout: 0.4
+    global_fusion_mode: additive
+    freeze_motion_encoders: true
+    freeze_visual_backbone_and_bn: true
+  session_repeat:
+    grouping: partition_user_date
+    gap_seconds: 30.0
+    transition_alpha: 0.25
+    transition_weights: [0.25, 0.30, 0.35]
+    trigram_backoffs: [1.0, 2.0, 5.0]
+    beam_width: 50
+    posterior_temperature: 1.0
+    posterior_confidence_gate: 0.80
+    unsupported_session_policy: unchanged
+    duration_relative_tolerances: [0.10, 0.20]
+    probability_cosine_similarities: [0.90, 0.95]
+    peer_confidences: [0.80, 0.90]
+    minimum_margin: 0.05
+    minimum_agreeing_peers: 2
+    repeat_mix_weight: 0.5
+    policies: [identity, transition_only, repeat_only, combined]
+  adaptation:
+    population: final4
+    pool_mode: joint
+    expected_rows: 609
+    expected_loss_rows: 591
+    expected_prior_rows: 18
+    target_source: frozen_a8_same_run
+    scope: heads_motion_encoder
+    temperature: 1.0
+    confidence_power: 0.0
+    emission_warmup_epochs: 0
+    batch_size: 64
+    workers: 0
+    weight_decay: 0.02
+    freeze_visual_backbone_and_bn: true
+    independent_from_a7: true
+    output_mode: raw
+    endpoints:
+      primary12: {epochs: 12, seed: 20260812, fusion_learning_rate: 0.00005, motion_learning_rate: 0.00005, visual_head_learning_rate: 0.00001, minimum_learning_rate: 0.000002}
+      exploratory40: {epochs: 40, seed: 20260826, fusion_learning_rate: 0.0001, motion_learning_rate: 0.0001, visual_head_learning_rate: 0.00001, minimum_learning_rate: 0.000005}
+  candidates: [A1, A2, A5-S, A5-I, A6-VS, A6-VI, A6-VSI, A7, A7-mask, A7-shuffle-S, A7-shuffle-I, A7-zero-S, A7-zero-I, A8, A9-12, A9-40]
+  primary_contrast: A9-12_minus_A1
+  reporting: descriptive_single_seed

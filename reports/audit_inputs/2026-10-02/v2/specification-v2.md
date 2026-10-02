@@ -52,7 +52,7 @@ A9另有已批准的final4无标签适配（unlabeled adaptation）祖先，不�
 
 将Skeleton帧号映射到原IR时间戳的恢复逻辑直接接入移植后的frame_map读取路径，不以未接入的helper或子进程外补丁代替。缺ROI但存在IR时使用记录过的整帧回退；缺IR不伪造视觉帧。全部缺失行也完成缓存记录，其completed表示处理完成而非模态可用。
 
-P31读取P28的frame_ids、skeleton_h36m_xyz_conf_raw、skeleton_person_count等原始字段。P29仅提供ROI几何。同一只依赖原始输入的缓存及冻结公开VideoMAE的标签无关六clip特征可以由train12/refit14按ID引用复用；按本实验监督人口学习的统计量、归一化、Ridge概率或MC3特征不能跨select/refit身份复用。
+P31读取P28的frame_ids、skeleton_h36m_xyz_conf_raw、skeleton_person_count等原始字段。P29仅提供ROI几何。同一只依赖原始输入的缓存可以由train12/refit14按ID引用复用；任何已学习的统计量、归一化或模型特征不能跨select/refit身份复用。
 
 ## 6. A1 单视觉教师（Single Visual Teacher）
 
@@ -112,9 +112,9 @@ select逐轮在development2上用combined motion输出选择epoch，决胜规则
 
 保留原MC3 seam、分开的Skeleton/IMU编码器、additive global residual；stage A4 + stage B20轮，batch64、workers0、seed20260811，冻结预训练motion encoder。fusion LR4e-4、visual head LR2e-5、weight decay0.05、class weight power0.35、smoothing0.08、distillation温度2.0/权重1.0、relation0.1、motion aux0.35、selective anchor0.3、visual corruption0.75、feature dropout0.3、view dropout0.4。
 
-固定预算4+20，不按final或其他控制分支成绩改变。dev只作诊断。select从A2/A5 select初始化；refit从A2/A5 refit初始化，融合层重置，且监督教师换为A1/A4 refit。选择性锚点来自同phase的冻结A2 checkpoint，Task5生成按ID对齐的anchor_logits/valid并记录祖先；live_visual_anchor=false，A7更新不改锚点。视觉backbone参数及BatchNorm运行统计冻结，每次切训练模式后仍令backbone处于eval，以保证缓存一致；只更新源码visual_head_parameters列出的头部。若后续实验要解冻骨干，属于新配方，必须同步重建sequence。
+固定预算4+20，不按final或其他控制分支成绩改变。dev只作诊断。select从A2/A5 select初始化；refit从A2/A5 refit初始化，融合层重置，且监督教师换为A1/A4 refit。视觉backbone参数及BatchNorm运行统计冻结，每次切训练模式后仍令backbone处于eval，以保证缓存一致；只更新源码visual_head_parameters列出的头部。若后续实验要解冻骨干，属于新配方，必须同步重建sequence。
 
-四个分支各自独立训练并refit：A7、A7-mask、A7-shuffle-S、A7-shuffle-I。共享初始化值、预算、优化器、损失系数及样本顺序；mask控制将两motion输入及mask置零，适配层显式用控制后的motion availability屏蔽motion_aux和reliability，不依赖原源码自动屏蔽；教师损失交叉使用teacher valid与对应输入可用性，空集合返回保留计算图的零loss。shuffle按本分区ID产生置换，连特征与mask一起移动，保留接收行的监督标签和教师目标；训练每epoch使用seed+epoch，评估使用冻结的seed置换，禁止跨分区。单样本分区无合法非恒等置换时测试应显式报告不能生成shuffle控制。推理zero-S/zero-I另列A7-zero-S/I敏感性分析，不替代上述训练控制。控制不触发新视觉教师训练。
+四个分支各自独立训练并refit：A7、A7-mask、A7-shuffle-S、A7-shuffle-I。共享初始化值、预算、优化器、损失系数及样本顺序；mask控制将两motion输入及mask置零，缺失损失自然屏蔽。shuffle按本分区ID产生置换，连特征与mask一起移动，保留接收行的监督标签和教师目标；训练每epoch使用seed+epoch，评估使用冻结的seed置换，禁止跨分区。单样本分区无合法非恒等置换时测试应显式报告不能生成shuffle控制。推理zero-S/zero-I另列A7-zero-S/I敏感性分析，不替代上述训练控制。控制不触发新视觉教师训练。
 
 ## 13. A8 会话与重复后处理（Session and Repeat Processing）
 

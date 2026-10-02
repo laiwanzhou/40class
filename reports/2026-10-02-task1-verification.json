@@ -1,0 +1,104 @@
+{
+  "date": "2026-10-02",
+  "timezone": "Asia/Shanghai",
+  "branch": "experiment/teammate-single-teacher-task1",
+  "task": 1,
+  "task1_tests": {
+    "passed": 35,
+    "failed": 0
+  },
+  "full_suite": {
+    "passed": 476,
+    "failed": 7,
+    "baseline_failed_tests": [
+      "tests/test_motion_attribute_dataset.py::test_real_population_is_canonical_before_cache_generation",
+      "tests/test_motionbert_skeleton_dataset.py::test_real_population_and_projection_ownership_are_frozen",
+      "tests/test_report_motionbert_lite_skeleton_expert.py::test_report_recomputes_metrics_and_stops_after_failed_b1",
+      "tests/test_run_motion_attribute_expert.py::test_motion_attribute_smoke_updates_all_groups_without_validation_gradient",
+      "tests/test_run_motionbert_lite_skeleton_expert.py::test_smoke_loads_pretraining_and_updates_head_only",
+      "tests/test_x3d_s_online_roi_parity.py::test_real_online_pipeline_matches_exported_training_rois",
+      "tests/test_x3d_s_real_manifest_contract.py::test_real_manifest_is_split_safe_ordered_and_adaptive"
+    ],
+    "new_failures": []
+  },
+  "initialization": {
+    "mc3": {
+      "classes": 400,
+      "parameters": 11695440,
+      "status": "verified",
+      "torch": "2.7.0+cu128",
+      "torchvision": "0.22.0+cu128"
+    },
+    "videomae": {
+      "attention_biases": {
+        "formats": [
+          "native_split"
+        ],
+        "key_bias_policy": "absent or exact zero",
+        "maximum_difference": 0.0,
+        "restored_tensors": 0,
+        "verified_tensors": 48
+      },
+      "classes": 400,
+      "frames": 16,
+      "hidden_size": 1024,
+      "parameters": 304270736,
+      "status": "verified",
+      "torch": "2.7.0+cu128",
+      "transformers": "4.49.0"
+    },
+    "yolo": {
+      "keypoint_shape": [
+        17,
+        3
+      ],
+      "parameters": 2874462,
+      "status": "verified",
+      "task": "pose"
+    }
+  },
+  "protocol_sha256": "2640dfa234af5f18b6d438f6834223d6ceeb8b445afb35c1d91de5f3c7bddd5c",
+  "weights_manifest_sha256": "af39c5c50bc58198b095da58c5801046cf7bed942897bc229e4f9f40617cc3ec",
+  "source_files_verified": 1167,
+  "public_files": [
+    {
+      "role": "mc3",
+      "name": "mc3_18-a90a0ba3.pth",
+      "bytes": 46841888,
+      "sha256": "a90a0ba35ca1242d15b77511ff28bfb29cc596988b5ea36081042f8e2f54212b"
+    },
+    {
+      "role": "videomae",
+      "name": "config.json",
+      "bytes": 22866,
+      "sha256": "6f2007409b792e4843725a76fcf70ba215c2a53df575c74a5dc8821b7b249ca0"
+    },
+    {
+      "role": "videomae",
+      "name": "preprocessor_config.json",
+      "bytes": 271,
+      "sha256": "c3aa722f22a7ff0d234d407862025fe47672f74f46f92c91f757f7a7354107c2"
+    },
+    {
+      "role": "videomae",
+      "name": "model.safetensors",
+      "bytes": 1217128032,
+      "sha256": "92d33bedfe4f171705af418b5ddf059a2beb8ef4d1532621c2ae0a6693dbb8bc"
+    },
+    {
+      "role": "yolo",
+      "name": "yolo11n-pose.pt",
+      "bytes": 6255593,
+      "sha256": "869e83fcdffdc7371fa4e34cd8e51c838cc729571d1635e5141e3075e9319dc0"
+    }
+  ],
+  "independent_review": {
+    "important_findings": 1,
+    "fixed": "top-level and transitive cached module origins plus exported callable origin",
+    "red_tests": 2,
+    "regression_tests_added": 3
+  },
+  "training_executed": false,
+  "participant_data_read": false,
+  "task2_started": false
+}

@@ -1,0 +1,2 @@
+# Preserve byte-exact audit snapshots.
+reports/audit_inputs/** -text

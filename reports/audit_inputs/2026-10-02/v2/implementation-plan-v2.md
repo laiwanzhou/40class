@@ -1,6 +1,6 @@
 # 队友单视觉教师固定划分实施计划（Fixed-Split Single-Teacher Implementation Plan）
 
-> 执行者须按任务使用 superpowers:executing-plans；若用户另行明确选择子智能体实施，使用 superpowers:subagent-driven-development。Task1已完成并有本机验证记录，其余任务尚未实施；复选框只标记已完成验收，不能视为完整流水线训练通过。
+> 执行者须按任务使用 superpowers:executing-plans；若用户另行明确选择子智能体实施，使用 superpowers:subagent-driven-development。下列任务均尚未实施，复选框表示未来验收，不能视为已运行结果。
 
 **目标（Goal）：** 在train12/development2/refit14/final4固定划分上移植一条无历史多教师投票的Visual/Skeleton/IMU流水线，并生成可解释的阶段比较。
 **架构（Architecture）：** 复用队友模型、预处理算子、增强和损失；新建标签无关缓存、固定划分训练循环和来源验证。旧CLI是源码参考，不是新接口。公共权重和原始数据缓存可共用，监督训练祖先按select/refit分离。
@@ -17,7 +17,7 @@
 - 视觉六clip来自IR的早晚两窗/scene-person-workspace三视野；Depth提供几何同步，不增加第二视觉教师。所有模型都是40类，列顺序0–39。
 - select的全部监督祖先fit train12，dev仅预测/选择；refit的全部对应监督祖先fit refit14。A9单独记录final4无标签适配角色。
 - run根：`outputs/teammate_single_teacher_fixed_split/<run_id>/`；源码根：`D:/work/2026.7.14_kaggle/_teacher_branch_upload/teammate_teacher/project`。不能回落队友runs/cache默认目录。
-- 用户本轮授权新建实验分支、仅实现Task1并commit/push；不进入Task2或训练。后续任务由当时用户授权决定。
+- 当前只修订文档，不训练、commit或push。将来任务完成时先形成可检查的本地差异；是否提交由当时用户授权决定。
 - 正式生成不得访问final标签路径；独立可信准备可以读取原规范清单，仅分离输入/标签，不拟合模型或选择参数。
 - 资源门槛至少20GiB，并须满足实测峰值加余量；2026-10-02观测D盘46.90GiB，可用性仍须执行前重新查询。
 - 所有超参数以规格v2为准，写入配置后先冻结身份，再选参。所有阶段为单seed描述性实验，不承诺0.91或显著性。
@@ -36,7 +36,7 @@
 
 | 任务 | 主要模块与职责 |
 |---|---|
-| 1 | no_vote_protocol.py、no_vote_types.py、teammate_source.py、no_vote_weights.py：协议、公共类型、源码验证、公开权重 |
+| 1 | no_vote_protocol.py、no_vote_types.py、teammate_source.py：协议、公共类型、源码验证、公开权重 |
 | 2 | no_vote_manifest.py、artifact_record.py：可信准备、ID/标签分离、祖先与产物注册表 |
 | 3 | pose_roi_adapter.py：标签可选P28/P29、真实时间戳恢复 |
 | 4 | visual_teacher.py：分区无关VideoMAE特征、单Ridge头及targets |
@@ -133,7 +133,7 @@ ArtifactRecord及ArtifactRegistry由Task2定义：stage/kind/phase、protocol/co
 - features.npz：sample_ids、features[N,2,3,1024]、kinetics_logits[N,2,3,400]、valid[N]、class_ids[40]；不含labels。
 - targets.npz：sample_ids、class_ids、logits[N,40]、probabilities[N,40]、valid[N]；视觉特征作为独立父产物。旧loader的四头logits与folds被移植后的loader取代。
 - pixel目录：images.npy[N,2,16,3,160,160] uint8，最后一个3是IR视野而不是独立RGB通道；view_valid/quality[N,2,16,3]、source_frame_indices[N,2,16]、source_time_seconds、completed[N]、rows.csv。源码MC3内部按灰度复制为Kinetics三色通道。
-- sequence目录：sequence.npy[N,2,3,16,512]、anchor_logits.npy[N,40]、anchor_valid.npy[N]、rows.csv、completed；anchor来自同phase冻结A2 checkpoint，identity包含MC3 checkpoint和pixels哈希。移植推理Dataset完全不读teacher/labels，A7训练时显式引用该锚点产物。
+- sequence目录：sequence.npy[N,2,3,16,512]、rows.csv、completed；identity包含MC3 checkpoint和pixels哈希。移植推理Dataset完全不读teacher/labels。
 - motion目录：队友MOTION_FIELDS各自.npy及mask/rows/completed；Skeleton主字段[N,2,16,17,13]、IMU主字段[N,2,16,5,4,16]，points_per_imu_bin=4；IMU bin statistics52通道/global statistics48通道。字段顺序从p86_cached_motion_data.py固定到本run schema。
 - normalization.json：channel/role轴、mean/std、有效fit ID集合hash、fit_users；缺失值不计统计，std下限1e-4、应用后缺失位置归零。
 - prior.json：按全部规范fit标签计数的40类先验、fit用户/ID及hash。select=train12；final=refit14。
@@ -151,17 +151,17 @@ smoke是独立fixture protocol/run_id，使用合成小人口和模拟公开权�
 
 ### Task 1：冻结协议、源码与公开初始化（Protocol, Source and Weights）
 
-**文件：** 新建no_vote_protocol.py、no_vote_types.py、teammate_source.py、no_vote_weights.py四个模块、configs/experiments/teammate_single_teacher_fixed_split.yaml、scripts/acquire_no_vote_weights.py、tests/test_no_vote_protocol.py、tests/test_teammate_source.py、tests/test_no_vote_weights.py；tests/conftest.py补合成labels/IDs、fake artifact DAG与fixture protocol。
+**文件：** 新建上述三个模块、configs/experiments/teammate_single_teacher_fixed_split.yaml、scripts/acquire_no_vote_weights.py、tests/test_no_vote_protocol.py、tests/test_teammate_source.py、tests/test_no_vote_weights.py；tests/conftest.py补合成labels/IDs、fake artifact DAG与fixture protocol。
 
 **输入/输出：** 规格v2与源码manifest → NoVoteProtocol、verified_source.json、weights_manifest.json。配置包含全部S中的配方、种子、候选、固定目标池和分区；无需重新访问final标签决定划分。
 
-- [x] 先写test_protocol_hash_across_processes：PYTHONHASHSEED=1/2/3得到同hash；改变预算、seed、用户、weight/source身份任何一项得到不同hash。
-- [x] 先写test_partitions_exact：train/dev/final两两不交、refit=train∪dev、18用户；test_no_final_label_config拒绝final标签路径；test_source_hash_drift拒绝任意源码字节变更。
-- [x] 先写test_local_weight_directory：本地模型目录绝不作为Hub repo_id；缺修订或hash不符失败。
-- [x] 实现load_protocol及identity的递归规范化：集合变排序数组、Path转规范字符串、dict键排序，序列保留语义顺序，JSON允许有限数值，禁止default=str。recipe包含source_manifest/weights_manifest的内容hash；每次加载先验证实物，不能仅按路径计算协议身份。
-- [x] verify_source逐一验证1167文件，加载root/aligned_multimodal函数前完成；保存使用的符号/源码文件哈希，不执行main。
-- [x] acquisition显式下载公开VideoMAE指定revision、MC3 KINETICS400_V1和YOLO11n-pose，或接受已存在的本地副本；记录完整文件SHA256。运行初始化目录加载并核验旧attention bias恢复。下载和训练是不同步骤。
-- [x] 验证：`python -m pytest tests/test_no_vote_protocol.py tests/test_teammate_source.py tests/test_no_vote_weights.py -v`。实际下载命令为`python scripts/acquire_no_vote_weights.py --config configs/experiments/teammate_single_teacher_fixed_split.yaml`，仅在实施时执行。
+- [ ] 先写test_protocol_hash_across_processes：PYTHONHASHSEED=1/2/3得到同hash；改变预算、seed、用户、weight/source身份任何一项得到不同hash。
+- [ ] 先写test_partitions_exact：train/dev/final两两不交、refit=train∪dev、18用户；test_no_final_label_config拒绝final标签路径；test_source_hash_drift拒绝任意源码字节变更。
+- [ ] 先写test_local_weight_directory：本地模型目录绝不作为Hub repo_id；缺修订或hash不符失败。
+- [ ] 实现load_protocol及identity的递归规范化：集合变排序数组、Path转规范字符串、dict键排序，序列保留语义顺序，JSON允许有限数值，禁止default=str。recipe包含source_manifest/weights_manifest的内容hash；每次加载先验证实物，不能仅按路径计算协议身份。
+- [ ] verify_source逐一验证1167文件，加载root/aligned_multimodal函数前完成；保存使用的符号/源码文件哈希，不执行main。
+- [ ] acquisition显式下载公开VideoMAE指定revision、MC3 KINETICS400_V1和YOLO11n-pose，或接受已存在的本地副本；记录完整文件SHA256。运行初始化目录加载并核验旧attention bias恢复。下载和训练是不同步骤。
+- [ ] 验证：`python -m pytest tests/test_no_vote_protocol.py tests/test_teammate_source.py tests/test_no_vote_weights.py -v`。实际下载命令为`python scripts/acquire_no_vote_weights.py --config configs/experiments/teammate_single_teacher_fixed_split.yaml`，仅在实施时执行。
 
 ### Task 2：独立准备、标签分离与产物验证（Preparation and Provenance）
 
@@ -222,7 +222,7 @@ smoke是独立fixture protocol/run_id，使用合成小人口和模拟公开权�
 - [ ] test_mc3_native_sequence：非恒定真实clip得到[B,2,3,16,512]，与原encode_backbone_sequence一致；不得重复池化向量伪造时间；允许原源码线性插值。
 - [ ] 移植build_p86_visual_pixel_cache的cache结构、P86VisualPixelDataset增强、MC3模型/训练体。移除split_universe、历史2914断言、all-label旧入口；Dataset接受标准TeacherTargets，阶段logit辅助项固定关闭，不构造虚假旧多头/OOF目标。
 - [ ] A2配置完全采用S7；select每轮评价全388并选择1–18 epoch，保存统一Selection；refit重新公开初始化按选中epoch训练。保留原hybrid CE/KD/relation，enable_distillation_projection=false；feature-weight0.5只记配置值、实际直接feature loss为0，不能将它误接入hybrid。test_hybrid_active_losses核对该行为与源码一致。
-- [ ] 推理Dataset只接受pixels/rows/masks，sequence及anchor_logits/anchor_valid为select/refit各自用同phase冻结A2构建；两者checkpoint身份不同不能复用。test_frozen_anchor_stays_constant核对A7更新不能改变锚点。原始pixels建立一次，分区indices引用。
+- [ ] 推理Dataset只接受pixels/rows/masks，sequence为select/refit各自构建；两者checkpoint身份不同不能复用。原始pixels建立一次，分区indices引用。
 - [ ] 验证：`python -m pytest tests/test_no_vote_pixels.py tests/test_no_vote_visual_student.py tests/test_no_vote_sequence.py -v`；真实train12一批forward/backward与一条sequence验收，记录显存与用时。
 
 ### Task 6：移植P31/P86运动窗及拟合归一化（Motion Port and Normalization）
@@ -282,13 +282,12 @@ smoke是独立fixture protocol/run_id，使用合成小人口和模拟公开权�
 ### Task 10：A7与独立匹配训练对照（Fusion and Training Controls）
 
 **文件：** mobind_fusion.py、scripts/run_no_vote_mobind_fusion.py、tests/test_no_vote_mobind_fusion.py。
-**接口：** `train_fusion(phase: str, variant: Literal["full","mask_motion","shuffle_s","shuffle_i"], inputs: StageInputs, visual: ArtifactRef, motion: ArtifactRef, sequence: ArtifactRef, anchor: ArtifactRef, teacher: TeacherTargets, normalization: ArtifactRef) -> ArtifactRef`；
+**接口：** `train_fusion(phase: str, variant: Literal["full","mask_motion","shuffle_s","shuffle_i"], inputs: StageInputs, visual: ArtifactRef, motion: ArtifactRef, sequence: ArtifactRef, teacher: TeacherTargets, normalization: ArtifactRef) -> ArtifactRef`；
 `predict_fusion(model: ArtifactRef, inputs: StageInputs, variant: str) -> Prediction`。
 
 - [ ] test_matched_controls_have_distinct_training：四variant有独立model/checkpoint/training-record，但初始化值、配置、预算4+20和batch顺序相同。
 - [ ] test_shuffle_features_and_masks：每epoch donor permutation只含fit人口，特征与mask一起移动，接收行标签与teacher不移动；eval置换由sorted IDs/seed固定，与batch划分和输入顺序无关。
 - [ ] test_refit_parents：select加载A2/A5 select，refit加载A2/A5 refit；模型加载严格验证config/state keys，而非修改stage字符串欺骗旧入口。
-- [ ] test_control_loss_masks：motion_aux/reliability按控制后的motion availability筛选；teacher KL交叉对应teacher valid；全motion mask时相应项为保留计算图的零loss。test_anchor_parent_and_ids拒绝跨phase锚点及ID错配，默认live_visual_anchor=false。
 - [ ] 迁移fusion_proxy的建模/损失/两阶段训练体，不跑split_universe或固定1497/973/444及2914主入口。S12配方固定，不用控制的dev分数改变full预算。
 - [ ] 冻结视觉backbone参数及BatchNorm运行统计，每次model.train后将backbone保持eval；冻结预训练motion encoder，visual head可更新。sequence依赖不变backbone，记录其身份；test_cached_backbone_unchanged同时核对参数与buffer哈希。四variant各做select和refit；mask时两运动分支均置零，shuffle按S12定义。
 - [ ] 附加A7-zero-S/I只在训练完成full模型上推理，是敏感性分析而非匹配对照；与独立训练control目录分开。
@@ -397,4 +396,4 @@ CLI新增 `--endpoint 12|40`，无final-label或eval-accuracy参数。
 
 规格各项可定位到Task1–14；新接口类型均在Task1/2定义，训练来源和缓存身份见依赖表。旧CLI参数错误已从执行路径移除，剩余源码函数只是需移植的参考。测试步骤均对应具体缺陷和断言，不声称现已实现或已通过。
 
-此v2已完成文档修订，需要针对修改项做静态复审；独立审计通过之前不启动正式训练。当前用户授权仅完成Task1并推送新实验分支；Task1完成证据见reports/2026-10-02-task1-verification.json。Task2–14尚未实施，后续先做数据准备与无标签接口，再做模型任务。
+此v2已完成文档修订，需要针对修改项做静态复审；独立审计通过之前不启动正式训练。当前用户授权为修订报告暴露的问题，未据此自动commit/push或开始GPU实验。后续实施按本计划先做协议/来源和无标签接口，再做模型任务。
