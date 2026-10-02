@@ -17,7 +17,7 @@
 - 视觉六clip来自IR的早晚两窗/scene-person-workspace三视野；Depth提供几何同步，不增加第二视觉教师。所有模型都是40类，列顺序0–39。
 - select的全部监督祖先fit train12，dev仅预测/选择；refit的全部对应监督祖先fit refit14。A9单独记录final4无标签适配角色。
 - run根：`outputs/teammate_single_teacher_fixed_split/<run_id>/`；源码根：`D:/work/2026.7.14_kaggle/_teacher_branch_upload/teammate_teacher/project`。不能回落队友runs/cache默认目录。
-- 用户最新授权独立复审Task2/3、修复Task4门槛，审计同意后在同分支推进Task4并提交推送；不进入Task5及学生训练。
+- 用户2026-10-03新增授权每分钟监测Task4；Task4实际完成后调用独立子智能体审计，发现问题则修复、验证并再次独立复审，直到无未解决问题后自动推进Task5。继续同实验分支提交推送；本轮不进入Task6。main历史回顾仍等整个复刻实验分支完成后再更新。
 - 正式生成不得访问final标签路径；独立可信准备可以读取原规范清单，仅分离输入/标签，不拟合模型或选择参数。
 - 资源门槛至少20GiB，并须满足实测峰值加余量；2026-10-02观测D盘46.90GiB，可用性仍须执行前重新查询。
 - 所有超参数以规格v2为准，写入配置后先冻结身份，再选参。所有阶段为单seed描述性实验，不承诺0.91或显著性。
