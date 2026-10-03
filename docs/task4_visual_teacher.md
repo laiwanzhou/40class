@@ -39,4 +39,10 @@ python -B scripts/run_no_vote_visual_teacher.py --config configs/experiments/tea
 - 缓存绑定协议、权重、ROI、producer SHA、clip batch与原始文件集合。任意identity/内容/新增帧漂移都会拒绝；正式source改动后不能悄悄复用旧特征。诊断旧产物仅在本run输出目录归档。
 - 全量ROI已生成2427/609条；完整registry验证、正式六clip抽取及72候选/refit的动态状态见执行日志与交接，不能由上述单样本验收推断已完成全量拟合。
 
-审计记录：[独立审计](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/reports/2026-10-02-task23-task4-independent-audit.md)。本轮不启动Task5。
+审计记录：[实现独立审计](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/reports/2026-10-02-task23-task4-independent-audit.md)。用户后续已授权Task4实际完成、工程修复及正式产物独立审计通过后自动推进Task5，本轮止于Task5。
+
+## 2026-10-03校验耗时修订（Verification Cost Revision）
+
+Task4当前实现递归读取P28/P29的相同原始文件清单：204,752个文件在单次模型校验中被读取409,504次，预测入口与登记还会重复这些检查。select/refit与两个预测阶段分别耗时约3小时08分、3小时48分、2小时43分、2小时45分；模型编码本身的日志用时合计约44分钟。此为校验性能问题（Verification Performance Issue），进程存活与中间预测正确不等于校验效率合理。
+
+按用户最新要求，当前旧进程继续完成；之后修复调用链，取消后续大面积SHA和祖先文件内容递归复验，采用直接输入与记录元数据检查。修订范围、回归测试和独立审计门槛已写入实施计划及规格。模型配方与数据边界不变，代码优化尚未实施；不修改原始数据、提交包或旧产物身份来规避来源检查。

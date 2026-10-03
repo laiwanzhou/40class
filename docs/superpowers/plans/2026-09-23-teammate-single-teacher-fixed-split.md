@@ -1,6 +1,6 @@
 # 队友单视觉教师固定划分实施计划（Fixed-Split Single-Teacher Implementation Plan）
 
-> 执行者须按任务使用 superpowers:executing-plans；若用户另行明确选择子智能体实施，使用 superpowers:subagent-driven-development。Task1–3已完成；本轮补齐refit14/final4完整ROI。Task4实现、合成测试和真实一条编码验收已完成，正式抽取/72grid/refit运行尚未完成；Task5–14尚未实施。复选框只标记对应实现验收，不能视为完整流水线训练通过。
+> 执行者须按任务使用 superpowers:executing-plans；若用户另行明确选择子智能体实施，使用 superpowers:subagent-driven-development。Task1–3已完成。2026-10-03更新：Task4全量特征、72候选选参、select/refit模型及先验、train12/development2正式预测已完成；refit14预测已写出，登记待完成，final4预测尚待接续。Task4完成审计未开始，Task5–14尚未实施。复选框只标记对应实现验收，不能视为完整流水线训练通过。
 
 **目标（Goal）：** 在train12/development2/refit14/final4固定划分上移植一条无历史多教师投票的Visual/Skeleton/IMU流水线，并生成可解释的阶段比较。
 **架构（Architecture）：** 复用队友模型、预处理算子、增强和损失；新建标签无关缓存、固定划分训练循环和来源验证。旧CLI是源码参考，不是新接口。公共权重和原始数据缓存可共用，监督训练祖先按select/refit分离。
@@ -17,10 +17,27 @@
 - 视觉六clip来自IR的早晚两窗/scene-person-workspace三视野；Depth提供几何同步，不增加第二视觉教师。所有模型都是40类，列顺序0–39。
 - select的全部监督祖先fit train12，dev仅预测/选择；refit的全部对应监督祖先fit refit14。A9单独记录final4无标签适配角色。
 - run根：`outputs/teammate_single_teacher_fixed_split/<run_id>/`；源码根：`D:/work/2026.7.14_kaggle/_teacher_branch_upload/teammate_teacher/project`。不能回落队友runs/cache默认目录。
-- 用户2026-10-03新增授权每分钟监测Task4；Task4实际完成后调用独立子智能体审计，发现问题则修复、验证并再次独立复审，直到无未解决问题后自动推进Task5。继续同实验分支提交推送；本轮不进入Task6。main历史回顾仍等整个复刻实验分支完成后再更新。
+- 用户2026-10-03授权每10分钟监测Task4（最新频率）；Task4实际完成后调用独立子智能体审计，发现问题则修复、针对性验证并再次独立复审，直到无未解决问题后自动推进Task5。继续同实验分支提交推送；本轮不进入Task6。main历史回顾仍等整个复刻实验分支完成后再更新。
 - 正式生成不得访问final标签路径；独立可信准备可以读取原规范清单，仅分离输入/标签，不拟合模型或选择参数。
 - 资源门槛至少20GiB，并须满足实测峰值加余量；2026-10-02观测D盘46.90GiB，可用性仍须执行前重新查询。
 - 所有超参数以规格v2为准，写入配置后先冻结身份，再选参。所有阶段为单seed描述性实验，不承诺0.91或显著性。
+
+## 2026-10-03校验策略修订（Verification Policy Revision）
+
+用户明确要求记录Task4巨量校验耗时，并移除后续大面积校验。本节覆盖本计划此前“递归验证记录与文件”中反复读取原始数据及祖先文件内容的要求；同样适用于后续独立审计（Independent Audit）、预检（Preflight）、续跑（Resume）和冻结（Freeze）。
+
+**已观测问题（Observed Bottleneck）：** refit14有204,752个原始文件；P28与P29各保存同一份清单，单次模型验证就执行409,504次原始文件哈希读取。同一预测又依次验证模型、特征、原始输入清单及登记依赖，阶段之间还重复读取。日志实测select耗时3小时08分、refit耗时3小时48分、train12/development2预测分别耗时2小时43分与2小时45分；相比之下，日志中的全量特征编码用时合计约44分钟。此为校验性能问题（Verification Performance Issue），不能归为GPU训练预算。17:18进程抽样15.44秒仍有6,117次读取；refit14预测已于16:22写出，耗时继续发生在登记校验。
+
+**后续执行规则（Execution Rules）：**
+
+- 取消每个CLI、epoch、batch、续跑和审计中的原始数据全目录遍历、逐文件SHA256、完整缓存内容重读及祖先文件内容递归复验。后续阶段只使用已登记的直接输入；原始数据按本项目只读约定使用，不再自动重新生成全量原始文件哈希清单。
+- 保留小型记录的协议/配置/产物引用哈希、stage/kind/phase、精确ID集合与顺序、40类列顺序、标签白名单、监督用户边界、缺失先验和完成标记检查。祖先角色检查只遍历记录元数据（Metadata），同一次阶段调用去重；不沿祖先链打开图像、骨骼JSON、旧权重或缓存数组内容。
+- 实际消费数组时检查shape/dtype、ID和必要的概率/有效掩码；模型初始化时检查实际加载的权重与配置。大数组不为校验额外完整扫描，读写中可顺带记录内容摘要（Digest）；直接模型/targets检查在阶段边界执行一次，不在每个batch重复。
+- 不在每个任务后重跑全部历史测试或全人口数值复算。运行本次变更及直接依赖的针对性回归（Targeted Regression），真实验收使用计划规定的一条/一批；Task13仍检查全部16份小型最终预测的609行契约，Task14仍保留独立fixture闭合测试。
+- 独立审计检查代码、正式记录、开发结果、小型预测和真实样本；不得重新触发原始数据、公开权重及全部缓存的全量SHA审计。已通过且实现未变化的检查不重复运行。
+- 若发现损坏、输入被修改或来源不符，停止该阶段并定位受影响的直接输入，针对性复查/重生成。轻量检查（Lightweight Validation）不会主动检测所有未消费原始文件的内容漂移，不得报告为全量内容校验通过。
+
+**落地时机（Implementation Timing）：** 当前Task4旧进程按原代码完成，不在线修改其代码、identity或父引用。Task4产物闭合后，先完成下述校验性能修订及针对性回归，再由独立子智能体审计Task4实际产物与修订；通过后推进Task5。现有模型配方、划分、选参结果和封存标签边界不变。本次文档更新不代表代码已完成优化。
 
 ## 复核重点（Review Focus）
 
@@ -126,7 +143,7 @@ class AdaptationInputs:
     normalization: ArtifactRef
 ```
 
-ArtifactRecord及ArtifactRegistry由Task2定义：stage/kind/phase、protocol/config/source/weight身份、fit/select/predict/adaptation的users与ID集合、parent refs、normalization/prior refs、row-set hash、class order、相对文件路径及hash。ArtifactRegistry只能解析本run记录或已验证公开权重/源码；递归验证记录与文件，拒绝祖先环、角色错配或未经声明的输入。共享类型中raw数组经验证后才能构造Prediction/TeacherTargets。Task1另导出load_protocol(config: Path) -> NoVoteProtocol，后续CLI统一使用它，不调用未定义的from_yaml或train_users等属性。
+ArtifactRecord及ArtifactRegistry由Task2定义：stage/kind/phase、protocol/config/source/weight身份、fit/select/predict/adaptation的users与ID集合、parent refs、normalization/prior refs、row-set hash、class order、相对文件路径及hash。ArtifactRegistry只能解析本run记录或已登记公开权重/源码；按校验策略修订检查直接输入和记录元数据，拒绝祖先环、角色错配或未经声明的输入，不递归重读祖先文件内容。共享类型中raw数组通过实际消费时的schema/ID检查后才能构造Prediction/TeacherTargets。Task1另导出load_protocol(config: Path) -> NoVoteProtocol，后续CLI统一使用它，不调用未定义的from_yaml或train_users等属性。
 
 数据模式（schema）：
 - 公共rows.csv：sample_id/user_id和四原始路径及available字段；源ID同opaque sample_id，不能夹带旧类别ID。
@@ -214,7 +231,18 @@ smoke是独立fixture protocol/run_id，使用合成小人口和模拟公开权�
 - [x] 原始六clip features可共用；分类头、概率及监督祖先分开。缺IR预测先验且valid=false，KL/feature蒸馏loss按valid屏蔽。
 - [x] 验证：`python -m pytest tests/test_no_vote_visual_teacher.py -v`；一条编码确认模型键和FP16数值，不执行72grid全训练直到阶段验收。
 
-Task4当前真实运行：相关72测试通过、全仓513通过/同名7个既有旧缓存失败；最新producer单样本FP16六clip编码通过，峰值1.449GiB。全量ROI已生成2427/609条，registry/schema验证与refit14正式features抽取进行中。不能由实现勾选推断72候选/refit或最终准确率已完成。动态状态见docs/handoffs/2026-10-02-task4-in-progress.md。
+Task4当前真实运行：相关72测试通过、全仓513通过/同名7个既有旧缓存失败；最新producer单样本FP16六clip编码通过，峰值1.449GiB。全量ROI及features已覆盖2427/609条并登记；72候选选中window_mean、class_weight_power=0.5、alpha=1000、T1，development2为268/388（69.07%）。select/refit模型、先验及两个select分区预测已登记；refit14预测已写出但未完成登记，final4预测尚待接续。Task4未完成，不报告final4准确率。最新进度以outputs/task4_audit/continuation.log与heartbeat-state.json为准。
+
+#### Task4完成后的校验性能修订（Post-Task4 Verification Performance Revision）
+
+任务编号仍为1–14；以下为进入Task5前的工程修复，文件为artifact_record.py、visual_teacher.py、teammate_source.py及对应现有测试，按调用链实际需要修改。
+
+- [ ] 先写调用计数回归：消费已登记输入时，原始文件SHA读取次数为0；共享祖先元数据每次阶段调用只检查一次；注册新targets不重新读全部原始数据。测试用小型fixture与读取探针，不运行真实全量SHA来证明优化。
+- [ ] 使后续CLI使用直接输入/元数据检查；移除visual_teacher后续拟合与预测中的snapshot_raw_files全量复查。源码加载检查实际消费模块，不在每次符号加载时重新验证全部1167文件。
+- [ ] 原有ID错配、select/refit祖先错配、final标签读取、非本run目标、祖先环、缺失先验、partial伪装complete测试仍应失败；针对性测试通过后，用已生成teacher targets及8条train12真实样本检查数值一致性。
+- [ ] 保存Task4旧实现版本和正式产物来源；旧产物按历史版本解释，不修改旧记录的identity、parent SHA或内容摘要来冒充新验证。记录新校验策略版本与检查范围，保持模型producer身份可追溯，不因校验器优化重训教师。
+- [ ] 记录初始化/加载/计算/写出/登记各段时间与检查数量，输出可见阶段日志；性能验收以不触发原始全量扫描和不重复读取祖先文件为准，不新增全量审计作验收。
+- [ ] 独立审计Task4正式产物与本修订，通过后才推进Task5；有问题则针对性修复、回归并复审。
 
 ### Task 5：补像素缓存、固定划分A2和无标签sequence（Pixels, Student and Sequence）
 
@@ -224,6 +252,7 @@ Task4当前真实运行：相关72测试通过、全仓513通过/同名7个既�
 `train_visual_student(phase: Literal["select","refit"], fit: StageInputs, development: StageInputs | None, pixels: ArtifactRef, teacher: TeacherTargets, selection: Selection | None) -> tuple[ArtifactRef, Selection | None]`；
 `build_sequence(model: ArtifactRef, pixels: ArtifactRef, rows: RowIndex, output: Path) -> ArtifactRef`。
 
+- [ ] 首先确认Task4正式产物和校验性能修订已通过独立审计；所有Task5入口、续跑与sequence登记采用上文轻量策略，不递归读取P28/P29原始文件，不重新扫描像素缓存全部内容。
 - [ ] test_pixels_contract精确检查Shared Schema，source frame index/time与early/late源帧一致；view axes不是RGB渠道；raw completed可以含不可用行。
 - [ ] test_inference_without_teacher：删全部teacher/labels文件后学生推理和sequence仍运行；test_select_refit_teacher_roles按Task2DAG拒绝错误教师。
 - [ ] test_mc3_native_sequence：非恒定真实clip得到[B,2,3,16,512]，与原encode_backbone_sequence一致；不得重复池化向量伪造时间；允许原源码线性插值。
@@ -404,4 +433,4 @@ CLI新增 `--endpoint 12|40`，无final-label或eval-accuracy参数。
 
 规格各项可定位到Task1–14；新接口类型均在Task1/2定义，训练来源和缓存身份见依赖表。旧CLI参数错误已从执行路径移除，剩余源码函数只是需移植的参考。测试步骤均对应具体缺陷和断言，不声称现已实现或已通过。
 
-此v2本轮已完成Task2/3及Task4独立复审，三方GO。Task1–3实现完成，Task4接口及单样本验收完成，正式features/分类头运行尚未完成；Task5–14尚未实施。完整ROI已补齐，partial诊断仍不能作为正式学习输入。审计见reports/2026-10-02-task23-task4-independent-audit.md，动态执行见Task4交接。
+此v2已完成Task2/3及Task4实现复审，三方GO；该结论不代替Task4正式产物完成审计。2026-10-03最新状态及校验性能修订见本计划开头和Task4段，Task5–14尚未实施。完整ROI/features与模型已补齐，四分区targets尚待闭合。既有实现审计见reports/2026-10-02-task23-task4-independent-audit.md，动态执行以continuation.log为准；后续审计不重复大面积文件内容校验。

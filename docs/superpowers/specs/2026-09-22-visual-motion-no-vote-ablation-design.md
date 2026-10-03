@@ -148,7 +148,9 @@ A9-12/A9-40均为适配模型的原始输出（raw deployment output），不再
 
 ## 16. 产物来源与单向状态（Provenance and State）
 
-run根目录为 `outputs/teammate_single_teacher_fixed_split/<run_id>/`。所有产物记录协议/配置/源码/公开权重哈希、stage/kind、fit/select/predict/adaptation users和ID集合哈希、类别顺序、父产物哈希、fallback/normalization身份、文件相对路径与哈希。加载递归验证，不以路径名字判断是否属于禁止bank。
+run根目录为 `outputs/teammate_single_teacher_fixed_split/<run_id>/`。所有产物记录协议/配置/源码/公开权重哈希、stage/kind、fit/select/predict/adaptation users和ID集合哈希、类别顺序、父产物哈希、fallback/normalization身份、文件相对路径与哈希。加载检查直接输入与来源记录，不以路径名字判断是否属于禁止bank。
+
+2026-10-03用户修订校验范围（Verification Scope）：Task4运行累计超过10小时，主要瓶颈为重复读取大面积原始文件。后续训练、推理、续跑、审计和freeze取消原始全目录SHA、完整缓存额外扫描及祖先文件内容递归复验。角色、阶段、ID、配置和状态检查可遍历去重后的记录元数据；实际消费时检查schema、有效掩码、概率及实际加载模型。直接输入损坏或被修改时针对性复查，不自动重做全量校验。原始数据依只读约定使用，轻量验证不保证主动发现所有未消费文件的内容漂移；历史SHA记录仍保留，不将轻量检查宣称为全量内容验证。具体执行与Task4完成后的修复验收见实施计划“校验策略修订”。本次只更改校验策略，不改变任何模型配方、实验划分或final标签封存。
 
 protocol的用户集合先排序为JSON数组，所有路径规范化，序列/浮点/布尔明确类型；禁止default=str对frozenset序列化。协议身份包括全部种子、候选、预算、目标池与源码/权重清单身份。
 
