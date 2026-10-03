@@ -70,3 +70,19 @@ def test_direct_input_mutation_is_still_rejected(no_vote_fixture):
         fit_users=registry.protocol.partitions['train12'].users)
     path.write_text('{"changed":true}')
     with pytest.raises(ValueError, match='hash'): registry.verify(ref)
+
+
+def test_registration_reuses_digest_computed_during_cache_write(no_vote_fixture,monkeypatch):
+    import hashlib
+    from src.experiments import artifact_record as ar
+    from src.experiments.no_vote_protocol import load_protocol
+    registry=ar.ArtifactRegistry(load_protocol(no_vote_fixture[0]))
+    path=registry.root/'images.npy';content=b'writer-produced cache payload';path.write_bytes(content)
+    original=ar.sha256_file
+    def guard(file):
+        if Path(file)==path:raise AssertionError('registration reread complete cache')
+        return original(file)
+    monkeypatch.setattr(ar,'sha256_file',guard)
+    ref=registry.register(stage='pixels',kind='raw_cache',phase='raw',files=[path],
+        file_digests={str(path):hashlib.sha256(content).hexdigest()})
+    assert registry.read(ref).files[str(path)]==hashlib.sha256(content).hexdigest()

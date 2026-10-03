@@ -5,6 +5,7 @@ import csv
 from dataclasses import dataclass
 import json
 from pathlib import Path
+import re
 from typing import Mapping
 
 import numpy as np
@@ -189,7 +190,7 @@ class ArtifactRegistry:
 
     def register(self,*,stage: str,kind: str,phase: str,files,parents=(),fit_users=(),
                  select_users=(),predict_users=(),adaptation_users=(),rows=None,config=None,
-                 raw_inputs=(),source_files=(),complete=True) -> ArtifactRef:
+                 raw_inputs=(),source_files=(),complete=True,file_digests=None) -> ArtifactRef:
         if kind not in KINDS:raise ValueError('unapproved artifact kind')
         paths=[Path(p).resolve() for p in files]
         if len(set(paths))!=len(paths) or any(not p.is_file() or not p.is_relative_to(self.root) for p in paths):
@@ -197,9 +198,17 @@ class ArtifactRegistry:
         for p in paths:
             if kind not in {'supervised_labels','supervised_model','adapted_model'}:verify_public_file(p)
         config={} if config is None else config
+        if file_digests is None:
+            digests={str(p):sha256_file(p) for p in paths}
+        else:
+            # Producers may hash a large cache in the same pass that writes
+            # it. This avoids an extra full cache read merely to register it.
+            digests={str(Path(p).resolve()):d for p,d in file_digests.items()}
+            if set(digests)!={str(p) for p in paths} or any(not isinstance(d,str) or not re.fullmatch('[0-9a-f]{64}',d) for d in digests.values()):
+                raise ValueError('writer file digest coverage/format mismatch')
         own_sources=tuple(source_files) or (Path(__file__),)
         record=ArtifactRecord(stage,kind,phase,self.identity,config,canonical_hash(config),
-            {str(p):sha256_file(p) for p in paths},tuple(parents),tuple(sorted(fit_users)),tuple(sorted(select_users)),
+            digests,tuple(parents),tuple(sorted(fit_users)),tuple(sorted(select_users)),
             tuple(sorted(predict_users or (set(rows.user_ids) if rows else ()))),tuple(sorted(adaptation_users)),
             rows,canonical_hash(rows),{str(Path(p).resolve()):sha256_file(Path(p)) for p in own_sources},
             {str(Path(p).resolve()):sha256_file(Path(p)) for p in raw_inputs},
