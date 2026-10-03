@@ -105,10 +105,11 @@ def _load_features(ref,protocol,*,complete=True):
         if not set(roi.rows.sample_ids)<=set(lookup):raise ValueError('ROI public IDs mismatch')
         source_rows=[lookup[sid] for sid in roi.rows.sample_ids]
         if row_index(source_rows)!=roi.rows:raise ValueError('ROI public user/order mismatch')
-        inventory={k:v for row in source_rows for k,v in snapshot_raw_files(row).items()}
-        if inventory!=dict(roi.raw_input_hashes):raise ValueError('ROI raw input membership drift before head/prediction')
+        # Downstream heads consume registered features, not raw files. Their
+        # input inventory was recorded at generation and is not rescanned.
     files=[Path(f) for f in record.files if Path(f).name=='features.npz' or Path(f).name.endswith('_features.npz')]
     if len(files)!=1 or record.rows is None:raise ValueError('one feature table and indexed population required')
+    registry.verify_file(record,files[0])
     with np.load(files[0],allow_pickle=False) as z:arrays={k:z[k] for k in z.files}
     validate_feature_arrays(arrays,record.rows)
     return record,arrays
@@ -240,7 +241,7 @@ def predict_visual_teacher(model: ArtifactRef,features: ArtifactRef,rows: RowInd
 
 def _encoding_ops(protocol):
     report=verify_teammate_source(protocol.source_root,protocol.source_root.parent/'source_manifest.json',
-        expected_sha256=protocol.recipe['asset_bindings']['source_manifest_sha256'])
+        expected_sha256=protocol.recipe['asset_bindings']['source_manifest_sha256'],verify_contents=False)
     return tuple(load_teammate_symbol(report,m,s) for m,s in [
         ('build_p46_videomae_cache','square_crop'),('build_p30_shared_dir_roi_feature_cache','read_ir'),
         ('build_p46_videomae_cache','encode')])
@@ -278,8 +279,8 @@ def extract_visual_features(inputs: StageInputs,roi: ArtifactRef,weights: Artifa
     selected=rows[:max_trials] if max_trials else rows;index=row_index(selected)
     rr=registry.verify(roi,'p29','raw')
     if rr.rows not in (index,row_index(rows)):raise ValueError('ROI input population/IDs mismatch')
-    # Registry validates bytes of known files; additions/removals must also be
-    # checked before aggregate or per-trial resume can return cached features.
+    # Extraction consumes raw data. This producer-specific inventory check
+    # is separate from downstream cached fitting's metadata-only ancestry.
     parent_rows=selected if rr.rows==index else rows
     inventory={key:value for row in parent_rows for key,value in snapshot_raw_files(row).items()}
     if inventory!=dict(rr.raw_input_hashes):raise ValueError('ROI raw input membership drift before extraction/resume')
@@ -287,6 +288,9 @@ def extract_visual_features(inputs: StageInputs,roi: ArtifactRef,weights: Artifa
     if not max_trials and not rr.complete:raise ValueError('partial ROI cannot enter full extraction')
     expected={str((protocol.weights['videomae']/n).resolve()) for n in ('config.json','preprocessor_config.json','model.safetensors')}
     if set(wr.files)!=expected:raise ValueError('visual public weight identity mismatch')
+    receipt=json.loads((protocol.run_root/'protocol/weights_manifest.json').read_text(encoding='utf-8'))
+    pinned={str(Path(f['path']).resolve()):f['sha256'] for f in receipt['weights']['videomae']['files']}
+    if dict(wr.files)!=pinned:raise ValueError('visual public weight receipt mismatch')
     signature=canonical_hash({'weights':wr.files,'pose_recipe':rr.config,'windows':[[0.,.70],[.30,1.]],
         'views':['scene','person','workspace'],'crops':[1.15,1.40],'clip_batch':clip_batch,
         'producer':sha256_file(Path(__file__)),'device':device,'head_temperature':1.})
@@ -311,6 +315,7 @@ def extract_visual_features(inputs: StageInputs,roi: ArtifactRef,weights: Artifa
             if body['identity']!=identity or body['cache_sha256']!=sha256_file(cache):raise ValueError('feature trial resume hash/identity drift')
             verify_public_file(cache)
         else:
+            registry.verify_file(rr,roi_files[sid])
             if ops is None:ops=_encoding_ops(protocol)
             crop,read_ir,encode=ops;clips,metadata=_prepare_clips(row,roi_files[sid],crop,read_ir)
             features=np.zeros((2,3,1024),np.float16);logits=np.zeros((2,3,400),np.float16)
@@ -319,6 +324,7 @@ def extract_visual_features(inputs: StageInputs,roi: ArtifactRef,weights: Artifa
                 if model is None:
                     from transformers import VideoMAEForVideoClassification,VideoMAEImageProcessor
                     local=protocol.weights['videomae']
+                    for file in wr.files:registry.verify_file(wr,Path(file))
                     model=VideoMAEForVideoClassification.from_pretrained(local,local_files_only=True)
                     processor=VideoMAEImageProcessor.from_pretrained(local,local_files_only=True)
                     bias=validate_attention_biases(model,local/'model.safetensors')

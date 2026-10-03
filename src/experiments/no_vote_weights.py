@@ -60,7 +60,8 @@ def resolve_model_directory(model: str | Path, *, revision: str | None = None,
     return resolved
 
 
-def verify_weights_manifest(path: Path, specs: dict, *, allow_fixture: bool = False) -> str:
+def verify_weights_manifest(path: Path, specs: dict, *, allow_fixture: bool = False,
+                            verify_contents: bool = True) -> str:
     path = Path(path)
     body = json.loads(path.read_text(encoding="utf-8"))
     if body.get("schema_version") != 1 or set(body.get("weights", {})) != {"videomae","mc3","yolo"}:
@@ -89,7 +90,7 @@ def verify_weights_manifest(path: Path, specs: dict, *, allow_fixture: bool = Fa
             if not inside or str(file) in seen:
                 raise ValueError("weight receipt contains duplicate or unexpected files")
             seen.add(str(file)); names.add(file.name)
-            if not file.is_file() or file.stat().st_size != item.get("bytes") or sha256_file(file) != item.get("sha256"):
+            if not file.is_file() or file.stat().st_size != item.get("bytes") or (verify_contents and sha256_file(file) != item.get("sha256")):
                 raise ValueError(f"weight file mismatch: {file.name}")
             if not fixture:
                 verify_public_digest(name, file.name, item["sha256"])

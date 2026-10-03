@@ -66,6 +66,7 @@ class ArtifactRecord:
     raw_input_hashes: Mapping[str,str]
     fixture: bool
     complete: bool
+    verification_policy: str = 'full-v1'
 
 
 class ArtifactRegistry:
@@ -128,14 +129,11 @@ class ArtifactRegistry:
                 raise ValueError('fixture/formal artifact mismatch')
             self._roles(r)
             if r.row_set_sha256!=canonical_hash(r.rows):raise ValueError('artifact row-set hash mismatch')
-            for file,digest in r.files.items():
-                path=Path(file)
-                if not path.is_relative_to(self.root) or not path.is_file() or sha256_file(path)!=digest:
-                    raise ValueError('artifact file hash mismatch')
-                if r.kind not in {'supervised_labels','supervised_model','adapted_model'}:verify_public_file(path)
-            for file,digest in {**r.source_hashes,**r.raw_input_hashes}.items():
-                if not Path(file).is_file() or sha256_file(Path(file))!=digest:
-                    raise ValueError('artifact source/raw input hash mismatch')
+            # Verify content-addressed ancestry metadata without reopening raw
+            # payloads. Only the requested small outputs are consumed here;
+            # raw/weight tables use verify_file for the selected payload.
+            if item == ref and r.kind not in {'raw_cache','public_weights'}:
+                for file in r.files:self.verify_file(r,Path(file))
             ancestors=[walk(parent) for parent in r.parents]
             def descendants(parent):
                 out=[parent]
@@ -179,6 +177,16 @@ class ArtifactRegistry:
         if expected_ids is not None and record.rows!=expected_ids:raise ValueError('artifact IDs/class columns mismatch')
         return record
 
+    def verify_file(self,record: ArtifactRecord,path: Path) -> Path:
+        """Check one actually consumed file, never ancestor payloads."""
+        path=Path(path).resolve()
+        digest=record.files.get(str(path))
+        if digest is None or not path.is_relative_to(self.root) or not path.is_file() or sha256_file(path)!=digest:
+            raise ValueError('artifact file hash/location mismatch')
+        if record.kind not in {'supervised_labels','supervised_model','adapted_model'}:
+            verify_public_file(path)
+        return path
+
     def register(self,*,stage: str,kind: str,phase: str,files,parents=(),fit_users=(),
                  select_users=(),predict_users=(),adaptation_users=(),rows=None,config=None,
                  raw_inputs=(),source_files=(),complete=True) -> ArtifactRef:
@@ -195,7 +203,7 @@ class ArtifactRegistry:
             tuple(sorted(predict_users or (set(rows.user_ids) if rows else ()))),tuple(sorted(adaptation_users)),
             rows,canonical_hash(rows),{str(Path(p).resolve()):sha256_file(Path(p)) for p in own_sources},
             {str(Path(p).resolve()):sha256_file(Path(p)) for p in raw_inputs},
-            self.protocol.recipe['execution_kind']=='fixture',bool(complete))
+            self.protocol.recipe['execution_kind']=='fixture',bool(complete),verification_policy='direct-metadata-v2')
         path=self.root/'artifacts'/(canonical_hash(record)+'.json')
         write_json(path,record)
         ref=ArtifactRef(path,sha256_file(path))

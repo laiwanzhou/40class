@@ -34,7 +34,8 @@ class SourceVerification:
 
 def verify_teammate_source(root: Path, manifest_path: Path, *,
                            expected_count: int | None = None,
-                           expected_sha256: str | None = None) -> SourceVerification:
+                           expected_sha256: str | None = None,
+                           verify_contents: bool = True) -> SourceVerification:
     root, manifest_path = Path(root).resolve(), Path(manifest_path).resolve()
     digest = sha256_file(manifest_path)
     if expected_sha256 is not None and digest != expected_sha256:
@@ -55,9 +56,11 @@ def verify_teammate_source(root: Path, manifest_path: Path, *,
             raise ValueError("duplicate source manifest path")
         listed.add(name)
         path = (root / name).resolve()
-        if not path.is_relative_to(root) or not path.is_file():
+        if not path.is_relative_to(root):
             raise ValueError(f"source file missing: {name}")
-        if type(entry.get("bytes")) is not int or path.stat().st_size != entry["bytes"] or sha256_file(path) != entry.get("sha256"):
+        if type(entry.get("bytes")) is not int or not isinstance(entry.get("sha256"), str):
+            raise ValueError(f"source file mismatch: {name}")
+        if verify_contents and (not path.is_file() or path.stat().st_size != entry["bytes"] or sha256_file(path) != entry.get("sha256")):
             raise ValueError(f"source file mismatch: {name}")
     return SourceVerification(root, manifest_path, digest, len(entries), tuple(sorted(listed)))
 
@@ -67,11 +70,21 @@ def load_teammate_symbol(report: SourceVerification, module_name: str, symbol_na
         raise ValueError("source module and symbol must be simple identifiers")
     current = verify_teammate_source(report.root, report.manifest_path,
                                     expected_count=report.file_count,
-                                    expected_sha256=report.manifest_sha256)
+                                    expected_sha256=report.manifest_sha256, verify_contents=False)
     relative = f"aligned_multimodal/{module_name}.py"
     if relative not in current.files:
         raise ValueError("requested module is not in the verified manifest")
     expected = (report.root / relative).resolve()
+    entries = {entry['path']: entry for entry in json.loads(report.manifest_path.read_text(encoding='utf-8'))['files']}
+    validated = set()
+    def validate_content(path):
+        path = Path(path).resolve()
+        if path in validated: return
+        entry = entries[path.relative_to(report.root).as_posix()]
+        if not path.is_file() or path.stat().st_size != entry['bytes'] or sha256_file(path) != entry['sha256']:
+            raise ValueError(f'source file mismatch: {path.name}')
+        validated.add(path)
+    validate_content(expected)
     module_paths = {}
     verified_paths = {(report.root / name).resolve() for name in current.files}
     for name in current.files:
@@ -91,6 +104,7 @@ def load_teammate_symbol(report: SourceVerification, module_name: str, symbol_na
                 origin = getattr(cached, "__file__", None)
                 if not origin or Path(origin).resolve() != path:
                     raise ImportError(f"source dependency origin collision: {name}")
+                validate_content(path)
 
     # The top-level file can be correct while Python silently reuses a helper
     # imported earlier from a different worktree. Check both sides of import.

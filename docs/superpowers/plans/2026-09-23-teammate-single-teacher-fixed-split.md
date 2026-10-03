@@ -1,6 +1,6 @@
 # 队友单视觉教师固定划分实施计划（Fixed-Split Single-Teacher Implementation Plan）
 
-> 执行者须按任务使用 superpowers:executing-plans；若用户另行明确选择子智能体实施，使用 superpowers:subagent-driven-development。Task1–3已完成。2026-10-03更新：Task4全量特征、72候选选参、select/refit模型及先验、train12/development2正式预测已完成；refit14预测已写出，登记待完成，final4预测尚待接续。Task4完成审计未开始，Task5–14尚未实施。复选框只标记对应实现验收，不能视为完整流水线训练通过。
+> 执行者须按任务使用 superpowers:executing-plans；若用户另行明确选择子智能体实施，使用 superpowers:subagent-driven-development。Task1–4已完成。2026-10-03更新：Task4全部生成阶段于19:20:46完成，正式产物方法学审计与性能代码工程复审均GO；性能修复原66项针对性测试、两项新增补丁测试通过，受影响16项再测通过，真实数值验收通过。Task5已进入像素/Dataset测试先行（TDD）实施，尚未启动学生训练；Task6–14未实施。复选框只标记对应实现验收，不能视为完整流水线训练通过。
 
 **目标（Goal）：** 在train12/development2/refit14/final4固定划分上移植一条无历史多教师投票的Visual/Skeleton/IMU流水线，并生成可解释的阶段比较。
 **架构（Architecture）：** 复用队友模型、预处理算子、增强和损失；新建标签无关缓存、固定划分训练循环和来源验证。旧CLI是源码参考，不是新接口。公共权重和原始数据缓存可共用，监督训练祖先按select/refit分离。
@@ -231,18 +231,18 @@ smoke是独立fixture protocol/run_id，使用合成小人口和模拟公开权�
 - [x] 原始六clip features可共用；分类头、概率及监督祖先分开。缺IR预测先验且valid=false，KL/feature蒸馏loss按valid屏蔽。
 - [x] 验证：`python -m pytest tests/test_no_vote_visual_teacher.py -v`；一条编码确认模型键和FP16数值，不执行72grid全训练直到阶段验收。
 
-Task4当前真实运行：相关72测试通过、全仓513通过/同名7个既有旧缓存失败；最新producer单样本FP16六clip编码通过，峰值1.449GiB。全量ROI及features已覆盖2427/609条并登记；72候选选中window_mean、class_weight_power=0.5、alpha=1000、T1，development2为268/388（69.07%）。select/refit模型、先验及两个select分区预测已登记；refit14预测已写出但未完成登记，final4预测尚待接续。Task4未完成，不报告final4准确率。最新进度以outputs/task4_audit/continuation.log与heartbeat-state.json为准。
+Task4正式生成于2026-10-03 19:20:46完成：全量ROI/features覆盖2427/609条，72候选选中window_mean、class_weight_power=0.5、alpha=1000、T1，development2为268/388（69.07%）；select/refit模型、先验及四分区targets均已登记。正式方法学审计独立复算开发成绩、两阶段1957/2342有效拟合行与四分区先验，GO。性能修复66项针对性测试通过，真实四target记录/一次features加载/8条train12复算合计4.256秒、原始SHA读取0、logit差0。工程审查另发现实际ROI与公开权重receipt消费缺口，已修复且两项独立复测通过，受影响16项通过，最终GO。两份2026-10-03独立报告均保存，Task5已开始实施。不读取或报告final4标签/准确率。
 
 #### Task4完成后的校验性能修订（Post-Task4 Verification Performance Revision）
 
 任务编号仍为1–14；以下为进入Task5前的工程修复，文件为artifact_record.py、visual_teacher.py、teammate_source.py及对应现有测试，按调用链实际需要修改。
 
-- [ ] 先写调用计数回归：消费已登记输入时，原始文件SHA读取次数为0；共享祖先元数据每次阶段调用只检查一次；注册新targets不重新读全部原始数据。测试用小型fixture与读取探针，不运行真实全量SHA来证明优化。
-- [ ] 使后续CLI使用直接输入/元数据检查；移除visual_teacher后续拟合与预测中的snapshot_raw_files全量复查。源码加载检查实际消费模块，不在每次符号加载时重新验证全部1167文件。
-- [ ] 原有ID错配、select/refit祖先错配、final标签读取、非本run目标、祖先环、缺失先验、partial伪装complete测试仍应失败；针对性测试通过后，用已生成teacher targets及8条train12真实样本检查数值一致性。
-- [ ] 保存Task4旧实现版本和正式产物来源；旧产物按历史版本解释，不修改旧记录的identity、parent SHA或内容摘要来冒充新验证。记录新校验策略版本与检查范围，保持模型producer身份可追溯，不因校验器优化重训教师。
-- [ ] 记录初始化/加载/计算/写出/登记各段时间与检查数量，输出可见阶段日志；性能验收以不触发原始全量扫描和不重复读取祖先文件为准，不新增全量审计作验收。
-- [ ] 独立审计Task4正式产物与本修订，通过后才推进Task5；有问题则针对性修复、回归并复审。
+- [x] 先写调用计数回归：消费已登记输入时，原始文件SHA读取次数为0；共享祖先元数据每次阶段调用只检查一次；注册新targets不重新读全部原始数据。测试用小型fixture与读取探针，不运行真实全量SHA来证明优化。
+- [x] 使后续CLI使用直接输入/元数据检查；移除visual_teacher后续拟合与预测中的snapshot_raw_files全量复查。源码加载检查实际消费模块，不在每次符号加载时重新验证全部1167文件。
+- [x] 原有ID错配、select/refit祖先错配、final标签读取、非本run目标、祖先环、缺失先验、partial伪装complete测试仍应失败；针对性测试通过后，用已生成teacher targets及8条train12真实样本检查数值一致性。
+- [x] 保存Task4旧实现版本和正式产物来源；旧产物按历史版本解释，不修改旧记录的identity、parent SHA或内容摘要来冒充新验证。记录新校验策略版本与检查范围，保持模型producer身份可追溯，不因校验器优化重训教师。
+- [x] 记录Task4原阶段耗时及修复后真实检查数量/耗时；4.256秒、原始SHA0。性能验收不新增全量审计。后续Task5 CLI须分别输出初始化/加载/计算/写出/登记阶段日志和时间，避免再次出现长时间空日志。
+- [x] 独立审计Task4正式产物与本修订，两项直接消费缺口修复后独立复测，最终方法学与工程均GO。
 
 ### Task 5：补像素缓存、固定划分A2和无标签sequence（Pixels, Student and Sequence）
 
@@ -433,4 +433,4 @@ CLI新增 `--endpoint 12|40`，无final-label或eval-accuracy参数。
 
 规格各项可定位到Task1–14；新接口类型均在Task1/2定义，训练来源和缓存身份见依赖表。旧CLI参数错误已从执行路径移除，剩余源码函数只是需移植的参考。测试步骤均对应具体缺陷和断言，不声称现已实现或已通过。
 
-此v2已完成Task2/3及Task4实现复审，三方GO；该结论不代替Task4正式产物完成审计。2026-10-03最新状态及校验性能修订见本计划开头和Task4段，Task5–14尚未实施。完整ROI/features与模型已补齐，四分区targets尚待闭合。既有实现审计见reports/2026-10-02-task23-task4-independent-audit.md，动态执行以continuation.log为准；后续审计不重复大面积文件内容校验。
+Task4四分区targets已闭合；正式方法学审计见reports/2026-10-03-task4-formal-methodology-audit.md，性能代码工程复审见reports/2026-10-03-task4-verification-engineering-audit.md，均GO。Task5已开始TDD实施，尚未开始学生训练，Task6–14未实施。后续审计不重复大面积文件内容校验。

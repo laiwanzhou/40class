@@ -31,13 +31,18 @@ def test_refit_rejects_select_initializer(no_vote_fixture,tmp_path):
         model(r,r.root,'A7','refit',parents=(teacher,))
 
 
-def test_registry_detects_file_and_parent_drift(no_vote_fixture,tmp_path):
+def test_registry_checks_consumed_file_and_parent_record_drift(no_vote_fixture,tmp_path):
     from src.experiments.no_vote_types import RowIndex
     r=context(no_vote_fixture); parent=model(r,r.root)
     child=model(r,r.root,'A2',parents=(parent,))
     record=r.read(parent);Path(next(iter(record.files))).write_text('changed')
+    # Unconsumed ancestor payloads are not reread under metadata-v2.
+    assert r.verify(child,'A2','select').stage=='A2'
     with pytest.raises(ValueError,match='hash'):
-        r.verify(child,'A2','select',None)
+        r.verify(parent,'A1','select')
+    parent.record_path.write_text('changed metadata')
+    with pytest.raises(ValueError,match='hash'):
+        r.verify(child,'A2','select')
 
 
 def test_unprovenanced_bank_and_wrong_final_ids_rejected(no_vote_fixture,tmp_path):

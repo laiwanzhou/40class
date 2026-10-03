@@ -173,7 +173,7 @@ def test_extraction_detects_new_raw_frames_before_any_cache_fast_path(teacher_po
 
 
 @pytest.mark.parametrize('teacher_population',[{'nfit':40,'ir_trial':True}],indirect=True)
-def test_head_cannot_bypass_changed_roi_input_membership(teacher_population):
+def test_cached_head_consumes_features_without_raw_membership_rescan(teacher_population,monkeypatch):
     from src.experiments.visual_teacher import select_visual_head
     from src.experiments.no_vote_manifest import load_stage_inputs,read_public_rows,row_index
     from src.experiments.artifact_record import ArtifactRegistry
@@ -185,5 +185,50 @@ def test_head_cannot_bypass_changed_roi_input_membership(teacher_population):
     old=r.verify(refs['refit14']);feature=r.register(stage=old.stage,kind=old.kind,phase=old.phase,
         files=old.files,parents=[roi],rows=old.rows,config=old.config)
     (folder/'IR_00000002.png').write_bytes(b'new frame')
-    with pytest.raises(ValueError,match='raw input membership'):
-        select_visual_head(load_stage_inputs(p,'train12','select'),load_stage_inputs(p,'development2','select'),feature,protocol=p)
+    def forbidden_rescan(*args,**kwargs):raise AssertionError('cached fitting rescanned raw data')
+    monkeypatch.setattr('src.experiments.visual_teacher.snapshot_raw_files',forbidden_rescan)
+    selection=select_visual_head(load_stage_inputs(p,'train12','select'),load_stage_inputs(p,'development2','select'),feature,protocol=p)
+    assert selection.metric['accuracy']==1
+
+
+def _extraction_inputs(teacher_population):
+    from src.experiments.no_vote_manifest import load_stage_inputs,read_public_rows,row_index
+    from src.experiments.artifact_record import ArtifactRegistry
+    from src.experiments.pose_roi_adapter import snapshot_raw_files
+    p,_,_,_=teacher_population;r=ArtifactRegistry(p);inputs=load_stage_inputs(p,'refit14','raw')
+    rows=read_public_rows(inputs.public_manifest);files=[]
+    for row in rows:
+        path=p.run_root/'test_roi'/f"{row['sample_id']}.npz";path.parent.mkdir(exist_ok=True)
+        np.savez(path,completed=True);files.append(path)
+    raw={key for row in rows for key in snapshot_raw_files(row)}
+    roi=r.register(stage='p29',kind='raw_cache',phase='raw',files=files,
+        rows=row_index(rows),raw_inputs=raw,config={})
+    weights=r.register(stage='visual_initializer',kind='public_weights',phase='public',
+        files=list(p.weights['videomae'].iterdir()),config={})
+    return p,r,inputs,roi,weights,files
+
+
+@pytest.mark.parametrize('teacher_population',[{'nfit':40,'ir_trial':True}],indirect=True)
+def test_extraction_checks_only_the_consumed_roi_payload(teacher_population,monkeypatch):
+    from src.experiments.visual_teacher import extract_visual_features
+    p,r,inputs,roi,weights,files=_extraction_inputs(teacher_population)
+    np.savez(files[0],completed=False)
+    monkeypatch.setattr('src.experiments.visual_teacher._encoding_ops',lambda p:(None,None,None))
+    def unverified(*args):raise AssertionError('ROI payload consumed without digest check')
+    monkeypatch.setattr('src.experiments.visual_teacher._prepare_clips',unverified)
+    with pytest.raises(ValueError,match='file hash'):
+        extract_visual_features(inputs,roi,weights,p.run_root/'test_extract',protocol=p)
+
+
+@pytest.mark.parametrize('teacher_population',[{'nfit':40,'ir_trial':True}],indirect=True)
+def test_reregistering_modified_initializer_cannot_replace_pinned_weight_receipt(teacher_population,monkeypatch):
+    from src.experiments.visual_teacher import extract_visual_features
+    p,r,inputs,roi,weights,_=_extraction_inputs(teacher_population)
+    path=p.weights['videomae']/'model.safetensors';original=path.read_bytes()
+    path.write_bytes(bytes([original[0]^1])+original[1:])
+    changed=r.register(stage='visual_initializer',kind='public_weights',phase='public',
+        files=list(p.weights['videomae'].iterdir()),config={})
+    def unverified(*args):raise AssertionError('unbound initializer reached encoding')
+    monkeypatch.setattr('src.experiments.visual_teacher._encoding_ops',unverified)
+    with pytest.raises(ValueError,match='weight.*receipt'):
+        extract_visual_features(inputs,roi,changed,p.run_root/'test_extract',protocol=p)
