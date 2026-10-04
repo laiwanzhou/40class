@@ -1,6 +1,6 @@
 # 队友单视觉教师固定划分实施计划（Fixed-Split Single-Teacher Implementation Plan）
 
-> 执行者须按任务使用 superpowers:executing-plans；若用户另行明确选择子智能体实施，使用 superpowers:subagent-driven-development。Task1–4已完成。2026-10-03更新：Task4全部生成阶段于19:20:46完成，正式产物方法学审计与性能代码工程复审均GO；性能修复原66项针对性测试、两项新增补丁测试通过，受影响16项再测通过，真实数值验收通过。Task5已进入像素/Dataset测试先行（TDD）实施，尚未启动学生训练；Task6–14未实施。复选框只标记对应实现验收，不能视为完整流水线训练通过。
+> 执行者须按任务使用 superpowers:executing-plans；若用户另行明确选择子智能体实施，使用 superpowers:subagent-driven-development。2026-10-04更新：Task1–5已完成。Task5正式生成于03:14:02（北京时间）完成；代码工程/方法学复审与正式产物工程/方法学独立验收均GO。select18轮选择第17轮，refit公开重新初始化训练17轮，四区标准预测与原生sequence全部登记；user6/user7开发准确率189/388=48.71%，最终标签仍封存。Task6–14未实施，当前授权止于Task5。复选框只标记对应任务验收，不代表完整流水线已训练、冻结或评估。
 
 **目标（Goal）：** 在train12/development2/refit14/final4固定划分上移植一条无历史多教师投票的Visual/Skeleton/IMU流水线，并生成可解释的阶段比较。
 **架构（Architecture）：** 复用队友模型、预处理算子、增强和损失；新建标签无关缓存、固定划分训练循环和来源验证。旧CLI是源码参考，不是新接口。公共权重和原始数据缓存可共用，监督训练祖先按select/refit分离。
@@ -252,14 +252,16 @@ Task4正式生成于2026-10-03 19:20:46完成：全量ROI/features覆盖2427/609
 `train_visual_student(phase: Literal["select","refit"], fit: StageInputs, development: StageInputs | None, pixels: ArtifactRef, teacher: TeacherTargets, selection: Selection | None) -> tuple[ArtifactRef, Selection | None]`；
 `build_sequence(model: ArtifactRef, pixels: ArtifactRef, rows: RowIndex, output: Path) -> ArtifactRef`。
 
-- [ ] 首先确认Task4正式产物和校验性能修订已通过独立审计；所有Task5入口、续跑与sequence登记采用上文轻量策略，不递归读取P28/P29原始文件，不重新扫描像素缓存全部内容。
-- [ ] test_pixels_contract精确检查Shared Schema，source frame index/time与early/late源帧一致；view axes不是RGB渠道；raw completed可以含不可用行。
-- [ ] test_inference_without_teacher：删全部teacher/labels文件后学生推理和sequence仍运行；test_select_refit_teacher_roles按Task2DAG拒绝错误教师。
-- [ ] test_mc3_native_sequence：非恒定真实clip得到[B,2,3,16,512]，与原encode_backbone_sequence一致；不得重复池化向量伪造时间；允许原源码线性插值。
-- [ ] 移植build_p86_visual_pixel_cache的cache结构、P86VisualPixelDataset增强、MC3模型/训练体。移除split_universe、历史2914断言、all-label旧入口；Dataset接受标准TeacherTargets，阶段logit辅助项固定关闭，不构造虚假旧多头/OOF目标。
-- [ ] A2配置完全采用S7；select每轮评价全388并选择1–18 epoch，保存统一Selection；refit重新公开初始化按选中epoch训练。保留原hybrid CE/KD/relation，enable_distillation_projection=false；feature-weight0.5只记配置值、实际直接feature loss为0，不能将它误接入hybrid。test_hybrid_active_losses核对该行为与源码一致。
-- [ ] 推理Dataset只接受pixels/rows/masks，sequence及anchor_logits/anchor_valid为select/refit各自用同phase冻结A2构建；两者checkpoint身份不同不能复用。test_frozen_anchor_stays_constant核对A7更新不能改变锚点。原始pixels建立一次，分区indices引用。
-- [ ] 验证：`python -m pytest tests/test_no_vote_pixels.py tests/test_no_vote_visual_student.py tests/test_no_vote_sequence.py -v`；真实train12一批forward/backward与一条sequence验收，记录显存与用时。
+- [x] 首先确认Task4正式产物和校验性能修订已通过独立审计；所有Task5入口、续跑与sequence登记采用上文轻量策略，不递归读取P28/P29原始文件，不重新扫描像素缓存全部内容。
+- [x] test_pixels_contract精确检查Shared Schema，source frame index/time与early/late源帧一致；view axes不是RGB渠道；raw completed可以含不可用行。
+- [x] test_inference_without_teacher：删全部teacher/labels文件后学生推理和sequence仍运行；test_select_refit_teacher_roles按Task2DAG拒绝错误教师。
+- [x] test_mc3_native_sequence：非恒定真实clip得到[B,2,3,16,512]，与原encode_backbone_sequence一致；不得重复池化向量伪造时间；允许原源码线性插值。
+- [x] 移植build_p86_visual_pixel_cache的cache结构、P86VisualPixelDataset增强、MC3模型/训练体。移除split_universe、历史2914断言、all-label旧入口；Dataset接受标准TeacherTargets，阶段logit辅助项固定关闭，不构造虚假旧多头/OOF目标。
+- [x] A2配置完全采用S7；select每轮评价全388并选择1–18 epoch，保存统一Selection；refit重新公开初始化按选中epoch训练。保留原hybrid CE/KD/relation，enable_distillation_projection=false；feature-weight0.5只记配置值、实际直接feature loss为0，不能将它误接入hybrid。test_hybrid_active_losses核对该行为与源码一致。
+- [x] 推理Dataset只接受pixels/rows/masks，sequence及anchor_logits/anchor_valid为select/refit各自用同phase冻结A2构建；两者checkpoint身份不同不能复用。test_frozen_anchor_stays_constant核对锚点产物独立于后续可训练模型参数；真实A7训练时仍须在Task10核对参数及buffer不变。原始pixels建立一次，分区indices引用。
+- [x] 验证：`python -m pytest tests/test_no_vote_pixels.py tests/test_no_vote_visual_student.py tests/test_no_vote_sequence.py -v`；真实train12一批forward/backward与一条sequence验收，记录显存与用时。
+
+**正式结果与验收（Formal Results and Acceptance）：** 针对性回归30项通过，真实4条样本前向/反向与原生sequence验收通过；工程和方法学代码复审GO。完整像素、select/refit模型、四区targets及四区sequence生成完成，正式产物独立工程与方法学验收均GO。select第17轮development2准确率48.71%，较A1教师69.07%低20.36个百分点；不因该结果追加调参。详情见[Task5说明](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/task5_visual_student.md)、[正式工程验收](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/reports/2026-10-04-task5-formal-engineering-acceptance.md)和[正式方法学验收](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/reports/2026-10-04-task5-formal-methodology-acceptance.md)。final4私有标签未读取，未进入Task6或最终冻结/揭示。
 
 ### Task 6：移植P31/P86运动窗及拟合归一化（Motion Port and Normalization）
 

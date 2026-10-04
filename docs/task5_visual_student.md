@@ -25,7 +25,22 @@
 
 ## 运行状态与命令（Runtime Status and Commands）
 
-2026-10-04 00:53启动正式select，后续由隐藏接续脚本顺序运行refit、四分区预测与四分区sequence。正式运行尚未完成，不能将接口测试或审计GO当作训练结果。最新状态以`outputs/task5_audit/student-continuation.log`、`student-continuation-error.log`及各阶段日志为准；进程PID见`student-continuation.pid`，不要重复启动。
+正式生成于2026-10-04 03:14:02（北京时间）完成。00:53:35启动select，01:57:05完成18轮选参并开始refit；03:01:42完成17轮refit，随后完成四分区预测与四分区sequence。正式计算接续共约2小时20分钟，错误日志为空，进程已退出。完成标记为`TASK5_CLI_STAGES_COMPLETE`；原PID文件只作为历史记录，不表示仍有运行中的作业。
+
+开发集（Development Set）采用user6/user7全部388条：A2选中第17轮，准确率（Accuracy）189/388=48.71%，宏平均F1（Macro F1）36.48%，最差用户准确率（Worst-User Accuracy）46.80%。同划分A1视觉教师为268/388=69.07%；学生低20.36个百分点，少正确79条。这表明当前固定配方的视觉蒸馏没有保住教师准确率；不能据此断言后续多模态与后处理无效，也没有达到0.91的目标。
+
+select每轮实际训练1956条，按队友规则丢弃最后单条尾批；类别权重仍来自1957条完整有效训练表。refit每轮训练2342条，从公开MC3初始化重新训练17轮，没有沿用select模型参数。开发结果未触发额外调参或更改预算。
+
+| 分区（Partition） | 模型阶段（Model Phase） | 总样本 | IR有效 | 缺失回退 |
+|---|---|---:|---:|---:|
+| train12 | select | 2039 | 1957 | 82 |
+| development2 | select | 388 | 385 | 3 |
+| refit14 | refit | 2427 | 2342 | 85 |
+| final4 | refit | 609 | 591 | 18 |
+
+四份标准预测（Targets）位于运行目录`A2/select`或`A2/refit`，四份时间序列（Sequence）位于`sequence/<phase>/<partition>`。轻量验收确认规范ID、40类顺序、有限归一化概率、同phase先验、完整completed标记；四区anchor logits与A2预测最大差均为0。sequence为原生float16 `[N,2,3,16,512]`，真实片段存在时间变化，不是池化向量复制。未做原始全目录扫描或完整大缓存内容扫描。
+
+正式产物独立工程与方法学验收（Independent Formal Artifact Acceptance）均为GO，无未解决重要问题；报告见[工程验收](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/reports/2026-10-04-task5-formal-engineering-acceptance.md)与[方法学验收](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/reports/2026-10-04-task5-formal-methodology-acceptance.md)。方法学审计独立复算user6为95/203=46.80%、user7为94/185=50.81%，包括全部388条开发样本。Task5已完成，final4私有标签保持封存，没有计算final准确率；Task6尚未启动，整个实验状态仍为generating，而非最终冻结或揭示。
 
 Python为`D:/Anaconda/envs/PyTorch2.7/python.exe`，以下以python代指，均从本工作树执行：
 
