@@ -1,12 +1,12 @@
 # 固定划分的单大视觉教师源码一致性规格（Fixed-Split Single-Large-Visual-Teacher Source Parity）
 
-修订：2026-10-04，v3。执行计划：[实施计划](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/superpowers/plans/2026-09-23-teammate-single-teacher-fixed-split.md)。v2文档已归档到 `reports/audit_inputs/2026-10-04/pre-v3/`；已完成的v2 Task1–5和准确率保留为历史基线。v3是新规格，尚未实现或训练，不将文档修订当作执行完成。
+修订：2026-10-06，v3.1（独立复审纠正producer与接口）。执行计划：[实施计划](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/superpowers/plans/2026-09-23-teammate-single-teacher-fixed-split.md)。v2文档已归档到 `reports/audit_inputs/2026-10-04/pre-v3/`；已完成的v2 Task1–5和准确率保留为历史基线。v3是新规格，尚未实现或训练，不将文档修订当作执行完成。
 
 ## 1. 目标与允许差异（Goal and Allowed Differences）
 
 按 `CUHK-X_Small_Model_Submission(1)` 的最终训练链复刻操作，研究单个大视觉教师的作用。只允许两项设计差异：大视觉预训练教师根节点（Large Visual Teacher Root）缩减为一个VideoMAE-Large；外层评估继续固定用户划分，不改成三折OOF，也不引入内部OOF。缺失数据、公开ID及当前人口所需适配逐项登记，不能宣称数值等价或单因素因果识别。
 
-保留同一大骨干的多个特征族、分类头、邻居规则和学生输入敏感性预测；它们不是新增大骨干，也不能被误计为多个大教师。非大视觉/非视觉专家不能因为“单大教师”而被随意删除。只有依赖被移除大视觉根节点且无法在不更换算子的情况下生成的专家，才作为该教师删除的依赖后果明确列入排除清单；不能以新特征、复制概率或假专家补齐。
+保留同一大骨干的多个特征族、分类头、邻居规则和固定Ridge特征敏感性预测；它们不是新增大骨干，也不能被误计为多个大教师。非大视觉/非视觉专家不能因为“单大教师”而被随意删除。只有依赖被移除大视觉根节点且无法在不更换算子的情况下生成的专家，才作为该教师删除的依赖后果明确列入排除清单；不能以新特征、复制概率或假专家补齐。
 
 核心操作来源以最终包的实际命令、部署配置和生效训练分支优先，其次是调用时的源码默认值。不得将未启用的实验选项当作最终组件，或用另一历史候选替代。源码映射与允许差异必须在训练前保存为 `source_ops_manifest.json` 和 `teacher_roster.json`。
 
@@ -35,7 +35,7 @@ final规范609条，至少一模态可用591条，全缺失18条使用同一refi
 
 部署输入仍为IR、Skeleton、IMU，Depth用于几何。教师专用输入与公开初始化由teacher_roster的源码依赖决定，单独声明，不自动变成部署输入。VideoMAE-Large、MC3和YOLO使用已核对的公开权重；保留下来的其他源专家需要的公开资产另行显式登记，不借用旧比赛训练权重。
 
-v3运行名固定 `fixed-split-single-teacher-v3-source-ops`。保持v2配置、检查点和目标不可变。可将v2标签无关P28/P29、冻结VideoMAE六clip特征和pixels按精确ID、轴、配置与源记录导入新run；仅重新登记复用关系，不改旧identity或冒充新生产。v2 Ridge/目标/学生/模型sequence不得作为v3监督祖先。
+v3运行名固定 `fixed-split-single-teacher-v3-source-ops`。保持v2配置、检查点和目标不可变。可将v2标签无关P28/P29、冻结VideoMAE六clip特征和pixels按精确ID、轴、配置与源记录导入新run。采用同卷硬链接，在新run建立immutable/只读payload及全新同协议manifest/initializer/P28/P29祖先；旧ref只存provenance，不作为ancestry、不登记旧外部payload路径，不改旧identity。导入按拓扑与memo复用digest，不扫描大数组。v2 Ridge/目标/学生/模型sequence不得作为v3监督祖先。2026-10-06旧两resume及四sequence.npy已退休，最终checkpoint/targets/anchors及可复用公开缓存保留。
 
 窗口为0–0.70/0.30–1.0，每窗16帧，scene/person/workspace三视野；像素160，人物/工作区裁剪1.15/1.40，质量与fallback原样。保持已修复的时间戳解析及跨模态时间对齐；不解析类别/trial序号生成规则。
 
@@ -48,6 +48,7 @@ v3运行名固定 `fixed-split-single-teacher-v3-source-ops`。保持v2配置、
 恢复源fit_temperature：对本阶段fit预测与fit标签优化NLL，log-T边界±2.302585，即约0.1–10，输出scores/T。不得固定head T1，不借用队友温度，不用val/final拟合。记录原始分数、温度、目标来源与实际类支持；refit只在refit14重新估计。下游学生的KD温度2与这个head温度分开。
 
 源缺类Ridge对齐为每行min(scores)−max(ptp(scores),1)后填40列，再覆盖实际classes_；不能把缺类列默认为高概率。六clip特征仍为[N,2,3,1024]，与单个大骨干一致。A1标准预测使用校准后的early_late logits。
+十项mechanism是audit_p86_teacher_mechanisms固定Ridge头，而非MC3学生：逐clip L2、alpha3000/power0.75、原scaler/Ridge、fit特征均值填补/交换/折叠、aligned_scores_40；只fit本phase，十输出保留raw logits/T1，不套A1校准。对应目标侧p89_build_multiexpert_test_logits.build_p86必须同数学，Task4生成，祖先无A2。full-window标签无关特征也可在Task4提取，但学习global-fusion/KNN明确在Task11完成。
 
 ## 5. A2视觉学生（Visual Student）
 
@@ -67,9 +68,9 @@ v3运行名固定 `fixed-split-single-teacher-v3-source-ops`。保持v2配置、
 
 ## 7. A4 IMU统计教师（IMU Statistical Teacher）
 
-按run_imu_stat_baseline的random_forest_device_dropout：32bin原始acc/gyro统计、240+10维、400树、depth18、leaf2、sqrt、balanced_subsample、n_jobs=-1；源默认seed20260723，device-dropout RNG按源seed与阶段对应规则记录，不随意换成视觉seed。
+按run_imu_stat_baseline的random_forest_device_dropout：32bin原始acc/gyro统计、240+10维、400树、depth18、leaf2、sqrt、balanced_subsample、n_jobs=-1；源默认seed20260723；固定划分两phase采用train_final_imu_rf无fold拟合路径，dropout RNG直接np.random.default_rng(seed)，不虚构fold/偏移，不随意换视觉seed。
 
-原+每样本删除一个存在设备的副本，复制标签，设备/时间mask同步。训练只用该阶段IMU有效fit人口；预测classes_按源log(clip(p,1e-12,1))对齐。源evaluate_imu_oof导出的imu_logits没有再次温度校准，不新增RF温度。固定划分下监督训练目标为fit预测，标签来源与非OOF状态明确记录。其他源小教师/非视觉教师按第10节依赖清单保留，RF不能代替一切非视觉专家。
+原+每样本删除一个存在设备的副本，复制标签，设备/时间mask同步。训练只用该阶段IMU有效fit人口；实际classes_均log(clip(p,1e-12,1))；fit_teacher_target consumer缺类sentinel沿用baseline -1e6，terminal_export consumer缺类沿用final RF log(1e-12)，分别登记不可混用。源evaluate_imu_oof的目标导出不再校准；bank在其消费阶段使用RF T3，不能因A4无温度而删掉源T3。固定划分下监督训练目标为fit预测，标签来源与非OOF状态明确记录。其他源小教师/非视觉教师按第10节依赖清单保留，RF不能代替一切非视觉专家。
 
 ## 8. A5 MoBind预训练（Motion Pretraining）
 
@@ -91,13 +92,17 @@ A7主模型直接复用separate motion encoder、additive residual、原corrupti
 
 取消v2自拟“两peer+cosine+margin混合”和有限transition grid作为主链。源实际链为P255分组→P270序列门控→P307/P309更新分组→P310优先覆盖。移植原函数并保留输入/标签边界，不直接执行旧main或读其runs文件。
 
-teacher_roster逐项展开p88 CANDIDATE_SOURCES、p165 bank、p173新增项及P255/P307/P309 SOURCES。保留一个VideoMAE-Large及其six heads/full-window邻居、同一MC3的十项mechanism预测，以及不依赖被删大视觉根节点的小视觉/非视觉专家；删除的根节点及其依赖输出明确登记。源非视觉/物理专家的模型、特征和训练操作须按源码重建，不能拿A5分支随意替换。任一保留槽位缺对应producer/模态时停止该阶段，不用先验概率伪装可用专家，不凑30列。
+teacher_roster逐项展开p88 CANDIDATE_SOURCES、p165 bank、p173新增项及P255/P307/P309 SOURCES。保留一个VideoMAE-Large及其six heads/full-window邻居、同一VideoMAE六clip特征的固定Ridge十项mechanism预测，以及不依赖被删大视觉根节点的小视觉/非视觉专家；删除的根节点及其依赖输出明确登记。源非视觉/物理专家的模型、特征和训练操作须按源码重建，不能拿A5分支随意替换。任一保留槽位缺对应producer/模态时停止该阶段，不用先验概率伪装可用专家，不凑30列。
 
-分组特征复用p137_group_classifier_selector.group_features：sqrt posterior、full layout、full retained bank、原CONFIG及重复会话对齐；StandardScaler→LogisticRegression(C0.03,max_iter1000,lbfgs)，peer_weight2、balanced=false、class-frequency power0。原CONFIG保持rank distance2/start gap300/prob similarity0.75/path overlap0.20/length ratio0.80/consensus0.50/alignment penalty0.20/group size3。
+学习KNN前必须建立P12子链：同phase Skeleton/Depth/IMU/Thermal基础模型、build_complete_p11_oof的S+D0.6/0.4与IMU混合、analyze_thermal_oof_fusion的温度/21点权重及evaluate_conditional_expert_routing的源features/sensitive/LR(C0.05,max_iter2000)/threshold0.5。P12八列按skeleton/depth/sd/imu/sd_imu/thermal/thermal_candidate/final顺序加六visual头，经原log_softmax与fit_simplex(softmax权重,L-BFGS-B/maxiter500/ftol1e-12)仅fit训练标签；再对各预测分区调用全窗unit_features及三邻居/self排除/0.40 smooth，绝不以A1/A7替换父概率或用假OOF包装。顺序为P12→global mixture→KNN→bank，学习KNN不阻塞Task4/5。
+
+分组特征复用p137_group_classifier_selector.group_features：sqrt posterior、full layout、full retained bank、include_quality_features=false、embedding_lookup=None、原CONFIG及重复会话对齐；StandardScaler→LogisticRegression(C0.03,max_iter1000,lbfgs)，peer_weight2、balanced=false、class-frequency power0。原CONFIG保持rank distance2/start gap300/prob similarity0.75/path overlap0.20/length ratio0.80/consensus0.50/alignment penalty0.20/group size3。
 
 序列复用p257.emission(p,base,0.65)及DecoderConfig(gap30,transition0.45,trigram_backoff1,beam50)，fit_transition_model的alpha=1。使用p139.gate_features/select_gate的五项评分、401阈值网格和七分位数、net/rescue/harm/changed决胜，不另造固定posterior>=0.80门槛。没有disagreement/合法会话时沿用源identity/threshold2结果，不计算空分位数。
 
-原跨cohort阈值拟合在固定划分下改为只用fit预测/标签调用同一函数；不生成OOF，不跨val/final用标签。记录分组/阈值是in-sample固定划分变体，不声称outer-pure。repeat与session候选输入、元数据可在同一无标签分区联合构建，禁止跨partition/known user/date误连、利用类别目录或旧trial ID。该ID/分区适配属于固定人口必要差异。
+源base/fallback必须锁定：safe=normalise(0.95*原safe-base producer概率+0.05*softmax(RF terminal logits/3))。各full40列的非detail行、各独立专家available=false行回退bank第0列，同时保留availability；不是复制假专家。P255/P309 group路由必须AND源detail_ids的visual_available，P270 sequence路由没有这个额外AND，P310仍按new!=old。不能猜detail_ids等于ir_available或任用A7当source_base。
+
+原跨cohort阈值拟合在固定划分下改为只用fit预测/标签调用同一函数；不生成OOF，不跨val/final用标签。记录分组/阈值是in-sample固定划分变体，不声称outer-pure。repeat与session候选输入、元数据可在同一无标签分区联合构建，禁止跨partition/known user/date误连、利用类别目录或旧trial ID。该ID/分区适配属于固定人口必要差异。Task2新建公共时间sidecar(sample_id,user_id,partition,recording_date,start_seconds,timestamp_available,time_source)，原秒口径、opaque ID精确连接、未知保留NaN。Task11按(partition,user,date)外层分块调用原anonymous_date/group/repeat纯函数并映射回RowIndex，显式提供session index数组，不调用旧data[name].split.sessions；只填user字段不足以阻止源anonymous_date跨用户连边。
 
 原优先规则：新分组结果与旧分组结果不同时覆盖序列结果，否则保留序列结果。保留源依赖减少后的自然退化，不能改规则凑提升。输出P310式目标：可用行argmax类0.9805，其余39类各0.0005，confidence0.9805；全缺失18行prior且target_mask=false。必须另存锐化前概率、old/new group及route，便于核对，而不是把普通A7概率当最终pseudo targets。
 
@@ -110,6 +115,10 @@ teacher_roster逐项展开p88 CANDIDATE_SOURCES、p165 bank、p173新增项及P2
 ## 12. 记录、校验与资源（Records, Verification and Resources）
 
 禁止raw全目录SHA、整cache复扫、递归祖先payload校验、每任务重复全仓旧测试。阶段开始仅校验直接消费文件、shape/IDs/class order/availability/config、去重祖先记录角色；Stage Verification Context复用结果，epochs/batches不得触发资产扫描。大数组写入时摘要，load用header/mask/少量真实切片；变动输入才针对性重新核验。不把轻量验收说成全量内容验证。
+
+v3角色表增加无fit的descriptor（source_ops/roster/source_transform/recording_metadata）和同phase teacher_bank；Task1在第一次导出descriptor ArtifactRef前先实现最小注册支持，完整角色表再由Task2扩展。源专家模型使用supervised_model，source_expert/<name>预测显式绑定其roster模型与phase/partition，不套旧未知stage必须adapted_model逻辑。学习global mixture/group/gate/transition保留fit范围；公开teacher-only assets由recipe单独绑定，不漂移v2 dataclass identity。未知角色和不合法父路径继续拒绝。recording_metadata.start_seconds是源日内秒，不是pixels的epoch秒。
+
+公共VerificationContext按protocol/ref/path缓存record/直接文件/已加载数组/import memo；Task4六族拟合/保存/四区预测以及Task6/11共享，不能每次_load_features全文SHA再载或每次verify展开重复祖先列表。导入大数组消费只走header/ID/mask/切片，register与消费复用writer/import digest。小fixture验证六头只载一次和登记→消费无重hash。
 
 每个CLI持续记录加载/计算/写出/登记耗时及批次进度。新门槛用小fixture读取计数证明raw SHA0、祖先payload0、阶段内直接文件只查一次；不为证明性能而执行全量SHA。保留ID错配、错误phase、标签进入推理、missing prior和状态回退的拒绝测试。
 

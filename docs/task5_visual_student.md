@@ -2,6 +2,8 @@
 
 工作树：`D:/work/2026.7.14_kaggle/_single_visual_processing_replication`；分支：`experiment/teammate-single-teacher-task1`。本任务止于Task5，不进入Task6；final4标签继续封存。
 
+2026-10-06存储清理（Storage Retirement）：本页记录的是已完成v2历史实验。用户授权清理后，两份resume.pt和四份旧sequence.npy已删除，合计1.021 GiB；最终checkpoint、targets、anchor/rows/masks、正式来源记录及公开可复用缓存保留。下文“sequence生成与验收通过”指2026-10-04当时的历史事实，不能理解为当前四份sequence数组仍在磁盘上。旧sequence ArtifactRef不再可直接完整加载，v3必须重建自己的模型sequence。见[清理记录](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/reports/2026-10-06-v2-cleanup-and-v3-review-resolution.md)。
+
 ## 实现与验收（Implementation and Acceptance）
 
 像素采用IR早晚两窗、每窗16帧、scene/person/workspace三视野，160分辨率及队友裁剪/质量规则。refit14与final4原始像素各构建一次，覆盖2427/609条；学习产物按select/refit分离。实际时间戳恢复，未知值为NaN，不伪造10Hz。

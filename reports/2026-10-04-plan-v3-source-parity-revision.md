@@ -2,6 +2,8 @@
 
 日期：2026-10-04，Asia/Shanghai。用户目标：继续研究一个大视觉教师在队友处理链中的作用；保留当前固定划分，恢复其他生效操作，同时避免重复大面积校验。本轮修改规格、计划和交接，不修改生产代码、旧配置、原始数据、提交包或模型，不启动训练。
 
+2026-10-06修订说明（Review Correction）：本报告是v3初稿的历史记录。独立复审纠正了当时把十项mechanism视作MC3学生输出的误读：实际是VideoMAE特征上的固定Ridge头；全窗KNN还需P12→源全局混合上游。初稿的泛化“沿用source”不能证明全部依赖已闭合。以当前v3.1权威计划、[复审修订记录](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/reports/2026-10-06-v2-cleanup-and-v3-review-resolution.md)及独立复审为准；下表原表述保留以说明发现过程，不作为新实施要求。
+
 ## 对照依据（Reference Evidence）
 
 以用户指定的`CUHK-X_Small_Model_Submission(1)`为准：最终checkpoint的deployment_model_config、docs/TRAINING_PIPELINE.md实际40轮命令、生效train_p86_visual_pixel_oof、train_p86_mobind_pretrain、train_p86_mobind_fusion_proxy、P255/P270/P307/P309/P310与adapt_p87s_test_student路径。关键六个视觉源文件与教师分支快照逐字节相同，最终视觉结构与当前A2参数键/形状匹配。
