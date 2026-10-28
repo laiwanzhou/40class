@@ -105,7 +105,8 @@ def resolve_model_directory(model: str | Path, *, revision: str | None = None,
 
 
 def verify_weights_manifest(path: Path, specs: dict, *, allow_fixture: bool = False,
-                            verify_contents: bool = True) -> str:
+                            verify_contents: bool = True,require_files: bool = True) -> str:
+    if not require_files and verify_contents:raise ValueError('receipt-only verification cannot request file contents')
     path = Path(path)
     body = json.loads(path.read_text(encoding="utf-8"))
     if body.get("schema_version") != 1 or set(body.get("weights", {})) != {"videomae","mc3","yolo"}:
@@ -134,7 +135,10 @@ def verify_weights_manifest(path: Path, specs: dict, *, allow_fixture: bool = Fa
             if not inside or str(file) in seen:
                 raise ValueError("weight receipt contains duplicate or unexpected files")
             seen.add(str(file)); names.add(file.name)
-            if not file.is_file() or file.stat().st_size != item.get("bytes") or (verify_contents and sha256_file(file) != item.get("sha256")):
+            if (type(item.get('bytes')) is not int or item['bytes']<=0
+                    or not isinstance(item.get('sha256'),str) or not re.fullmatch('[0-9a-f]{64}',item['sha256'])):
+                raise ValueError('weight receipt size/digest invalid')
+            if (require_files and (not file.is_file() or file.stat().st_size != item.get("bytes"))) or (verify_contents and sha256_file(file) != item.get("sha256")):
                 raise ValueError(f"weight file mismatch: {file.name}")
             if not fixture:
                 verify_public_digest(name, file.name, item["sha256"])

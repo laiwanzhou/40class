@@ -31,6 +31,9 @@ def source_symbol(protocol,module,name):
 
 
 def initialize_student(protocol,*,device='cuda',public_init=True):
+    if protocol.recipe.get('source_contract_version')==3:
+        from .visual_student_v3 import initialize_student as initialize
+        return initialize(protocol,device=device,public_init=public_init)
     started=time.perf_counter();recipe=protocol.recipe['visual_student']
     seed=recipe['seed'];random.seed(seed);np.random.seed(seed);torch.manual_seed(seed)
     if torch.cuda.is_available():torch.cuda.manual_seed_all(seed)
@@ -101,6 +104,11 @@ def read_ref(path):
 
 
 class StageVerificationContext:
+    def __new__(cls,protocol):
+        if protocol.recipe.get('source_contract_version')==3:
+            from .artifact_record import VerificationContext
+            return VerificationContext(protocol)
+        return super().__new__(cls)
     def __init__(self,protocol):self.protocol_sha256=protocol.identity();self.features={};self.records={}
     def feature_table(self,ref,protocol):
         if self.protocol_sha256!=protocol.identity():raise ValueError('verification context protocol mismatch')
@@ -109,6 +117,10 @@ class StageVerificationContext:
 
 
 def guard_teacher(teacher,inputs,*,protocol,verification_context=None):
+    if protocol.recipe.get('source_contract_version')==3:
+        from .visual_student_v3 import guard_teacher as guard
+        from .artifact_record import VerificationContext
+        return guard(teacher,inputs,protocol=protocol,context=verification_context or VerificationContext(protocol))
     registry=ArtifactRegistry(protocol);record=registry.verify(teacher.prediction.artifact,'A1','predict')
     if record.config['partition']!=inputs.partition.name or record.rows!=teacher.prediction.index:
         raise ValueError('teacher population/index mismatch')
@@ -127,6 +139,10 @@ def guard_teacher(teacher,inputs,*,protocol,verification_context=None):
 
 
 def load_teacher(protocol,partition,verification_context=None):
+    if protocol.recipe.get('source_contract_version')==3:
+        from .visual_student_v3 import load_teacher as load
+        from .artifact_record import VerificationContext
+        return load(protocol,partition,verification_context or VerificationContext(protocol))
     phase='select' if partition=='train12' else 'refit'
     path=protocol.run_root/'A1'/phase/(partition+'_targets.npz')
     ref=read_ref(path.with_suffix('.artifact.json'))
@@ -145,7 +161,7 @@ def to_device(batch,device):
     return {key:value.to(device) if torch.is_tensor(value) else value for key,value in batch.items()}
 
 
-def train_epoch(model,loader,optimizer,weights,recipe,*,device='cuda',scaler=None):
+def train_epoch(model,loader,optimizer,weights,recipe,*,device='cuda',scaler=None,loss_function=None):
     device=torch.device(device);model.train();accum=recipe['gradient_accumulation']
     if scaler is None:scaler=torch.amp.GradScaler('cuda',enabled=device.type=='cuda')
     optimizer.zero_grad(set_to_none=True)
@@ -155,7 +171,7 @@ def train_epoch(model,loader,optimizer,weights,recipe,*,device='cuda',scaler=Non
         batch=to_device(batch,device)
         with torch.autocast(device.type,dtype=torch.float16,enabled=device.type=='cuda'):
             output=model(batch['images'],batch['view_valid'],batch['view_quality'],batch.get('global_time_position'))
-            parts=hybrid_loss(output,batch,weights,recipe)
+            parts=(loss_function or hybrid_loss)(output,batch,weights,recipe)
         if not torch.isfinite(parts['loss']):raise ValueError('non-finite student loss')
         scaler.scale(parts['loss']/accum).backward()
         if batches%accum==0:
@@ -218,6 +234,9 @@ def phase_lock(root):
 
 
 def train_visual_student(phase,fit,development,pixels,teacher,selection,*,protocol,device='cuda',verification_context=None):
+    if protocol.recipe.get('source_contract_version')==3:
+        from .visual_student_v3 import train_visual_student as train
+        return train(phase,fit,development,pixels,teacher,selection,protocol=protocol,device=device,context=verification_context)
     if phase not in ('select','refit'):raise ValueError('student phase mismatch')
     registry=ArtifactRegistry(protocol)
     selected=None
@@ -367,6 +386,11 @@ def _student_population(record,rows,protocol):
 
 
 def predict_visual_student(model,pixels,rows,*,protocol,device='cuda'):
+    if protocol.recipe.get('source_contract_version')==3:
+        from .visual_student_v3 import export_population
+        from .artifact_record import VerificationContext
+        prediction,_=export_population(model,pixels,rows,protocol=protocol,device=device,context=VerificationContext(protocol))
+        return prediction
     from .pose_roi_adapter import _atomic_npz
     registry=ArtifactRegistry(protocol);mr,network=load_student(model,protocol=protocol,device=device)
     population=_student_population(mr,rows,protocol);inputs=load_stage_inputs(protocol,population,'predict')
@@ -392,6 +416,11 @@ def save_array_with_digest(path,array):
 
 
 def build_sequence(model,pixels,rows,output,*,protocol,device='cuda'):
+    if protocol.recipe.get('source_contract_version')==3:
+        from .visual_student_v3 import export_population
+        from .artifact_record import VerificationContext
+        _,ref=export_population(model,pixels,rows,protocol=protocol,device=device,context=VerificationContext(protocol),sequence_output=output)
+        return ref
     registry=ArtifactRegistry(protocol);mr,network=load_student(model,protocol=protocol,device=device)
     population=_student_population(mr,rows,protocol);inputs=load_stage_inputs(protocol,population,'predict')
     pr,arrays=load_pixels(pixels,protocol=protocol);prior_ref,prior=phase_prior(protocol,mr.phase)

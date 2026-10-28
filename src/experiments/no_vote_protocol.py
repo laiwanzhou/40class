@@ -74,7 +74,8 @@ def read_config(path: str | Path) -> tuple[dict, Path]:
 
 
 def load_protocol(config: str | Path, *, verify_assets: bool = True,
-                  source_root: Path | None = None) -> NoVoteProtocol:
+                  source_root: Path | None = None,inference_only: bool = False) -> NoVoteProtocol:
+    if inference_only and not verify_assets:raise ValueError('inference requires verified source/public receipts')
     raw, base = read_config(config)
     kind = raw.get("execution_kind")
     if kind not in {"formal", "fixture"}:
@@ -158,7 +159,8 @@ def load_protocol(config: str | Path, *, verify_assets: bool = True,
         report = verify_teammate_source(source_path, manifest_path,
                                         expected_count=count, expected_sha256=pinned_sha, verify_contents=False)
         weights_digest = verify_weights_manifest(root / "protocol/weights_manifest.json", specs,
-                                                allow_fixture=(kind == "fixture"), verify_contents=False)
+                                                allow_fixture=(kind == "fixture"), verify_contents=False,
+                                                require_files=not inference_only)
         bindings = {"verified": True, "source_manifest_sha256": report.manifest_sha256,
                     "weights_manifest_sha256": weights_digest}
     recipe["asset_bindings"] = bindings

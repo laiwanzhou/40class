@@ -6,7 +6,7 @@
 
 ## 当前完成状态（Current Status）
 
-v3.1 Task1–4已完成。Task1、Task2＋3及Task4均经实际独立复审GO。Task4完成全部六族select/refit头、两个先验、两phase固定Ridge机制头、四区68组targets/raw scores与两个完整全窗特征。Task5未实施，没有后台训练、提取进程或定时自动化，不再按旧PID续跑。
+v3.1 Task1–4已完成。Task1、Task2＋3及Task4均经实际独立复审GO。Task4完成全部六族select/refit头、两个先验、两phase固定Ridge机制头、四区68组targets/raw scores与两个完整全窗特征。Task5已获授权并进入正式固定16轮select/refit，尚未完成；无定时自动化。当前训练进程见下方Task5状态，不再按Task4旧PID续跑。
 
 Task4代码已推送`202d57c`；最终完成文档的提交号见本任务ledger和Git最新日志。ledger仍位于`.superpowers/sdd/2026-09-23-teammate-single-teacher-fixed-split/progress.md`，保留旧目录名以连续记录；首行指导路径已更新P01。
 
@@ -36,7 +36,7 @@ Task4代码已推送`202d57c`；最终完成文档的提交号见本任务ledger
 
 旧全局门槛把P12/P89缺项阻断全部学习，与规格Task4/5不等待P12冲突。本轮独立认可的修订是`visual_readiness`描述符绑定source_ops、Task3证明与5个消费源pin，只放行A1/六头/class_prior/固定机制；没有改变YAML、旧协议身份或全局`formal_generation_ready=false`，不放行P12/专家bank/融合。
 
-下一任务是P01 Task5：源16轮MC3、新targets消费和同phase native sequence/anchor；当前尚未启动。若用户授权推进，先按Task5自身依赖和源配方检查，不借Task4权限直接放行A2，也不把旧v2学生权重当作v3已完成。P12 S+D最终配置、Thermal最终配置/公开资产/额外公共清单，以及P89 safe-base/A18完整producer证据仍未闭合，完整teacher bank正式生成及最终冻结仍受阻断；不得填默认值、删必要专家或直接改true。
+当前任务是P01 Task5：源16轮MC3、新targets消费和同phase native sequence/anchor；用户已授权，独立代码审查及真实批次验收通过后正式启动。以新增student_readiness单独绑定Task4 complete和本phase目标等公开依赖，不把旧v2学生权重当作v3已完成。P12 S+D最终配置、Thermal最终配置/公开资产/额外公共清单，以及P89 safe-base/A18完整producer证据仍未闭合，完整teacher bank正式生成及最终冻结仍受阻断；不得填默认值、删必要专家或直接改true。
 
 ## 数据与复用边界（Data and Reuse Boundaries）
 
@@ -49,3 +49,14 @@ Task2只复制四公共清单和前三分区允许标签，未读/复制final标
 ## 校验成本（Verification Cost Bound）
 
 不重新SHA原始目录/全images/features/sequence，不递归读祖先payload，不每Task重跑旧全仓suite。新直接输入只查一次、祖先元数据去重、数组只检查header/ID/mask和消费切片。v3辅助头返回Prediction，主A1用显式bounded TeacherTargets，旧默认full检查保持；InitVar不纳入旧dataclass fields/协议身份。不要为“证明不全扫”实际先做一轮全扫描。
+
+
+## Task5进行中（Task5 In Progress）
+
+用户要求推进Task5并在完成后独立复审；最近一次追问进度时尚未启动正式32轮，随后fixed-flow夹具修复通过24.73秒，已启动PID37608/session18655。正式日志outputs/task5_audit/P29-task5-training.log，命令scripts/run_no_vote_visual_student.py --phase source-pipeline --config configs/experiments/teammate_single_teacher_fixed_split_v3.yaml --device cuda。接续先检查进程／日志，禁止重复启动。预计select+refit约2小时，加四区预测／sequence导出；每epoch完整resume可恢复。
+
+新visual_student_v3.py直接源class_weights/relation_loss/optimizer/schedule/augmentation，真实四train12 GPU批次12.03秒：loss16.706321716与源完全相同、梯度max0、native[4,2,3,16,512]及anchor差0，尾组optimizer1步。41受影响tests GREEN42.59秒，额外v3fixed16完整恢复夹具GREEN24.73秒；最新扩展包含推理禁读teacher/label的整链测试P29-task5-final-tests.log仍待读结果。
+
+单独student_readiness只放行A2、固定epochs16，公共描述符不混phase学习祖先，实际A2直接ownphase v3 early_late教师目标。不会把global false改true或解锁P12/bank。inference_only protocol保留receipt/pins/身份，允许未消费teacher public assets移除；训练默认仍要求文件。旧v2默认分支不改选择行为。
+
+详情[P29交付记录](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/P29_Task5_固定16轮视觉学生.md)与[P30独立复审](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/reports/P30_Task5_独立复审.md)。P30当前仅run前GO；正式模型／四区targets/native sequence齐后用户要求的实际独立产物复审仍必须完成，不提前标完成、不进入Task6。
