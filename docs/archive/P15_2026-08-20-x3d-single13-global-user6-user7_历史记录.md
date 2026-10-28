@@ -1,3 +1,5 @@
+> P15 历史资料（Historical Record）。仅保留历史实验依据，不作为本分支的实施计划或交接入口。当前唯一入口为 P01 计划与 P02 交接。
+
 # X3D Single13-Global user6/user7 experiment
 
 **Goal:** Determine whether the adaptive `K x 13` temporal decomposition is contributing to cross-subject overfitting by replacing it with one 13-frame clip sampled across the complete trial.

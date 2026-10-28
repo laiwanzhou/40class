@@ -1,3 +1,5 @@
+> P23 历史资料（Historical Record）。仅保留历史实验依据，不作为本分支的实施计划或交接入口。当前唯一入口为 P01 计划与 P02 交接。
+
 # Plan: IR-primary + ordinal Depth full-sequence experiment
 
 This document is the versioned experiment plan and execution record. Generated datasets, checkpoints, caches, and preview images are intentionally excluded from Git.

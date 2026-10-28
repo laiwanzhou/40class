@@ -19,11 +19,62 @@ FORBIDDEN_LABEL_FIELDS = frozenset({'class_id','class_name','action_name','label
 KINDS = frozenset({'public_weights','raw_cache','public_manifest','supervised_labels',
     'supervised_model','statistics','calibration','transition','predictions','adapted_model'})
 LEARNED = frozenset({'supervised_model','statistics','calibration','transition'})
-V3_DESCRIPTORS = frozenset({'source_ops', 'teacher_roster'})
+V3_DESCRIPTORS = frozenset({'source_ops', 'teacher_roster', 'source_transform', 'recording_metadata'})
 
 
 def _kind_allowed(protocol, kind):
-    return kind in KINDS or (kind == 'descriptor' and protocol.recipe.get('source_contract_version') == 3)
+    return kind in KINDS or (kind in {'descriptor','teacher_bank'} and protocol.recipe.get('source_contract_version') == 3)
+
+
+class VerificationContext:
+    """One stage's bounded verification state; never persist trust between stages.
+
+    Cache keys include protocol, ref and resolved path. Stat changes invalidate
+    trust. No context may grant cross-protocol registration or writable arrays.
+    """
+    def __init__(self, protocol):
+        self.protocol=protocol
+        self.identity=protocol.identity()
+        self.validated_records={}
+        self.direct_files={}
+        self.loaded_arrays={}
+        self.import_memo={}
+        self.source_contexts={}
+        self.public_rows={}
+
+    def stamp(self,path):
+        stat=Path(path).stat()
+        return stat.st_dev,stat.st_ino,stat.st_size,stat.st_mtime_ns
+
+    def hash_file(self,path,expected=None):
+        path=Path(path).resolve();key=(self.identity,str(path))
+        stamp=self.stamp(path);cached=self.direct_files.get(key)
+        if cached:
+            if stamp!=cached[0]:raise ValueError('verified file stat drift')
+            digest=cached[1]
+        else:
+            digest=sha256_file(path)
+            self.direct_files[key]=(stamp,digest)
+        if expected is not None and expected!=digest:raise ValueError('artifact file hash mismatch')
+        return digest
+
+    def trust_writer_digest(self,path,digest):
+        self.direct_files[(self.identity,str(Path(path).resolve()))]=(self.stamp(path),digest)
+
+    def load_arrays(self,path):
+        path=Path(path).resolve();key=(self.identity,str(path));stamp=self.stamp(path)
+        if key in self.loaded_arrays:
+            saved,arrays=self.loaded_arrays[key]
+            if saved!=stamp:raise ValueError('loaded array stat drift')
+            return arrays
+        if path.suffix=='.npy':
+            arrays=np.load(path,mmap_mode='r',allow_pickle=False)
+        else:
+            with np.load(path,allow_pickle=False) as archive:
+                arrays={k:archive[k] for k in archive.files}
+            for array in arrays.values():array.flags.writeable=False
+        self.loaded_arrays[key]=(stamp,arrays)
+        return arrays
 
 
 def reject_label_fields(value):
@@ -76,21 +127,30 @@ class ArtifactRecord:
 
 
 class ArtifactRegistry:
-    def __init__(self,protocol: NoVoteProtocol):
+    def __init__(self,protocol: NoVoteProtocol, *, context: VerificationContext | None=None):
         self.protocol=protocol
         self.root=protocol.run_root.resolve()
         self.identity=protocol.identity()
+        if context is not None and context.identity!=self.identity:raise ValueError('verification context protocol mismatch')
+        self.context=context
 
     def read(self,ref: ArtifactRef) -> ArtifactRecord:
         path=ref.record_path.resolve()
-        if not path.is_relative_to(self.root) or not path.is_file() or sha256_file(path)!=ref.sha256:
+        if not path.is_relative_to(self.root) or not path.is_file():
             raise ValueError('artifact record hash/location mismatch')
+        key=(self.identity,ref.sha256,str(path))
+        if self.context:
+            self.context.hash_file(path,ref.sha256)
+            if key in self.context.validated_records:return self.context.validated_records[key]
+        elif sha256_file(path)!=ref.sha256:raise ValueError('artifact record hash/location mismatch')
         d=json.loads(path.read_text(encoding='utf-8'))
         d['parents']=tuple(ArtifactRef(Path(r['record_path']),r['sha256']) for r in d['parents'])
         if d['rows'] is not None:
             d['rows']=RowIndex(tuple(d['rows']['sample_ids']),tuple(d['rows']['user_ids']),tuple(d['rows']['class_ids']))
         for key in ('fit_users','select_users','predict_users','adaptation_users'):d[key]=tuple(d[key])
-        return ArtifactRecord(**d)
+        record=ArtifactRecord(**d)
+        if self.context:self.context.validated_records[key]=record
+        return record
 
     def _roles(self,r: ArtifactRecord):
         p=self.protocol.partitions
@@ -104,6 +164,9 @@ class ArtifactRegistry:
                     or not r.complete or r.config.get('source_contract_version') != 3):
                 raise ValueError('invalid v3 descriptor role')
             self._descriptor(r)
+        if self.protocol.recipe.get('source_contract_version') == 3:
+            from .no_vote_roles import validate_v3_role
+            validate_v3_role(self,r)
         if (self.protocol.recipe.get('source_contract_version') == 3
                 and r.kind in LEARNED | {'adapted_model'}
                 and not self.protocol.recipe.get('source_ops_bindings', {}).get('formal_generation_ready', False)):
@@ -133,6 +196,10 @@ class ArtifactRegistry:
             if r.rows!=expected:raise ValueError('prediction IDs/class columns differ from prepared partition')
 
     def _descriptor(self,r):
+        if r.stage in {'recording_metadata','source_transform'}:
+            from .no_vote_roles import validate_descriptor
+            validate_descriptor(self,r)
+            return
         if len(r.files)!=1 or Path(next(iter(r.files))).suffix!='.json':
             raise ValueError('descriptor requires exactly one JSON payload')
         path=Path(next(iter(r.files))).resolve()
@@ -182,11 +249,16 @@ class ArtifactRegistry:
             if item == ref and r.kind not in {'raw_cache','public_weights'}:
                 for file in r.files:self.verify_file(r,Path(file))
             ancestors=[walk(parent) for parent in r.parents]
-            def descendants(parent):
-                out=[parent]
-                for child in parent.parents:out+=descendants(checked[child.sha256])
-                return out
-            lineage=[v for parent in ancestors for v in descendants(parent)]
+            def descendants(parent,seen=None):
+                seen={} if seen is None else seen
+                key=id(parent)
+                if key in seen:return list(seen.values())
+                seen[key]=parent
+                for child in parent.parents:descendants(checked[child.sha256],seen)
+                return list(seen.values())
+            unique={}
+            for parent in ancestors:descendants(parent,unique)
+            lineage=list(unique.values())
             if r.complete and any(not a.complete for a in lineage):
                 raise ValueError('complete artifact cannot consume partial ancestors')
             if r.kind in LEARNED:
@@ -199,10 +271,14 @@ class ArtifactRegistry:
                     'A6-VS':{'A2','A5'},'A6-VI':{'A2','A5'},'A6-VSI':{'A2','A5'},
                     'A7':{'A7'},'A7-mask':{'A7-mask'},'A7-shuffle-S':{'A7-shuffle-S'},
                     'A7-shuffle-I':{'A7-shuffle-I'},'A7-zero-S':{'A7'},'A7-zero-I':{'A7'},'A8':{'A7'}}
+                if self.protocol.recipe.get('source_contract_version') == 3:
+                    from .no_vote_roles import verify_prediction_ancestry
+                    verify_prediction_ancestry(self,r,lineage)
                 needed=required.get(r.stage)
                 if needed is not None and not needed<={a.stage for a in supervised}:
                     raise ValueError('prediction missing required supervised ancestor')
-                if needed is None and not any(a.kind=='adapted_model' and a.stage==r.stage for a in lineage):
+                if (needed is None and self.protocol.recipe.get('source_contract_version') != 3
+                        and not any(a.kind=='adapted_model' and a.stage==r.stage for a in lineage)):
                     raise ValueError('prediction missing adapted ancestor')
                 population=r.config['partition']
                 if population in {'train12','development2'}:
@@ -228,8 +304,15 @@ class ArtifactRegistry:
         """Check one actually consumed file, never ancestor payloads."""
         path=Path(path).resolve()
         digest=record.files.get(str(path))
-        if digest is None or not path.is_relative_to(self.root) or not path.is_file() or sha256_file(path)!=digest:
+        if digest is None or not path.is_relative_to(self.root) or not path.is_file():
             raise ValueError('artifact file hash/location mismatch')
+        provenance=record.config.get('import_provenance',{})
+        if record.kind in {'raw_cache','public_weights'} and provenance:
+            from .no_vote_cache_import import verify_imported_file
+            verify_imported_file(record,path)
+            if self.context:self.context.trust_writer_digest(path,digest)
+        elif self.context:self.context.hash_file(path,digest)
+        elif sha256_file(path)!=digest:raise ValueError('artifact file hash/location mismatch')
         if record.kind not in {'supervised_labels','supervised_model','adapted_model'}:
             verify_public_file(path)
         return path
@@ -245,23 +328,26 @@ class ArtifactRegistry:
             if kind not in {'supervised_labels','supervised_model','adapted_model'}:verify_public_file(p)
         config={} if config is None else config
         if file_digests is None:
-            digests={str(p):sha256_file(p) for p in paths}
+            digests={str(p):(self.context.hash_file(p) if self.context else sha256_file(p)) for p in paths}
         else:
             # Producers may hash a large cache in the same pass that writes
             # it. This avoids an extra full cache read merely to register it.
             digests={str(Path(p).resolve()):d for p,d in file_digests.items()}
             if set(digests)!={str(p) for p in paths} or any(not isinstance(d,str) or not re.fullmatch('[0-9a-f]{64}',d) for d in digests.values()):
                 raise ValueError('writer file digest coverage/format mismatch')
+            if self.context:
+                for p in paths:self.context.trust_writer_digest(p,digests[str(p)])
         own_sources=tuple(source_files) or (Path(__file__),)
+        hash_file=self.context.hash_file if self.context else sha256_file
         record=ArtifactRecord(stage,kind,phase,self.identity,config,canonical_hash(config),
             digests,tuple(parents),tuple(sorted(fit_users)),tuple(sorted(select_users)),
             tuple(sorted(predict_users or (set(rows.user_ids) if rows else ()))),tuple(sorted(adaptation_users)),
-            rows,canonical_hash(rows),{str(Path(p).resolve()):sha256_file(Path(p)) for p in own_sources},
+            rows,canonical_hash(rows),{str(Path(p).resolve()):hash_file(Path(p)) for p in own_sources},
             {str(Path(p).resolve()):sha256_file(Path(p)) for p in raw_inputs},
             self.protocol.recipe['execution_kind']=='fixture',bool(complete),verification_policy='direct-metadata-v2')
         path=self.root/'artifacts'/(canonical_hash(record)+'.json')
-        write_json(path,record)
-        ref=ArtifactRef(path,sha256_file(path))
+        if not path.exists():write_json(path,record)
+        ref=ArtifactRef(path,hash_file(path))
         try:self.verify(ref,stage,phase,rows)
         except Exception:
             path.unlink(missing_ok=True)

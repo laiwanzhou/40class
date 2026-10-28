@@ -25,13 +25,14 @@ from .teammate_source import verify_teammate_source,load_teammate_symbol,sha256_
 FEATURE_KEYS=frozenset({'sample_ids','class_ids','features','kinetics_logits','valid'})
 
 
-def validate_feature_arrays(arrays,index: RowIndex):
+def validate_feature_arrays(arrays,index: RowIndex,*,bounded=False):
     if set(arrays)!=FEATURE_KEYS:raise ValueError('visual feature schema mismatch')
     if tuple(arrays['sample_ids'].astype(str))!=index.sample_ids:raise ValueError('visual feature IDs/order mismatch')
     if not np.array_equal(arrays['class_ids'],np.arange(40)):raise ValueError('visual feature class order mismatch')
     n=len(index.sample_ids)
     for key,shape in [('features',(n,2,3,1024)),('kinetics_logits',(n,2,3,400))]:
-        if arrays[key].shape!=shape or not np.isfinite(arrays[key]).all():raise ValueError('visual feature shape/value mismatch')
+        probe=arrays[key][sorted(set([0,n//2,n-1]))] if bounded and n else arrays[key]
+        if arrays[key].shape!=shape or not np.isfinite(probe).all():raise ValueError('visual feature shape/value mismatch')
     if arrays['valid'].shape!=(n,) or arrays['valid'].dtype!=np.bool_:raise ValueError('visual valid must be bool[N]')
 
 
@@ -91,8 +92,11 @@ def _labels(inputs,phase,protocol):
     return index,y
 
 
-def _load_features(ref,protocol,*,complete=True):
-    registry=ArtifactRegistry(protocol);record=registry.verify(ref,'visual_features','raw')
+def _load_features(ref,protocol,*,complete=True,context=None):
+    if protocol.recipe.get('source_contract_version')==3 and context is None:
+        from .artifact_record import VerificationContext
+        context=VerificationContext(protocol)
+    registry=ArtifactRegistry(protocol,context=context);record=registry.verify(ref,'visual_features','raw')
     if complete and not record.complete:raise ValueError('partial features cannot enter complete teacher fitting')
     parents=[registry.read(parent) for parent in record.parents]
     rois=[parent for parent in parents if parent.stage=='p29' and parent.kind=='raw_cache']
@@ -110,8 +114,10 @@ def _load_features(ref,protocol,*,complete=True):
     files=[Path(f) for f in record.files if Path(f).name=='features.npz' or Path(f).name.endswith('_features.npz')]
     if len(files)!=1 or record.rows is None:raise ValueError('one feature table and indexed population required')
     registry.verify_file(record,files[0])
-    with np.load(files[0],allow_pickle=False) as z:arrays={k:z[k] for k in z.files}
-    validate_feature_arrays(arrays,record.rows)
+    if context:arrays=context.load_arrays(files[0])
+    else:
+        with np.load(files[0],allow_pickle=False) as z:arrays={k:z[k] for k in z.files}
+    validate_feature_arrays(arrays,record.rows,bounded=context is not None)
     return record,arrays
 
 
@@ -298,6 +304,8 @@ def extract_visual_features(inputs: StageInputs,roi: ArtifactRef,weights: Artifa
         'clip_batch':clip_batch,'backbone_frozen':True,'schema':1}
     identity=canonical_hash({'config':config,'roi':roi.sha256,'weights':weights.sha256,'rows':index})
     output=Path(output).resolve()
+    from .no_vote_cache_import import assert_writable_output
+    assert_writable_output(output,protocol)
     if not output.is_relative_to(protocol.run_root):raise ValueError('feature output must be within run')
     output.mkdir(parents=True,exist_ok=True);identity_path=output/'identity.json'
     if identity_path.exists() and json.loads(identity_path.read_text())!={'identity':identity}:raise ValueError('feature resume identity drift')

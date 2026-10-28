@@ -1,3 +1,5 @@
+> P20 历史资料（Historical Record）。仅保留历史实验依据，不作为本分支的实施计划或交接入口。当前唯一入口为 P01 计划与 P02 交接。
+
 # CUHK-X Task1完成交接（Task1 Handoff）
 
 更新时间：2026-10-02，Asia/Shanghai；本轮只完成Task1。用户授权新建实验分支并推送，未授权本轮继续Task2或训练。

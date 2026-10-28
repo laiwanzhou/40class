@@ -1,6 +1,6 @@
 # Task4单视觉教师（Single Visual Teacher）
 
-工作树：`D:/work/2026.7.14_kaggle/_single_visual_processing_replication`。分支：`experiment/teammate-single-teacher-task1`。完整计划：[实施计划](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/superpowers/plans/2026-09-23-teammate-single-teacher-fixed-split.md)。
+工作树：`D:/work/2026.7.14_kaggle/_single_visual_processing_replication`。分支：`experiment/teammate-single-teacher-task1`。完整计划：[实施计划](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/superpowers/plans/P01_teammate_single_teacher_fixed_split.md)。
 
 ## 接口与配方（Interfaces and Recipe）
 

@@ -1,3 +1,5 @@
+> P22 历史资料（Historical Record）。仅保留历史实验依据，不作为本分支的实施计划或交接入口。当前唯一入口为 P01 计划与 P02 交接。
+
 # Task4审计与执行交接（Audit and Execution Handoff）
 
 客户端日期：2026-10-02，Asia/Shanghai。工作树`D:/work/2026.7.14_kaggle/_single_visual_processing_replication`，分支`experiment/teammate-single-teacher-task1`。当前用户要求接续保留的独立子智能体历史复审；原先授权审计GO后推进Task4仍有效，不进入Task5。

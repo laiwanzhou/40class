@@ -19,7 +19,7 @@ Updated: 2026-08-13 (Asia/Shanghai)
 ## Frozen Program Context
 
 - Approved design: `docs/superpowers/specs/2026-08-11-six-modal-sparse-evidence-fusion-design.md` (`0af881e`).
-- Authoritative execution plan: `docs/superpowers/plans/2026-08-10-x3d-s-adaptive-multiclip.md`.
+- Authoritative execution plan: `docs/archive/P04_2026-08-10-x3d-s-adaptive-multiclip_历史记录.md`.
 - X3D-S is the IR specialist, not the complete six-modal model.
 - Preserve route diversity: this branch is fixed around YOLO-guided person context, adaptive local temporal decomposition, and X3D 3D spatiotemporal encoding. Teammate-specific architectures or distillation recipes are not branch inputs.
 - Final architecture: heterogeneous experts -> canonical sparse OOF registry -> calibrated available-expert probability anchor -> optional tiny zero-initialized residual set mixer -> trial probability.
@@ -246,7 +246,7 @@ Passed on 2026-08-11. All Task 5 steps are complete and the end-to-end implement
 - The user explicitly reopened the pure-IR route for one development-only temporal ablation motivated by external IR+Depth_Color R(2+1)D evidence and the hypothesis that excessive temporal coverage increases cross-subject overfitting.
 - The experiment uses the frozen `12 train / user6-user7 val / 4 heldout` population. Both usable IR and strictly paired IR/Depth_Color populations are `1935/385` trials and cover all 40 classes; the present experiment remains IR-only.
 - The sole intervention is `adaptive K x 13 local clips -> one global 13-frame clip`. It retains the user6/user7 Partial2 architecture, optimization, augmentation, seed, and loss. Canonical Phase 4/5 evidence remains frozen, and heldout4/test access remains forbidden.
-- Authoritative experiment plan: `docs/superpowers/plans/2026-08-20-x3d-single13-global-user6-user7.md`.
+- Authoritative experiment plan: `docs/archive/P15_2026-08-20-x3d-single13-global-user6-user7_历史记录.md`.
 - Single13-Global CUDA smoke `x3d_s_ir_context_train12_val2_user6_user7_single13_global_smoke_20260820` passed. It verified one clip per trial, finite nonzero gradients in X3D blocks 4/5 and the projected head, a `186,125,824`-byte CUDA peak, protected size compliance, and unchanged canonical hashes. Formal development training had not started when this evidence was recorded.
 - Generation D closes without promotion. Retain the projected partial2 model as the matched development winner; no new IR single-modality training or tuning is authorized automatically.
 

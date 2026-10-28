@@ -1,6 +1,6 @@
 # 固定划分的单大视觉教师源码一致性规格（Fixed-Split Single-Large-Visual-Teacher Source Parity）
 
-修订：2026-10-06，v3.1（独立复审纠正producer与接口）。执行计划：[实施计划](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/superpowers/plans/2026-09-23-teammate-single-teacher-fixed-split.md)。v2文档已归档到 `reports/audit_inputs/2026-10-04/pre-v3/`；已完成的v2 Task1–5和准确率保留为历史基线。v3是新规格，尚未实现或训练，不将文档修订当作执行完成。
+修订：2026-10-06，v3.1（独立复审纠正producer与接口）。执行计划：[实施计划](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/superpowers/plans/P01_teammate_single_teacher_fixed_split.md)。v2文档已归档到 `reports/audit_inputs/2026-10-04/pre-v3/`；已完成的v2 Task1–5和准确率保留为历史基线。v3是新规格，尚未实现或训练，不将文档修订当作执行完成。
 
 ## 1. 目标与允许差异（Goal and Allowed Differences）
 

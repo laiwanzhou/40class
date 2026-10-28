@@ -1,6 +1,8 @@
-# 队友单大视觉教师固定划分实施计划（Fixed-Split Source-Parity Implementation Plan）
+# P01 队友单大视觉教师固定划分实施计划（Fixed-Split Source-Parity Implementation Plan）
 
-> 执行者使用 superpowers:executing-plans；用户明确选择子智能体实施时才使用 subagent-driven-development。2026-10-06独立复审修订为v3.1，Task编号仍为1–14。初版v3的机制producer、KNN依赖和元数据/导入/角色/校验契约已在下文纠正；正式生成仍受逐阶段数值与依赖闭合门槛约束。v2 Task1–5已完成并推送6e31b6d；它们是历史基线，不表示新增v3要求已完成。2026-10-28 Task1已实现并独立复审GO；Task2–14未实施，v3训练未开始。旧规格/计划见reports/audit_inputs/2026-10-04/pre-v3/。
+> 本分支唯一有效计划（Canonical Plan）；唯一交接入口为 [P02](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/handoffs/P02_current_handoff.md)。旧实验计划及交接已移入 docs/archive，仅作为历史记录（Historical Records）；reports/audit_inputs 为审计输入快照，不指导当前执行。
+
+> 执行者使用 superpowers:executing-plans；用户明确选择子智能体实施时才使用 subagent-driven-development。2026-10-06独立复审修订为v3.1，Task编号仍为1–14。初版v3的机制producer、KNN依赖和元数据/导入/角色/校验契约已在下文纠正；正式生成仍受逐阶段数值与依赖闭合门槛约束。v2 Task1–5已完成并推送6e31b6d；它们是历史基线，不表示新增v3要求已完成。2026-10-28 Task1已实现并独立复审GO；Task2已完成准备与针对性验收，Task3–14未实施，v3训练未开始。旧规格/计划见reports/audit_inputs/2026-10-04/pre-v3/。
 
 **目标（Goal）：** 一个大视觉教师、固定用户划分，在其余生效操作上按最终提交源码复刻完整路线。
 **架构（Architecture）：** 复用源模型/算子，按新人口重新拟合；除教师根节点数量与固定划分替代OOF外，不随意增删归一化、掩码、温度、预算、后处理或适配参数。所有必要数据适配单独登记。
@@ -18,7 +20,7 @@
 - 大视觉教师根节点只保留VideoMAE-Large。保留同骨干六族头/全窗邻居、VideoMAE固定Ridge机制预测及独立非大视觉专家；teacher_roster对依赖被删根节点的排除逐项说明，不以A5、先验或重复列伪装原专家。
 - source truth=最终(1)包实际命令/部署配置→调用路径的源码默认值。快照六个主文件已逐字节一致，其他新消费模块按source_ops_manifest直接核验，不全扫1167文件。
 - A6、A7训练controls和12轮适配是额外诊断；不能替代主链或改变主链预算。主端点为最终配方A9-40。
-- 保留16候选与最终一次揭示；此轮仅修改计划，不执行新准备、下载或训练。
+- 保留16候选与最终一次揭示；Task1–2准备已按用户授权执行，后续训练仍需满足源证据与逐阶段门槛。
 
 ## 校验成本约束（Verification Cost Bound）
 
@@ -72,21 +74,23 @@
 - [x] pytest tests/test_no_vote_source_ops.py；小fixture只检查实际消费模块，不对全1167文件/公开资产重复下载或全量SHA。导出的recipe才是后续构造模型的唯一参数来源，不能另写一组隐式默认值。
 - [x] 提交v3协议实现；本Task的文档修订不等于已完成该代码步骤。
 
-**2026-10-28交付（Delivery）：** Task1实现、最终描述符/配置与CLI幂等导出通过，针对性68项测试通过，独立初审问题修复并实际复审GO。30槽为19保留/9排除/2未闭合。缺P12最终配置与P89/A18生产证据，formal_generation_ready=false继续阻止正式生成；不是所有producer已就绪。详见[Task1说明](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/task1_v3_source_ops.md)。Task2未开始。
+**2026-10-28交付（Delivery）：** Task1实现、最终描述符/配置与CLI幂等导出通过，针对性68项测试通过，独立初审问题修复并实际复审GO。30槽为19保留/9排除/2未闭合。缺P12最终配置与P89/A18生产证据，formal_generation_ready=false继续阻止正式生成；不是所有producer已就绪。详见[Task1说明](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/task1_v3_source_ops.md)。Task2交付见P03。
 
 ### Task 2：v3准备与缓存复用（Preparation and Cache Import）
 
 **文件：** 修改no_vote_manifest.py/artifact_record.py及对应CLI/测试。
 **接口：** import_public_cache(source: ArtifactRef, destination_protocol: NoVoteProtocol, rows: RowIndex, context: VerificationContext) -> ArtifactRef；build_recording_metadata(inputs: StageInputs, acquisition: ArtifactRef) -> ArtifactRef；学习产物无导入入口。
 
-- [ ] RED：test_reuse_raw_only允许P28/P29、公开冻结features、pixels，拒绝v2 heads/targets/A2/sequence；test_import_exact_ids_axes拒绝缺ID/错用户/错窗口/错视野，旧identity不修改。
-- [ ] 复制前三分区允许标签及四公共清单的明确准备过程；final标签不读、不复制到run。不重新扫描原始数据。新增保留专家模态的公共字段按白名单声明，禁止class/action/trial标签捷径。
-- [ ] 导入固定采用同D盘硬链接（Hard Link）：新run创建payload路径；新登记的P28/P29/公共initializer/manifest父记录全部位于v3，旧ref只作为provenance字符串/旧digest凭据，不作为新ancestry父节点。按拓扑顺序导入并用memo复用公共祖先；禁止直接放宽registry外部路径或跨protocol规则。所有导入cache immutable、mmap只读，producer拒绝overwrite/r+写入。无法硬链接时明确失败，不偷偷复制多GB或重新提取。
-- [ ] 定义v3专用Artifact Role Matrix：新增descriptor（source_ops/roster/source_transform/recording_metadata，fit_users为空）、teacher_bank（绑定同phase专家预测、[N,E,40]、availability/fallback及roster）；保留source_expert/<name> supervised_model与predict绑定自己的模型阶段及完整分区；mechanism/六头/global_mixture/safe_base/group_old/group_new/gate有明确stage与父记录。未知stage预测仍拒绝，不能退回“必须adapted_model”旧默认或给所有stage豁免。P12等teacher-only公开资产在recipe资产绑定单独声明，不给v2协议增加隐式字段导致identity变化。
-- [ ] 新增公共recording_metadata.csv sidecar：sample_id/user_id/partition/recording_date/start_seconds/timestamp_available/time_source；start_seconds按原parse_time解析的日内秒(h×3600+m×60+s+microsecond/1e6)，不能直接传pixels中的epoch秒。从原时间内容或已恢复acquisition IDs提取，不从class/trial ID推断。精确ID连接，不使用旧metadata；未知保持date空/seconds NaN，后处理保留base。教师额外输入另行白名单，无label字段。
-- [ ] 在artifact_record.py定义公共VerificationContext(protocol)，cache validated_records/direct_files/loaded_arrays/import_memo；keys包含protocol/ref/path。Task4/6/11与其CLI显式共用该context，不能只缓存features。祖先集合去重，注册后消费不再重hash；六头一次加载features，旧大cache消费只走header/ID/mask/少量切片，不能落入_load_features现有full-SHA分支。
-- [ ] 新测试：test_import_hardlink_bridge_consumable、test_import_rejects_old_learned_parents、test_v3_expert_prediction_roles、test_recording_sidecar_label_free、test_six_heads_load_once、test_shared_ancestors_read_once、test_register_consume_no_rehash。小fixture直接消费完整导入链并验证raw SHA0，不用真实cache扫描。
-- [ ] 运行标签/角色/ID针对性测试；final覆盖只引用已授权子智能体“是”，不能让准备CLI打开test标签再次检查。
+- [x] RED：test_reuse_raw_only允许P28/P29、公开冻结features、pixels，拒绝v2 heads/targets/A2/sequence；test_import_exact_ids_axes拒绝缺ID/错用户/错窗口/错视野，旧identity不修改。
+- [x] 复制前三分区允许标签及四公共清单的明确准备过程；final标签不读、不复制到run。不重新扫描原始数据。新增保留专家模态的公共字段按白名单声明，禁止class/action/trial标签捷径。
+- [x] 导入固定采用同D盘硬链接（Hard Link）：新run创建payload路径；新登记的P28/P29/公共initializer/manifest父记录全部位于v3，旧ref只作为provenance字符串/旧digest凭据，不作为新ancestry父节点。按拓扑顺序导入并用memo复用公共祖先；禁止直接放宽registry外部路径或跨protocol规则。所有导入cache immutable、mmap只读，producer拒绝overwrite/r+写入。无法硬链接时明确失败，不偷偷复制多GB或重新提取。
+- [x] 定义v3专用Artifact Role Matrix：新增descriptor（source_ops/roster/source_transform/recording_metadata，fit_users为空）、teacher_bank（绑定同phase专家预测、[N,E,40]、availability/fallback及roster）；保留source_expert/<name> supervised_model与predict绑定自己的模型阶段及完整分区；mechanism/六头/global_mixture/safe_base/group_old/group_new/gate有明确stage与父记录。未知stage预测仍拒绝，不能退回“必须adapted_model”旧默认或给所有stage豁免。P12等teacher-only公开资产在recipe资产绑定单独声明，不给v2协议增加隐式字段导致identity变化。
+- [x] 新增公共recording_metadata.csv sidecar：sample_id/user_id/partition/recording_date/start_seconds/timestamp_available/time_source；start_seconds按原parse_time解析的日内秒(h×3600+m×60+s+microsecond/1e6)，不能直接传pixels中的epoch秒。从原时间内容或已恢复acquisition IDs提取，不从class/trial ID推断。精确ID连接，不使用旧metadata；未知保持date空/seconds NaN，后处理保留base。教师额外输入另行白名单，无label字段。
+- [x] 在artifact_record.py定义公共VerificationContext(protocol)，cache validated_records/direct_files/loaded_arrays/import_memo；keys包含protocol/ref/path。Task4/6/11与其CLI显式共用该context，不能只缓存features。祖先集合去重，注册后消费不再重hash；六头一次加载features，旧大cache消费只走header/ID/mask/少量切片，不能落入_load_features现有full-SHA分支。
+- [x] 新测试：test_import_hardlink_bridge_consumable、test_import_rejects_old_learned_parents、test_v3_expert_prediction_roles、test_recording_sidecar_label_free、test_six_heads_load_once、test_shared_ancestors_read_once、test_register_consume_no_rehash。小fixture直接消费完整导入链并验证raw SHA0，不用真实cache扫描。
+- [x] 运行标签/角色/ID针对性测试；final覆盖只引用已授权子智能体“是”，不能让准备CLI打开test标签再次检查。
+
+**2026-10-28交付（Delivery）：** 六组真实公共缓存及新祖先登记、四公共清单/三允许标签、四时间侧表已完成，CLI耗时120.41秒。95项针对性测试通过；descriptor父类型补充探针RED→GREEN，角色11项复跑通过。真实train12单条像素与六次特征共享验收通过，raw/权重完整SHA0；没有Task2独立复审。Thermal扩展白名单已定义，实际补充表/P12资产与配置仍待源证据闭合，未伪造缺失。详见[P03](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/P03_Task2_准备与缓存复用.md)。
 
 ### Task 3：几何与姿态源一致性（Pose and ROI Parity）
 
@@ -227,6 +231,6 @@
 
 ## 状态与交接（Status and Handoff）
 
-v2已完成：Task4单头T1开发69.07%，Task5第17轮开发48.71%、四区目标/序列、工程及方法学验收GO。v3 Task1已实现并独立复审GO（68项针对性测试），其余新增要求未实施；source roster材料缺口保持正式生成阻断。后续先Task2–3协议/复用→Task4目标恢复→Task5源16轮重训→Task6–14；不得把当前v2权重当v3已通过。
+v2已完成：Task4单头T1开发69.07%，Task5第17轮开发48.71%、四区目标/序列、工程及方法学验收GO。v3 Task1已实现并独立复审GO（68项针对性测试），Task2准备/缓存导入与针对性验收完成（P03），Task3起未实施；source roster材料缺口保持正式生成阻断。后续从Task3几何一致性→Task4目标恢复→Task5源16轮重训→Task6–14；不得把当前v2权重当v3已通过。
 
-无定时自动化，Task5旧后台进程已正常结束。本轮不新建自动化，不训练，不推断final准确率。2026-10-06独立复审原版NO-GO；本次修订后还需原审查者确认文档问题闭合。放行仅指进入Task1–3实现与针对性验证，不代表已经证明全处理等价或可以跳过manifest/roster直接长训练。v2已退休两resume.pt和四sequence.npy（1.02GiB），正式checkpoint/targets/anchors/公共缓存/来源记录保留；旧seq refs为历史证明，不再宣称可直接完整加载。修改后自检：source_ops覆盖、接口/角色/硬链接导入一致、固定人口/无OOF无矛盾、每主链参数有source、每验证只消费直接输入。
+无定时自动化，Task5旧后台进程已正常结束。本轮不新建自动化，不训练，不推断final准确率。2026-10-06原版复审问题已修订；Task1已获实际独立GO，Task2针对性验收完成。下一独立复审节点为Task3后；当前放行只覆盖准备与针对性验证，不代表已经证明全处理等价或可以跳过manifest/roster直接长训练。v2已退休两resume.pt和四sequence.npy（1.02GiB），正式checkpoint/targets/anchors/公共缓存/来源记录保留；旧seq refs为历史证明，不再宣称可直接完整加载。修改后自检：source_ops覆盖、接口/角色/硬链接导入一致、固定人口/无OOF无矛盾、每主链参数有source、每验证只消费直接输入。

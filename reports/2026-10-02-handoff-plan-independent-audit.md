@@ -221,7 +221,7 @@ P56–60测试的 `train_users`等属性不在P88–109 dataclass中；P1050测�
 
 ## 2026-10-02文档修订记录（Documentation Revision Record）
 
-用户随后授权“请根据报告进行修改”。已修订[handoff v2](C:/Users/LaiWanzhou/AppData/Local/Temp/cuhkx_single_teacher_pipeline_handoff_2026-09-23.md)、[实施计划v2](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/superpowers/plans/2026-09-23-teammate-single-teacher-fixed-split.md)与[规格v2](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/superpowers/specs/2026-09-22-visual-motion-no-vote-ablation-design.md)。正文语言改为中文，专业术语保留英文。
+用户随后授权“请根据报告进行修改”。已修订[handoff v2](C:/Users/LaiWanzhou/AppData/Local/Temp/cuhkx_single_teacher_pipeline_handoff_2026-09-23.md)、[实施计划v2](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/superpowers/plans/P01_teammate_single_teacher_fixed_split.md)与[规格v2](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/superpowers/specs/2026-09-22-visual-motion-no-vote-ablation-design.md)。正文语言改为中文，专业术语保留英文。
 
 M1–M4、L1–L6、E1–E10均有明确修订任务/断言，映射在v2计划末尾。旧CLI调用已改为模型/算子复用和新数据/循环移植；新增公开权重、pixel/sequence、A4 targets、固定select/refit祖先、mask/ID/prior及单向揭示契约。A9保留raw输出，并将A9−A8改为部署替换差值。独立训练对照补齐，ROI/腐败不再声称单独因果贡献。
 

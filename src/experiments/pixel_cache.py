@@ -102,6 +102,8 @@ def build_pixels(inputs,roi,output,*,protocol,max_trials=0):
     if any(lookup.get(sid)!=user for sid,user in zip(index.sample_ids,index.user_ids)):
         raise ValueError('pixel ROI sample/user IDs mismatch')
     output=Path(output).resolve()
+    from .no_vote_cache_import import assert_writable_output
+    assert_writable_output(output,protocol)
     if not output.is_relative_to(protocol.run_root):raise ValueError('pixel output outside run')
     output.mkdir(parents=True,exist_ok=True)
     config={'partition':inputs.partition.name,'schema':1,'frames':16,'resolution':160,
@@ -162,8 +164,8 @@ def build_pixels(inputs,roi,output,*,protocol,max_trials=0):
     return ref
 
 
-def load_pixels(ref,*,protocol,complete=True):
-    registry=ArtifactRegistry(protocol);record=registry.verify(ref,'pixels','raw')
+def load_pixels(ref,*,protocol,complete=True,context=None):
+    registry=ArtifactRegistry(protocol,context=context);record=registry.verify(ref,'pixels','raw')
     if record.rows is None or (complete and not record.complete):raise ValueError('pixel cache partial/incomplete')
     by_name={Path(p).name:Path(p) for p in record.files}
     path=by_name['rows.csv'];registry.verify_file(record,path)
@@ -172,6 +174,6 @@ def load_pixels(ref,*,protocol,complete=True):
     for name in PIXEL_KEYS:
         path=by_name[name+'.npy']
         if name!='images':registry.verify_file(record,path)
-        arrays[name]=np.load(path,mmap_mode='r',allow_pickle=False)
+        arrays[name]=context.load_arrays(path) if context else np.load(path,mmap_mode='r',allow_pickle=False)
     validate_pixels(arrays,len(record.rows.sample_ids));return record,arrays
 

@@ -204,6 +204,8 @@ def build_pose_roi(inputs: StageInputs,pose_weights: ArtifactRef,output: Path,*,
     if max_trials<0:raise ValueError('max_trials cannot be negative')
     selected=rows[:max_trials] if max_trials else rows
     output=Path(output).resolve()
+    from .no_vote_cache_import import assert_writable_output
+    assert_writable_output(output,protocol)
     if not output.is_relative_to(protocol.run_root):raise ValueError('pose output must be inside run')
     config={'schema':1,'device':str(device),'max_trials':max_trials,'algorithm':'teammate_adaptive_ir_pose_roi',
             'settings':vars(_settings(device)),'producer_sha256':sha256_file(Path(__file__))}
@@ -217,7 +219,12 @@ def build_pose_roi(inputs: StageInputs,pose_weights: ArtifactRef,output: Path,*,
         summary=json.loads(summary_path.read_text(encoding='utf-8'))
         restored={k:ArtifactRef(Path(v['record_path']),v['sha256']) for k,v in summary['artifacts'].items()}
         for stage,ref in restored.items():
-            registry.verify(ref,stage,'raw',row_index(selected))
+            record=registry.verify(ref,stage,'raw',row_index(selected))
+            # A one-trial acceptance resume consumes its direct tiny cache.
+            # Full-run reuse uses the import/header contract, never this scan.
+            if max_trials:
+                for file in record.files:
+                    if Path(file).suffix=='.npz':registry.verify_file(record,Path(file))
         for row in selected:
             meta=json.loads((output/'p28/trial_summary'/f"{row['sample_id']}.json").read_text())
             if meta['raw_input_hashes']!=snapshot_raw_files(row):raise ValueError('raw input membership drift')

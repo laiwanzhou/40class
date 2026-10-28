@@ -6,7 +6,7 @@
 
 **GO：Task4 正式 A1 产物与开发选择结果通过本次有界方法学审计（bounded methodology audit），没有发现模型或预测需要重生成的 P1/P2 问题。** Task5 的整体启动仍须等待主审正在进行的校验性能修订及其独立工程审查；本报告不提前批准尚未审查的性能代码。
 
-先阅读 ae3e154 的[校验策略修订](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/superpowers/plans/2026-09-23-teammate-single-teacher-fixed-split.md:25)。本次只读取代码、公共清单、22个祖先记录的元数据（metadata）、两个小型 head.joblib、四份 targets、先验 JSON 和 development2 标签；核对记录引用及直接小型模型/targets 的内容摘要（digest）。没有调用 ArtifactRegistry.verify，没有打开公开权重、原始图像/骨骼/IMU或全量 features 数组，没有遍历原始数据，没有执行全量缓存 SHA，没有读取 final4 私有标签，没有启动训练。
+先阅读 ae3e154 的[校验策略修订](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/superpowers/plans/P01_teammate_single_teacher_fixed_split.md:25)。本次只读取代码、公共清单、22个祖先记录的元数据（metadata）、两个小型 head.joblib、四份 targets、先验 JSON 和 development2 标签；核对记录引用及直接小型模型/targets 的内容摘要（digest）。没有调用 ArtifactRegistry.verify，没有打开公开权重、原始图像/骨骼/IMU或全量 features 数组，没有遍历原始数据，没有执行全量缓存 SHA，没有读取 final4 私有标签，没有启动训练。
 
 本轮只写本报告。验证状态是上述有限范围已验证（verified within stated scope），不是全量原始内容复验，也不是最终揭盲评估。
 
@@ -102,7 +102,7 @@ train/dev targets直接引用select模型及select prior；refit/final targets�
 
 ## 剩余问题与启动边界（Remaining Issues and Next Gate）
 
-**P2，状态同步（status synchronization），非模型效度阻塞：** 当前[计划第3行](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/superpowers/plans/2026-09-23-teammate-single-teacher-fixed-split.md:3)、Task4状态段仍写refit登记待完成/final待接续；heartbeat-state.json还含task4_complete=false及旧阶段名。触发场景是后续接手或自动监测依赖旧状态，而非完成日志及正式记录，可能重复启动已完成阶段或误报仍在运行。最小修订是主审在审计汇总后同步计划、交接和监测状态，区分“Task4生成完成”“正式产物审计GO”“性能代码审计待通过”“Task5尚未开始”，不改模型或旧产物身份。本审计只写报告，不自行修改这些文件。
+**P2，状态同步（status synchronization），非模型效度阻塞：** 当前[计划第3行](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/superpowers/plans/P01_teammate_single_teacher_fixed_split.md:3)、Task4状态段仍写refit登记待完成/final待接续；heartbeat-state.json还含task4_complete=false及旧阶段名。触发场景是后续接手或自动监测依赖旧状态，而非完成日志及正式记录，可能重复启动已完成阶段或误报仍在运行。最小修订是主审在审计汇总后同步计划、交接和监测状态，区分“Task4生成完成”“正式产物审计GO”“性能代码审计待通过”“Task5尚未开始”，不改模型或旧产物身份。本审计只写报告，不自行修改这些文件。
 
 run_state.json当前仍为prepared，尚无frozen/revealed；本报告仅核对其现状，不声称完整Task13/14单向状态流程已验收。后续编排/冻结须按既定计划落实，不由本次A1审计替代。
 

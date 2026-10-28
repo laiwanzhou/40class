@@ -61,4 +61,4 @@ v2 Task4/5已完成，69.07%/48.71%保留历史；不是v3失败或v3已完成�
 
 本轮自审检查规格覆盖、源参数来源、接口一致、16候选名单、禁止OOF条款、不可变v2和轻量校验约束。仅文档修改，不运行训练或新自动化，不更新main项目历史文档；计划通过不等于数值对照测试或正式模型验收通过。
 
-完整规格：[v3规格](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/superpowers/specs/2026-09-22-visual-motion-no-vote-ablation-design.md)。完整计划：[v3实施计划](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/superpowers/plans/2026-09-23-teammate-single-teacher-fixed-split.md)。
+完整规格：[v3规格](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/superpowers/specs/2026-09-22-visual-motion-no-vote-ablation-design.md)。完整计划：[v3实施计划](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/superpowers/plans/P01_teammate_single_teacher_fixed_split.md)。

@@ -1,3 +1,5 @@
+> P05 历史资料（Historical Record）。仅保留历史实验依据，不作为本分支的实施计划或交接入口。当前唯一入口为 P01 计划与 P02 交接。
+
 # Six-Modal HAR Program Charter
 
 > **Status:** program-level design authority for Phases 5.5-10. This document does not change the currently running Phase 4 X3D strict-v3 experiment. It becomes binding only after Phase 5 closes and the six-modal program moves to dedicated worktrees/branches.

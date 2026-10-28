@@ -13,7 +13,7 @@
 
 | 文档 | 当前路径 | 审计版本SHA256 |
 |---|---|---|
-| 实施计划P | [计划](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/superpowers/plans/2026-09-23-teammate-single-teacher-fixed-split.md) | 399行；057129f5212057d15451975daf07676aa06b80d91a8ef88141aa6cc1d0667139 |
+| 实施计划P | [计划](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/superpowers/plans/P01_teammate_single_teacher_fixed_split.md) | 399行；057129f5212057d15451975daf07676aa06b80d91a8ef88141aa6cc1d0667139 |
 | 实验规格S | [规格](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/superpowers/specs/2026-09-22-visual-motion-no-vote-ablation-design.md) | 161行；867dacb76c8af8f2394d8c644a1c491ebe0eba014aab86acffd692739bb25999 |
 | 交接H | [handoff](C:/Users/LaiWanzhou/AppData/Local/Temp/cuhkx_single_teacher_pipeline_handoff_2026-09-23.md) | 76行；835aee93f2a5813ae0c14046e64f976e70c75a7ae85064f116ad0efa7439ce0e |
 

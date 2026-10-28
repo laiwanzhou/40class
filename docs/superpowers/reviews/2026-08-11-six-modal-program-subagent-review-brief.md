@@ -19,8 +19,8 @@ x3d-s-adaptive-multiclip
 Primary files:
 
 ```text
-docs/superpowers/plans/2026-08-10-x3d-s-adaptive-multiclip.md
-docs/superpowers/plans/2026-08-11-six-modal-program-charter.md
+docs/archive/P04_2026-08-10-x3d-s-adaptive-multiclip_历史记录.md
+docs/archive/P05_2026-08-11-six-modal-program-charter_历史记录.md
 ```
 
 ## Purpose of the change

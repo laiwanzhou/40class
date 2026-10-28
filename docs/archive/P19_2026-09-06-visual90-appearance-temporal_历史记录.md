@@ -1,3 +1,5 @@
+> P19 历史资料（Historical Record）。仅保留历史实验依据，不作为本分支的实施计划或交接入口。当前唯一入口为 P01 计划与 P02 交接。
+
 # Visual90 Appearance Temporal Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans inline, as requested by the user. Steps use checkbox syntax. Do not spawn implementation agents by default.

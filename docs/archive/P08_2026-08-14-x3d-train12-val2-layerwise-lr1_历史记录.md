@@ -1,3 +1,5 @@
+> P08 历史资料（Historical Record）。仅保留历史实验依据，不作为本分支的实施计划或交接入口。当前唯一入口为 P01 计划与 P02 交接。
+
 # X3D Train12/Val2 Layer-wise LR1 Execution Plan
 
 **Goal:** Test lower block-specific adaptation rates while retaining block4/block5 capacity and every temporal window.

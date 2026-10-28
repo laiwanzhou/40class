@@ -1,3 +1,5 @@
+> P21 历史资料（Historical Record）。仅保留历史实验依据，不作为本分支的实施计划或交接入口。当前唯一入口为 P01 计划与 P02 交接。
+
 # CUHK-X Task2/3完成交接（Task2/3 Handoff）
 
 日期：2026-10-02，Asia/Shanghai。继续分支experiment/teammate-single-teacher-task1，当前新增Task2/3，Task4尚未开始。工作树D:/work/2026.7.14_kaggle/_single_visual_processing_replication。
