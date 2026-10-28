@@ -23,8 +23,8 @@ def read_ref(path):
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--config',type=Path,required=True)
-    parser.add_argument('--phase',choices=['extract','select','refit','predict'],required=True)
-    parser.add_argument('--partition',choices=['train12','development2','refit14','final4'])
+    parser.add_argument('--phase',choices=['extract','select','refit','predict','source-pipeline','fullwindow'],required=True)
+    parser.add_argument('--partition',choices=['train12','development2','refit14','final4','all'])
     parser.add_argument('--features-ref',type=Path)
     parser.add_argument('--roi-summary',type=Path)
     parser.add_argument('--model-phase',choices=['select','refit'])
@@ -33,6 +33,23 @@ def main():
     parser.add_argument('--device',default='cuda')
     parser.add_argument('--smoke',action='store_true',help='fixture protocols only; real one-trial acceptance uses --max-trials 1')
     args=parser.parse_args();p=load_protocol(args.config);registry=ArtifactRegistry(p)
+    if args.smoke and p.recipe['execution_kind']!='fixture':parser.error('--smoke requires a fixture protocol')
+    if args.partition=='all' and args.phase!='fullwindow':parser.error('all partitions applies only to fullwindow')
+    if args.phase in {'source-pipeline','fullwindow'}:
+        from src.experiments.artifact_record import VerificationContext
+        if p.recipe.get('source_contract_version')!=3:parser.error('source pipeline requires v3')
+        context=VerificationContext(p)
+        if args.phase=='source-pipeline':
+            if args.max_trials:parser.error('source-pipeline requires the complete population')
+            from src.experiments.visual_teacher_v3 import run_head_pipeline
+            run_head_pipeline(p,context)
+        else:
+            from src.experiments.visual_fullwindow import extract_fullwindow
+            if not args.partition:parser.error('fullwindow requires --partition')
+            for partition in (['refit14','final4'] if args.partition=='all' else [args.partition]):
+                ref=extract_fullwindow(p,partition,device=args.device,max_trials=args.max_trials,context=context)
+                print(json.dumps({'event':'fullwindow_registered','partition':partition,'record_path':str(ref.record_path),'sha256':ref.sha256}),flush=True)
+        return
     if args.smoke and p.recipe['execution_kind']!='fixture':parser.error('--smoke requires a fixture protocol')
     if args.max_trials and args.phase!='extract':parser.error('--max-trials applies only to partial extraction')
     if args.phase=='extract':

@@ -136,7 +136,11 @@ def _label_record(inputs,phase,protocol,index):
         config={'partition':inputs.partition.name},source_files=[Path(__file__)])
 
 
-def fit_class_prior(inputs: StageInputs,phase: str,*,protocol):
+def fit_class_prior(inputs: StageInputs,phase: str,*,protocol,context=None):
+    if protocol.recipe.get('source_contract_version')==3:
+        from .visual_teacher_v3 import fit_prior
+        from .artifact_record import VerificationContext
+        return fit_prior(inputs,phase,protocol=protocol,context=context or VerificationContext(protocol))
     index,y=_labels(inputs,phase,protocol)
     required='train12' if phase=='select' else 'refit14'
     if inputs.partition.name!=required:raise ValueError('prior fit population mismatch')
@@ -168,7 +172,11 @@ def _save_model(model,cfg,inputs,index,features,phase,protocol,*,selection=None)
         rows=index,config=config,source_files=[Path(__file__)])
 
 
-def select_visual_head(train: StageInputs,development: StageInputs,features: ArtifactRef,*,protocol)->Selection:
+def select_visual_head(train: StageInputs,development: StageInputs,features: ArtifactRef,*,protocol,context=None)->Selection:
+    if protocol.recipe.get('source_contract_version')==3:
+        from .visual_teacher_v3 import select_heads
+        from .artifact_record import VerificationContext
+        return select_heads(train,development,features,protocol=protocol,context=context or VerificationContext(protocol))
     if train.partition.name!='train12' or development.partition.name!='development2':raise ValueError('select population mismatch')
     tr,y=_labels(train,'select',protocol);dev,dy=_labels(development,'select',protocol)
     record,arrays=_load_features(features,protocol)
@@ -200,7 +208,11 @@ def select_visual_head(train: StageInputs,development: StageInputs,features: Art
     return selection
 
 
-def fit_visual_head(refit: StageInputs,features: ArtifactRef,selection: Selection,*,protocol)->ArtifactRef:
+def fit_visual_head(refit: StageInputs,features: ArtifactRef,selection: Selection,*,protocol,context=None)->ArtifactRef:
+    if protocol.recipe.get('source_contract_version')==3:
+        from .visual_teacher_v3 import refit_heads
+        from .artifact_record import VerificationContext
+        return refit_heads(refit,features,selection,protocol=protocol,context=context or VerificationContext(protocol))
     if refit.partition.name!='refit14' or selection.stage!='A1':raise ValueError('refit population/stage mismatch')
     registry=ArtifactRegistry(protocol);selected=registry.verify(selection.fit_artifact,'A1','select')
     cfg=dict(selection.config)
@@ -218,7 +230,11 @@ def fit_visual_head(refit: StageInputs,features: ArtifactRef,selection: Selectio
     return _save_model(model,cfg,refit,index,features,'refit',protocol)
 
 
-def predict_visual_teacher(model: ArtifactRef,features: ArtifactRef,rows: RowIndex,prior: ArtifactRef,*,protocol)->TeacherTargets:
+def predict_visual_teacher(model: ArtifactRef,features: ArtifactRef,rows: RowIndex,prior: ArtifactRef,*,protocol,context=None)->TeacherTargets:
+    if protocol.recipe.get('source_contract_version')==3:
+        from .visual_teacher_v3 import predict_head
+        from .artifact_record import VerificationContext
+        return predict_head(model,features,rows,prior,protocol=protocol,context=context or VerificationContext(protocol))
     registry=ArtifactRegistry(protocol);mr=registry.verify(model,'A1');pr=registry.verify(prior,'class_prior',mr.phase)
     allowed=('train12','development2') if mr.phase=='select' else ('refit14','final4')
     population=next((p for p in allowed if rows==row_index(read_public_rows(protocol.public_manifests[p]))),None)

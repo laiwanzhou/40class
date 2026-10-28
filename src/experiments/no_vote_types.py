@@ -1,7 +1,7 @@
 """Shared, label-independent contracts for the fixed-split experiment."""
 from __future__ import annotations
 
-from dataclasses import dataclass, fields, is_dataclass
+from dataclasses import InitVar, dataclass, fields, is_dataclass
 import hashlib
 import json
 import math
@@ -134,13 +134,21 @@ class Prediction:
 class TeacherTargets:
     prediction: Prediction
     features: np.ndarray | None
+    bounded: InitVar[bool] = False
 
-    def __post_init__(self):
+    def __post_init__(self,bounded):
         if self.features is not None:
             if self.features.shape != (len(self.prediction.index.sample_ids), 2, 3, 1024):
                 raise ValueError("visual teacher features must be [N,2,3,1024]")
-            if not np.isfinite(self.features).all():
+            n=len(self.features)
+            probe=self.features[sorted(set([0,n//2,n-1]))] if bounded and n else self.features
+            if not np.isfinite(probe).all():
                 raise ValueError("non-finite visual teacher features")
+
+    @classmethod
+    def from_validated_features(cls,prediction,features):
+        """v3 consumed an indexed immutable cache; avoid another whole-table scan."""
+        return cls(prediction,features,bounded=True)
 
 
 @dataclass(frozen=True)

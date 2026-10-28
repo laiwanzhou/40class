@@ -1,6 +1,6 @@
 # P02 当前实验交接（Current Experiment Handoff）
 
-2026-10-28，Asia/Shanghai。工作树D:/work/2026.7.14_kaggle/_single_visual_processing_replication，分支experiment/teammate-single-teacher-task1。Task1实现与独立复审GO，Task2实现及真实准备、Task3几何一致性均已完成并获独立复审GO，Task4未开始，无新训练或自动化。本文件是本分支唯一交接入口（Canonical Handoff）；保留当前路径，后续直接更新，不新增日期版handoff。
+2026-10-28，Asia/Shanghai。工作树D:/work/2026.7.14_kaggle/_single_visual_processing_replication，分支experiment/teammate-single-teacher-task1。Task1实现与独立复审GO，Task2实现及真实准备、Task3几何一致性均已完成并获独立复审GO，Task4已开始源视觉头拟合与全窗冻结特征编码，Task5未开始，无定时自动化。本文件是本分支唯一交接入口（Canonical Handoff）；保留当前路径，后续直接更新，不新增日期版handoff。
 
 权威计划：[v3.1计划](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/superpowers/plans/P01_teammate_single_teacher_fixed_split.md)。结果：[Task1交付](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/task1_v3_source_ops.md)。复审：[独立GO报告](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/reports/2026-10-28-v3-task1-independent-reaudit.md)。完整历史ledger在本工作树`.superpowers/sdd/2026-09-23-teammate-single-teacher-fixed-split/progress.md`。
 
@@ -8,7 +8,7 @@
 
 v3 run为outputs/teammate_single_teacher_fixed_split/fixed-split-single-teacher-v3-source-ops；配置只绑定protocol/source_ops_manifest_task1_final.json及teacher_roster_task1_final.json。旧中途描述符保留历史、不改identity。公开权重为继承凭据的同卷硬链接，不重新下载，不声称重新初始化验收。
 
-**正式生成仍阻断（Formal Generation Blocked）**：缺P12 S+D最终配置、Thermal最终配置及P89 safe-base/A18完整生产证据；formal_generation_ready=false。不能伪造默认值、删掉必要小专家或直接设true。Task1/2接口交付不等于整条teacher bank就绪。下一步按P01为Task4目标恢复补齐上述源证据；可继续讨论实现，但当前不能启动正式监督生成或训练。
+**正式生成仍阻断（Formal Generation Blocked）**：缺P12 S+D最终配置、Thermal最终配置及P89 safe-base/A18完整生产证据；formal_generation_ready=false。不能伪造默认值、删掉必要小专家或直接设true。Task1/2接口交付不等于整条teacher bank就绪。本轮按P01/规格明确的独立依赖细化Task4 visual_readiness，允许已闭合视觉部分拟合；该全局阻断继续约束P12/专家bank/融合等完整路线，不阻断独立视觉步骤，详见P26/P27。
 
 固定划分不变：train12/val user6与7/refit14/test user4、17、23、24，不做OOF。final联合40类只有此前独立布尔核实授权，不得再次读取标签；一次最终评估仍在全部候选冻结之后。原始数据、队友快照和提交包只读；main历史文档等待完整实验结束。
 
@@ -35,4 +35,18 @@ Thermal额外公共字段白名单（Whitelist）已定义为sample_id/user_id/t
 
 审查者独立核对六导入根/12唯一祖先，全部新protocol/新run/无学习祖先。发现Task2 ArtifactRegistry.read中for key覆写元组缓存键，只缓存SHA却重复解析JSON；已改for field并加Path.read_text计数RED→GREEN。审查者同一正式manifest连续读3次，修复前3次JSON/不同对象，修复后1次JSON/同一对象/tuple key。修复后51项针对集成测试通过62.91秒，P25最终GO仅Task2＋3。无需重跑Task2两分钟导入或更改旧身份。
 
-Task4–14未开始，正式生成仍受上述P12/Thermal/P89/A18证据阻断。后续坚持唯一P01计划/P02交接、有限直接输入校验，禁止重启旧全raw或全cache SHA。
+Task4当前正在执行，Task5–14未开始；整条专家bank正式生成仍受上述P12/Thermal/P89/A18证据阻断。后续坚持唯一P01计划/P02交接、有限直接输入校验，禁止重启旧全raw或全cache SHA。
+
+
+## Task4执行中（Task4 In Progress）
+
+用户已授权推进Task4并在中断后要求继续。实现与执行状态见[P26](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/P26_Task4_视觉教师目标恢复.md)，实施前独立审查见[P27](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/reports/P27_Task4_实施前独立复审.md)。旧全局门槛过宽，与规格Task4/5不等待P12冲突；已用新visual_readiness描述符仅放行A1/六头/class_prior/固定Ridge机制，不改YAML/旧identity/global false，不放行A7/P12/bank。独立审查明确认可，先GO head拟合+真实一条GPU；审查者最终汇总遇额度限制，不当作产物GO。
+
+源数学已直接调用原函数，6族×12配置、每族源tie-break，主early_late固定，head温度仅fit本phase；固定Ridge十干预T1另登记。source-pipeline进程启动时PID32424；fullwindow --partition all启动时PID39816（接续时检查实际存活/命令行，不相信旧PID）。日志outputs/task5_audit/P26-task4-heads.log与P26-task4-fullwindow.log。GPU真实acceptance已通过1×3×1024、1×3×400/finite，16.25秒、48偏置张量maxdiff0。全窗是真正0–1 uniform16源编码，未复用六clip均值；将顺序完成refit14=2427和final4=609，共3036条，不读封存标签。不要重复启动，先检查日志/进程/产物。
+
+P2额外成本缺陷已经独立复验修复：辅助头直接返回Prediction，主A1用bounded InitVar构造，只查固定3行；旧TeacherTargets默认完整检查不变、fields/协议身份不变。全窗fixture剩余失败是源3段路径/变尺寸clip比较适配，逐帧修复后2项针对复测通过。正式产物尚未全部齐备，不能标记Task4完成，不能自动进入Task5。
+
+
+Task4阶段进展：49项最终针对性测试通过115.41秒。72格六族选参/两phase模型、先验与固定机制、四区68组targets/raw scores已齐；头部进程正常退出。独立审查恢复并实际验收68组targets、102个唯一记录，raw/T/phase/ID/先验/源参数继承均通过，features大表重读0，头部GO见P28。主early_late alpha300/power.75；selectT=.1206300185060063，refitT=.1397821300164829；train1985/2039，dev268/388，refit2355/2427，finalcorrect=null。开发准确率69.07%，不把置信度提升当acc提升。
+
+完整全窗仍运行：最终命令为 --phase fullwindow --partition all --device cuda，顺序refit14+final4，共3036条；同进程复用模型与校验上下文。启动PID39816，session64261；核对实际进程和P26-task4-fullwindow.log，不重复启动。头部完成标记run/protocol/task4_heads_complete.json仅表示heads，其fullwindow_completed=false是头部完成时的事实，不作为完整Task4完成证明。完整Task4还需两个fullwindow完整ArtifactRef及独立小验收，Task5未动。

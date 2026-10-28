@@ -19,7 +19,7 @@ FORBIDDEN_LABEL_FIELDS = frozenset({'class_id','class_name','action_name','label
 KINDS = frozenset({'public_weights','raw_cache','public_manifest','supervised_labels',
     'supervised_model','statistics','calibration','transition','predictions','adapted_model'})
 LEARNED = frozenset({'supervised_model','statistics','calibration','transition'})
-V3_DESCRIPTORS = frozenset({'source_ops', 'teacher_roster', 'source_transform', 'recording_metadata'})
+V3_DESCRIPTORS = frozenset({'source_ops', 'teacher_roster', 'source_transform', 'recording_metadata','visual_readiness'})
 
 
 def _kind_allowed(protocol, kind):
@@ -170,7 +170,9 @@ class ArtifactRegistry:
         if (self.protocol.recipe.get('source_contract_version') == 3
                 and r.kind in LEARNED | {'adapted_model'}
                 and not self.protocol.recipe.get('source_ops_bindings', {}).get('formal_generation_ready', False)):
-            raise ValueError('source operations/teacher producers are not ready for supervised generation')
+            from .visual_teacher_v3 import allows_visual_stage
+            if not allows_visual_stage(self,r):
+                raise ValueError('source operations/teacher producers are not ready for supervised generation')
         if r.kind in LEARNED:
             pop={'select':'train12','refit':'refit14'}.get(r.phase)
             if pop is None or set(r.fit_users)!=set(p[pop].users):
@@ -196,6 +198,10 @@ class ArtifactRegistry:
             if r.rows!=expected:raise ValueError('prediction IDs/class columns differ from prepared partition')
 
     def _descriptor(self,r):
+        if r.stage=='visual_readiness':
+            from .visual_teacher_v3 import validate_visual_capability
+            validate_visual_capability(self,r)
+            return
         if r.stage in {'recording_metadata','source_transform'}:
             from .no_vote_roles import validate_descriptor
             validate_descriptor(self,r)
