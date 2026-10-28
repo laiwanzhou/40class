@@ -86,3 +86,20 @@ def test_registration_reuses_digest_computed_during_cache_write(no_vote_fixture,
     ref=registry.register(stage='pixels',kind='raw_cache',phase='raw',files=[path],
         file_digests={str(path):hashlib.sha256(content).hexdigest()})
     assert registry.read(ref).files[str(path)]==hashlib.sha256(content).hexdigest()
+
+
+def test_shared_context_parses_ancestor_record_json_once(no_vote_fixture,monkeypatch):
+    """SHA memoization alone must not conceal repeated metadata JSON reads."""
+    from src.experiments import artifact_record as ar
+    from src.experiments.no_vote_protocol import load_protocol
+    protocol=load_protocol(no_vote_fixture[0]);context=ar.VerificationContext(protocol)
+    r=ar.ArtifactRegistry(protocol,context=context)
+    path=r.root/'public.json';path.write_text('{}')
+    ref=r.register(stage='p28',kind='raw_cache',phase='raw',files=[path])
+    original=Path.read_text;reads=[]
+    def counted(path,*args,**kwargs):
+        if path==ref.record_path:reads.append(path)
+        return original(path,*args,**kwargs)
+    monkeypatch.setattr(Path,'read_text',counted)
+    for _ in range(5):r.read(ref);r.verify(ref)
+    assert reads==[], 'verified immutable ancestor metadata should already be parsed in this stage'

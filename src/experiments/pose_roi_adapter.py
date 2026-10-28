@@ -8,8 +8,8 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from .artifact_record import ArtifactRegistry,verify_public_file
-from .no_vote_manifest import read_public_rows,row_index
+from .artifact_record import ArtifactRegistry,VerificationContext,verify_public_file
+from .no_vote_manifest import load_stage_inputs,read_public_rows,row_index
 from .no_vote_protocol import NoVoteProtocol
 from .no_vote_types import ArtifactRef,StageInputs,canonical_hash,write_json
 from .teammate_source import verify_teammate_source,load_teammate_symbol,sha256_file
@@ -78,7 +78,7 @@ def acquisition_ids(maps,frame_ids):
 
 def _load_ops(protocol):
     report=verify_teammate_source(protocol.source_root,protocol.source_root.parent/'source_manifest.json',
-        expected_sha256=protocol.recipe['asset_bindings']['source_manifest_sha256'])
+        expected_sha256=protocol.recipe['asset_bindings']['source_manifest_sha256'],verify_contents=False)
     for module,symbol in [('audit_yolo11_pose_skeleton','select_track'),
                           ('build_adaptive_yolo11_pose_skeleton_cache','predict_candidates'),
                           ('build_multiscale_dir_rois','build_trial_rois')]:
@@ -131,6 +131,54 @@ def _empty_pose(frame_ids):
         'skeleton_h36m_xyz_conf_normalised':np.full((n,17,4),np.nan,np.float32),
         'skeleton_person_count':np.zeros(n,np.uint8),'final_pose_source':np.zeros(n,np.uint8),
         'retry_reason_bits':np.zeros(n,np.uint8),'roi_box_estimated':np.zeros(n,bool)}
+
+
+def load_pose_roi_sample(inputs: StageInputs,pose: ArtifactRef,roi: ArtifactRef,sample_id: str,*,
+                         protocol: NoVoteProtocol,context: VerificationContext | None=None):
+    """Consume one exact-ID imported P28/P29 pair, never rerun raw producers.
+
+    A train12/dev partition may select from the shared refit14 public geometry.
+    All geometry rows and users must still be identical across P28/P29.
+    """
+    context=context or VerificationContext(protocol)
+    registry=ArtifactRegistry(protocol,context=context)
+    current=load_stage_inputs(protocol,inputs.partition.name,'raw',context=context)
+    if inputs!=current or inputs.labels is not None:raise ValueError('geometry requires current label-free inputs')
+    public=read_public_rows(inputs.public_manifest);lookup={r['sample_id']:r for r in public}
+    if sample_id not in lookup:raise ValueError('sample ID outside requested geometry partition')
+    pr=registry.verify(pose,'p28','raw');rr=registry.verify(roi,'p29','raw')
+    if pose not in rr.parents:raise ValueError('ROI must consume the exact supplied P28 parent')
+    if (pr.kind!='raw_cache' or rr.kind!='raw_cache' or not pr.complete or not rr.complete
+            or pr.rows is None or pr.rows!=rr.rows):raise ValueError('P28/P29 incomplete or mismatched IDs/users')
+    owners=dict(zip(pr.rows.sample_ids,pr.rows.user_ids))
+    if any(owners.get(r['sample_id'])!=r['user_id'] for r in public):raise ValueError('P28/P29 partition IDs/users mismatch')
+    settings=vars(_settings('cpu'))
+    for record in [pr,rr]:
+        actual=record.config.get('settings',{})
+        if (record.config.get('algorithm')!='teammate_adaptive_ir_pose_roi'
+                or any(actual.get(k)!=v for k,v in settings.items() if k!='device')):
+            raise ValueError('P28/P29 source geometry settings drift')
+    result=[]
+    for record in [pr,rr]:
+        files=[Path(p) for p in record.files if Path(p).name==sample_id+'.npz']
+        if len(files)!=1:raise ValueError('one exact sample cache required')
+        path=registry.verify_file(record,files[0]);arrays=context.load_arrays(path)
+        if (str(arrays['sample_id'].item())!=sample_id or not bool(arrays['completed'].item())
+                or bool(arrays['available'].item())!=(lookup[sample_id]['ir_available']=='1')):
+            raise ValueError('geometry sample identity/completion/availability mismatch')
+        result.append(arrays)
+    a,b=result;n=len(a['frame_ids'])
+    if (a['frame_ids'].shape!=(n,) or a['acquisition_ids'].shape!=(n,)
+            or not np.array_equal(a['frame_ids'],b['frame_ids'])
+            or not np.array_equal(a['acquisition_ids'],b['acquisition_ids'])
+            or len(set(a['frame_ids'].astype(str)))!=n):raise ValueError('geometry frame/acquisition axis mismatch')
+    if (tuple(b['region_names'].astype(str))!=REGIONS or b['roi_boxes_xyxy'].shape!=(n,7,4)
+            or any(b[k].shape!=(n,7) for k in ['roi_valid','roi_quality','roi_source'])
+            or b['roi_valid'].dtype!=np.bool_):raise ValueError('ROI regions/axes mismatch')
+    quality=b['roi_quality'];valid=b['roi_valid'];boxes=b['roi_boxes_xyxy']
+    if (not np.isfinite(quality).all() or np.any((quality<0)|(quality>1))
+            or not np.isfinite(boxes[valid]).all()):raise ValueError('ROI quality/valid boxes mismatch')
+    return tuple(result)
 
 
 def _process_trial(maps,model,ops,args):

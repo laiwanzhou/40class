@@ -147,7 +147,7 @@ class ArtifactRegistry:
         d['parents']=tuple(ArtifactRef(Path(r['record_path']),r['sha256']) for r in d['parents'])
         if d['rows'] is not None:
             d['rows']=RowIndex(tuple(d['rows']['sample_ids']),tuple(d['rows']['user_ids']),tuple(d['rows']['class_ids']))
-        for key in ('fit_users','select_users','predict_users','adaptation_users'):d[key]=tuple(d[key])
+        for field in ('fit_users','select_users','predict_users','adaptation_users'):d[field]=tuple(d[field])
         record=ArtifactRecord(**d)
         if self.context:self.context.validated_records[key]=record
         return record

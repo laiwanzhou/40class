@@ -2,7 +2,7 @@
 
 > 本分支唯一有效计划（Canonical Plan）；唯一交接入口为 [P02](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/handoffs/P02_current_handoff.md)。旧实验计划及交接已移入 docs/archive，仅作为历史记录（Historical Records）；reports/audit_inputs 为审计输入快照，不指导当前执行。
 
-> 执行者使用 superpowers:executing-plans；用户明确选择子智能体实施时才使用 subagent-driven-development。2026-10-06独立复审修订为v3.1，Task编号仍为1–14。初版v3的机制producer、KNN依赖和元数据/导入/角色/校验契约已在下文纠正；正式生成仍受逐阶段数值与依赖闭合门槛约束。v2 Task1–5已完成并推送6e31b6d；它们是历史基线，不表示新增v3要求已完成。2026-10-28 Task1已实现并独立复审GO；Task2已完成准备与针对性验收，Task3–14未实施，v3训练未开始。旧规格/计划见reports/audit_inputs/2026-10-04/pre-v3/。
+> 执行者使用 superpowers:executing-plans；用户明确选择子智能体实施时才使用 subagent-driven-development。2026-10-06独立复审修订为v3.1，Task编号仍为1–14。初版v3的机制producer、KNN依赖和元数据/导入/角色/校验契约已在下文纠正；正式生成仍受逐阶段数值与依赖闭合门槛约束。v2 Task1–5已完成并推送6e31b6d；它们是历史基线，不表示新增v3要求已完成。2026-10-28 Task1已实现并独立复审GO；Task2准备与Task3几何一致性均已完成并获独立复审GO，Task4–14未实施，v3训练未开始。旧规格/计划见reports/audit_inputs/2026-10-04/pre-v3/。
 
 **目标（Goal）：** 一个大视觉教师、固定用户划分，在其余生效操作上按最终提交源码复刻完整路线。
 **架构（Architecture）：** 复用源模型/算子，按新人口重新拟合；除教师根节点数量与固定划分替代OOF外，不随意增删归一化、掩码、温度、预算、后处理或适配参数。所有必要数据适配单独登记。
@@ -97,9 +97,11 @@
 **文件：** pose_roi_adapter.py及tests/test_no_vote_pose_roi.py。
 **接口：** 沿用build_pose/build_roi(inputs, ..., protocol=...)。
 
-- [ ] 复用已验证的全量P28/P29；源ROI两轮、真实timestamp恢复、person/workspace裁剪不变。
-- [ ] 一条train12 fixture与真实样本核对frame/acquisition/time、ROI quality和缺失fallback；未变部分不重新生成2427/609条几何。
-- [ ] 仅修复v3导入契约的新失败，保留时间戳适配源码身份，禁止为原main兼容而读取类别路径。
+- [x] 复用已验证的全量P28/P29；源ROI两轮、真实timestamp恢复、person/workspace裁剪不变。
+- [x] 一条train12 fixture与真实样本核对frame/acquisition/time、ROI quality和缺失fallback；未变部分不重新生成2427/609条几何。
+- [x] 仅修复v3导入契约的新失败，保留时间戳适配源码身份，禁止为原main兼容而读取类别路径。
+
+**2026-10-28交付（Delivery）：** 新增精确P28/P29单样本消费接口及有界源算子加载；复用所有既有几何，不重跑检测器。真实train12一条22帧/14个ROI返回字段、源裁剪/质量/时间精确一致，8.614秒；5个直接源文件与最终提交包字节相同。15项初步测试通过；独立审查发现Task2元数据cache key被循环变量覆盖，修复并RED→GREEN，51项集成通过，审查者复验后Task2＋Task3 GO。详见[P24交付](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/P24_Task3_姿态与ROI一致性.md)及[P25复审](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/reports/P25_Task2_Task3_独立复审.md)。Task4未启动，formal_generation_ready=false不变。
 
 ### Task 4：恢复教师目标处理（Visual Teacher Rectification）
 
@@ -231,6 +233,6 @@
 
 ## 状态与交接（Status and Handoff）
 
-v2已完成：Task4单头T1开发69.07%，Task5第17轮开发48.71%、四区目标/序列、工程及方法学验收GO。v3 Task1已实现并独立复审GO（68项针对性测试），Task2准备/缓存导入与针对性验收完成（P03），Task3起未实施；source roster材料缺口保持正式生成阻断。后续从Task3几何一致性→Task4目标恢复→Task5源16轮重训→Task6–14；不得把当前v2权重当v3已通过。
+v2已完成：Task4单头T1开发69.07%，Task5第17轮开发48.71%、四区目标/序列、工程及方法学验收GO。v3 Task1已实现并独立复审GO（68项针对性测试），Task2准备/缓存导入完成（P03）、Task3几何一致性完成（P24），两者实际独立复审GO（P25），Task4起未实施；source roster材料缺口保持正式生成阻断。后续从Task4目标恢复→Task5源16轮重训→Task6–14；不得把当前v2权重当v3已通过。
 
-无定时自动化，Task5旧后台进程已正常结束。本轮不新建自动化，不训练，不推断final准确率。2026-10-06原版复审问题已修订；Task1已获实际独立GO，Task2针对性验收完成。下一独立复审节点为Task3后；当前放行只覆盖准备与针对性验证，不代表已经证明全处理等价或可以跳过manifest/roster直接长训练。v2已退休两resume.pt和四sequence.npy（1.02GiB），正式checkpoint/targets/anchors/公共缓存/来源记录保留；旧seq refs为历史证明，不再宣称可直接完整加载。修改后自检：source_ops覆盖、接口/角色/硬链接导入一致、固定人口/无OOF无矛盾、每主链参数有source、每验证只消费直接输入。
+无定时自动化，Task5旧后台进程已正常结束。本轮不新建自动化，不训练，不推断final准确率。2026-10-06原版复审问题已修订；Task1已获实际独立GO，Task2/3独立复审GO，唯一P2缓存问题已修复复验。下一复审应在Task4/5长训练前按计划执行；当前放行只覆盖准备与针对性验证，不代表已经证明全处理等价或可以跳过manifest/roster直接长训练。v2已退休两resume.pt和四sequence.npy（1.02GiB），正式checkpoint/targets/anchors/公共缓存/来源记录保留；旧seq refs为历史证明，不再宣称可直接完整加载。修改后自检：source_ops覆盖、接口/角色/硬链接导入一致、固定人口/无OOF无矛盾、每主链参数有source、每验证只消费直接输入。
