@@ -3,10 +3,12 @@ from __future__ import annotations
 
 import json
 import os
+import copy
 from pathlib import Path
 import re
 
 from .teammate_source import sha256_file
+from .no_vote_types import write_json
 
 
 VIDEOMAE_REPO = "MCG-NJU/videomae-large-finetuned-kinetics"
@@ -21,6 +23,48 @@ VIDEOMAE_FILE_HASHES = {
     "config.json": "6f2007409b792e4843725a76fcf70ba215c2a53df575c74a5dc8821b7b249ca0",
     "preprocessor_config.json": "c3aa722f22a7ff0d234d407862025fe47672f74f46f92c91f757f7a7354107c2",
 }
+
+
+def reuse_verified_weights(receipt: Path, destination_root: Path, specs: dict, *, allow_fixture=False) -> Path:
+    """Hard-link pinned public weights; inherit receipts without full content reads.
+
+    This imports only public initializers, not datasets or learned models. Fresh
+    initialization checks are not claimed: the previous validated receipt is
+    retained explicitly.
+    """
+    receipt=Path(receipt).resolve(); destination_root=Path(destination_root).resolve()
+    old=json.loads(receipt.read_text(encoding='utf-8'))
+    old_specs={name:dict(entry['origin'],local_path=entry['local_path']) for name,entry in old['weights'].items()}
+    origin_digest=verify_weights_manifest(receipt,old_specs,allow_fixture=allow_fixture,verify_contents=False)
+    new=copy.deepcopy(old)
+    for name,entry in new['weights'].items():
+        local=Path(specs[name]['local_path']).resolve()
+        if not local.is_relative_to(destination_root):
+            raise ValueError('public initializer destination outside the new run')
+        if weight_origin(specs[name])!=entry['origin']:
+            raise ValueError('public initializer origin changed during reuse')
+        previous=Path(entry['local_path']).resolve()
+        updated=[]
+        for item in entry['files']:
+            source=Path(item['path']).resolve()
+            target=local/source.name if name=='videomae' else local
+            if source.drive.lower()!=target.drive.lower():
+                raise ValueError('public initializer hard links require the same volume')
+            target.parent.mkdir(parents=True,exist_ok=True)
+            if target.exists():
+                if not os.path.samefile(source,target):
+                    raise ValueError('public initializer destination already has different content')
+            else:os.link(source,target)
+            updated.append(dict(item,path=str(target)))
+        entry['local_path']=str(local);entry['files']=updated
+        entry['reuse']={'receipt_sha256':origin_digest,'source_local_path':str(previous),
+            'shared_inode':True,'verification_scope':'inherited_pinned_receipt_and_size_only'}
+    output=destination_root/'protocol/weights_manifest.json'
+    if output.exists() and json.loads(output.read_text(encoding='utf-8'))!=new:
+        raise ValueError('public initializer receipt identity drift')
+    write_json(output,new)
+    verify_weights_manifest(output,specs,allow_fixture=allow_fixture,verify_contents=False)
+    return output
 
 
 def verify_public_digest(role: str, filename: str, digest: str) -> None:

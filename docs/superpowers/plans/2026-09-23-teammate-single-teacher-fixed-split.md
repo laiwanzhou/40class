@@ -1,6 +1,6 @@
 # 队友单大视觉教师固定划分实施计划（Fixed-Split Source-Parity Implementation Plan）
 
-> 执行者使用 superpowers:executing-plans；用户明确选择子智能体实施时才使用 subagent-driven-development。2026-10-06独立复审修订为v3.1，Task编号仍为1–14。初版v3的机制producer、KNN依赖和元数据/导入/角色/校验契约已在下文纠正；正式生成仍受逐阶段数值与依赖闭合门槛约束。v2 Task1–5已完成并推送6e31b6d；它们是历史基线，不表示新增v3要求已完成。当前仅修订文档，v3训练未开始。旧规格/计划见reports/audit_inputs/2026-10-04/pre-v3/。
+> 执行者使用 superpowers:executing-plans；用户明确选择子智能体实施时才使用 subagent-driven-development。2026-10-06独立复审修订为v3.1，Task编号仍为1–14。初版v3的机制producer、KNN依赖和元数据/导入/角色/校验契约已在下文纠正；正式生成仍受逐阶段数值与依赖闭合门槛约束。v2 Task1–5已完成并推送6e31b6d；它们是历史基线，不表示新增v3要求已完成。2026-10-28 Task1已实现并独立复审GO；Task2–14未实施，v3训练未开始。旧规格/计划见reports/audit_inputs/2026-10-04/pre-v3/。
 
 **目标（Goal）：** 一个大视觉教师、固定用户划分，在其余生效操作上按最终提交源码复刻完整路线。
 **架构（Architecture）：** 复用源模型/算子，按新人口重新拟合；除教师根节点数量与固定划分替代OOF外，不随意增删归一化、掩码、温度、预算、后处理或适配参数。所有必要数据适配单独登记。
@@ -66,11 +66,13 @@
 **文件：** 修改no_vote_protocol.py/no_vote_weights.py/teammate_source.py，以及artifact_record.py的最小v3 descriptor注册支持；新建configs/experiments/teammate_single_teacher_fixed_split_v3.yaml、scripts/export_no_vote_source_ops.py、tests/test_no_vote_source_ops.py。descriptor支持必须在首次export返回ArtifactRef之前落地；其余完整角色表在Task2扩展，不把Task1写成必须先完成Task2才可交付。
 **接口：** export_source_ops(source_root: Path, output: Path) -> ArtifactRef；resolve_teacher_roster(source_ops: ArtifactRef, retained_large_roots: tuple[str,...]) -> ArtifactRef。不执行旧main，不读历史预测。
 
-- [ ] RED：test_final_recipe_overrides_defaults断言MC3主预算16、MoBind24、fusion4+20、40轮visual LR5e-5/scope heads_motion_encoder、12轮scope heads；test_teacher_root_roster断言一个大视觉根、六头不计多个大教师、独立非大专家不被任意删除。
-- [ ] 从最终(1)命令及源调用导出所有生效参数，逐项附source path/symbol/line、声明是actual override或default。展开p88/p165/p173/P255/P307/P309依赖；被删根节点与依赖专家写明确原因。不替换不兼容输入，缺producer时给确定的失败清单。
-- [ ] 新v3配置包含原population、source pin、asset绑定、新run ID与本规格参数；公开teacher专用资产从source_roster单独登记。旧v2 YAML/recipe/identity不改。
-- [ ] pytest tests/test_no_vote_source_ops.py；小fixture只检查实际消费模块，不对全1167文件/公开资产重复下载或全量SHA。导出的recipe才是后续构造模型的唯一参数来源，不能另写一组隐式默认值。
-- [ ] 提交v3协议实现；本Task的文档修订不等于已完成该代码步骤。
+- [x] RED：test_final_recipe_overrides_defaults断言MC3主预算16、MoBind24、fusion4+20、40轮visual LR5e-5/scope heads_motion_encoder、12轮scope heads；test_teacher_root_roster断言一个大视觉根、六头不计多个大教师、独立非大专家不被任意删除。
+- [x] 从最终(1)命令及源调用导出所有生效参数，逐项附source path/symbol/line、声明是actual override或default。展开p88/p165/p173/P255/P307/P309依赖；被删根节点与依赖专家写明确原因。不替换不兼容输入，缺producer时给确定的失败清单。
+- [x] 新v3配置包含原population、source pin、asset绑定、新run ID与本规格参数；公开teacher专用资产从source_roster单独登记。旧v2 YAML/recipe/identity不改。
+- [x] pytest tests/test_no_vote_source_ops.py；小fixture只检查实际消费模块，不对全1167文件/公开资产重复下载或全量SHA。导出的recipe才是后续构造模型的唯一参数来源，不能另写一组隐式默认值。
+- [x] 提交v3协议实现；本Task的文档修订不等于已完成该代码步骤。
+
+**2026-10-28交付（Delivery）：** Task1实现、最终描述符/配置与CLI幂等导出通过，针对性68项测试通过，独立初审问题修复并实际复审GO。30槽为19保留/9排除/2未闭合。缺P12最终配置与P89/A18生产证据，formal_generation_ready=false继续阻止正式生成；不是所有producer已就绪。详见[Task1说明](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/task1_v3_source_ops.md)。Task2未开始。
 
 ### Task 2：v3准备与缓存复用（Preparation and Cache Import）
 
@@ -225,6 +227,6 @@
 
 ## 状态与交接（Status and Handoff）
 
-v2已完成：Task4单头T1开发69.07%，Task5第17轮开发48.71%、四区目标/序列、工程及方法学验收GO。v3新增要求未实现。进入实施时先Task1–3协议/复用→Task4目标恢复→Task5源16轮重训→Task6–14；不得把当前v2权重当v3已通过。
+v2已完成：Task4单头T1开发69.07%，Task5第17轮开发48.71%、四区目标/序列、工程及方法学验收GO。v3 Task1已实现并独立复审GO（68项针对性测试），其余新增要求未实施；source roster材料缺口保持正式生成阻断。后续先Task2–3协议/复用→Task4目标恢复→Task5源16轮重训→Task6–14；不得把当前v2权重当v3已通过。
 
 无定时自动化，Task5旧后台进程已正常结束。本轮不新建自动化，不训练，不推断final准确率。2026-10-06独立复审原版NO-GO；本次修订后还需原审查者确认文档问题闭合。放行仅指进入Task1–3实现与针对性验证，不代表已经证明全处理等价或可以跳过manifest/roster直接长训练。v2已退休两resume.pt和四sequence.npy（1.02GiB），正式checkpoint/targets/anchors/公共缓存/来源记录保留；旧seq refs为历史证明，不再宣称可直接完整加载。修改后自检：source_ops覆盖、接口/角色/硬链接导入一致、固定人口/无OOF无矛盾、每主链参数有source、每验证只消费直接输入。

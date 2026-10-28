@@ -1,0 +1,628 @@
+# v3.1任务1配置（Task1 Config）；源证据缺项会阻止正式训练。
+execution_kind: formal
+minimum_free_gib: 20
+partitions:
+  development2:
+    expected_rows: 388
+    users:
+    - user6
+    - user7
+  final4:
+    expected_rows: 609
+    users:
+    - user4
+    - user17
+    - user23
+    - user24
+  refit14:
+    expected_rows: 2427
+    users:
+    - user1
+    - user2
+    - user3
+    - user5
+    - user6
+    - user7
+    - user8
+    - user9
+    - user16
+    - user18
+    - user19
+    - user20
+    - user21
+    - user22
+  train12:
+    expected_rows: 2039
+    users:
+    - user1
+    - user2
+    - user3
+    - user5
+    - user8
+    - user9
+    - user16
+    - user18
+    - user19
+    - user20
+    - user21
+    - user22
+project_root: ../..
+public_manifests:
+  train12: outputs/teammate_single_teacher_fixed_split/fixed-split-single-teacher-v3-source-ops/protocol/train12.csv
+  development2: outputs/teammate_single_teacher_fixed_split/fixed-split-single-teacher-v3-source-ops/protocol/development2.csv
+  refit14: outputs/teammate_single_teacher_fixed_split/fixed-split-single-teacher-v3-source-ops/protocol/refit14.csv
+  final4: outputs/teammate_single_teacher_fixed_split/fixed-split-single-teacher-v3-source-ops/protocol/final4.csv
+recipe:
+  adaptation:
+    batch_size: 64
+    confidence_power: 0.0
+    emission_warmup_epochs: 0
+    endpoints:
+      primary40: &id002
+        epochs: 40
+        scope: heads_motion_encoder
+        seed: 20260826
+        fusion_learning_rate: 0.0001
+        visual_head_learning_rate: 5.0e-05
+        minimum_learning_rate: 5.0e-06
+        batch_size: 64
+        workers: 0
+        weight_decay: 0.02
+        temperature: 1.0
+        confidence_power: 0.0
+      diagnostic12: &id001
+        epochs: 12
+        scope: heads
+        seed: 20260812
+        fusion_learning_rate: 5.0e-05
+        visual_head_learning_rate: 1.0e-05
+        minimum_learning_rate: 2.0e-06
+        batch_size: 64
+        workers: 0
+        weight_decay: 0.02
+        temperature: 1.0
+        confidence_power: 0.0
+    expected_loss_rows: 591
+    expected_prior_rows: 18
+    expected_rows: 609
+    freeze_visual_backbone_and_bn: true
+    independent_from_a7: true
+    output_mode: raw
+    pool_mode: joint
+    population: final4
+    target_source: frozen_a8_same_run
+    temperature: 1.0
+    weight_decay: 0.02
+    workers: 0
+  calibration:
+    fit_population:
+      refit: refit14
+      select: train12
+    policies:
+    - identity
+    - fitted
+    selection_candidate: A6-VSI
+    temperature_bounds:
+    - 0.25
+    - 4.0
+  candidates:
+  - A1
+  - A2
+  - A5-S
+  - A5-I
+  - A6-VS
+  - A6-VI
+  - A6-VSI
+  - A7
+  - A7-mask
+  - A7-shuffle-S
+  - A7-shuffle-I
+  - A7-zero-S
+  - A7-zero-I
+  - A8
+  - A9-12
+  - A9-40
+  class_ids:
+  - 0
+  - 1
+  - 2
+  - 3
+  - 4
+  - 5
+  - 6
+  - 7
+  - 8
+  - 9
+  - 10
+  - 11
+  - 12
+  - 13
+  - 14
+  - 15
+  - 16
+  - 17
+  - 18
+  - 19
+  - 20
+  - 21
+  - 22
+  - 23
+  - 24
+  - 25
+  - 26
+  - 27
+  - 28
+  - 29
+  - 30
+  - 31
+  - 32
+  - 33
+  - 34
+  - 35
+  - 36
+  - 37
+  - 38
+  - 39
+  fusion:
+    anchor_source: frozen_a2_same_phase
+    batch_size: 64
+    class_weight_power: 0.35
+    distillation_temperature: 2.0
+    distillation_weight: 1.0
+    freeze_motion_encoders: true
+    freeze_visual_backbone_and_bn: true
+    fusion_learning_rate: 0.0004
+    global_fusion_mode: additive
+    label_smoothing: 0.08
+    live_visual_anchor: false
+    motion_aux_mask: source_batch_reduction
+    motion_aux_weight: 0.35
+    relation_weight: 0.1
+    reliability_mask: source_loss_semantics
+    seed: 20260811
+    selective_anchor_weight: 0.3
+    stage_a_epochs: 4
+    stage_b_epochs: 20
+    teacher_loss_mask: source_loss_semantics
+    variants:
+    - full
+    - mask_motion
+    - shuffle_s
+    - shuffle_i
+    visual_corruption_probability: 0.75
+    visual_feature_dropout: 0.3
+    visual_head_learning_rate: 2.0e-05
+    visual_view_dropout: 0.4
+    weight_decay: 0.05
+    workers: 0
+    fusion_position: clip
+    temporal_radius: 1
+    temporal_residual_budget: 0.1
+    temporal_attention_logit_limit: 1.0
+    spatial_grid: 5
+    spatial_attention_logit_limit: 1.0
+    initial_residual_strength: 0.25
+    skeleton_time_position: false
+    skeleton_multistream: false
+    skeleton_multistream_strength: 0.1
+    skeleton_adaptive_graph: false
+    joint_initial_imu_gate: 0.35
+    joint_max_imu_residual: 1.0
+    joint_freeze_pretrained_encoders: true
+    joint_train_alignment: false
+    joint_zero_initialize_imu_residual: false
+    joint_stage_a_adapter_only: false
+    separate_modality_dropout: 0.0
+    joint_gate_weight: 0.0
+    joint_gate_temperature: 0.5
+    encoder_learning_rate: 0.0001
+    visual_learning_rate: 2.0e-05
+    minimum_learning_rate: 1.0e-05
+    worst_group_weight: 0.0
+    reliability_weight: 0.0
+    reliability_positive_weight: 1.0
+    reliability_groups: 1
+    reliability_target: corrupted
+    reliability_advantage_temperature: 0.5
+    imu_teacher_weight: 0.0
+    imu_teacher_temperature: 1.0
+    accuracy_gate_pp: 5.0
+    final_refit: false
+    all_label_refit: true
+    smoke: false
+    max_train_batches: 0
+    max_eval_batches: 0
+    modality: separate
+  geometry:
+    missing_roi_policy: full_frame
+    preserve_timestamps: true
+    two_pass_pose: true
+  imu_teacher:
+    class_weight: balanced_subsample
+    device_dropout_copy: true
+    max_depth: 18
+    max_features: sqrt
+    min_samples_leaf: 2
+    n_estimators: 400
+    name: stat_random_forest_device_dropout_aligned
+    probability_floor: 1.0e-12
+    raw_channels: 6
+    seed: 20260723
+    statistical_bins: 32
+    statistics_per_channel: 8
+    consumer_profiles:
+      fit_teacher_target:
+        missing_score: -1000000.0
+      terminal_export:
+        missing_score: -27.631021115928547
+    n_jobs: -1
+    dropout_rng: source_seed_no_fold
+    fit_missing_score: -1000000.0
+    terminal_missing_score: -27.631021115928547
+  modalities:
+  - ir
+  - skeleton
+  - imu
+  motion:
+    device_roles:
+    - WTC
+    - WTLA
+    - WTRA
+    - WTLL
+    - WTRL
+    frames: 16
+    imu_bin_stat_channels: 52
+    imu_global_stat_channels: 48
+    imu_points_per_bin: 4
+    imu_token_channels: 16
+    joints: 17
+    skeleton_channels: 13
+    external_transform: identity_source_descriptor
+    imu_instance_normalization: false
+  motion_pretrain:
+    alignment_width: 64
+    batch_size: 64
+    class_weight_power: 0.35
+    contrastive_temperature: 0.08
+    distillation_temperature: 2.0
+    distillation_weight: 0.75
+    dropout: 0.12
+    epochs:
+      min: 24
+      max: 24
+      select_on: fixed_source_budget
+    global_weight: 0.15
+    imu_teacher_temperature: 1.0
+    imu_teacher_weight: 1.0
+    label_smoothing: 0.08
+    learning_rate: 0.0004
+    local_weight: 0.05
+    mask_ratio: 0.35
+    minimum_learning_rate: 2.0e-05
+    reconstruction_weight: 0.1
+    seed: 20260811
+    semantic_weight: 2.0
+    teacher_feature_weight: 0.25
+    token_weight: 0.25
+    weight_decay: 0.05
+    width: 96
+    workers: 0
+    temperature: 0.08
+    freeze_skeleton_teacher: false
+    imu_to_skeleton_token_weight: 0.0
+    imu_to_skeleton_semantic_weight: 0.0
+    imu_to_skeleton_logit_weight: 0.0
+    imu_instance_normalization: false
+    domain_adversarial_weight: 0.0
+    domain_reversal_scale: 1.0
+    final_refit: false
+    defer_final_validation: false
+    all_label_refit: true
+    smoke: false
+    max_train_batches: 0
+    max_eval_batches: 0
+    fixed_epochs: 24
+  primary_contrast: A9-40_minus_A1
+  reporting: descriptive_single_seed
+  seed: 20260811
+  session_repeat:
+    operator_binding: source_ops_manifest.operators.repeat_group
+    parameters: &id003
+      emission_weight: 0.65
+      transition_weight: 0.45
+      chosen_probability: 0.9805
+      other_probability: 0.0005
+    metadata_start_seconds: seconds_within_day
+    empty_disagreement_policy: identity
+  views:
+  - scene
+  - person
+  - workspace
+  visual_student:
+    augmentation_mode: subject_robust
+    backbone: mc3_18_temporal
+    backbone_learning_rate: 1.0e-05
+    batch_size: 4
+    class_weight_power: 0.35
+    distillation_temperature: 2.0
+    distillation_weight: 1.0
+    enable_distillation_projection: false
+    epochs:
+      min: 16
+      max: 16
+      select_on: fixed_source_budget
+    feature_weight_configured: 0.5
+    feature_weight_effective: 0.0
+    frames: 16
+    freeze_through: layer2
+    gradient_accumulation: 4
+    head_learning_rate: 0.0002
+    label_smoothing: 0.1
+    minimum_learning_rate: 1.0e-05
+    mode: hybrid
+    relation_weight: 0.2
+    resolution: 160
+    seed: 20260811
+    stage_distillation_weight: 0.0
+    weight_decay: 0.08
+    width: 512
+    workers: 0
+    dropout: 0.18
+    fixed_epochs: 16
+    fusion_mode: gated
+    temporal_modeling: true
+    exact_time_modeling: false
+    cross_view_time_modeling: false
+    spatial_region_modeling: false
+    region_temporal_modeling: false
+    structured_region_modeling: false
+  visual_teacher:
+    alphas: &id006
+    - 300.0
+    - 1000.0
+    - 3000.0
+    - 10000.0
+    class_weight_powers: &id005
+    - 0.0
+    - 0.5
+    - 0.75
+    families: &id004
+    - early
+    - late
+    - window_mean
+    - early_late
+    - temporal_delta
+    - kinetics
+    feature_width: 1024
+    frames: 16
+    frozen_backbone: true
+    kinetics_classes: 400
+    raw_public_features_shareable: true
+    tie_break:
+    - accuracy
+    - balanced_accuracy
+    - macro_f1
+    - smaller_class_weight_power
+    - smaller_alpha
+    log_temperature_bounds: &id007
+    - -2.302585
+    - 2.302585
+    primary_family: early_late
+    target_origin: fixed_split_fit_predictions_not_oof
+  windows:
+  - - 0.0
+    - 0.7
+  - - 0.3
+    - 1.0
+  source_contract_version: 3
+  retained_large_roots:
+  - videomae_large
+  source_ops_bindings:
+    manifest_path: outputs/teammate_single_teacher_fixed_split/fixed-split-single-teacher-v3-source-ops/protocol/source_ops_manifest_task1_final.json
+    manifest_sha256: e916fcb76717d6e290f4cfe9f9569205f214c0b0e8be740a84f8a19c1e7c2945
+    roster_path: outputs/teammate_single_teacher_fixed_split/fixed-split-single-teacher-v3-source-ops/protocol/teacher_roster_task1_final.json
+    roster_sha256: 02c7fc74f0a7731a5bf0cdd5a1d9dfddeff4702d984897852870c41a789b7347
+  source_bank:
+    rf_temperature: 3.0
+    base_weight: 0.95
+    rf_weight: 0.05
+  source_recipe:
+    visual_student:
+      backbone: mc3_18_temporal
+      frames: 16
+      resolution: 160
+      freeze_through: layer2
+      mode: hybrid
+      head_learning_rate: 0.0002
+      backbone_learning_rate: 1.0e-05
+      minimum_learning_rate: 1.0e-05
+      weight_decay: 0.08
+      batch_size: 4
+      gradient_accumulation: 4
+      workers: 0
+      fusion_mode: gated
+      feature_weight_configured: 0.5
+      class_weight_power: 0.35
+      label_smoothing: 0.1
+      distillation_temperature: 2.0
+      distillation_weight: 1.0
+      relation_weight: 0.2
+      augmentation_mode: subject_robust
+      seed: 20260811
+      fixed_epochs: 16
+      width: 512
+      dropout: 0.18
+      enable_distillation_projection: false
+      feature_weight_effective: 0.0
+      stage_distillation_weight: 0.0
+      temporal_modeling: true
+      exact_time_modeling: false
+      cross_view_time_modeling: false
+      spatial_region_modeling: false
+      region_temporal_modeling: false
+      structured_region_modeling: false
+    motion_pretrain:
+      epochs: 24
+      batch_size: 64
+      workers: 0
+      width: 96
+      alignment_width: 64
+      learning_rate: 0.0004
+      minimum_learning_rate: 2.0e-05
+      weight_decay: 0.05
+      class_weight_power: 0.35
+      label_smoothing: 0.08
+      temperature: 0.08
+      semantic_weight: 2.0
+      token_weight: 0.25
+      local_weight: 0.05
+      global_weight: 0.15
+      reconstruction_weight: 0.1
+      distillation_temperature: 2.0
+      distillation_weight: 0.75
+      teacher_feature_weight: 0.25
+      imu_teacher_weight: 1.0
+      imu_teacher_temperature: 1.0
+      freeze_skeleton_teacher: false
+      imu_to_skeleton_token_weight: 0.0
+      imu_to_skeleton_semantic_weight: 0.0
+      imu_to_skeleton_logit_weight: 0.0
+      mask_ratio: 0.35
+      dropout: 0.12
+      imu_instance_normalization: false
+      domain_adversarial_weight: 0.0
+      domain_reversal_scale: 1.0
+      seed: 20260811
+      final_refit: false
+      defer_final_validation: false
+      all_label_refit: true
+      smoke: false
+      max_train_batches: 0
+      max_eval_batches: 0
+      fixed_epochs: 24
+    fusion:
+      fusion_position: clip
+      temporal_radius: 1
+      temporal_residual_budget: 0.1
+      temporal_attention_logit_limit: 1.0
+      spatial_grid: 5
+      spatial_attention_logit_limit: 1.0
+      stage_a_epochs: 4
+      stage_b_epochs: 20
+      batch_size: 64
+      workers: 0
+      fusion_learning_rate: 0.0004
+      initial_residual_strength: 0.25
+      skeleton_time_position: false
+      skeleton_multistream: false
+      skeleton_multistream_strength: 0.1
+      skeleton_adaptive_graph: false
+      joint_initial_imu_gate: 0.35
+      joint_max_imu_residual: 1.0
+      joint_freeze_pretrained_encoders: true
+      joint_train_alignment: false
+      joint_zero_initialize_imu_residual: false
+      joint_stage_a_adapter_only: false
+      separate_modality_dropout: 0.0
+      joint_gate_weight: 0.0
+      joint_gate_temperature: 0.5
+      global_fusion_mode: additive
+      encoder_learning_rate: 0.0001
+      visual_learning_rate: 2.0e-05
+      minimum_learning_rate: 1.0e-05
+      weight_decay: 0.05
+      class_weight_power: 0.35
+      worst_group_weight: 0.0
+      label_smoothing: 0.08
+      distillation_temperature: 2.0
+      distillation_weight: 1.0
+      relation_weight: 0.1
+      motion_aux_weight: 0.35
+      selective_anchor_weight: 0.3
+      reliability_weight: 0.0
+      reliability_positive_weight: 1.0
+      reliability_groups: 1
+      reliability_target: corrupted
+      reliability_advantage_temperature: 0.5
+      imu_teacher_weight: 0.0
+      imu_teacher_temperature: 1.0
+      visual_corruption_probability: 0.75
+      visual_feature_dropout: 0.3
+      visual_view_dropout: 0.4
+      live_visual_anchor: false
+      accuracy_gate_pp: 5.0
+      seed: 20260811
+      final_refit: false
+      all_label_refit: true
+      smoke: false
+      max_train_batches: 0
+      max_eval_batches: 0
+      modality: separate
+    adaptation:
+      base12: *id001
+      final40: *id002
+    mechanism: &id008
+      alpha: 3000.0
+      class_weight_power: 0.75
+      head_temperature: 1
+      backbone_root: videomae_large
+      ridge_solver: lsqr
+      ridge_tol: 1.0e-05
+      ridge_max_iter: 5000
+      standardizer: StandardScaler
+    source_bank:
+      rf_temperature: 3.0
+      base_weight: 0.95
+      rf_weight: 0.05
+    postprocessing: *id003
+    imu_teacher:
+      n_estimators: 400
+      max_depth: 18
+      min_samples_leaf: 2
+      max_features: sqrt
+      class_weight: balanced_subsample
+      n_jobs: -1
+      seed: 20260723
+      dropout_rng: source_seed_no_fold
+      fit_missing_score: -1000000.0
+      terminal_missing_score: -27.631021115928547
+    visual_teacher:
+      families: *id004
+      class_weight_powers: *id005
+      alphas: *id006
+      log_temperature_bounds: *id007
+      primary_family: early_late
+      target_origin: fixed_split_fit_predictions_not_oof
+    fullwindow_knn: &id009
+      neighbors: 3
+      neighbor_weight: 0.4
+  mechanism: *id008
+  fullwindow_knn: *id009
+run_id: fixed-split-single-teacher-v3-source-ops
+run_root: outputs/teammate_single_teacher_fixed_split/fixed-split-single-teacher-v3-source-ops
+schema_version: 1
+source:
+  expected_files: 1167
+  expected_sha256: a80a20a0f6fe23a5b3288f51a9e4a02daf83157c4b6a598bfb6fa0ec8b73649a
+  manifest: ../_teacher_branch_upload/teammate_teacher/source_manifest.json
+  root: ../_teacher_branch_upload/teammate_teacher/project
+supervised_labels:
+  train12: outputs/teammate_single_teacher_fixed_split/fixed-split-single-teacher-v3-source-ops/protocol/train12_labels.csv
+  development2: outputs/teammate_single_teacher_fixed_split/fixed-split-single-teacher-v3-source-ops/protocol/development2_labels.csv
+  refit14: outputs/teammate_single_teacher_fixed_split/fixed-split-single-teacher-v3-source-ops/protocol/refit14_labels.csv
+weights:
+  mc3:
+    local_path: outputs/teammate_single_teacher_fixed_split/fixed-split-single-teacher-v3-source-ops/weights/mc3_18-a90a0ba3.pth
+    provider: url
+    url: https://download.pytorch.org/models/mc3_18-a90a0ba3.pth
+  videomae:
+    local_path: outputs/teammate_single_teacher_fixed_split/fixed-split-single-teacher-v3-source-ops/weights/videomae
+    provider: huggingface
+    repo_id: MCG-NJU/videomae-large-finetuned-kinetics
+    reuse_path: ../teacher_comparison_20260913/pretrained
+    revision: 0f6adcd5f6902900aa0281f9daacfe52bb3c4ad4
+  yolo:
+    local_path: outputs/teammate_single_teacher_fixed_split/fixed-split-single-teacher-v3-source-ops/weights/yolo11n-pose.pt
+    provider: url
+    url: https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11n-pose.pt
+public_weight_receipt_reuse: outputs/teammate_single_teacher_fixed_split/fixed-split-single-teacher-v2/protocol/weights_manifest.json

@@ -9,6 +9,9 @@ import yaml
 
 from .no_vote_types import Partition, canonical_bytes, canonical_hash, freeze
 from .teammate_source import SOURCE_FILE_COUNT, SOURCE_MANIFEST_SHA256, verify_teammate_source
+import hashlib
+import json
+import re
 
 
 TRAIN_USERS = frozenset(("user1","user2","user3","user5","user8","user9","user16","user18","user19","user20","user21","user22"))
@@ -114,6 +117,37 @@ def load_protocol(config: str | Path, *, verify_assets: bool = True,
     specs = {name: dict(entry, local_path=str(_path(base, entry["local_path"])))
              for name, entry in raw["weights"].items()}
     recipe = dict(recipe)
+    if recipe.get('source_contract_version') == 3:
+        bindings = dict(recipe.get('source_ops_bindings', {}))
+        bodies={}
+        for role in ('manifest','roster'):
+            payload=_path(base,bindings.get(role+'_path'))
+            expected=bindings.get(role+'_sha256')
+            if (not payload.is_relative_to(root/'protocol') or payload.suffix!='.json'
+                    or not isinstance(expected,str) or not re.fullmatch('[0-9a-f]{64}',expected)):
+                raise ValueError('invalid source descriptor binding')
+            data=payload.read_bytes()
+            if hashlib.sha256(data).hexdigest()!=expected:
+                raise ValueError('source descriptor hash/binding mismatch')
+            body=json.loads(data)
+            if body.get('schema_version')!=3 or body.get('training_executed') is not False or body.get('oof_enabled') is not False:
+                raise ValueError('invalid source descriptor contract')
+            bodies[role]=body
+            bindings[role+'_path']=str(payload)
+        if bodies['roster'].get('source_ops_sha256')!=bindings['manifest_sha256']:
+            raise ValueError('source roster does not bind the source operations')
+        if bodies['roster'].get('retained_large_roots')!=['videomae_large']:
+            raise ValueError('source roster must retain one videomae_large root')
+        if bodies['manifest'].get('source_manifest_sha256')!=pinned_sha:
+            raise ValueError('source operations snapshot binding mismatch')
+        ready=bodies['roster'].get('formal_generation_ready')
+        if type(ready) is not bool or ready and (bodies['roster'].get('blocking_requirements')
+                or any(x.get('status')=='unresolved' for x in bodies['roster'].get('slots',[]))):
+            raise ValueError('source roster readiness contradicts its missing evidence')
+        bindings['formal_generation_ready']=ready
+        recipe['source_ops_bindings']=bindings
+        from .no_vote_source_ops import validate_runtime_recipe
+        validate_runtime_recipe(recipe,bodies['manifest'])
     recipe["execution_kind"] = kind
     recipe["weight_specs"] = specs
     recipe["minimum_free_gib"] = raw.get("minimum_free_gib", 20)

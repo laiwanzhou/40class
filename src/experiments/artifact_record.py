@@ -19,6 +19,11 @@ FORBIDDEN_LABEL_FIELDS = frozenset({'class_id','class_name','action_name','label
 KINDS = frozenset({'public_weights','raw_cache','public_manifest','supervised_labels',
     'supervised_model','statistics','calibration','transition','predictions','adapted_model'})
 LEARNED = frozenset({'supervised_model','statistics','calibration','transition'})
+V3_DESCRIPTORS = frozenset({'source_ops', 'teacher_roster'})
+
+
+def _kind_allowed(protocol, kind):
+    return kind in KINDS or (kind == 'descriptor' and protocol.recipe.get('source_contract_version') == 3)
 
 
 def reject_label_fields(value):
@@ -92,7 +97,17 @@ class ArtifactRegistry:
         all_users=set(p['refit14'].users)|set(p['final4'].users)
         if any(not set(getattr(r,k))<=all_users for k in ('fit_users','select_users','predict_users','adaptation_users')):
             raise ValueError('unknown artifact users')
-        if r.kind not in KINDS:raise ValueError('unapproved artifact kind')
+        if not _kind_allowed(self.protocol, r.kind):raise ValueError('unapproved artifact kind')
+        if r.kind == 'descriptor':
+            if (r.stage not in V3_DESCRIPTORS or r.phase != 'public' or r.rows is not None
+                    or r.fit_users or r.select_users or r.predict_users or r.adaptation_users
+                    or not r.complete or r.config.get('source_contract_version') != 3):
+                raise ValueError('invalid v3 descriptor role')
+            self._descriptor(r)
+        if (self.protocol.recipe.get('source_contract_version') == 3
+                and r.kind in LEARNED | {'adapted_model'}
+                and not self.protocol.recipe.get('source_ops_bindings', {}).get('formal_generation_ready', False)):
+            raise ValueError('source operations/teacher producers are not ready for supervised generation')
         if r.kind in LEARNED:
             pop={'select':'train12','refit':'refit14'}.get(r.phase)
             if pop is None or set(r.fit_users)!=set(p[pop].users):
@@ -116,6 +131,37 @@ class ArtifactRegistry:
             from .no_vote_manifest import read_public_rows,row_index
             expected=row_index(read_public_rows(self.protocol.public_manifests[population]))
             if r.rows!=expected:raise ValueError('prediction IDs/class columns differ from prepared partition')
+
+    def _descriptor(self,r):
+        if len(r.files)!=1 or Path(next(iter(r.files))).suffix!='.json':
+            raise ValueError('descriptor requires exactly one JSON payload')
+        path=Path(next(iter(r.files))).resolve()
+        if not path.is_relative_to(self.root/'protocol'):
+            raise ValueError('descriptor must be inside protocol')
+        body=json.loads(path.read_text(encoding='utf-8'))
+        if (body.get('schema_version')!=3 or body.get('training_executed') is not False
+                or body.get('oof_enabled') is not False):
+            raise ValueError('invalid source descriptor payload')
+        bindings=self.protocol.recipe.get('source_ops_bindings',{})
+        role='manifest' if r.stage=='source_ops' else 'roster'
+        if bindings and (path!=Path(bindings[role+'_path']).resolve()
+                or next(iter(r.files.values()))!=bindings[role+'_sha256']):
+            raise ValueError('descriptor differs from protocol binding')
+        if r.stage=='source_ops':
+            expected=self.protocol.recipe['asset_bindings']['source_manifest_sha256']
+            if (r.parents or body.get('source_manifest_sha256')!=expected
+                    or not body.get('recipe') or not body.get('operators') or not body.get('consumed_files')):
+                raise ValueError('source descriptor has invalid content or parent')
+        else:
+            if len(r.parents)!=1:
+                raise ValueError('roster descriptor needs exactly one source parent')
+            parent=self.read(r.parents[0])
+            if parent.stage!='source_ops' or parent.kind!='descriptor' or len(parent.files)!=1:
+                raise ValueError('roster descriptor has wrong source parent')
+            if (body.get('source_ops_sha256')!=next(iter(parent.files.values()))
+                    or body.get('retained_large_roots')!=['videomae_large']
+                    or len(body.get('slots',[]))!=30 or type(body.get('formal_generation_ready')) is not bool):
+                raise ValueError('roster descriptor source binding/content invalid')
 
     def verify(self,ref: ArtifactRef,expected_stage: str | None=None,
                expected_phase: str | None=None,expected_ids: RowIndex | None=None) -> ArtifactRecord:
@@ -191,7 +237,7 @@ class ArtifactRegistry:
     def register(self,*,stage: str,kind: str,phase: str,files,parents=(),fit_users=(),
                  select_users=(),predict_users=(),adaptation_users=(),rows=None,config=None,
                  raw_inputs=(),source_files=(),complete=True,file_digests=None) -> ArtifactRef:
-        if kind not in KINDS:raise ValueError('unapproved artifact kind')
+        if not _kind_allowed(self.protocol, kind):raise ValueError('unapproved artifact kind')
         paths=[Path(p).resolve() for p in files]
         if len(set(paths))!=len(paths) or any(not p.is_file() or not p.is_relative_to(self.root) for p in paths):
             raise ValueError('artifact files must be unique and within the run')
