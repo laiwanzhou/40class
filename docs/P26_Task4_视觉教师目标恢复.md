@@ -2,7 +2,7 @@
 
 日期：2026-10-28。唯一计划为[P01](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/superpowers/plans/P01_teammate_single_teacher_fixed_split.md)，唯一交接为[P02](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/handoffs/P02_current_handoff.md)。本文记录Task4实施和产物状态，不是新计划或交接。
 
-当前状态（In Progress）：视觉头选参、refit及四区A1/六族/十机制目标已经生成并获独立GO；完整全窗公开特征仍在编码。Task4尚未全部完成，Task5没有启动，不读取final4标签。
+当前状态（Complete）：视觉头选参、refit及四区A1/六族/十机制目标、两个完整全窗特征均已生成；整个Task4通过有限独立验收GO，无未解决P1/P2。Task5没有启动，不读取final4标签。
 
 ## 阶段门槛修订（Stage Readiness Ruling）
 
@@ -47,3 +47,11 @@ YAML、协议身份和全局`formal_generation_ready=false`保持不变；P12/�
 ```
 
 执行前先看日志和现存进程，禁止重复启动。完整Task4需六族select/refit模型、两先验、固定机制头、四区A1/六族/十机制targets、refit14/final4真实全窗特征以及必要验收；不能仅凭头训练结束或acceptance样本登记就判完成。
+
+## 完成记录（Completion）
+
+完整全窗共3036条，refit14有效2342/2427、final4有效591/609，float16特征`[N,3,1024]`与logits`[N,3,400]`。两区源编码耗时2034.8秒＋319.0秒，合计约39.2分钟，属于真实冻结模型计算；没有额外全raw或大cache校验。单样本验收与正式缓存对应特征/logits差异0。
+
+最后独立审查验证完整ID/类别列/mask、数组头、每区首行及8个trial小切片、公开初始化父关系与源参数，整体GO见P28。自验同样未加载完整特征大表，证据`outputs/task5_audit/P26-task4-fullwindow-acceptance.json`。
+
+完成入口为当前v3 run的`protocol/task4_complete.json`，绑定头部完成标记及两个完整fullwindow ArtifactRef。`task4_heads_complete.json`中fullwindow_completed=false保留头部完成时的历史事实，不覆盖它；以新的整体完成入口判断Task4。后台进程均已结束，无定时自动化，Task5未启动。全局教师库材料缺项仍按P01保留。

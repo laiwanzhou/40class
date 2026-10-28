@@ -2,7 +2,7 @@
 
 > 本分支唯一有效计划（Canonical Plan）；唯一交接入口为 [P02](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/handoffs/P02_current_handoff.md)。旧实验计划及交接已移入 docs/archive，仅作为历史记录（Historical Records）；reports/audit_inputs 为审计输入快照，不指导当前执行。
 
-> 执行者使用 superpowers:executing-plans；用户明确选择子智能体实施时才使用 subagent-driven-development。2026-10-06独立复审修订为v3.1，Task编号仍为1–14。初版v3的机制producer、KNN依赖和元数据/导入/角色/校验契约已在下文纠正；正式生成仍受逐阶段数值与依赖闭合门槛约束。v2 Task1–5已完成并推送6e31b6d；它们是历史基线，不表示新增v3要求已完成。2026-10-28 Task1已实现并独立复审GO；Task2准备与Task3几何一致性均已完成并获独立复审GO，Task4–14未实施，v3训练未开始。旧规格/计划见reports/audit_inputs/2026-10-04/pre-v3/。
+> 执行者使用 superpowers:executing-plans；用户明确选择子智能体实施时才使用 subagent-driven-development。2026-10-06独立复审修订为v3.1，Task编号仍为1–14。初版v3的机制producer、KNN依赖和元数据/导入/角色/校验契约已在下文纠正；正式生成仍受逐阶段数值与依赖闭合门槛约束。v2 Task1–5已完成并推送6e31b6d；它们是历史基线，不表示新增v3要求已完成。2026-10-28 Task1已实现并独立复审GO；Task2准备与Task3几何一致性均已完成并获独立复审GO，Task4完整产物生成并通过有限独立验收GO；Task5–14未实施，未训练大视觉骨干。旧规格/计划见reports/audit_inputs/2026-10-04/pre-v3/。
 
 **目标（Goal）：** 一个大视觉教师、固定用户划分，在其余生效操作上按最终提交源码复刻完整路线。
 **架构（Architecture）：** 复用源模型/算子，按新人口重新拟合；除教师根节点数量与固定划分替代OOF外，不随意增删归一化、掩码、温度、预算、后处理或适配参数。所有必要数据适配单独登记。
@@ -108,13 +108,18 @@
 **文件：** visual_teacher.py、run_no_vote_visual_teacher.py；新增tests/test_no_vote_visual_teacher_source_parity.py。
 **接口：** select_visual_head(train, development, features, protocol=...) -> Selection，主family固定early_late；fit_visual_head(...)->ArtifactRef；predict_visual_teacher使用模型自有T。辅助头/同骨干全窗特征另登记；fit_visual_mechanism_head(fit, features, protocol, context) -> ArtifactRef；predict_visual_mechanisms(model, features, rows, protocol, context) -> Mapping[str,Prediction]。
 
-- [ ] RED：test_source_feature_head_selection复用原六族、每族12配置及源tie-break；test_calibration_train_only断言改val/final标签不改变T，原fit_temperature与本实现数值一致；test_ridge_class_alignment复用原floor规则。
-- [ ] 复用六clip公开特征；72配置生产六族头，每族12配置按源决胜规则在固定val选择，主头固定early_late、不在六族间改主头。候选模型只fit train12，温度只fit train12预测/标签；refit继承已选配置并重fit refit14。训练软目标记录in_sample非OOF，选择指标记录development2，不混淆两者。
-- [ ] 恢复head温度约0.1–10的源NLL估计，输出raw/T_head；select只train12，refit只refit14。保存温度、目标来源、raw与calibrated分数，不借用旧全局校准。
-- [ ] Task4只生产同骨干full-window标签无关特征，按build_p85_videomae_fullwindow_cache，不用六clip平均替代。学习KNN依赖P12→全局混合，明确移到Task11；Task4不等待Task6/7/P12，防止执行循环。
-- [ ] RED：test_visual_mechanism_ridge_source_parity对照audit_p86_teacher_mechanisms.fixed_model_perturbations与p89_build_multiexpert_test_logits.build_p86：VideoMAE六clip逐clip L2、固定StandardScaler→Ridge(alpha3000,power0.75,lsqr/tol1e-5/max_iter5000)、fit归一化特征均值、原十项特征干预、aligned_scores_40。独立小头只fit同phase fit人口，输出raw logits/T=1，不套A1温度，不消费MC3/像素/学生sequence。检查mechanism祖先是固定Ridge而不是A2；此头不增加大骨干数量。
-- [ ] 源小型score/feature fixture逐元素验收，真实train12小片段记录目标熵/置信度；运行本Task测试。不得将置信度变高当作准确率提升的证明。
-- [ ] 正式重新登记六族头、A1主头、先验及四区targets。v2的window_mean/T1保持原状，不能改记录宣称已校准。
+- [x] RED：test_source_feature_head_selection复用原六族、每族12配置及源tie-break；test_calibration_train_only断言改val/final标签不改变T，原fit_temperature与本实现数值一致；test_ridge_class_alignment复用原floor规则。
+- [x] 复用六clip公开特征；72配置生产六族头，每族12配置按源决胜规则在固定val选择，主头固定early_late、不在六族间改主头。候选模型只fit train12，温度只fit train12预测/标签；refit继承已选配置并重fit refit14。训练软目标记录in_sample非OOF，选择指标记录development2，不混淆两者。
+- [x] 恢复head温度约0.1–10的源NLL估计，输出raw/T_head；select只train12，refit只refit14。保存温度、目标来源、raw与calibrated分数，不借用旧全局校准。
+- [x] Task4只生产同骨干full-window标签无关特征，按build_p85_videomae_fullwindow_cache，不用六clip平均替代。学习KNN依赖P12→全局混合，明确移到Task11；Task4不等待Task6/7/P12，防止执行循环。
+- [x] RED：test_visual_mechanism_ridge_source_parity对照audit_p86_teacher_mechanisms.fixed_model_perturbations与p89_build_multiexpert_test_logits.build_p86：VideoMAE六clip逐clip L2、固定StandardScaler→Ridge(alpha3000,power0.75,lsqr/tol1e-5/max_iter5000)、fit归一化特征均值、原十项特征干预、aligned_scores_40。独立小头只fit同phase fit人口，输出raw logits/T=1，不套A1温度，不消费MC3/像素/学生sequence。检查mechanism祖先是固定Ridge而不是A2；此头不增加大骨干数量。
+- [x] 源小型score/feature fixture逐元素验收，真实train12小片段记录目标熵/置信度；运行本Task测试。不得将置信度变高当作准确率提升的证明。
+- [x] 正式重新登记六族头、A1主头、先验及四区targets。v2的window_mean/T1保持原状，不能改记录宣称已校准。
+
+
+**阶段就绪说明（Stage Readiness）：** 按本Task及规格明确的不依赖P12/KNN原则，新增绑定source_ops、Task3证明与消费源码的visual_readiness描述符，仅放行A1/六头/class_prior/固定机制；不修改YAML身份或全局formal_generation_ready=false，也不放行后续bank/融合。实施前解释及成本问题修复获独立GO（P27）。正式68组targets/raw与102元数据记录已独立验收GO（P28）；主early_late user6/7=268/388，head温度select0.1206300185/refit0.1397821300。49项针对测试通过；真实全窗单条通过，完整3036条全窗编码已完成，ID/float16 shape/valid及小切片经独立验收GO（P28）；整个Task4完成。详见[P26](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/P26_Task4_视觉教师目标恢复.md)。
+
+**完成（Complete）：** 头部68组targets与完整全窗两个ArtifactRef均齐，49项针对测试通过。两区全窗真实编码2034.8秒＋319.0秒（约39.2分钟）；最后独立审查未做大cache SHA或GPU重跑。整体完成标记run/protocol/task4_complete.json。Task5未启动；后续阶段仍需自身源依赖闭合，不能把visual_readiness扩展为全局放行。
 
 ### Task 5：源16轮视觉学生与新序列（Visual Student Rectification）
 
@@ -233,6 +238,6 @@
 
 ## 状态与交接（Status and Handoff）
 
-v2已完成：Task4单头T1开发69.07%，Task5第17轮开发48.71%、四区目标/序列、工程及方法学验收GO。v3 Task1已实现并独立复审GO（68项针对性测试），Task2准备/缓存导入完成（P03）、Task3几何一致性完成（P24），两者实际独立复审GO（P25），Task4起未实施；source roster材料缺口保持正式生成阻断。后续从Task4目标恢复→Task5源16轮重训→Task6–14；不得把当前v2权重当v3已通过。
+v2已完成：Task4单头T1开发69.07%，Task5第17轮开发48.71%、四区目标/序列、工程及方法学验收GO。v3 Task1已实现并独立复审GO（68项针对性测试），Task2准备/缓存导入完成（P03）、Task3几何一致性完成（P24），两者实际独立复审GO（P25），Task4头部及完整全窗均已完成并独立GO（P28），Task5起未实施；source roster材料缺口保持完整bank/融合的全局生成阻断。后续从Task4目标恢复→Task5源16轮重训→Task6–14；不得把当前v2权重当v3已通过。
 
 无定时自动化，Task5旧后台进程已正常结束。本轮不新建自动化，不训练，不推断final准确率。2026-10-06原版复审问题已修订；Task1已获实际独立GO，Task2/3独立复审GO，唯一P2缓存问题已修复复验。下一复审应在Task4/5长训练前按计划执行；当前放行只覆盖准备与针对性验证，不代表已经证明全处理等价或可以跳过manifest/roster直接长训练。v2已退休两resume.pt和四sequence.npy（1.02GiB），正式checkpoint/targets/anchors/公共缓存/来源记录保留；旧seq refs为历史证明，不再宣称可直接完整加载。修改后自检：source_ops覆盖、接口/角色/硬链接导入一致、固定人口/无OOF无矛盾、每主链参数有source、每验证只消费直接输入。
