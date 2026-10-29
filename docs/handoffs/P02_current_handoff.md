@@ -6,6 +6,12 @@
 
 ## 当前完成状态（Current Status）
 
+**当前最新：Task9／10三独立复审PASS（P39）；用户纠正后续为Task11不是Task12。Task11已推进会话/纯算子/谱系预检，尚未完成，正式A8阻断。** 当前review入口protocol/task9_10_independent_review_P39.json，Task9/10无未解决P1/P2，支持前十步继续复用；旧Task9 registry/roles证据SHA绑定4e148cb历史blob，当前共享校验器改变不改其旧complete。
+
+Task11新增session_metadata.py、source_teacher_bank.py及preflight CLI，30 targeted GREEN14.34秒。四区公共时间sidecar实验收4.01秒，不读labels/预测或大cache；按(partition,user,date)调用原anonymous_date/session-list并映射全局索引，unknown时间不连边。P310优先覆盖/锐化纯接口已实现但无正式A8输入。task11_source_closure_v1.json是evidence-only版本化视图，parent原roster，明确A18实际含被删VideoMAEv2/InternVideo2而排除，旧协议/祖先不改。真实CLI预期exit2=BLOCKED_FORMAL_SOURCE_BANK，不是A8完成；无task11_complete。
+
+**本轮阻塞材料：** P12 p11_fp16所选S+D配置/命令与公开init receipt；Thermal实际_fp16所选checkpoint/转换链绑定（runner只证明非_fp16输出），以及四区thermal_path/available公共sidecar；safe-base新发现依赖P85 KNN→原中间结构目标/decoder→独立adapt12→P87S raw→P89，不能直接A7或最终A9-12替代。三fold decoder摘要/固定划分参数来源和P89 joint grouping证据尚需闭合。A18配置本身存在，不再误报完全缺失；应排除其多大根输入而非A5凑列。详见[P40](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/P40_Task11_来源闭合与会话适配.md)。Task11其余完整P12/global/KNN/bank/group/sequence未实现，Task12不推进，无新训练/自动化/final标签读取。以下“Task11未授权/未启动”等是此前历史。
+
 **当前最新：Task1–10已实施，Task10八组4＋20、四区24targets及最终有限自验完成；Task11未启动。** 入口run/protocol/task10_complete.json；交付[P38](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/P38_Task10_原融合与独立训练控制.md)。42 targeted GREEN43.74秒，另旧固定24恢复专项1GREEN9.36秒；真实64train12（含IR-only1）源Dataset/A/B loss/grad/update0；最终57.48秒验收八模型／配对初始化与每轮顺序／人口/CW／24小targets／prior。真实refit/full在64final公共输入的full/zero-S/I logits差0，教师目标/标签打开0、initializer参数装载0。final六候选均609/591valid/18prior，不评分。
 
 八组保留训练时间1400.40秒，续跑训练＋导出流程1589.0秒；首次序列化失败后的full/select从A4末态重跑B20，旧新全部history除seconds外相同，未追加模型预算。主实现1e9648f、保存修复8dbd621已推送，最终收尾见Git日志。八模型均各自同phase A2/ir_supervision_v2 A5初始化；A7与训练控制不混祖先，zero-S/I共用full checkpoint。当前开发full210/388=54.12%，control181/195/198，zero187/205，只记录不据分数改配方。按用户要求全部任务完成后统一评估。
