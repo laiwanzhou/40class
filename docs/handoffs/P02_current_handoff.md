@@ -6,7 +6,11 @@
 
 ## 当前完成状态（Current Status）
 
-最新：**v3.1 Task1–8已完成，Task9未启动。** Task8源MoBind select/refit各24轮末态与四区S/I/combined诊断共12份输出已齐，27项针对回归GREEN68.29秒、两真实64样本批次源Dataset/损失/梯度/更新差0、实际无教师/标签载荷推理64行差0，有限自验通过。开发S35.82%（139/388）、I28.61%（111/388）、combined诊断39.69%（154/388），final不评分。本轮无独立子智能体复审；权威入口task8_complete.json，交付[P33](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/P33_Task8_MoBind运动预训练.md)。Task1–7、全局门槛与ROI精度残余保留，旧段落中的未启动状态仅为历史。
+最新独立复审（2026-10-29）：**Task6／7 PASS，Task8 CONDITIONAL，P34-M1未解决。** 三个独立子智能体完成工程／方法／产物审查，详见[P34](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/reports/P34_Task6至8_独立复审.md)。A5按motion union剔除83／86行中各有1条IR-only仍具A1监督，改变源CE/KD／类别权重与batch人口；不能把事后披露当明确批准。建议恢复该行训练并版本化重生A5后复审，或由用户明确接受额外人口适配。本轮仅审计，不修改生产代码／模型，不代替用户接受，不推进Task9。Task1–7可复用。原task8_complete仍是自验完成历史，新的task6_8_independent_review_P34.json记录条件性审查，优先读此状态；下述“已完成／未独立审”属于当时实施记录。
+
+工程独立CPU恢复等价加强验证PASS（连续24 vs第7轮中断，dropout/shuffle/三RNG数据，model/optimizer/scaler/RNG/history一致）；P3完整缓存复用不重查raw IMU变化，仅在原输入变化后触发，无当前漂移证据。产物独立核验实际模型、mask/IDs/12份A5及8份RF预测与允许开发指标；未读final标签／重训／GPU复验／全cache扫描。
+
+Task8实施收尾记录：**当时v3.1 Task1–8实施完成，Task9未启动；当前独立方法结论见上方CONDITIONAL。** Task8源MoBind select/refit各24轮末态与四区S/I/combined诊断共12份输出已齐，27项针对回归GREEN68.29秒、两真实64样本批次源Dataset/损失/梯度/更新差0、实际无教师/标签载荷推理64行差0，有限自验通过。开发S35.82%（139/388）、I28.61%（111/388）、combined诊断39.69%（154/388），final不评分。本轮无独立子智能体复审；权威入口task8_complete.json，交付[P33](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/P33_Task8_MoBind运动预训练.md)。Task1–7、全局门槛与ROI精度残余保留，旧段落中的未启动状态仅为历史。
 
 Task7收尾记录：**当时v3.1 Task1–7已完成，Task8未启动。** Task7源RF／四区双profile targets与有限自验已完成，29项针对回归GREEN48.46秒、真实source32统计／mask源差0、正式自验5.30秒；本轮未执行独立子智能体复审。select训练1914有效样本＋设备dropout副本，refit2283＋副本；开发123/388=31.70%，final609／580有效／29 RF-prior，不读取final标签。source_expert/imu_rf单独readiness不放A5/P12或改global false。权威入口task7_complete.json，交付[P32](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/P32_Task7_IMU随机森林教师.md)。Task1–6产物保持有效；下面的“Task7未启动”为此前Task6收尾时的历史状态。
 
@@ -20,7 +24,7 @@ Task1、Task2＋3、Task4和Task5均经实际独立复审GO。Task4完成全部�
 
 Task4代码已推送`202d57c`；最终完成文档的提交号见本任务ledger和Git最新日志。ledger仍位于`.superpowers/sdd/2026-09-23-teammate-single-teacher-fixed-split/progress.md`，保留旧目录名以连续记录；首行指导路径已更新P01。
 
-当前run：`outputs/teammate_single_teacher_fixed_split/fixed-split-single-teacher-v3-source-ops`。协议SHA：`2b563c9d2b0c4ee62297a1ec05062811f7059ee1778c7090cefede2cc507618a`。最新权威完成入口为`run/protocol/task8_complete.json`；`task7_complete.json`继续绑定RF模型／双consumer目标；`task5_complete.json`继续绑定学生模型／四区产物与独立验收，`task6_complete.json`绑定公共运动缓存及自验；`task4_complete.json`仍保留此前视觉教师头部和全窗特征的完成依据。旧`task4_heads_complete.json`的fullwindow_completed=false仅保留头部完成当时事实，不重写旧身份。
+当前run：`outputs/teammate_single_teacher_fixed_split/fixed-split-single-teacher-v3-source-ops`。协议SHA：`2b563c9d2b0c4ee62297a1ec05062811f7059ee1778c7090cefede2cc507618a`。当前审查入口为`run/protocol/task6_8_independent_review_P34.json`，Task8为CONDITIONAL；原实施完成入口`run/protocol/task8_complete.json`保留自验历史；`task7_complete.json`继续绑定RF模型／双consumer目标；`task5_complete.json`继续绑定学生模型／四区产物与独立验收，`task6_complete.json`绑定公共运动缓存及自验；`task4_complete.json`仍保留此前视觉教师头部和全窗特征的完成依据。旧`task4_heads_complete.json`的fullwindow_completed=false仅保留头部完成当时事实，不重写旧身份。
 
 ## Task4结果与验收（Results and Acceptance）
 

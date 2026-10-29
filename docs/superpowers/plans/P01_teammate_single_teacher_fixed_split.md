@@ -129,6 +129,14 @@ Task1–5保持完成状态：源操作／协议描述符、公共清单与缓�
 
 每个Task只运行自己的针对性测试和计划要求的一条/一批真实train12样本；输入或实现未变则不重复。原始数据只读；轻量验收不声称验证全部未消费文件。CLI记录初始化/加载/计算/写出/登记耗时与批次进度。用小fixture的读取计数保证raw SHA0、祖先payload0、epoch/batch中资产复查0；不得用一次全量扫描证明“不全扫”。
 
+## 2026-10-29 Task8后独立复审状态（Independent Review Status）
+
+三名独立审查者已按工程／方法／正式产物完成Task6–8复审，范围3c3dda6…bfcb3a9。**Task6／7 PASS；Task8 CONDITIONAL，存在未解决的条件性P2 P34-M1**，不是全链无保留GO。详见[P34独立复审](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/reports/P34_Task6至8_独立复审.md)。
+
+P34-M1：当前A5按 `sk|imu` 训练1956／2341行，分别比有效视觉监督1957／2342少1条IR-only，因而改变源CE／KD、class weights及batch组成。规格“完全无有效输入”的范围尚需裁定；P33及完成段是实施事实，不等于已经批准这项额外方法差异。建议恢复有视觉监督的IR-only行、明确真正全模态缺失边界后生成新版本A5并复审；或由用户明确接受额外人口适配，不能静默当作完全源等价。本轮不替用户接受或重训。
+
+**后续约束：P34-M1裁定／修复闭合前，不自动使用当前A5进入后续训练。Task9仍未启动。** Task1–7可复用，旧A5和原自验完成标记保持历史不覆盖；新增P34 review marker记录本次条件性结论。工程P3缓存复用依赖原始输入不变，未发现当前输入漂移，非本轮重训理由。P12等全局材料门槛及既有ROI精度残余仍独立存在。
+
 ## 复审重点（Review Focus）
 
 1. 教师头温度与学生KD温度混淆：raw/T_head再除T_KD；T_head只fit训练人口，不能固定1或用val拟合。
@@ -272,7 +280,7 @@ Task1–5保持完成状态：源操作／协议描述符、公共清单与缓�
 - [x] 24轮固定，末轮val诊断；refit随机重启同24轮。A1输入改为校准early_late和view-mean features；RF目标遵守阶段/valid。
 - [x] 真实两个train12批次比对缺失项、时间增强及teacher映射；输出A5-S/I/combined和四分区fallback记录。
 
-**2026-10-29完成（Complete）：** 两阶段各24轮随机重启，源模型／全部loss／增强／教师映射／完整epoch恢复已实现；训练至少一种motion有效行1956／2341，部分缺失保留、无运动83／86行不参与fit且完整人口预测回退。四区S/I及显式combined available-mean诊断共12份targets齐；源无combined学习头，该项不入主bank或16候选。开发S139/388=35.82%、I111/388=28.61%、combined154/388=39.69%；final不评分。真实2×64批次源Dataset/损失/梯度/参数更新差0，峰值737.39MiB；最终27项针对回归GREEN68.29秒。训练185.18秒、正式日志跨度213.37秒，实际模型禁教师/标签载荷推理64行差0，有限自验10.37秒。A5-only motion_readiness不改全局false；完成入口task8_complete.json，未独立复审，Task9未启动。详见[P33交付](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/P33_Task8_MoBind运动预训练.md)。
+**2026-10-29实施完成／独立复审CONDITIONAL（Implementation Complete / Conditional Review）：** P34-M1的IR-only训练人口差异未决，下述为实际实施结果，不能视作无保留源等价。两阶段各24轮随机重启，源模型／全部loss／增强／教师映射／完整epoch恢复已实现；训练至少一种motion有效行1956／2341，部分缺失保留、无运动83／86行不参与fit且完整人口预测回退。四区S/I及显式combined available-mean诊断共12份targets齐；源无combined学习头，该项不入主bank或16候选。开发S139/388=35.82%、I111/388=28.61%、combined154/388=39.69%；final不评分。真实2×64批次源Dataset/损失/梯度/参数更新差0，峰值737.39MiB；最终27项针对回归GREEN68.29秒。训练185.18秒、正式日志跨度213.37秒，实际模型禁教师/标签载荷推理64行差0，有限自验10.37秒。A5-only motion_readiness不改全局false；原自验完成入口task8_complete.json保留；新增P34独立复审为CONDITIONAL，P34-M1未闭合，Task9未启动。详见[P33交付](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/P33_Task8_MoBind运动预训练.md)。
 
 ### Task 9：额外平均融合诊断（Additional Mean-fusion Controls）
 
