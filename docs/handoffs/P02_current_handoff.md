@@ -6,6 +6,15 @@
 
 ## 当前完成状态（Current Status）
 
+**最新进度／意外中断恢复（2026-10-30）：** 检查发现旧worker5632与supervisor13220均不存在，无Python异常日志；Depth select仅完成7／15轮，最后完整轮为2026-10-29 22:36:13。Depth refit／Thermal两阶段、P12/global/KNN、中间学生12轮均未启动；Skeleton完成产物仍在。系统未重启，具体退出原因尚未证实，不能把这段时间计作持续训练。
+
+第7轮resume已实际CPU装载核验：history连续1–7、scheduler.last_epoch=7、模型／AdamW／scaler／采样器及全部RNG齐，identity和producer CRLF SHA完全不变。按持续任务授权已从第8轮恢复，日志明确p12_image_resume/completed_epochs=7；未重跑前七轮或修改训练代码。
+
+新worker PID56208，当前日志索引仍P41-p12-images-current-run.json；新supervisor PID29096，索引P42-continuation-current-run.json。两者改为本地WMI创建的hidden detached后台进程，工作目录／脚本／配方不变；没有安装服务或新增定时任务，不宣称能规避系统断电或一切退出。新日志均P43前缀并带20261030时间，不覆盖旧日志。恢复凭据revision/recovery_20261030.json，progress已running_after_unexpected_interruption。
+
+接续范围仍教师→P12/global/KNN→fit-pool targets→Task11 source-base两12轮及四区raw预测，之后停在safe/bank/A8剩余实现之前，不启动Task12。旧ETA因这段停止需顺延。当前Task11未完成，无新独立复审；两份既有未跟踪报告仍不提交。
+
+
 **最新Task11推进（2026-10-29，P43）：** Depth select完成6／15轮，第7轮进行中；worker5632仍在跑，最后两轮730.99／688.69秒。已补齐Task11 source_base_adapt12_reconstructed的正式训练／四区raw推理代码（ab93e47），各自A7 full初始化，select只train12／refit只refit14，固定12轮heads、5e-5/1e-5→2e-6、KL T1、confidence0、warmup0。明确refit包含user6/7但dev预测只用select；本阶段两phase都不适配final4，不是Task12。
 
 原train_label_free只局部AST加入完整轮保存／恢复，不改损失和更新。14 targeted GREEN53.75s；加强shuffle、batch2+1、dropout和三种随机增强后，原连续12 vs第4轮中断恢复完全一致，3GREEN31.50s；真实四条train12 CPU输入含IR-only，原函数与包装函数全部状态差0、真值批次0，56.38s。probe的A1目标只供接口验收，未注册正式模型，不能冒充正式P85目标或val成绩。
