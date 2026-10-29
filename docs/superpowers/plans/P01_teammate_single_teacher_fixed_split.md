@@ -2,7 +2,7 @@
 
 > 本分支唯一有效计划（Canonical Plan）；唯一交接入口为 [P02](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/handoffs/P02_current_handoff.md)。旧实验计划及交接已移入 docs/archive，仅作为历史记录（Historical Records）；reports/audit_inputs 为审计输入快照，不指导当前执行。
 
-> 执行者使用 superpowers:executing-plans；用户明确选择子智能体实施时才使用 subagent-driven-development。2026-10-06独立复审修订为v3.1，Task编号仍为1–14。初版v3的机制producer、KNN依赖和元数据/导入/角色/校验契约已在下文纠正；正式生成仍受逐阶段数值与依赖闭合门槛约束。v2 Task1–5已完成并推送6e31b6d；它们是历史基线，不表示新增v3要求已完成。2026-10-28 Task1已实现并独立复审GO；Task2准备与Task3几何一致性均已完成并获独立复审GO，Task4完整产物生成并通过有限独立验收GO；Task5固定16轮select/refit及四区预测／序列均已完成，有限独立复审GO；Task6–14未实施，未训练大视觉骨干。旧规格/计划见reports/audit_inputs/2026-10-04/pre-v3/。
+> 执行者使用 superpowers:executing-plans；用户明确选择子智能体实施时才使用 subagent-driven-development。2026-10-06独立复审修订为v3.1，Task编号仍为1–14。初版v3的机制producer、KNN依赖和元数据/导入/角色/校验契约已在下文纠正；正式生成仍受逐阶段数值与依赖闭合门槛约束。v2 Task1–5已完成并推送6e31b6d；它们是历史基线，不表示新增v3要求已完成。2026-10-28 Task1已实现并独立复审GO；Task2准备与Task3几何一致性均已完成并获独立复审GO，Task4完整产物生成并通过有限独立验收GO；Task5固定16轮select/refit及四区预测／序列均已完成，有限独立复审GO；2026-10-29 Task6运动缓存／恒等外部转换已实现、正式生成及有限自验通过，未独立复审；Task7–14未实施，未训练大视觉骨干。旧规格/计划见reports/audit_inputs/2026-10-04/pre-v3/。
 
 **目标（Goal）：** 一个大视觉教师、固定用户划分，在其余生效操作上按最终提交源码复刻完整路线。
 **架构（Architecture）：** 复用源模型/算子，按新人口重新拟合；除教师根节点数量与固定划分替代OOF外，不随意增删归一化、掩码、温度、预算、后处理或适配参数。所有必要数据适配单独登记。
@@ -241,10 +241,12 @@ Task1–5保持完成状态：源操作／协议描述符、公共清单与缓�
 **文件：** motion_cache.py、build_no_vote_motion_cache.py、tests/test_no_vote_motion_cache.py。
 **接口：** build_motion_source/windows保持原契约；describe_motion_transform(motion: ArtifactRef, protocol: NoVoteProtocol) -> ArtifactRef；apply_source_transform为恒等外部映射，保留源内物理处理。
 
-- [ ] RED：test_no_added_global_standardization断言不读取fit labels、不拟合mean/std、输出字段与源cache/Dataset相同；test_source_window_alignment保留真实pixels索引与跨模态时间窗。
-- [ ] 移植P31与P86所有MOTION_FIELDS/BOOLEAN/TEMPORAL轴、重采样、身体/旋转补偿及原mask；不把v2额外归一化实现进去。
-- [ ] normalization父字段仅为确定性Source Transform Descriptor，标注imu_instance_normalization=false；全部消费者不再应用额外z-score。源模型内LayerNorm不删除。
-- [ ] 合成时窗及一条train12真实样本与原纯函数对照。缺设备/Skeleton样本保存原mask，不零填一套伪统计。
+- [x] RED：test_no_added_global_standardization断言不读取fit labels、不拟合mean/std、输出字段与源cache/Dataset相同；test_source_window_alignment保留真实pixels索引与跨模态时间窗。
+- [x] 移植P31与P86所有MOTION_FIELDS/BOOLEAN/TEMPORAL轴、重采样、身体/旋转补偿及原mask；不把v2额外归一化实现进去。
+- [x] normalization父字段仅为确定性Source Transform Descriptor，标注imu_instance_normalization=false；本Task读取／转换接口无额外z-score，后续Task8/10消费者必须继承此约束。源模型内LayerNorm不删除。
+- [x] 合成时窗及一条train12真实样本与原纯函数对照。缺设备/Skeleton样本保存原mask，不零填一套伪统计。
+
+**2026-10-29完成（Complete）：** 40项motion／roles／cache-import针对测试通过，补充源Dataset单测通过；真实train12一条22帧／102IMU点，12字段对源函数差0、pixels时间差0、标签打开0。refit14=2427与final4=609的P31源／P86窗口及两个source_transform均生成，train12／development2按ID复用refit14公共缓存，无fit统计；Skeleton有效2341／590、IMU有效2283／580，全缺失85／18保留mask。正式日志跨度约125.24秒，有限产物自验0.88秒，未大数组SHA或全量finite复扫。完成入口protocol/task6_complete.json；本Task未执行独立子智能体复审，Task7未启动，原ROI精度残余与global false不变。详见[P31交付](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/P31_Task6_运动缓存与源转换.md)。
 
 ### Task 7：源RF IMU教师（RF Teacher Parity）
 
@@ -347,6 +349,6 @@ Task1–5保持完成状态：源操作／协议描述符、公共清单与缓�
 
 ## 状态与交接（Status and Handoff）
 
-v2已完成：Task4单头T1开发69.07%，Task5第17轮开发48.71%、四区目标/序列、工程及方法学验收GO。v3 Task1已实现并独立复审GO（68项针对性测试），Task2准备/缓存导入完成（P03）、Task3几何一致性完成（P24），两者实际独立复审GO（P25），Task4头部及完整全窗均已完成并独立GO（P28），Task5已完成并独立GO（P30），Task6起未实施；source roster材料缺口保持完整bank/融合的全局生成阻断。后续从Task6源运动缓存继续Task6–14，当前未进入；不得把当前v2权重当v3已通过。
+v2已完成：Task4单头T1开发69.07%，Task5第17轮开发48.71%、四区目标/序列、工程及方法学验收GO。v3 Task1已实现并独立复审GO（68项针对性测试），Task2准备/缓存导入完成（P03）、Task3几何一致性完成（P24），两者实际独立复审GO（P25），Task4头部及完整全窗均已完成并独立GO（P28），Task5已完成并独立GO（P30），Task6运动缓存／恒等转换已完成生成与有限自验（P31，未独立复审）；source roster材料缺口保持完整bank/融合的全局生成阻断。下一任务为尚未启动的Task7源RF；不得把当前v2权重当v3已通过。
 
-无定时自动化，当前Task5正式训练与导出已结束；不推断final准确率，不自动进入Task6。2026-10-06原版复审问题已修订，Task1–5各规定节点已实际独立GO；Task5最终53项针对性测试与正式产物有限验收通过。后续按Task6–14各自依赖和复审节点执行，当前局部GO不代表全处理等价，不跳过manifest/roster或P12等材料门槛。v2已退休两resume.pt和四sequence.npy（1.02GiB），正式checkpoint/targets/anchors/公共缓存/来源记录保留；旧seq refs为历史证明，不再宣称可直接完整加载。修改后自检：source_ops覆盖、接口/角色/硬链接导入一致、固定人口/无OOF无矛盾、每主链参数有source、每验证只消费直接输入。
+无定时自动化，Task5训练／导出及Task6正式缓存进程均已结束；不推断final准确率，不自动进入Task7。2026-10-06原版复审问题已修订，Task1–5各规定节点已实际独立GO；Task5最终53项针对性测试与正式产物有限验收通过，Task6为40项针对回归及有限自验通过。后续按Task7–14各自依赖和复审节点执行，当前局部GO不代表全处理等价，不跳过manifest/roster或P12等材料门槛。v2已退休两resume.pt和四sequence.npy（1.02GiB），正式checkpoint/targets/anchors/公共缓存/来源记录保留；旧seq refs为历史证明，不再宣称可直接完整加载。修改后自检：source_ops覆盖、接口/角色/硬链接导入一致、固定人口/无OOF无矛盾、每主链参数有source、每验证只消费直接输入。

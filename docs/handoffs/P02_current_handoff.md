@@ -6,11 +6,13 @@
 
 ## 当前完成状态（Current Status）
 
+最新：**v3.1 Task1–6已完成，Task7未启动。** Task1–5保留此前实际独立GO；2026-10-29 Task6按用户授权完成运动缓存／恒等外部转换，40项针对回归及补充源Dataset对照通过，正式refit14=2427／final4=609的源和窗口缓存、两个source_transform已齐，有限自验通过；本Task未请求或执行独立子智能体复审。权威入口`run/protocol/task6_complete.json`，交付[P31](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/P31_Task6_运动缓存与源转换.md)。PID24744/session8676已退出，无后台训练或新自动化；用户只授权到Task6。
+
 2026-10-29用户批准补充完整知识转移的评估契约（Knowledge-Transfer Evaluation Contract），已原位写入P01及Task11–13：保留主比较A9-40−A1，新增A8−A1／A9-40−A8／A9-40−A7；Task12端点后无增强eval输出教师—学生一致率，分别报告609全体／591适配／18prior并绑定A8目标与A7/A9引用。100%一致不设门槛、不追加训练或选端点；准确率和rescue/harm只在Task13冻结揭示后计算。保持user6/7未参与伪标签适配，区分开发成绩和目标输入已参与适配的结果。仅文档／后续评估输出修订，不改YAML、协议或producer；Task1–5正式产物及原完成标记／复审继续复用，ROI精度差异与P12/P89等后续门槛仍独立保留。Task6未启动，没有新训练或标签揭示。
 
 2026-10-29用户要求再次对照最终(1)包并注明差异，结论已原位补入唯一[P01的再核对章节](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/superpowers/plans/P01_teammate_single_teacher_fixed_split.md)。23个直接小源码中21个与快照字节相同，P89/P310两文件仅无效元专家／旧报告比较不同，当前相关生效算子未改。新增发现：源pixels质量值FP16存储后转FP32，当前直接FP32，三条train12抽样舍入差最大2.44e-4；已列待闭合精度差异，本次不改缓存或模型、不重训。固定划分另带来in-sample目标、校准来源／refit重新估T、val选参及ID批次顺序等差异；不再无条件宣称只两项差异且全链完全一致。P28/P30与完成标记保持历史原样。Task5基础视觉完成，Task10/12仍会训练视觉头；Task6未启动，P12/P89/A18全局门槛不变。
 
-v3.1 Task1–5已完成。Task1、Task2＋3、Task4和Task5均经实际独立复审GO。Task4完成全部六族select/refit头、两个先验、两phase固定Ridge机制头、四区68组targets/raw scores与两个完整全窗特征。Task5两阶段固定16轮与四区预测／原生序列已完成；没有训练进程或定时自动化，Task6未启动。
+Task1、Task2＋3、Task4和Task5均经实际独立复审GO。Task4完成全部六族select/refit头、两个先验、两phase固定Ridge机制头、四区68组targets/raw scores与两个完整全窗特征。Task5两阶段固定16轮与四区预测／原生序列已完成，Task6现已完成源运动缓存及恒等转换；此前两条2026-10-29修订记录中的“Task6未启动”仅指其修订当时，当前状态以上方最新项为准。
 
 Task4代码已推送`202d57c`；最终完成文档的提交号见本任务ledger和Git最新日志。ledger仍位于`.superpowers/sdd/2026-09-23-teammate-single-teacher-fixed-split/progress.md`，保留旧目录名以连续记录；首行指导路径已更新P01。
 
@@ -40,7 +42,7 @@ Task4代码已推送`202d57c`；最终完成文档的提交号见本任务ledger
 
 旧全局门槛把P12/P89缺项阻断全部学习，与规格Task4/5不等待P12冲突。本轮独立认可的修订是`visual_readiness`描述符绑定source_ops、Task3证明与5个消费源pin，只放行A1/六头/class_prior/固定机制；没有改变YAML、旧协议身份或全局`formal_generation_ready=false`，不放行P12/专家bank/融合。
 
-Task5已按P01完成源16轮MC3、新targets消费和同phase native sequence/anchor，实际正式产物已独立验收GO。下一任务为Task6运动缓存，当前未进入。以新增student_readiness单独绑定Task4 complete和本phase目标等公开依赖，不把旧v2学生权重当作v3已完成。P12 S+D最终配置、Thermal最终配置/公开资产/额外公共清单，以及P89 safe-base/A18完整producer证据仍未闭合，完整teacher bank正式生成及最终冻结仍受阻断；不得填默认值、删必要专家或直接改true。
+Task5已按P01完成源16轮MC3、新targets消费和同phase native sequence/anchor，实际正式产物已独立验收GO。Task6现已完成raw运动缓存及公共确定性source_transform；下一任务是Task7源RF，未启动，不把Task6无fit完成视作全局监督放行。student_readiness仍只绑定Task4 complete和A2本phase目标，不把旧v2学生权重当作v3已完成。P12 S+D最终配置、Thermal最终配置/公开资产/额外公共清单，以及P89 safe-base/A18完整producer证据仍未闭合，完整teacher bank正式生成及最终冻结仍受阻断；不得填默认值、删必要专家或直接改true。
 
 ## 数据与复用边界（Data and Reuse Boundaries）
 
@@ -69,4 +71,14 @@ Task2只复制四公共清单和前三分区允许标签，未读/复制final标
 
 详情：[P29交付](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/P29_Task5_固定16轮视觉学生.md)、[P30最终独立GO](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/reports/P30_Task5_独立复审.md)。证据`outputs/task5_audit/P29-task5-final-tests.log`、`P29-task5-real-batch.log`、`P29-task5-final-acceptance.json/.log`。inference_only protocol保留同receipt/pins/identity，只不要求未消费public teacher/init文件存在；实际checkpoint/pixels/prior照常校验。
 
-协议身份仍2b563c9d2b0c4ee62297a1ec05062811f7059ee1778c7090cefede2cc507618a，全局formal_generation_ready=false不变，P12/Thermal/P89/A18材料门槛仍约束后续teacher bank／融合。下一步只有收到授权才进入P01 Task6，不按本轮低分改配方。保持唯一P01计划／P02交接；原数据、快照及两提交包只读，main历史文档仍等完整实验分支结束。
+协议身份仍2b563c9d2b0c4ee62297a1ec05062811f7059ee1778c7090cefede2cc507618a，全局formal_generation_ready=false不变，P12/Thermal/P89/A18材料门槛仍约束后续teacher bank／融合。Task6已按后续授权完成，下一步只有收到授权才进入P01 Task7，不按本轮低分改配方。保持唯一P01计划／P02交接；原数据、快照及两提交包只读，main历史文档仍等完整实验分支结束。
+
+## Task6完成（Motion Cache Complete，2026-10-29）
+
+新增motion_cache.py与构建／真实样本验收CLI，原P31骨骼／IMU、P46身体旋转／设备补偿、P86精确pixels窗口和12字段／BOOLEAN／TEMPORAL语义保留；原窗口FP16/uint8、global stat FP32，附带绝对时间元数据FP64。source_transform为公共descriptor、external identity、cross_sample_fit=false、imu_instance_normalization=false，没有fit标签或mean/std。五个直接源模块与最终包字节一致。
+
+refit14=2427（Skeleton2341／IMU2283／全缺失85），final4=609（590／580／18）；各两阶段均完整。train12/development2按精确ID复用refit14公共缓存，不做跨人口统计，后续拟合仍仅限本phase用户。当前无IR行也无运动输入，保留全false mask；其他输入若无IR但有motion且缺源timeline则拒绝，不伪造时间。两区各1条counter-only/no-IMU使用源10Hz回退，其他非空行用已恢复acquisition时间。
+
+7缺接口RED→GREEN，timestamp验证RED→GREEN，FP64时间存储RED→GREEN。40项motion/roles/cache-import初轮GREEN49.74秒，源Dataset扩展后最终同40项回归GREEN46.07秒，扩展单测另GREEN3.66秒；源全NaN Skeleton fixture保留源warning且mask/finite通过。真实train12一条22帧/102IMU点，12窗口字段源差0、timestamp0、区间点数守恒，标签载荷打开0，6.52秒。正式源/窗口计算合计102.15秒，日志跨度约125.24秒；登记载荷273.67MiB。有限产物自验0.88秒，完整IDs/headers/mask/源索引/小时间表、首中尾与缺失行小切片、两个transform绑定及训练/开发子集均通过；无大数组SHA／完整finite复扫、视觉重跑或final标签读取。
+
+完成入口task6_complete.json绑定ready、P31交付及自验／真实样本摘要。正式缓存run/motion/{refit14,final4}/full/{source,windows}；normalization见ready中的source_transform引用。大数组后续用load_motion只读mmap/header/stamp／消费切片，不能调用完整SHA路径重扫。日志outputs/task5_audit/P31-task6-formal.log，最终小证据P31-task6-final-acceptance.json/.log；无独立Task6复审，不冒称独立GO。Task7需自己的RF源配方／fit范围与阶段门槛验收。
