@@ -324,6 +324,8 @@ P34-M1：当前A5按 `sk|imu` 训练1956／2341行，分别比有效视觉监督
 
 ### Task 11：原保留专家与后处理（Retained Experts and Original Postprocessing）
 
+**近似复刻实施更新（2026-10-29）：** P41活动配置已冻结；原Skeleton select/refit各15轮、FP16副本及四区完整输出已完成有限验收。Depth／Thermal源Dataset/初始化/真实批次与恢复测试通过，正式训练PID47268进行中，每phase固定15轮、各自重新初始化，workers0/torch threads4工程覆盖明确记录。S+D/IMU/Thermal/global/KNN纯算子4项对照通过，但尚未正式fit/生成这些组件；完整bank／中间适配／A8仍未完成，不放行Task12，不修改下方历史门槛或旧protocol。详情与实时入口见P41及唯一P02；不得把局部测试/首轮完成当Task11完成。
+
 **2026-10-29推进状态（Partial／Blocked Formal Generation）：** Task9/10三独立复审PASS，详见[P39](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/reports/P39_Task9_Task10_独立复审.md)，允许进入本Task实现与来源闭合。已完成公共时间分块/原source会话函数适配、P310纯precedence/sharpening、缺producer拒绝与A18版本化排除证据；30 targeted GREEN14.34秒，四区公共时间真实验收4.01秒/标签open0。交付[P40](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/P40_Task11_来源闭合与会话适配.md)。本Task尚未完成，正式A8未生成，Task12未启动；下方完整流水线checkbox继续未勾选，不能把纯算子通过当完整producer闭合。
 
 **来源修订（Source Dependency Correction，P39-M1/M2/M3）：** A18实际经a18_full_teacher_data→p100a_global_teacher_data消费VideoMAEv2与InternVideo2，按已批准单大根约束排除；新增task11_source_closure_v1仅作evidence-only视图，parent原roster与pinned源证据，旧Task1–10的roster/SHA/protocol不改，完整消费端绑定待闭合。P89 safe-base的base_probability实际来自先12轮中间结构目标适配的P87S学生，不是普通A7；必须先建立P85 KNN→中间structured target/decoder→独立adapt12→P87S raw→P89 safe_base的phase通用子链，不能以A7或最终Task12 A9-12代替/形成循环。该中间decoder的outer-fold摘要/选参绑定与P89 joint grouping证据尚缺，正式生成继续阻断。P12 S+D实际p11_fp16所选配置仍未知；Thermal runner绑定的是p11_thermal_imagenet而非已证明的_fp16链；ResNet18_Weights.IMAGENET1K_V1名称已知但actual selected config/receipt、Thermal四分区公共sidecar未闭合。不得自行选默认参数解除门槛。

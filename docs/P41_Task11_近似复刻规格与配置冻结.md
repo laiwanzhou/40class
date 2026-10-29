@@ -47,4 +47,22 @@
 
 准备凭据在 `run/protocol/task11_reconstruction_v2/preparation.json`，sidecars 在其 `thermal_inputs/`。旧 Task11 严格预检继续按历史契约阻断，不能修改其结论；新的重建流程须验证自己的配置、公开 initializer receipt、真实缓存与同 phase 模型再放行，不能只翻旧 `formal_generation_ready`。
 
-当前已完成配置冻结和公共输入准备；P12新教师、global／KNN、中间适配、safe decision、完整bank／group／gate／A8仍需逐步实现。Task11未完成，Task12未启动。Task1–10及独立复审继续复用。整体效果留到完整实验结束后统一评估，不用单个开发分数追加候选或改变预算。
+当前已完成配置冻结、公共输入准备、Skeleton 两阶段15轮及四分区FP16输出；Depth／Thermal正式训练已启动。Task11未完成，Task12未启动。Task1–10及独立复审继续复用。整体效果留到完整实验结束后统一评估，不用单个开发分数追加候选或改变预算。
+
+## 教师实现与进行中训练（Teacher Implementation and Running Training）
+
+Skeleton 采用原 IR／Depth／Skeleton 共同帧与原首人姿态处理（Common-frame Alignment / First-person Pose）。select有效1939条，refit有效2324条；这与Task8的运动缓存人口不同，不能互相冒充。原平衡采样（Balanced Sampling）和 `drop_last=True` 保留，每轮实际采样1920／2304条。select／refit各15轮，训练累计52.28／44.77秒；完整人口输出仍为2039／388／2427／609，有效1939／385／2324／590，其余100／3／103／19条用同phase先验。未删行，也未读取final标签。
+
+FP32主模型（Master Checkpoint）及旧输出保持不变，另存FP16副本；所有浮点张量恰为主模型half结果，整数计数保留，执行时恢复FP32参数并按源AMP。入口 `run/protocol/task11_reconstruction_v2/p12_skeleton_current.json` 指向 `skeleton_fp16_component.json`。有限验收核对两历史、四份小预测及先验，不重复扫描原始数据或大缓存。主producer SHA与Git `69eed6d` 的源码一致；后续适配层扩展不追改历史来源身份。
+
+Depth／Thermal输入适配调用原采样、增强、归一化和模型类（Source Dataset / Model）。预测接口仅用AST移除原输出字典中的一个 `sample.class_id` 读取，不构造伪标签；Depth按源缓存的PIL双线性resize，Thermal保留原仿射与翻转顺序。Thermal公开ResNet18 V1已登记完整SHA与官方来源，按跨盘复制到独立run，未改C盘缓存；初始化与原 `imagenet_pretrained=True` 模型逐参数相同。
+
+两个真实32条train12批次，输入源差0，更新前梯度全部有限、参数实际改变、AMP跳步0，峰值约2819／2810 MiB。最初验收误把源函数更新后清空梯度解释成失败，现已改为优化器更新前hook核验；旧失败日志保留，未据此更改训练配方。24项针对性测试30.66秒通过，含连续15轮与第4轮中断恢复的模型／AdamW／scheduler／scaler／全部RNG／sampler顺序及历史等价；小夹具保留30条sklearn预测类别warning。真实批次验收10.82秒，无开发或封存标签。
+
+有效工程覆盖（Engineering Overrides）：Windows使用workers0，CPU torch threads4；CUDA保留源high matmul precision和cuDNN benchmark。无训练轮数、批量32、增强或初始化的额外选择。每完整epoch保存恢复点，崩溃恢复会重跑未完成轮，已完成轮不增加预算。
+
+正式训练启动于2026-10-29 20:35（Asia/Shanghai），PID47268，producer `89c1930`。先Depth select15／refit15及四区FP16推理，再Thermal相同步骤。日志 `outputs/task5_audit/P41-p12-images-formal.log`，stderr同名 `-error.log`，PID文件 `P41-p12-images-formal.pid`。已实际完成Depth select第1轮，347.69秒；尚不能据第一轮精确预测整个流程耗时。不得在进程尚活着时重复启动，不能把第一轮完成当教师或Task11完成。
+
+P12校准／融合纯算子（Calibration / Fusion Operators）已补入 `p12_fusion.py`：S+D的0.6／0.4、IMU温度及0–0.5十一格、设备数／5权重、Thermal 81格温度／21格权重及accuracy／macro-F1／较低权重决胜、89维路由、global simplex、原self-excluded三邻居0.4。4项源对照测试24.34秒通过；尚无正式拟合参数或全量组件表，不把纯算子测试称为完整producer闭合。固定划分若导致路由敏感行只有一个目标类别，复用原 `route_cross_fitted` 的常数回退（Constant Fallback），不加伪样本；这区别于源最终全量router遇此情况直接拒绝的分支，必须在实际触发时记录，仍不新增OOF。
+
+后续仍需正式P12八分量、global／KNN、中间独立适配、safe decision、完整bank／group／gate／sequence／A8。当前状态见 `run/protocol/task11_reconstruction_v2/progress.json`，它明确 `task11_complete=false`，无Task12启动或独立复审GO。

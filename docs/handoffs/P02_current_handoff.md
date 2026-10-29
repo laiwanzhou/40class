@@ -6,6 +6,17 @@
 
 ## 当前完成状态（Current Status）
 
+**最新续接（2026-10-29 20:45）：Task11近似复刻进行中，Depth／Thermal正式训练在跑，不要重复启动。** 主进程PID47268，代码producer `89c1930`（已推送）；日志 `outputs/task5_audit/P41-p12-images-formal.log`，错误 `P41-p12-images-formal-error.log`，PID `P41-p12-images-formal.pid`。Depth select第1轮347.69秒已完成，后续按15轮select→15轮refit→四区FP16导出，再Thermal。每完整轮resume保存模型/optimizer/scheduler/scaler/全部RNG和WeightedRandomSampler RNG，恢复只重做未完整轮。先看进程/日志/history，不能仅凭进程存在或编码100%认完成。运行脚本 `scripts/run_no_vote_p12_images.py --config configs/experiments/teammate_single_teacher_fixed_split_v3.yaml`；不要改正在运行的p12_visual_reconstruction.py，否则新进程identity会拒绝续跑。
+
+Skeleton已完成原两15轮与FP16导出，权威指针 `run/protocol/task11_reconstruction_v2/p12_skeleton_current.json`。两FP32 master来源Git69eed6d SHA已验证，不按当前扩展后的源码重写旧record。四区完整2039/388/2427/609，valid1939/385/2324/590，prior100/3/103/19；原共同三模态帧/首人姿态人口，与Task8不同。FP16逐张量为master.half、整数计数不变；保留旧FP32模型和预测。验收 `outputs/task5_audit/P41-p12-skeleton-acceptance.json/.log`，由 `scripts/check_no_vote_p12_skeleton_component.py` 完成；不要重复全3千小缓存或大raw哈希。
+
+本轮24项针对性测试GREEN30.66秒，含训练第4轮中断→15轮恢复与连续训练的模型/AdamW/scheduler/scaler/RNG/采样顺序等价；两真实32条train12批原Dataset差0，优化器更新前梯度有限、参数改变、AMP跳步0、峰值约2.8GiB。源Depth函数step后zero_grad，旧probe误判空梯度为溢出；已改optimizer pre-step hook，保留失败日志，无配方变更。真实成功证据 `P41-p12-images-real-batch.json` 与 `-accepted.log`。Thermal ImageNet V1已从C盘缓存跨盘复制到run并登记完整SHA/官方URL，初始化对原类逐参数一致。workers0、torch threads4的工程覆盖单独披露。
+
+纯 `p12_fusion.py` 新增S+D/IMU设备权重/Thermal校准路由/global simplex/三邻居source算子，4测试GREEN24.34秒。尚未正式fit或生成P12/global/KNN；路由敏感目标只有一类时用原cross-fit函数常数fallback而非最终main的直接拒绝，实际触发时必须记录这个固定划分适配，不构造伪样本。不能把纯算子通过当完整bank闭合。
+
+当前活动配置仍task11_reconstruction_v2/SHA39f5c5a5a67a6d128ae089dfc619ccfdb537aea92b595aaf9d2d4bd7c67ba89c，recipe.artifact.json稳定复用；不要因trainer扩展重登记recipe。当前总入口 `run/protocol/task11_reconstruction_v2/progress.json` 明确Task11 false/A8 false/Task12 false。P41已更新实际进展；后续待两图像教师/四区预测、正式P12八分量/global/KNN、中间source-base adapt12、safe base/bank/group/gate/sequence/A8。原Task1–10和严格旧预检保持历史，新独立复审未执行，不声称Task11 GO；final私有标签不读。main历史文档仍等全实验结束再更新。两个既有untracked历史报告不提交。
+
+
 **最新授权/状态：用户同意改为近似复刻并要求继续工作。** 已冻结活动`configs/experiments/task11_reconstruction_v2.json`，基础protocol仍2b563c...、Task1–10复用，旧P39/P40与严格预检不改。当前P01顶部授权补充和[P41](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/P41_Task11_近似复刻规格与配置冻结.md)指导后续；不能继续把缺历史config_used/decoder摘要作为无条件停工理由，也不能翻旧globalfalse冒充实际producer完成。
 
 v2准备已成功10.27秒：P11 source Skeleton/Depth/Thermal JSON固定15末轮，Depth明确随机init，Thermal ImageNet V1；中间decoder30/.3/1/50/T1+source backoff、独立source-base adapt12仅本phase fit、不适配dev/final（与原target池不同，已显式登记）；safe .95adaptedraw+.05 RF/T3及原固定repeat配置。A18/P128含被删大根排除，20保留列。Thermal路径准备最初因公共行全部路径为空失败；v2保留unknown观察值，不反查私有mapping或猜不存在。四区found/knownabsent/unknown=1840/117/82、374/11/3、2214/128/85、574/17/18，完整分母不变。标准输入表unknown无可消费mask0，另有observation表真实保留unknown。receipt run/protocol/task11_reconstruction_v2/preparation.json。两个输入测试GREEN，下一步实现真实P12数据与教师训练；Task11仍未完成、A8未生成、Task12不推进，无新训练已启动。此前v1配置是失败准备草稿，不作为活动配置。
