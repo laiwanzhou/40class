@@ -2,7 +2,7 @@
 
 > 本分支唯一有效计划（Canonical Plan）；唯一交接入口为 [P02](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/handoffs/P02_current_handoff.md)。旧实验计划及交接已移入 docs/archive，仅作为历史记录（Historical Records）；reports/audit_inputs 为审计输入快照，不指导当前执行。
 
-> 执行者使用 superpowers:executing-plans；用户明确选择子智能体实施时才使用 subagent-driven-development。2026-10-06独立复审修订为v3.1，Task编号仍为1–14。初版v3的机制producer、KNN依赖和元数据/导入/角色/校验契约已在下文纠正；正式生成仍受逐阶段数值与依赖闭合门槛约束。v2 Task1–5已完成并推送6e31b6d；它们是历史基线，不表示新增v3要求已完成。2026-10-28 Task1已实现并独立复审GO；Task2准备与Task3几何一致性均已完成并获独立复审GO，Task4完整产物生成并通过有限独立验收GO；Task5固定16轮select/refit及四区预测／序列均已完成，有限独立复审GO；2026-10-29 Task6运动缓存／恒等外部转换已实现、正式生成及有限自验通过，未独立复审；Task7源RF教师已训练并完成四区双profile目标、有限自验通过，未独立复审；Task8–14未实施，未训练大视觉骨干。旧规格/计划见reports/audit_inputs/2026-10-04/pre-v3/。
+> 执行者使用 superpowers:executing-plans；用户明确选择子智能体实施时才使用 subagent-driven-development。2026-10-06独立复审修订为v3.1，Task编号仍为1–14。初版v3的机制producer、KNN依赖和元数据/导入/角色/校验契约已在下文纠正；正式生成仍受逐阶段数值与依赖闭合门槛约束。v2 Task1–5已完成并推送6e31b6d；它们是历史基线，不表示新增v3要求已完成。2026-10-28 Task1已实现并独立复审GO；Task2准备与Task3几何一致性均已完成并获独立复审GO，Task4完整产物生成并通过有限独立验收GO；Task5固定16轮select/refit及四区预测／序列均已完成，有限独立复审GO；2026-10-29 Task6运动缓存／恒等外部转换已实现、正式生成及有限自验通过，未独立复审；Task7源RF教师已训练并完成四区双profile目标、有限自验通过，未独立复审；Task8已完成源MoBind固定24轮select/refit、四区S/I及combined诊断输出和有限自验，未独立复审；Task9–14未实施，未训练大视觉骨干。旧规格/计划见reports/audit_inputs/2026-10-04/pre-v3/。
 
 **目标（Goal）：** 一个大视觉教师、固定用户划分，在其余生效操作上按最终提交源码复刻完整路线。
 **架构（Architecture）：** 复用源模型/算子，按新人口重新拟合；除教师根节点数量与固定划分替代OOF外，不随意增删归一化、掩码、温度、预算、后处理或适配参数。所有必要数据适配单独登记。
@@ -267,10 +267,12 @@ Task1–5保持完成状态：源操作／协议描述符、公共清单与缓�
 **文件：** mobind_pretrain.py及CLI/tests/test_no_vote_mobind_pretrain.py。
 **接口：** train_motion_student接受同phase A1/A4与Source Transform Descriptor；预算固定24。
 
-- [ ] RED：test_source_motion_losses_parity对正常、缺IMU、缺Skeleton小batch比较源losses各项与梯度；删去v2强制“缺分支CE/视觉KD全零”的测试断言；保留源重建/对比/RF-valid masks。
-- [ ] 原模型最终motion config与全部损失权重/调度、temporal_augment、class_weights按规格8；从原随机seed重新初始化，不偷用已训练S/I分支。
-- [ ] 24轮固定，末轮val诊断；refit随机重启同24轮。A1输入改为校准early_late和view-mean features；RF目标遵守阶段/valid。
-- [ ] 真实两个train12批次比对缺失项、时间增强及teacher映射；输出A5-S/I/combined和四分区fallback记录。
+- [x] RED：test_source_motion_losses_parity对正常、缺IMU、缺Skeleton小batch比较源losses各项与梯度；删去v2强制“缺分支CE/视觉KD全零”的测试断言；保留源重建/对比/RF-valid masks。
+- [x] 原模型最终motion config与全部损失权重/调度、temporal_augment、class_weights按规格8；从原随机seed重新初始化，不偷用已训练S/I分支。
+- [x] 24轮固定，末轮val诊断；refit随机重启同24轮。A1输入改为校准early_late和view-mean features；RF目标遵守阶段/valid。
+- [x] 真实两个train12批次比对缺失项、时间增强及teacher映射；输出A5-S/I/combined和四分区fallback记录。
+
+**2026-10-29完成（Complete）：** 两阶段各24轮随机重启，源模型／全部loss／增强／教师映射／完整epoch恢复已实现；训练至少一种motion有效行1956／2341，部分缺失保留、无运动83／86行不参与fit且完整人口预测回退。四区S/I及显式combined available-mean诊断共12份targets齐；源无combined学习头，该项不入主bank或16候选。开发S139/388=35.82%、I111/388=28.61%、combined154/388=39.69%；final不评分。真实2×64批次源Dataset/损失/梯度/参数更新差0，峰值737.39MiB；最终27项针对回归GREEN68.29秒。训练185.18秒、正式日志跨度213.37秒，实际模型禁教师/标签载荷推理64行差0，有限自验10.37秒。A5-only motion_readiness不改全局false；完成入口task8_complete.json，未独立复审，Task9未启动。详见[P33交付](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/P33_Task8_MoBind运动预训练.md)。
 
 ### Task 9：额外平均融合诊断（Additional Mean-fusion Controls）
 
@@ -351,6 +353,6 @@ Task1–5保持完成状态：源操作／协议描述符、公共清单与缓�
 
 ## 状态与交接（Status and Handoff）
 
-v2已完成：Task4单头T1开发69.07%，Task5第17轮开发48.71%、四区目标/序列、工程及方法学验收GO。v3 Task1已实现并独立复审GO（68项针对性测试），Task2准备/缓存导入完成（P03）、Task3几何一致性完成（P24），两者实际独立复审GO（P25），Task4头部及完整全窗均已完成并独立GO（P28），Task5已完成并独立GO（P30），Task6运动缓存／恒等转换已完成生成与有限自验（P31，未独立复审）；source roster材料缺口保持完整bank/融合的全局生成阻断。Task7已完成源RF／双consumer输出及有限自验（P32，未独立复审）；下一任务为尚未启动的Task8 MoBind；不得把当前v2权重当v3已通过。
+v2已完成：Task4单头T1开发69.07%，Task5第17轮开发48.71%、四区目标/序列、工程及方法学验收GO。v3 Task1已实现并独立复审GO（68项针对性测试），Task2准备/缓存导入完成（P03）、Task3几何一致性完成（P24），两者实际独立复审GO（P25），Task4头部及完整全窗均已完成并独立GO（P28），Task5已完成并独立GO（P30），Task6运动缓存／恒等转换已完成生成与有限自验（P31，未独立复审）；source roster材料缺口保持完整bank/融合的全局生成阻断。Task7已完成源RF／双consumer输出及有限自验（P32，未独立复审）；Task8已完成两阶段24轮、四区输出与有限自验（P33，未独立复审）；下一任务为尚未启动的Task9诊断；不得把当前v2权重当v3已通过。
 
-无定时自动化，Task5训练／导出、Task6缓存与Task7 RF进程均已结束；不推断final准确率，不自动进入Task8。2026-10-06原版复审问题已修订，Task1–5各规定节点已实际独立GO；Task5最终53项针对性测试与正式产物有限验收通过，Task6为40项针对回归及有限自验通过。后续按Task8–14各自依赖和复审节点执行，当前局部GO不代表全处理等价，不跳过manifest/roster或P12等材料门槛。v2已退休两resume.pt和四sequence.npy（1.02GiB），正式checkpoint/targets/anchors/公共缓存/来源记录保留；旧seq refs为历史证明，不再宣称可直接完整加载。修改后自检：source_ops覆盖、接口/角色/硬链接导入一致、固定人口/无OOF无矛盾、每主链参数有source、每验证只消费直接输入。
+无定时自动化，Task5–8训练／导出与缓存进程均已结束；不推断final准确率，不自动进入Task9。2026-10-06原版复审问题已修订，Task1–5各规定节点已实际独立GO；Task5最终53项针对性测试与正式产物有限验收通过，Task6为40项针对回归及有限自验通过。后续按Task9–14各自依赖和复审节点执行，当前局部GO不代表全处理等价，不跳过manifest/roster或P12等材料门槛。v2已退休两resume.pt和四sequence.npy（1.02GiB），正式checkpoint/targets/anchors/公共缓存/来源记录保留；旧seq refs为历史证明，不再宣称可直接完整加载。修改后自检：source_ops覆盖、接口/角色/硬链接导入一致、固定人口/无OOF无矛盾、每主链参数有source、每验证只消费直接输入。

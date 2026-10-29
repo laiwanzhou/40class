@@ -19,7 +19,7 @@ FORBIDDEN_LABEL_FIELDS = frozenset({'class_id','class_name','action_name','label
 KINDS = frozenset({'public_weights','raw_cache','public_manifest','supervised_labels',
     'supervised_model','statistics','calibration','transition','predictions','adapted_model'})
 LEARNED = frozenset({'supervised_model','statistics','calibration','transition'})
-V3_DESCRIPTORS = frozenset({'source_ops', 'teacher_roster', 'source_transform', 'recording_metadata','visual_readiness','student_readiness','imu_rf_readiness'})
+V3_DESCRIPTORS = frozenset({'source_ops', 'teacher_roster', 'source_transform', 'recording_metadata','visual_readiness','student_readiness','imu_rf_readiness','motion_readiness'})
 
 
 def _kind_allowed(protocol, kind):
@@ -173,7 +173,8 @@ class ArtifactRegistry:
             from .visual_teacher_v3 import allows_visual_stage
             from .visual_student_v3 import allows_student_stage
             from .imu_rf_teacher import allows_rf_stage
-            if not allows_visual_stage(self,r) and not allows_student_stage(self,r) and not allows_rf_stage(self,r):
+            from .mobind_pretrain import allows_motion_stage
+            if not allows_visual_stage(self,r) and not allows_student_stage(self,r) and not allows_rf_stage(self,r) and not allows_motion_stage(self,r):
                 raise ValueError('source operations/teacher producers are not ready for supervised generation')
         if r.kind in LEARNED:
             pop={'select':'train12','refit':'refit14'}.get(r.phase)
@@ -200,6 +201,10 @@ class ArtifactRegistry:
             if r.rows!=expected:raise ValueError('prediction IDs/class columns differ from prepared partition')
 
     def _descriptor(self,r):
+        if r.stage=='motion_readiness':
+            from .mobind_pretrain import validate_motion_capability
+            validate_motion_capability(self,r)
+            return
         if r.stage=='imu_rf_readiness':
             from .imu_rf_teacher import validate_rf_capability
             validate_rf_capability(self,r)

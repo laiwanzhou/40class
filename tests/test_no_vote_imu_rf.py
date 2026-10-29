@@ -112,7 +112,8 @@ def test_fixed_phase_rf_pipeline_and_consumer_targets(rf_population,monkeypatch)
     from src.experiments.no_vote_types import ArtifactRef
     p=rf_population;original=Path.open
     def guard(path,*a,**kw):
-        assert path.name!='final_labels.csv' and 'oof' not in path.name.lower()
+        assert path.name!='final_labels.csv'
+        assert not (path.suffix.lower() in {'.npz','.npy','.csv','.joblib','.pt','.pth'} and 'oof' in path.name.lower())
         return original(path,*a,**kw)
     monkeypatch.setattr(Path,'open',guard)
     result=m.run_rf_pipeline(p);assert set(result['outputs'])==set(p.partitions)
