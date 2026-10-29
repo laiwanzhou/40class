@@ -27,7 +27,17 @@ try {
     $taskProducer.WaitForExit()
     if ($taskProducer.ExitCode -ne 0) { throw "P12/global producer failed with exit code $($taskProducer.ExitCode); see $taskErrorLog" }
     if (-not (Test-Path -LiteralPath (Join-Path $taskProtocol 'p12_global_knn_component.json'))) { throw 'P12/global completion marker absent' }
-    Write-Output 'P12/global/KNN component finished; Task11 source-base/bank/A8 still pending; Task12 not started'
+    Write-Output 'P12/global/KNN complete; building intermediate own-phase fit-pool structured targets'
+    $taskState=Get-Content -LiteralPath (Join-Path $taskProtocol 'progress.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($taskState.status -eq 'paused_by_user') { Write-Output 'User paused the task; continuation stopped'; exit 0 }
+    $taskTargetLog=Join-Path $taskOutput 'P42-source-base-targets.log'
+    $taskTargetError=Join-Path $taskOutput 'P42-source-base-targets-error.log'
+    $taskTarget=Start-Process -FilePath $taskPython -ArgumentList @('-B','-u','scripts/build_no_vote_source_base_targets.py','--config','configs/experiments/teammate_single_teacher_fixed_split_v3.yaml') -WorkingDirectory $taskRoot -RedirectStandardOutput $taskTargetLog -RedirectStandardError $taskTargetError -WindowStyle Hidden -PassThru
+    $taskTarget.Id | Set-Content -LiteralPath (Join-Path $taskOutput 'P42-source-base-targets.pid')
+    $taskTarget.WaitForExit()
+    if ($taskTarget.ExitCode -ne 0) { throw "Source-base target producer failed: $taskTargetError" }
+    if (-not (Test-Path -LiteralPath (Join-Path $taskProtocol 'source_base_structured_targets.json'))) { throw 'Source-base target marker absent' }
+    Write-Output 'P12/global/KNN and fit-pool targets finished; Task11 intermediate adapt12/bank/A8 still pending; Task12 not started'
 } catch {
     Write-Error $_
     exit 1

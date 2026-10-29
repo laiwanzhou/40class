@@ -42,3 +42,12 @@ def test_intermediate_targets_refuse_development_and_final_before_reading_inputs
     p=load_protocol(no_vote_fixture[0]);c=VerificationContext(p)
     for pop in ['development2','final4']:
         with pytest.raises(ValueError,match='fit pool'):m.make_source_base_targets(p,None,None,pop,c)
+
+
+def test_unbound_transition_does_not_open_legacy_global_gate(no_vote_fixture):
+    m=module()
+    from test_no_vote_source_ops import v3_protocol
+    from src.experiments.artifact_record import ArtifactRegistry,VerificationContext
+    p=v3_protocol(no_vote_fixture);r=ArtifactRegistry(p,context=VerificationContext(p));file=p.run_root/'unbound_transition.json';file.write_text('{}')
+    with pytest.raises(ValueError,match='not ready'):
+        r.register(stage=m.STAGE,kind='transition',phase='select',files=[file],fit_users=p.partitions['train12'].users)
