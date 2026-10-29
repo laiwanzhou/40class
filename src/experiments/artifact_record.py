@@ -180,7 +180,8 @@ class ArtifactRegistry:
             from .p12_visual_reconstruction import allows_image_reconstruction_stage
             from .p12_source_adapter import allows_p12_global_stage
             from .source_base_targets import allows_source_base_decoder
-            if not allows_visual_stage(self,r) and not allows_student_stage(self,r) and not allows_rf_stage(self,r) and not allows_motion_stage(self,r) and not allows_diagnostic_stage(self,r) and not allows_fusion_stage(self,r) and not allows_p12_reconstruction_stage(self,r) and not allows_image_reconstruction_stage(self,r) and not allows_p12_global_stage(self,r) and not allows_source_base_decoder(self,r):
+            from .source_base_adaptation import allows_source_base_adaptation
+            if not allows_visual_stage(self,r) and not allows_student_stage(self,r) and not allows_rf_stage(self,r) and not allows_motion_stage(self,r) and not allows_diagnostic_stage(self,r) and not allows_fusion_stage(self,r) and not allows_p12_reconstruction_stage(self,r) and not allows_image_reconstruction_stage(self,r) and not allows_p12_global_stage(self,r) and not allows_source_base_decoder(self,r) and not allows_source_base_adaptation(self,r):
                 raise ValueError('source operations/teacher producers are not ready for supervised generation')
         if r.kind in LEARNED:
             pop={'select':'train12','refit':'refit14'}.get(r.phase)
