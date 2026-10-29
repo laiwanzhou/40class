@@ -125,3 +125,6 @@ v3角色表增加无fit的descriptor（source_ops/roster/source_transform/record
 固定16候选及单向prepared→generating→frozen→revealed；候选相同ID609、类列40、全缺失先验一致。仅记录已授权独立覆盖检查的“是”；详细test类别支持在冻结后的评估中报告，不允许其他进程重复打开私有标签做覆盖确认。全部source producer/teacher roster闭合后才正式freeze，不用A8简化替代品冒充完成。
 
 资源预检按实际保留的教师依赖更新，不沿用v2只需单视觉+RF的10–20小时估计；公开冻结特征/原始缓存优先精确复用。新增非大视觉专家的计算属于恢复原操作，不擅自跳过以缩短训练。文档修订不启动下载、训练或新自动化。
+# 2026-10-29授权补充（Authorized Reconstruction Amendment）
+
+用户批准“可以改为近似复刻”，对Task11未保存的历史所选训练配置/decoder摘要改用预先冻结的源码现存配置。当前唯一执行P01顶部授权章节及[P41规格](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/P41_Task11_近似复刻规格与配置冻结.md)优先于下文严格历史记录恢复要求。Task1–10继续复用，旧protocol/roster/产物身份不改；新配置task11_reconstruction_v2显式记载估计来源、固定值、未知Thermal覆盖和中间fit-only adapt12人口差异。固定划分、单大根、final私有标签封存、不按final调参、实际新producer与有限校验继续执行；近似模式不允许假造专家列或直接把普通A7当中间适配模型。下文保留原规格历史与已确认算子，不能据此追认缺失历史记录已恢复。

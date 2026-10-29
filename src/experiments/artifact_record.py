@@ -176,7 +176,8 @@ class ArtifactRegistry:
             from .mobind_pretrain import allows_motion_stage
             from .simple_fusion import allows_diagnostic_stage
             from .mobind_fusion import allows_fusion_stage
-            if not allows_visual_stage(self,r) and not allows_student_stage(self,r) and not allows_rf_stage(self,r) and not allows_motion_stage(self,r) and not allows_diagnostic_stage(self,r) and not allows_fusion_stage(self,r):
+            from .p12_reconstruction import allows_p12_reconstruction_stage
+            if not allows_visual_stage(self,r) and not allows_student_stage(self,r) and not allows_rf_stage(self,r) and not allows_motion_stage(self,r) and not allows_diagnostic_stage(self,r) and not allows_fusion_stage(self,r) and not allows_p12_reconstruction_stage(self,r):
                 raise ValueError('source operations/teacher producers are not ready for supervised generation')
         if r.kind in LEARNED:
             pop={'select':'train12','refit':'refit14'}.get(r.phase)

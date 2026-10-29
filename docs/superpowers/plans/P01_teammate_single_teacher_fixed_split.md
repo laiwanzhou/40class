@@ -1,14 +1,22 @@
-# P01 队友单大视觉教师固定划分实施计划（Fixed-Split Source-Parity Implementation Plan）
+# P01 队友单大视觉教师固定划分实施计划（Fixed-Split Source-constrained Reconstruction Plan）
 
 > 本分支唯一有效计划（Canonical Plan）；唯一交接入口为 [P02](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/handoffs/P02_current_handoff.md)。旧实验计划及交接已移入 docs/archive，仅作为历史记录（Historical Records）；reports/audit_inputs 为审计输入快照，不指导当前执行。
 
 > 执行者使用 superpowers:executing-plans；用户明确选择子智能体实施时才使用 subagent-driven-development。2026-10-06独立复审修订为v3.1，Task编号仍为1–14。初版v3的机制producer、KNN依赖和元数据/导入/角色/校验契约已在下文纠正；正式生成仍受逐阶段数值与依赖闭合门槛约束。v2 Task1–5已完成并推送6e31b6d；它们是历史基线，不表示新增v3要求已完成。2026-10-28 Task1已实现并独立复审GO；Task2准备与Task3几何一致性均已完成并获独立复审GO，Task4完整产物生成并通过有限独立验收GO；Task5固定16轮select/refit及四区预测／序列均已完成，有限独立复审GO；2026-10-29 Task6运动缓存／恒等外部转换已实现、正式生成及有限自验通过，未独立复审；Task7源RF教师已训练并完成四区双profile目标、有限自验通过，未独立复审；Task8新版已完成IR-only恢复、固定24轮select/refit及四区输出并独立GO（P35/P36）；Task9额外平均诊断已完成四区12targets及有限自验（P37；非独立复审），Task10源融合与独立控制已完成八组训练／24targets及有限自验（P38；本轮无独立复审），Task9/10现经P39三独立复审PASS；Task11来源预检/会话/纯P310算子已部分实施但正式bank/A8阻断（P40），Task12–14未实施，未训练大视觉骨干。旧规格/计划见reports/audit_inputs/2026-10-04/pre-v3/。
 
-**目标（Goal）：** 一个大视觉教师、固定用户划分，在其余生效操作上按最终提交源码复刻完整路线。
+**目标（Goal）：** 一个大视觉教师、固定用户划分，保留已核实的源操作；用户2026-10-29已批准对缺失历史记录采用显式配置的近似复刻，完成整条路线。
 **架构（Architecture）：** 复用源模型/算子，按新人口重新拟合；除教师根节点数量与固定划分替代OOF外，不随意增删归一化、掩码、温度、预算、后处理或适配参数。所有必要数据适配单独登记。
 **技术栈（Tech Stack）：** 当前Python3.12、PyTorch2.7/CUDA12.8、torchvision、NumPy、scikit-learn、OpenCV、pytest。
 **规格（Specification）：** [v3规格](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/superpowers/specs/2026-09-22-visual-motion-no-vote-ablation-design.md)。
 **差异清单（Difference Inventory）：** 以本计划下方“2026-10-29再核对”作为当前结论；[源码一致性修订报告](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/reports/2026-10-04-plan-v3-source-parity-revision.md)保留历史修订背景，不覆盖当前实现与新增发现。
+
+## 2026-10-29用户授权：源码约束下近似复刻（Authorized Approximate Reconstruction）
+
+**当前执行口径：** 用户同意“可以改为近似复刻”并要求继续，覆盖旧Task11“必须恢复历史所选配置/decoder摘要才可实现”的限制。Task1–10和旧protocol/SHA/roster不改、不重训；既有残余差异仍记录。新活动配置为`configs/experiments/task11_reconstruction_v2.json`，详细固定值/依据/假设见[P41](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/P41_Task11_近似复刻规格与配置冻结.md)。本文件仍是唯一plan，P41是规格/决策记录，不是另一份计划。
+
+P11 Skeleton采用source skeleton_only，Depth采用source depth_layer3_spatial随机初始化，Thermal采用source resnet18_tsm_imagenet_12f/ImageNet V1；均固定15轮末态，不按开发/final补历史best选择。中间decoder固定30/.30/1/50/T1并用原entropy-backoff，保留独立source-base adapt12；中间适配只fit本phase训练人口，不适配user6/7或final4，区别原旧目标池，Task12最终final4适配保持原计划。safe probability仍为.95中间adapted raw+.05 RF terminal/T3，safe joint grouping使用source已有固定GLOBAL_REPEAT，明确替代缺失历史选参摘要。A18/P128依赖被删根而排除，保留20列，不凑数。
+
+新版Thermal输入由同一公开trial路径定位，无法定位保留unknown观察值及无可消费输入mask，不反解ID或读私有label恢复路径。真实准备已生成四区标准表和unknown观察表，不改完整行数。仍须有真实新producer、公开初始化receipt和有界验证，用户授权近似不代表bank/A8已经就绪；旧严格预检/历史报告保持原样。Task11当前进行中，Task12未启动。后续完成结论必须称近似复刻，不能称仅教师数量/划分两项差异。
 
 ## 2026-10-29再核对：一致性、例外与蒸馏差距（Source-Parity Recheck）
 

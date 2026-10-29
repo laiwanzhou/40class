@@ -6,6 +6,10 @@
 
 ## 当前完成状态（Current Status）
 
+**最新授权/状态：用户同意改为近似复刻并要求继续工作。** 已冻结活动`configs/experiments/task11_reconstruction_v2.json`，基础protocol仍2b563c...、Task1–10复用，旧P39/P40与严格预检不改。当前P01顶部授权补充和[P41](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/P41_Task11_近似复刻规格与配置冻结.md)指导后续；不能继续把缺历史config_used/decoder摘要作为无条件停工理由，也不能翻旧globalfalse冒充实际producer完成。
+
+v2准备已成功10.27秒：P11 source Skeleton/Depth/Thermal JSON固定15末轮，Depth明确随机init，Thermal ImageNet V1；中间decoder30/.3/1/50/T1+source backoff、独立source-base adapt12仅本phase fit、不适配dev/final（与原target池不同，已显式登记）；safe .95adaptedraw+.05 RF/T3及原固定repeat配置。A18/P128含被删大根排除，20保留列。Thermal路径准备最初因公共行全部路径为空失败；v2保留unknown观察值，不反查私有mapping或猜不存在。四区found/knownabsent/unknown=1840/117/82、374/11/3、2214/128/85、574/17/18，完整分母不变。标准输入表unknown无可消费mask0，另有observation表真实保留unknown。receipt run/protocol/task11_reconstruction_v2/preparation.json。两个输入测试GREEN，下一步实现真实P12数据与教师训练；Task11仍未完成、A8未生成、Task12不推进，无新训练已启动。此前v1配置是失败准备草稿，不作为活动配置。
+
 **当前最新：Task9／10三独立复审PASS（P39）；用户纠正后续为Task11不是Task12。Task11已推进会话/纯算子/谱系预检，尚未完成，正式A8阻断。** 当前review入口protocol/task9_10_independent_review_P39.json，Task9/10无未解决P1/P2，支持前十步继续复用；旧Task9 registry/roles证据SHA绑定4e148cb历史blob，当前共享校验器改变不改其旧complete。
 
 Task11新增session_metadata.py、source_teacher_bank.py及preflight CLI，30 targeted GREEN14.34秒。四区公共时间sidecar实验收4.01秒，不读labels/预测或大cache；按(partition,user,date)调用原anonymous_date/session-list并映射全局索引，unknown时间不连边。P310优先覆盖/锐化纯接口已实现但无正式A8输入。task11_source_closure_v1.json是evidence-only版本化视图，parent原roster，明确A18实际含被删VideoMAEv2/InternVideo2而排除，旧协议/祖先不改。真实CLI预期exit2=BLOCKED_FORMAL_SOURCE_BANK，不是A8完成；无task11_complete。
