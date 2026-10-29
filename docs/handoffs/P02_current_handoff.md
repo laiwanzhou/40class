@@ -8,6 +8,8 @@
 
 **当前最新：用户授权推进Task10，训练前41项针对回归及真实64批源对照通过，八组正式4＋20训练进行中，Task10未完成。** 实现源separate/additive/clip，直接调用train_stage，四独立full/mask_motion/shuffle_s/shuffle_i，select/refit均只用自身A2和task8_current指向的新A5。运行日志outputs/task5_audit/P38-task10-formal.log；后续先查日志、进程及各A7*目录artifact，不重复启动。Stage A保存阶段级恢复，B未完成时从A末态重跑B。Task10完成需八模型、四分区六候选24targets、最终有限验收与complete，不能只看full结束。交付进行中[P38](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/P38_Task10_原融合与独立训练控制.md)。
 
+续跑更新：首次full/select算完但保存最终checkpoint因nested mappingproxy不可pickle退出，原session41747已结束。共享_save_torch元数据序列化修复已42tests GREEN43.74s；主融合producer/训练identity不改，不动既有模型。新session18327从已有A4/RNG恢复后重跑B20，再继续其余七组；最新日志outputs/task5_audit/P38-task10-formal-resume.log，旧formal错误日志与小history副本保留。先查新进程/日志，不重复启动；当前仍未完成Task10。
+
 源三维safe_mask索引在Torch2.7失败，只在适配子类将首padding列与empty做OR，独立flatten参考真实梯度/更新差0；不改快照。Task10消费quality和anchor按源FP16舍入再FP32，原Task5产物不改。真实64条含IR-only1，A/B loss/grad/update0，B原GradScaler首步overflow按源自动恢复后有限；峰值596.44MiB，17.40秒。41tests GREEN43.21秒。原数据/快照只读，global false/P12等门槛继续保留，A6/训练控制均禁止回流主链；Task11未启动。以下“Task10未启动”是此前Task9完成时历史。
 
 **当前最新：Task1–9已实施，Task9额外平均融合诊断已完成四区12targets及有限自验；Task10未启动。** 本次用户要求先完成Task9，所有Task完成后再统一评估。A6消费Task5 A2和task8_current.json指向的ir_supervision_v2 A5-S/I，identity/fitted两策略只在dev A6-VSI选择；选中fitted，refit只在refit14重估温。33 targeted GREEN22.20秒；正式生成18.58秒，自验22.42秒。final4每候选609行、591有效／18prior、不评分；无网络重训或大缓存扫描。

@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 from functools import partial
+from copy import copy
+from collections.abc import Mapping
 import json
 from pathlib import Path
 import random
@@ -225,7 +227,17 @@ def prior(protocol,phase,context):
 
 
 def _save_torch(path,body):
-    temp=path.with_suffix(path.suffix+'.building');torch.save(body,temp);temp.replace(path)
+    def plain(value):
+        # Preserve state_dict type/_metadata; only thaw configuration mappings.
+        # Tensor leaves remain the same objects, including CUDA tensors.
+        if isinstance(value,Mapping):
+            result=copy(value) if isinstance(value,dict) else {}
+            for key,item in value.items():result[key]=plain(item)
+            return result
+        if isinstance(value,tuple):return tuple(plain(x) for x in value)
+        if isinstance(value,list):return [plain(x) for x in value]
+        return value
+    temp=path.with_suffix(path.suffix+'.building');torch.save(plain(body),temp);temp.replace(path)
 
 
 def _read_selection(path):

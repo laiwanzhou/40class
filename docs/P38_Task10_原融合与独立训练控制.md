@@ -21,6 +21,8 @@ full 主模型采用队友原 `P86SeparateMotionEncoder`、additive residual 和
 3. PyTorch 2.7 对源 residual 的 `safe_mask[empty,0]=True` 三维布尔索引报错。独立内存子类只把这一句改为首列与 empty 做 OR；队友文件和原模块类不改。对照显式展平行索引的独立参考，前向和真实训练梯度／更新一致。这是索引兼容修复（Indexing Compatibility Fix），不是新增模型或损失。
 4. 阶段级恢复（Stage-level Recovery）：阶段 A 完成保存模型与 Python／NumPy／Torch／CUDA RNG；中断于 B 时从已完成 A 末态重跑 B，不把部分 B 当作已完成，不声称逐轮恢复。模型目录 identity 防止配置混用。
 
+首次 full/select 训练算完两阶段后，在保存最终 checkpoint 时因嵌套冻结配置 `mappingproxy` 不能 pickle 而退出，未形成正式模型登记。新增序列化回归先 RED 复现；仅修复共享 `_save_torch` 的元数据解冻（Metadata Thawing），保持 tensor 叶子、state_dict 的 OrderedDict 类型及 `_metadata`，不改变原冻结配置或既有 checkpoint 文件。修复后 42 项针对回归通过，43.74 秒。主融合 producer 文件及训练 identity 未改；保留第一次错误日志和历史副本，从已保存 A4/RNG 重新运行 B20，续跑日志为 `P38-task10-formal-resume.log`，不能把首次丢失的最终参数当作可复用正式模型。
+
 ## 训练前证据（Pre-training Evidence）
 
 五项核心测试先因 Task10 模块缺失全部 RED；布尔索引兼容测试另 RED；控制祖先不准回流主链测试先 RED 后修复。最终 41 项受影响测试通过，43.21 秒，保留三个源 Transformer norm_first 库警告。真实输入桥接夹具修正了源构造器原本应做的教师 FP32 转换，没有改生产目标。

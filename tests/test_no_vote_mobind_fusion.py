@@ -159,3 +159,16 @@ def test_unbound_fusion_cannot_bypass_global_gate(no_vote_fixture):
     r=ArtifactRegistry(p);file=r.root/'main.bin';file.write_bytes(b'x')
     with pytest.raises(ValueError,match='not ready'):
         r.register(stage='A7',kind='supervised_model',phase='select',files=[file],fit_users=p.partitions['train12'].users)
+
+
+def test_checkpoint_saves_frozen_recipe_without_changing_tensor_state(tmp_path):
+    from collections import OrderedDict
+    from src.experiments.no_vote_types import freeze
+    from src.experiments.visual_student_v3 import _save_torch
+    state=OrderedDict(weight=torch.arange(4));state._metadata={'':{'version':1}}
+    body={'visual_config':freeze({'epochs':{'max':16},'parts':[{'width':512}]}),'model_state':state}
+    path=tmp_path/'checkpoint.pt';_save_torch(path,body)
+    actual=torch.load(path,weights_only=True)
+    assert actual['visual_config']['epochs']=={'max':16} and actual['model_state']._metadata==state._metadata
+    torch.testing.assert_close(actual['model_state']['weight'],state['weight'],atol=0,rtol=0)
+    with pytest.raises(TypeError):body['visual_config']['epochs']['max']=20
