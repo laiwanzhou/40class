@@ -2,7 +2,7 @@
 
 > 本分支唯一有效计划（Canonical Plan）；唯一交接入口为 [P02](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/handoffs/P02_current_handoff.md)。旧实验计划及交接已移入 docs/archive，仅作为历史记录（Historical Records）；reports/audit_inputs 为审计输入快照，不指导当前执行。
 
-> 执行者使用 superpowers:executing-plans；用户明确选择子智能体实施时才使用 subagent-driven-development。2026-10-06独立复审修订为v3.1，Task编号仍为1–14。初版v3的机制producer、KNN依赖和元数据/导入/角色/校验契约已在下文纠正；正式生成仍受逐阶段数值与依赖闭合门槛约束。v2 Task1–5已完成并推送6e31b6d；它们是历史基线，不表示新增v3要求已完成。2026-10-28 Task1已实现并独立复审GO；Task2准备与Task3几何一致性均已完成并获独立复审GO，Task4完整产物生成并通过有限独立验收GO；Task5固定16轮select/refit及四区预测／序列均已完成，有限独立复审GO；2026-10-29 Task6运动缓存／恒等外部转换已实现、正式生成及有限自验通过，未独立复审；Task7–14未实施，未训练大视觉骨干。旧规格/计划见reports/audit_inputs/2026-10-04/pre-v3/。
+> 执行者使用 superpowers:executing-plans；用户明确选择子智能体实施时才使用 subagent-driven-development。2026-10-06独立复审修订为v3.1，Task编号仍为1–14。初版v3的机制producer、KNN依赖和元数据/导入/角色/校验契约已在下文纠正；正式生成仍受逐阶段数值与依赖闭合门槛约束。v2 Task1–5已完成并推送6e31b6d；它们是历史基线，不表示新增v3要求已完成。2026-10-28 Task1已实现并独立复审GO；Task2准备与Task3几何一致性均已完成并获独立复审GO，Task4完整产物生成并通过有限独立验收GO；Task5固定16轮select/refit及四区预测／序列均已完成，有限独立复审GO；2026-10-29 Task6运动缓存／恒等外部转换已实现、正式生成及有限自验通过，未独立复审；Task7源RF教师已训练并完成四区双profile目标、有限自验通过，未独立复审；Task8–14未实施，未训练大视觉骨干。旧规格/计划见reports/audit_inputs/2026-10-04/pre-v3/。
 
 **目标（Goal）：** 一个大视觉教师、固定用户划分，在其余生效操作上按最终提交源码复刻完整路线。
 **架构（Architecture）：** 复用源模型/算子，按新人口重新拟合；除教师根节点数量与固定划分替代OOF外，不随意增删归一化、掩码、温度、预算、后处理或适配参数。所有必要数据适配单独登记。
@@ -253,12 +253,14 @@ Task1–5保持完成状态：源操作／协议描述符、公共清单与缓�
 **文件：** imu_rf_teacher.py、run_no_vote_imu_rf.py、tests/test_no_vote_imu_rf.py。
 **接口：** train_imu_rf/predict_imu_teacher保持标准TeacherTargets。
 
-- [ ] RED：test_source_rf_recipe断言400树/depth18/leaf2/sqrt/balanced_subsample/seed20260723；test_source_device_dropout核对原random_present_devices/drop_devices结果、标签副本和mask；test_rf_logits_export比对源log(clip(prob))，不新增温度。
-- [ ] 32bin原始acc/gyro→原feature_vector240维+10mask，训练原样本+存在设备dropout副本。固定划分的select/refit均按train_final_imu_rf的无fold单次fit调用，dropout RNG=np.random.default_rng(20260723)，不虚构fold或seed偏移。仅fit对应阶段IMU有效数据。
-- [ ] 同一RF输出两份有明确consumer profile的40列logits：给A5的fit_teacher_target导出沿用run_imu_stat_baseline缺类sentinel=-1e6；目标分区terminal_export沿用train_final_imu_rf缺类log(1e-12)，已存在类均log(clip(p,1e-12,1))。训练目标为in-sample非OOF，但不改consumer数值规则；normalization/temperature不能混用。源bank的RF T3仅在Task11消费时施加，不改变A4原导出。
-- [ ] test_rf_consumer_sentinel_and_rng覆盖缺类、固定seed删除设备及fit/target两输出；Task7仅fit/导出RF，不等待P12的S+D融合，源train_final_imu_rf后续S+D混合拆到Task11。
-- [ ] 类列classes_映射、invalid与prior分离，源IMU partial teacher valid原样；不要求为了凑40类而拿val样本补RF。源支持缺类时按同一对齐算法记录。
-- [ ] sklearn小型fixture/真实一条stat验收；不加载p3_imu_oof历史张量。
+- [x] RED：test_source_rf_recipe断言400树/depth18/leaf2/sqrt/balanced_subsample/seed20260723；test_source_device_dropout核对原random_present_devices/drop_devices结果、标签副本和mask；test_rf_logits_export比对源log(clip(prob))，不新增温度。
+- [x] 32bin原始acc/gyro→原feature_vector240维+10mask，训练原样本+存在设备dropout副本。固定划分的select/refit均按train_final_imu_rf的无fold单次fit调用，dropout RNG=np.random.default_rng(20260723)，不虚构fold或seed偏移。仅fit对应阶段IMU有效数据。
+- [x] 同一RF输出两份有明确consumer profile的40列logits：给A5的fit_teacher_target导出沿用run_imu_stat_baseline缺类sentinel=-1e6；目标分区terminal_export沿用train_final_imu_rf缺类log(1e-12)，已存在类均log(clip(p,1e-12,1))。训练目标为in-sample非OOF，但不改consumer数值规则；normalization/temperature不能混用。源bank的RF T3仅在Task11消费时施加，不改变A4原导出。
+- [x] test_rf_consumer_sentinel_and_rng覆盖缺类、固定seed删除设备及fit/target两输出；Task7仅fit/导出RF，不等待P12的S+D融合，源train_final_imu_rf后续S+D混合拆到Task11。
+- [x] 类列classes_映射、invalid与prior分离，源IMU partial teacher valid原样；不要求为了凑40类而拿val样本补RF。源支持缺类时按同一对齐算法记录。
+- [x] sklearn小型fixture/真实一条stat验收；不加载p3_imu_oof历史张量。
+
+**2026-10-29完成（Complete）：** 源32点统计240+10维、400树固定配方、原设备dropout／seed20260723、双consumer sentinel与本phase prior已实现。select1914有效→3828训练行、refit2283→4566；四区共8份标准targets完整，teacher features=None，T1不校准。开发123/388=31.70%（有效119/369）；final609行／580有效／29 RF-prior，不评分，不能将RF不可用混同18全模态缺失。29项针对回归GREEN48.46秒；真实单条统计／mask源差0、标签打开0，正式有限自验5.30秒。RF-only readiness只放source_expert/imu_rf，不改global false，不等待或冒充完成P12 S+D融合。完成标记protocol/task7_complete.json；未执行独立Task7复审，Task8未启动。详见[P32交付](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/P32_Task7_IMU随机森林教师.md)。
 
 ### Task 8：源MoBind与缺失损失行为（Motion Pretraining Parity）
 
@@ -349,6 +351,6 @@ Task1–5保持完成状态：源操作／协议描述符、公共清单与缓�
 
 ## 状态与交接（Status and Handoff）
 
-v2已完成：Task4单头T1开发69.07%，Task5第17轮开发48.71%、四区目标/序列、工程及方法学验收GO。v3 Task1已实现并独立复审GO（68项针对性测试），Task2准备/缓存导入完成（P03）、Task3几何一致性完成（P24），两者实际独立复审GO（P25），Task4头部及完整全窗均已完成并独立GO（P28），Task5已完成并独立GO（P30），Task6运动缓存／恒等转换已完成生成与有限自验（P31，未独立复审）；source roster材料缺口保持完整bank/融合的全局生成阻断。下一任务为尚未启动的Task7源RF；不得把当前v2权重当v3已通过。
+v2已完成：Task4单头T1开发69.07%，Task5第17轮开发48.71%、四区目标/序列、工程及方法学验收GO。v3 Task1已实现并独立复审GO（68项针对性测试），Task2准备/缓存导入完成（P03）、Task3几何一致性完成（P24），两者实际独立复审GO（P25），Task4头部及完整全窗均已完成并独立GO（P28），Task5已完成并独立GO（P30），Task6运动缓存／恒等转换已完成生成与有限自验（P31，未独立复审）；source roster材料缺口保持完整bank/融合的全局生成阻断。Task7已完成源RF／双consumer输出及有限自验（P32，未独立复审）；下一任务为尚未启动的Task8 MoBind；不得把当前v2权重当v3已通过。
 
-无定时自动化，Task5训练／导出及Task6正式缓存进程均已结束；不推断final准确率，不自动进入Task7。2026-10-06原版复审问题已修订，Task1–5各规定节点已实际独立GO；Task5最终53项针对性测试与正式产物有限验收通过，Task6为40项针对回归及有限自验通过。后续按Task7–14各自依赖和复审节点执行，当前局部GO不代表全处理等价，不跳过manifest/roster或P12等材料门槛。v2已退休两resume.pt和四sequence.npy（1.02GiB），正式checkpoint/targets/anchors/公共缓存/来源记录保留；旧seq refs为历史证明，不再宣称可直接完整加载。修改后自检：source_ops覆盖、接口/角色/硬链接导入一致、固定人口/无OOF无矛盾、每主链参数有source、每验证只消费直接输入。
+无定时自动化，Task5训练／导出、Task6缓存与Task7 RF进程均已结束；不推断final准确率，不自动进入Task8。2026-10-06原版复审问题已修订，Task1–5各规定节点已实际独立GO；Task5最终53项针对性测试与正式产物有限验收通过，Task6为40项针对回归及有限自验通过。后续按Task8–14各自依赖和复审节点执行，当前局部GO不代表全处理等价，不跳过manifest/roster或P12等材料门槛。v2已退休两resume.pt和四sequence.npy（1.02GiB），正式checkpoint/targets/anchors/公共缓存/来源记录保留；旧seq refs为历史证明，不再宣称可直接完整加载。修改后自检：source_ops覆盖、接口/角色/硬链接导入一致、固定人口/无OOF无矛盾、每主链参数有source、每验证只消费直接输入。

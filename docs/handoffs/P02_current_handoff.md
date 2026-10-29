@@ -6,7 +6,9 @@
 
 ## 当前完成状态（Current Status）
 
-最新：**v3.1 Task1–6已完成，Task7未启动。** Task1–5保留此前实际独立GO；2026-10-29 Task6按用户授权完成运动缓存／恒等外部转换，40项针对回归及补充源Dataset对照通过，正式refit14=2427／final4=609的源和窗口缓存、两个source_transform已齐，有限自验通过；本Task未请求或执行独立子智能体复审。权威入口`run/protocol/task6_complete.json`，交付[P31](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/P31_Task6_运动缓存与源转换.md)。PID24744/session8676已退出，无后台训练或新自动化；用户只授权到Task6。
+最新：**v3.1 Task1–7已完成，Task8未启动。** Task7源RF／四区双profile targets与有限自验已完成，29项针对回归GREEN48.46秒、真实source32统计／mask源差0、正式自验5.30秒；本轮未执行独立子智能体复审。select训练1914有效样本＋设备dropout副本，refit2283＋副本；开发123/388=31.70%，final609／580有效／29 RF-prior，不读取final标签。source_expert/imu_rf单独readiness不放A5/P12或改global false。权威入口task7_complete.json，交付[P32](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/P32_Task7_IMU随机森林教师.md)。Task1–6产物保持有效；下面的“Task7未启动”为此前Task6收尾时的历史状态。
+
+Task6收尾记录：**当时v3.1 Task1–6已完成，Task7未启动。** Task1–5保留此前实际独立GO；2026-10-29 Task6按用户授权完成运动缓存／恒等外部转换，40项针对回归及补充源Dataset对照通过，正式refit14=2427／final4=609的源和窗口缓存、两个source_transform已齐，有限自验通过；本Task未请求或执行独立子智能体复审。权威入口`run/protocol/task6_complete.json`，交付[P31](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/P31_Task6_运动缓存与源转换.md)。PID24744/session8676已退出，无后台训练或新自动化；用户只授权到Task6。
 
 2026-10-29用户批准补充完整知识转移的评估契约（Knowledge-Transfer Evaluation Contract），已原位写入P01及Task11–13：保留主比较A9-40−A1，新增A8−A1／A9-40−A8／A9-40−A7；Task12端点后无增强eval输出教师—学生一致率，分别报告609全体／591适配／18prior并绑定A8目标与A7/A9引用。100%一致不设门槛、不追加训练或选端点；准确率和rescue/harm只在Task13冻结揭示后计算。保持user6/7未参与伪标签适配，区分开发成绩和目标输入已参与适配的结果。仅文档／后续评估输出修订，不改YAML、协议或producer；Task1–5正式产物及原完成标记／复审继续复用，ROI精度差异与P12/P89等后续门槛仍独立保留。Task6未启动，没有新训练或标签揭示。
 
@@ -16,7 +18,7 @@ Task1、Task2＋3、Task4和Task5均经实际独立复审GO。Task4完成全部�
 
 Task4代码已推送`202d57c`；最终完成文档的提交号见本任务ledger和Git最新日志。ledger仍位于`.superpowers/sdd/2026-09-23-teammate-single-teacher-fixed-split/progress.md`，保留旧目录名以连续记录；首行指导路径已更新P01。
 
-当前run：`outputs/teammate_single_teacher_fixed_split/fixed-split-single-teacher-v3-source-ops`。协议SHA：`2b563c9d2b0c4ee62297a1ec05062811f7059ee1778c7090cefede2cc507618a`。最新权威完成入口为`run/protocol/task5_complete.json`，绑定学生模型／四区产物与独立验收；`task4_complete.json`仍保留此前视觉教师头部和全窗特征的完成依据。旧`task4_heads_complete.json`的fullwindow_completed=false仅保留头部完成当时事实，不重写旧身份。
+当前run：`outputs/teammate_single_teacher_fixed_split/fixed-split-single-teacher-v3-source-ops`。协议SHA：`2b563c9d2b0c4ee62297a1ec05062811f7059ee1778c7090cefede2cc507618a`。最新权威完成入口为`run/protocol/task7_complete.json`；`task5_complete.json`继续绑定学生模型／四区产物与独立验收，`task6_complete.json`绑定公共运动缓存及自验；`task4_complete.json`仍保留此前视觉教师头部和全窗特征的完成依据。旧`task4_heads_complete.json`的fullwindow_completed=false仅保留头部完成当时事实，不重写旧身份。
 
 ## Task4结果与验收（Results and Acceptance）
 
@@ -42,7 +44,7 @@ Task4代码已推送`202d57c`；最终完成文档的提交号见本任务ledger
 
 旧全局门槛把P12/P89缺项阻断全部学习，与规格Task4/5不等待P12冲突。本轮独立认可的修订是`visual_readiness`描述符绑定source_ops、Task3证明与5个消费源pin，只放行A1/六头/class_prior/固定机制；没有改变YAML、旧协议身份或全局`formal_generation_ready=false`，不放行P12/专家bank/融合。
 
-Task5已按P01完成源16轮MC3、新targets消费和同phase native sequence/anchor，实际正式产物已独立验收GO。Task6现已完成raw运动缓存及公共确定性source_transform；下一任务是Task7源RF，未启动，不把Task6无fit完成视作全局监督放行。student_readiness仍只绑定Task4 complete和A2本phase目标，不把旧v2学生权重当作v3已完成。P12 S+D最终配置、Thermal最终配置/公开资产/额外公共清单，以及P89 safe-base/A18完整producer证据仍未闭合，完整teacher bank正式生成及最终冻结仍受阻断；不得填默认值、删必要专家或直接改true。
+Task5已按P01完成源16轮MC3、新targets消费和同phase native sequence/anchor，实际正式产物已独立验收GO。Task6现已完成raw运动缓存及公共确定性source_transform；Task7源RF现已完成，下一任务是Task8 MoBind，未启动；RF-only readiness不把A5或完整P12融合一并放行。student_readiness仍只绑定Task4 complete和A2本phase目标，不把旧v2学生权重当作v3已完成。P12 S+D最终配置、Thermal最终配置/公开资产/额外公共清单，以及P89 safe-base/A18完整producer证据仍未闭合，完整teacher bank正式生成及最终冻结仍受阻断；不得填默认值、删必要专家或直接改true。
 
 ## 数据与复用边界（Data and Reuse Boundaries）
 
@@ -71,7 +73,7 @@ Task2只复制四公共清单和前三分区允许标签，未读/复制final标
 
 详情：[P29交付](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/P29_Task5_固定16轮视觉学生.md)、[P30最终独立GO](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/reports/P30_Task5_独立复审.md)。证据`outputs/task5_audit/P29-task5-final-tests.log`、`P29-task5-real-batch.log`、`P29-task5-final-acceptance.json/.log`。inference_only protocol保留同receipt/pins/identity，只不要求未消费public teacher/init文件存在；实际checkpoint/pixels/prior照常校验。
 
-协议身份仍2b563c9d2b0c4ee62297a1ec05062811f7059ee1778c7090cefede2cc507618a，全局formal_generation_ready=false不变，P12/Thermal/P89/A18材料门槛仍约束后续teacher bank／融合。Task6已按后续授权完成，下一步只有收到授权才进入P01 Task7，不按本轮低分改配方。保持唯一P01计划／P02交接；原数据、快照及两提交包只读，main历史文档仍等完整实验分支结束。
+协议身份仍2b563c9d2b0c4ee62297a1ec05062811f7059ee1778c7090cefede2cc507618a，全局formal_generation_ready=false不变，P12/Thermal/P89/A18材料门槛仍约束后续teacher bank／融合。Task6已按后续授权完成，Task7现已按后续授权完成，下一步只有收到授权才进入P01 Task8，不按本轮低分改配方。保持唯一P01计划／P02交接；原数据、快照及两提交包只读，main历史文档仍等完整实验分支结束。
 
 ## Task6完成（Motion Cache Complete，2026-10-29）
 
@@ -82,3 +84,13 @@ refit14=2427（Skeleton2341／IMU2283／全缺失85），final4=609（590／580�
 7缺接口RED→GREEN，timestamp验证RED→GREEN，FP64时间存储RED→GREEN。40项motion/roles/cache-import初轮GREEN49.74秒，源Dataset扩展后最终同40项回归GREEN46.07秒，扩展单测另GREEN3.66秒；源全NaN Skeleton fixture保留源warning且mask/finite通过。真实train12一条22帧/102IMU点，12窗口字段源差0、timestamp0、区间点数守恒，标签载荷打开0，6.52秒。正式源/窗口计算合计102.15秒，日志跨度约125.24秒；登记载荷273.67MiB。有限产物自验0.88秒，完整IDs/headers/mask/源索引/小时间表、首中尾与缺失行小切片、两个transform绑定及训练/开发子集均通过；无大数组SHA／完整finite复扫、视觉重跑或final标签读取。
 
 完成入口task6_complete.json绑定ready、P31交付及自验／真实样本摘要。正式缓存run/motion/{refit14,final4}/full/{source,windows}；normalization见ready中的source_transform引用。大数组后续用load_motion只读mmap/header/stamp／消费切片，不能调用完整SHA路径重扫。日志outputs/task5_audit/P31-task6-formal.log，最终小证据P31-task6-final-acceptance.json/.log；无独立Task6复审，不冒称独立GO。Task7需自己的RF源配方／fit范围与阶段门槛验收。
+
+## Task7完成（Source IMU RF Complete，2026-10-29）
+
+按源build_imu_cache的独立32点IMU重采样生成240统计＋10mask，不用Task6 P31/16帧/48global统计替代；重复时间戳／至少2点／CSV>=21列等原规则保留。四RF直接源模块与最终包字节相同。400树/depth18/leaf2/sqrt/balanced_subsample/n_jobs-1/seed20260723，存在设备dropout只用原seed、标签复制，无fold偏移／温度拟合或val调参。RF输出registry stage为source_expert/imu_rf、磁盘目录A4，TeacherTargets.features=None；双profile分别缺类-1e6和log1e-12，T1，bank T3留Task11。
+
+新增imu_rf_readiness只绑定Task6 complete、公有source_ops与refit14/final4 source32统计，无学习共享祖先；模型直接用本phase标签，先验保存在RF模型配置内。原协议身份/global false不改，P12/Thermal/P89/A18门槛独立保留。Task1–6与ROI精度残余不变，main历史文档仍等完整实验结束。
+
+train12=1948/2039（有效1910/1914），dev=123/388=31.70%（有效119/369），refit=2307/2427（有效2265/2283）；refit含dev不能称val。final609行580有效/29RF-prior、correct=null；全模态缺失仍18，不能删除其余RF缺失行。正式统计12秒、两个RF拟合保存2.30+2.70秒，日志跨度26.74秒，模型与8预测约72.78MiB、统计2.64MiB。
+
+29项RF/roles/motion最终回归通过48.46秒，既有全NaN Skeleton fixture保留1个源warning；真实train12 source32[5,32,10]、五设备、240/10源差0且标签打开0，3.4秒。正式有限自验5.3秒核对models/phase/400树/真实dropout、完整ID/类列/valid/prior/8profiles及每区首中尾有效model推理和允许标签指标；未读final标签／旧OOF、未重扫大cache／重复fit，未执行独立Task7复审。下一Task8需独立的源配方／fit范围验收，本Task不自动推进。
