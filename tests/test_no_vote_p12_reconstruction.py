@@ -59,3 +59,34 @@ def test_unbound_reconstructed_teacher_does_not_unlock_legacy_global_gate(no_vot
     r=ArtifactRegistry(p);file=r.root/'bad.pt';file.write_bytes(b'not a recipe-bound source teacher')
     with pytest.raises(ValueError,match='not ready'):
         r.register(stage='source_expert/p12_skeleton',kind='supervised_model',phase='select',files=[file],fit_users=p.partitions['train12'].users)
+
+
+def test_recipe_artifact_identity_does_not_change_with_later_trainer_extensions(no_vote_fixture,monkeypatch):
+    m=module()
+    from src.experiments.no_vote_protocol import load_protocol
+    from src.experiments.artifact_record import VerificationContext
+    from src.experiments.no_vote_types import write_json
+    from hashlib import sha256
+    p=load_protocol(no_vote_fixture[0]);c=VerificationContext(p);root=p.run_root/'protocol'/m.REVISION
+    path=root/'fixture_recipe.json';write_json(path,{'base_protocol_sha256':p.identity(),'revision':m.REVISION,'historical_exact_reproduction':False})
+    write_json(root/'preparation.json',{'recipe':{'path':str(path),'sha256':sha256(path.read_bytes()).hexdigest()}})
+    _,first,_=m.load_reconstruction(p,c);write_json(root/'recipe.artifact.json',first)
+    actual_hash=c.hash_file
+    def unchanged_recipe_hashes(path,expected=None):
+        if Path(path).resolve()==Path(m.__file__).resolve():raise AssertionError('unchanged recipe should reuse its historical content-addressed record')
+        return actual_hash(path,expected)
+    monkeypatch.setattr(c,'hash_file',unchanged_recipe_hashes)
+    _,second,_=m.load_reconstruction(p,c)
+    assert second==first
+
+
+def test_fp16_storage_export_preserves_master_and_integer_counters():
+    assert importlib.util.find_spec('src.experiments.p12_skeleton_export'), 'FP16 Skeleton export is missing'
+    m=importlib.import_module('src.experiments.p12_skeleton_export')
+    from collections import OrderedDict
+    state=OrderedDict(weight=torch.tensor([1/3],dtype=torch.float32),counter=torch.tensor(7));state._metadata={'':{'version':1}}
+    half=m.fp16_state(state)
+    assert half['weight'].dtype==torch.float16 and float(half['weight'][0])==.333251953125
+    assert half['counter'].dtype==torch.int64 and int(half['counter'])==7
+    assert state['weight'].dtype==torch.float32 and float(state['weight'][0])!=float(half['weight'][0])
+    assert half._metadata==state._metadata

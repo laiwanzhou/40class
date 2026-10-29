@@ -31,8 +31,15 @@ def load_reconstruction(protocol,context):
         raise ValueError('wrong reconstruction recipe/protocol')
     copied=protocol.run_root/'protocol'/REVISION/'recipe.json';immutable_bytes(copied,canonical_bytes(body)+b'\n')
     registry=ArtifactRegistry(protocol,context=context)
+    reference_path=copied.with_suffix('.artifact.json')
+    if reference_path.exists():
+        reference=ref(json.loads(reference_path.read_text(encoding='utf-8')));record=registry.verify(reference,'reconstruction_recipe','raw')
+        if (list(record.files)!=[str(copied.resolve())] or record.config.get('recipe_sha256')!=receipt['recipe']['sha256']
+                or record.config.get('revision')!=REVISION):raise ValueError('stable recipe record content/binding mismatch')
+        return body,reference,receipt
     reference=registry.register(stage='reconstruction_recipe',kind='raw_cache',phase='raw',files=[copied],
         config={'revision':REVISION,'recipe_sha256':receipt['recipe']['sha256'],'historical_exact_reproduction':False},source_files=[Path(__file__)])
+    write_json(reference_path,reference)
     return body,reference,receipt
 
 
@@ -125,6 +132,16 @@ def cache_index(reference,protocol,context):
 
 def allows_p12_reconstruction_stage(registry,record):
     if record.stage!='source_expert/p12_skeleton' or record.kind!='supervised_model' or record.phase not in {'select','refit'}:return False
+    if record.config.get('storage_export')=='float16_roundtrip':
+        cfg=record.config
+        if cfg.get('revision')!=REVISION or len(record.parents)!=2:return False
+        parents=[registry.read(x) for x in record.parents]
+        masters=[x for x in parents if x.stage==record.stage and x.kind=='supervised_model' and x.phase==record.phase and x.config.get('storage_export') is None]
+        recipes=[x for x in parents if x.stage=='reconstruction_recipe' and x.kind=='raw_cache']
+        return (len(masters)==len(recipes)==1 and masters[0].rows==record.rows
+            and cfg.get('recipe_sha256')==masters[0].config.get('recipe_sha256')
+            and cfg.get('fit_partition')==masters[0].config.get('fit_partition')
+            and cfg.get('new_training_executed') is False and cfg.get('budget_epochs')==15)
     if record.config.get('revision')!=REVISION or record.config.get('budget_epochs')!=15 or len(record.parents)!=4:return False
     p=registry.protocol;c=registry.context or VerificationContext(p);recipe,rr,_=load_reconstruction(p,c)
     cfg=record.config;pop='train12' if record.phase=='select' else 'refit14'
@@ -181,7 +198,7 @@ def train_skeleton(protocol,phase,cache,context,*,device='cuda'):
         write_json(root/'artifact.json',result);return result
 
 
-def predict_skeleton(protocol,model,cache,partition,context,*,device='cuda'):
+def predict_skeleton(protocol,model,cache,partition,context,*,device='cuda',output_name='p12_skeleton'):
     from .imu_rf_teacher import _write_npz
     registry=ArtifactRegistry(protocol,context=context);mr=registry.verify(model,'source_expert/p12_skeleton');phase='select' if partition in {'train12','development2'} else 'refit'
     if mr.phase!=phase:raise ValueError('Skeleton model prediction phase mismatch')
@@ -197,7 +214,8 @@ def predict_skeleton(protocol,model,cache,partition,context,*,device='cuda'):
             with torch.autocast(device_type=torch.device(device).type,enabled=torch.device(device).type=='cuda'):
                 values=network({'skeleton':batch['skeleton'].to(device)})
             scores[[positions[s] for s in batch['sample_id']]]=values.float().cpu().numpy()
-    scores,prob=complete_scores(scores,valid,mr.config['prior']);path=protocol.run_root/REVISION/'p12_skeleton'/phase/(partition+'_targets.npz')
+    if output_name not in {'p12_skeleton','p12_skeleton_fp16'}:raise ValueError('unknown Skeleton export namespace')
+    scores,prob=complete_scores(scores,valid,mr.config['prior']);path=protocol.run_root/REVISION/output_name/phase/(partition+'_targets.npz')
     digest=_write_npz(path,dict(sample_ids=np.asarray(index.sample_ids),class_ids=np.arange(40),logits=scores,probabilities=prob,valid=valid))
     inputs=load_stage_inputs(protocol,partition,'predict',context=context)
     result=registry.register(stage='source_expert/p12_skeleton',kind='predictions',phase='predict',files=[path],file_digests={str(path.resolve()):digest},
