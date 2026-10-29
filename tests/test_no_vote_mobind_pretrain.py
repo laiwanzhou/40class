@@ -131,3 +131,36 @@ def test_combined_motion_output_is_diagnostic_and_masks_missing_branches():
     result=m.combine_motion_probabilities(sk,imu,np.array([1,1,0],bool),np.array([1,0,0],bool),prior)
     np.testing.assert_array_equal(result[0],(sk[0]+imu[0])*.5)
     np.testing.assert_array_equal(result[1],sk[1]);np.testing.assert_array_equal(result[2],prior)
+
+
+def test_ir_only_supervision_is_retained_in_training_population():
+    m=module();assert hasattr(m,'motion_training_mask'), 'IR-only supervision inclusion is missing'
+    sk=np.array([True,False,False,False,True]);imu=np.array([False,True,False,False,True]);visual=np.array([True,False,True,False,True])
+    np.testing.assert_array_equal(m.motion_training_mask(sk,imu,visual),[True,True,True,False,True])
+    with pytest.raises(ValueError,match='mask|axes'):m.motion_training_mask(sk,imu,visual[:2])
+
+
+def test_ir_only_row_still_contributes_source_ce_and_visual_kd(no_vote_fixture):
+    m=module();p=motion_protocol(no_vote_fixture);ops=m.source_motion_math(p,VerificationContext(p));args=m.motion_args(p)
+    batch=synthetic_batch()
+    for key in MOTION_FIELDS:batch[key][0]=0
+    batch['imu_teacher_valid'][0]=False
+    model=m.initialize_motion(p,device='cpu',context=VerificationContext(p));model.train()
+    output=model({k:batch[k] for k in MOTION_FIELDS},mask_ratio=.35)
+    weights=torch.ones(40)
+    actual=m.source_motion_losses(output,batch,weights,args,ops)
+    # Even with both input branches absent, the source semantic/KD heads retain supervision.
+    expected=.5*(torch.nn.functional.cross_entropy(output['skeleton_logits'],batch['label'],weight=weights,label_smoothing=.08)
+        +torch.nn.functional.cross_entropy(output['imu_logits'],batch['label'],weight=weights,label_smoothing=.08))
+    torch.testing.assert_close(actual['semantic'],expected)
+    assert actual['distillation'].isfinite() and actual['feature_distillation'].isfinite()
+    assert actual['semantic']>0 and actual['distillation']>0
+
+
+def test_corrected_revision_cannot_overwrite_legacy_model_directories(no_vote_fixture):
+    m=module();assert hasattr(m,'motion_output_root'), 'versioned Task8 output namespace missing'
+    p=motion_protocol(no_vote_fixture)
+    path=m.motion_output_root(p)
+    assert path!=p.run_root/'A5' and path.is_relative_to(p.run_root/'A5')
+    assert m.motion_output_root(p,revision=None)==p.run_root/'A5'
+    with pytest.raises(ValueError,match='revision'):m.motion_output_root(p,revision='unknown')

@@ -17,7 +17,7 @@ from src.experiments.no_vote_types import RowIndex,write_json
 from src.experiments.motion_cache import load_motion,MOTION_FIELDS
 from src.experiments.visual_teacher import _labels
 from src.experiments.mobind_pretrain import (source_motion_math,motion_args,initialize_motion,source_motion_losses,
-    NoVoteMotionDataset,prepare_motion_capability,motion_references,load_motion_teachers,motion_validity)
+    NoVoteMotionDataset,prepare_motion_capability,motion_references,load_motion_teachers,motion_validity,motion_training_mask,TASK8_REVISION)
 
 
 def main():
@@ -28,11 +28,14 @@ def main():
     record,arrays=load_motion(refs['refit14']['windows'],protocol=p,context=c)
     fit=load_stage_inputs(p,'train12','select',context=c);index,y=_labels(fit,'select',p)
     visual,rf=load_motion_teachers(p,'train12',c);lookup={s:i for i,s in enumerate(record.rows.sample_ids)}
-    positions=np.array([lookup[s] for s in index.sample_ids]);sk,imu=motion_validity(arrays);valid=(sk|imu)[positions]
+    positions=np.array([lookup[s] for s in index.sample_ids]);sk,imu=motion_validity(arrays)
+    valid=motion_training_mask(sk[positions],imu[positions],visual.prediction.valid)
     chosen=np.flatnonzero(valid)[:128]
     partial=np.flatnonzero(valid & ~(sk&imu)[positions])
     for i in range(min(2,len(partial))):
         if partial[i] not in chosen:chosen[63+64*i]=partial[i]
+    visual_only=np.flatnonzero(valid & ~(sk|imu)[positions])
+    if len(visual_only) and visual_only[0] not in chosen:chosen[62]=visual_only[0]
     rows=RowIndex(tuple(index.sample_ids[i] for i in chosen),tuple(index.user_ids[i] for i in chosen),index.class_ids)
     labels={index.sample_ids[i]:int(y[i]) for i in chosen}
     ours=NoVoteMotionDataset(arrays,record.rows,rows=rows,labels=labels,visual_teacher=visual,rf_teacher=rf,temporal_indices=ops['temporal_indices'])
@@ -80,10 +83,12 @@ def main():
             'maximum_finite_gradient_difference':gradient_difference,'nonfinite_gradient_elements':nonfinite,
             'maximum_parameter_difference_after_source_update':parameter_difference,'scaler':scalers[0].get_scale(),
             'partial_rows':int((~(actual['skeleton_joint_mask'].flatten(1).any(1)&actual['imu_global_mask'][:,:,0].any(1))).sum())})
-    proof={'protocol_sha256':p.identity(),'train12_rows':128,'source_dataset_teacher_augmentation_equal':True,'batches':proofs,
+    proof={'protocol_sha256':p.identity(),'task8_revision':TASK8_REVISION,'fit_population_rows':int(valid.sum()),
+        'restored_visual_only_rows':int(len(visual_only)),'restored_visual_only_rows_in_real_batches':int(np.isin(chosen,visual_only).sum()),
+        'train12_rows':128,'source_dataset_teacher_augmentation_equal':True,'batches':proofs,
         'device':str(device),'peak_cuda_mib':torch.cuda.max_memory_allocated()/1024**2 if device.type=='cuda' else 0.,
         'final_labels_read':False,'seconds':round(time.perf_counter()-started,2)}
-    write_json(p.run_root/'protocol/task8_real_batch_acceptance.json',proof);print(json.dumps(proof),flush=True)
+    write_json(p.run_root/'protocol'/('task8_'+TASK8_REVISION+'_real_batch_acceptance.json'),proof);print(json.dumps(proof),flush=True)
 
 
 if __name__=='__main__':main()

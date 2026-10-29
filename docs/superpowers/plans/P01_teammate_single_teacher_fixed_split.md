@@ -137,6 +137,8 @@ P34-M1：当前A5按 `sk|imu` 训练1956／2341行，分别比有效视觉监督
 
 **后续约束：P34-M1裁定／修复闭合前，不自动使用当前A5进入后续训练。Task9仍未启动。** Task1–7可复用，旧A5和原自验完成标记保持历史不覆盖；新增P34 review marker记录本次条件性结论。工程P3缓存复用依赖原始输入不变，未发现当前输入漂移，非本轮重训理由。P12等全局材料门槛及既有ROI精度残余仍独立存在。
 
+用户随后明确要求“恢复并重训Task8”：采用P34建议方案，训练人口为 `sk | imu | 同phase A1.valid`，class_weights按同一1957／2342人口计算，各恢复1条IR-only；仅全无输入／监督的82／85行不fit。新版本 `ir_supervision_v2` 使用 `A5/ir_supervision_v2/{select,refit}`、独立capability／ready／complete标记，保留旧A5及P33/P34原始记录。select/refit仍随机重启各24轮，不按val选预算；不改Task1–7或全局协议。完成重训和独立复审后才能关闭P34-M1；当前修复进行中，Task9不启动。
+
 ## 复审重点（Review Focus）
 
 1. 教师头温度与学生KD温度混淆：raw/T_head再除T_KD；T_head只fit训练人口，不能固定1或用val拟合。

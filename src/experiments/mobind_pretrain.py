@@ -23,6 +23,24 @@ from .teammate_source import verify_teammate_source,load_teammate_symbol
 
 SOURCE_FILES=('train_p86_mobind_pretrain.py','p86_mobind_lite_model.py',
     'p86_mobind_lite_data.py','p86_cached_motion_data.py','train_p86_visual_student_oof.py')
+TASK8_REVISION='ir_supervision_v2'
+TRAINING_POPULATION_POLICY='motion_or_valid_visual_supervision'
+
+
+def motion_output_root(protocol,*,revision=TASK8_REVISION):
+    if revision is None:return protocol.run_root/'A5'
+    if revision!=TASK8_REVISION:raise ValueError('unknown Task8 revision')
+    return protocol.run_root/'A5'/revision
+
+
+def motion_capability_path(protocol,revision):
+    motion_output_root(protocol,revision=revision)
+    name='task8_motion_capability.json' if revision is None else 'task8_'+revision+'_motion_capability.json'
+    return protocol.run_root/'protocol'/name
+
+
+def motion_ready_path(protocol):
+    return protocol.run_root/'protocol'/('task8_'+TASK8_REVISION+'_artifacts_ready.json')
 
 
 def source_motion_math(protocol,context):
@@ -214,16 +232,17 @@ def prepare_motion_capability(protocol,context):
     body={'schema_version':3,'scope':'task8_motion_pretrain_only','protocol_sha256':protocol.identity(),'stages':['A5'],
         'budget_epochs':24,'source_files':_pins(protocol,context),'completion_digests':proofs,'teachers':teachers,
         'public_motion':{pop:{k:refs[pop][k] for k in ['windows','normalization']} for pop in ['refit14','final4']},
-        'global_formal_generation_ready':False,'oof_enabled':False,'training_executed':False}
-    path=protocol.run_root/'protocol/task8_motion_capability.json';immutable_bytes(path,canonical_bytes(body)+b'\n')
+        'global_formal_generation_ready':False,'oof_enabled':False,'training_executed':False,
+        'task8_revision':TASK8_REVISION,'training_population_policy':TRAINING_POPULATION_POLICY}
+    path=motion_capability_path(protocol,TASK8_REVISION);immutable_bytes(path,canonical_bytes(body)+b'\n')
     ref=registry.register(stage='motion_readiness',kind='descriptor',phase='public',files=[path],
         parents=[_source_descriptor(protocol,context),refs['refit14']['windows'],refs['refit14']['normalization'],refs['final4']['windows'],refs['final4']['normalization']],
-        config={'source_contract_version':3},source_files=[Path(__file__)])
+        config={'source_contract_version':3,'task8_revision':TASK8_REVISION},source_files=[Path(__file__)])
     write_json(path.with_suffix('.artifact.json'),ref);return ref
 
 
 def validate_motion_capability(registry,record):
-    p=registry.protocol;path=p.run_root/'protocol/task8_motion_capability.json'
+    p=registry.protocol;revision=record.config.get('task8_revision');path=motion_capability_path(p,revision)
     if list(record.files)!=[str(path)] or len(record.parents)!=5:raise ValueError('motion readiness payload/parents mismatch')
     parents=[registry.read(x) for x in record.parents]
     if [x.stage for x in parents]!=['source_ops','motion_windows','source_transform','motion_windows','source_transform'] or any(x.kind not in {'descriptor','raw_cache'} for x in parents):
@@ -233,6 +252,7 @@ def validate_motion_capability(registry,record):
         'budget_epochs':24,'source_files':_pins(p,c),'completion_digests':{str(t):c.hash_file(p.run_root/f'protocol/task{t}_complete.json') for t in [4,6,7]},
         'public_motion':{pop:{'windows':record.parents[1+2*i],'normalization':record.parents[2+2*i]} for i,pop in enumerate(['refit14','final4'])},
         'global_formal_generation_ready':False,'oof_enabled':False,'training_executed':False}
+    if revision is not None:expected.update(task8_revision=revision,training_population_policy=TRAINING_POPULATION_POLICY)
     if any(canonical_bytes(body.get(k))!=canonical_bytes(v) for k,v in expected.items()):raise ValueError('motion readiness binding drift')
     if set(body.get('teachers',{}))!={'select','refit'}:raise ValueError('motion teacher bindings incomplete')
     for phase,pop in [('select','train12'),('refit','refit14')]:
@@ -250,6 +270,8 @@ def allows_motion_stage(registry,record):
     body=json.loads(next(Path(x) for x in cap.files).read_text(encoding='utf-8'))
     expected=[_ref(body['teachers'][record.phase][k]) for k in ['visual','rf']]
     expected+=[_ref(body['public_motion']['refit14'][k]) for k in ['windows','normalization']]
+    if record.config.get('task8_revision')!=body.get('task8_revision'):return False
+    if body.get('task8_revision') is not None and record.config.get('training_population_policy')!=TRAINING_POPULATION_POLICY:return False
     return all(x in record.parents for x in expected)
 
 
@@ -260,6 +282,12 @@ def motion_validity(arrays):
     return sk,imu
 
 
+def motion_training_mask(skeleton_valid,imu_valid,visual_teacher_valid):
+    masks=[np.asarray(x) for x in [skeleton_valid,imu_valid,visual_teacher_valid]]
+    if any(x.ndim!=1 or x.dtype!=np.bool_ or x.shape!=masks[0].shape for x in masks):raise ValueError('training mask axes/dtype mismatch')
+    return masks[0]|masks[1]|masks[2]
+
+
 def train_motion_student(phase,fit,motion,transform,visual_teacher,rf_teacher,capability,*,protocol,device='cuda',context=None):
     required={'select':'train12','refit':'refit14'}
     if phase not in required or fit.partition.name!=required[phase]:raise ValueError('motion fit phase/population mismatch')
@@ -268,19 +296,23 @@ def train_motion_student(phase,fit,motion,transform,visual_teacher,rf_teacher,ca
     context=context or VerificationContext(protocol);registry=ArtifactRegistry(protocol,context=context)
     index,y=_labels(fit,phase,protocol);cap=registry.verify(capability,'motion_readiness','public')
     body=json.loads(next(Path(x) for x in cap.files).read_text(encoding='utf-8'))
+    if body.get('task8_revision')!=TASK8_REVISION:raise ValueError('new training requires corrected Task8 revision')
     if (visual_teacher.prediction.artifact!=_ref(body['teachers'][phase]['visual']) or rf_teacher.prediction.artifact!=_ref(body['teachers'][phase]['rf'])
             or motion!=_ref(body['public_motion']['refit14']['windows']) or transform!=_ref(body['public_motion']['refit14']['normalization'])):
         raise ValueError('motion inputs differ from own-phase bound source teachers')
     validate_transform(protocol,motion,transform,context);record,arrays=load_motion(motion,protocol=protocol,context=context)
     lookup={s:i for i,s in enumerate(record.rows.sample_ids)}
     if any(s not in lookup or record.rows.user_ids[lookup[s]]!=u for s,u in zip(index.sample_ids,index.user_ids)):raise ValueError('motion fit exact ID/user mismatch')
-    positions=np.array([lookup[s] for s in index.sample_ids]);sk,imu=motion_validity(arrays);valid=(sk|imu)[positions]
+    positions=np.array([lookup[s] for s in index.sample_ids]);sk,imu=motion_validity(arrays)
+    if visual_teacher.prediction.index!=index or rf_teacher.prediction.index!=index:raise ValueError('motion supervision population/index mismatch')
+    valid=motion_training_mask(sk[positions],imu[positions],visual_teacher.prediction.valid)
+    restored=visual_teacher.prediction.valid & ~(sk|imu)[positions]
     selected=RowIndex(tuple(s for s,v in zip(index.sample_ids,valid) if v),tuple(u for u,v in zip(index.user_ids,valid) if v),index.class_ids)
     if not len(selected.sample_ids):raise ValueError('no effective motion fit inputs')
     labels=dict(zip(index.sample_ids,y.tolist()));ops=source_motion_math(protocol,context);args=motion_args(protocol)
     dataset=NoVoteMotionDataset(arrays,record.rows,rows=selected,labels={s:labels[s] for s in selected.sample_ids},
         visual_teacher=visual_teacher,rf_teacher=rf_teacher,temporal_indices=ops['temporal_indices'])
-    root=protocol.run_root/'A5'/phase;identity=canonical_hash({'protocol':protocol.identity(),'phase':phase,'fit':fit,
+    root=motion_output_root(protocol)/phase;identity=canonical_hash({'protocol':protocol.identity(),'phase':phase,'fit':fit,
         'motion':motion,'transform':transform,'visual':visual_teacher.prediction.artifact,'rf':rf_teacher.prediction.artifact,
         'capability':capability,'producer':context.hash_file(Path(__file__)),'labels':context.hash_file(fit.labels)})
     with phase_lock(root):
@@ -294,7 +326,10 @@ def train_motion_student(phase,fit,motion,transform,visual_teacher,rf_teacher,ca
             'model_config':model_config(args),'valid_fit_rows':len(selected.sample_ids),'unavailable_fit_rows_excluded':int((~valid).sum()),
             'fit_ids_sha256':canonical_hash(selected),'prior':(np.bincount(y,minlength=40)/len(y)).tolist(),
             'teacher_origin':'own_phase_calibrated_early_late_and_rf_fit_teacher_target','fresh_random_initialization':True,
-            'external_transform':'identity','imu_instance_normalization':False}
+            'external_transform':'identity','imu_instance_normalization':False,'task8_revision':TASK8_REVISION,
+            'training_population_policy':TRAINING_POPULATION_POLICY,'restored_visual_only_rows':int(restored.sum()),
+            'restored_visual_only_ids_sha256':canonical_hash(tuple(s for s,v in zip(index.sample_ids,restored) if v)),
+            'class_weight_population_ids_sha256':canonical_hash(selected)}
         write_json(root/'model.json',config)
         label_ref=registry.register(stage='labels_'+fit.partition.name,kind='supervised_labels',phase=phase,files=[fit.labels],
             parents=[fit.parents['manifest']],rows=index,config={'partition':fit.partition.name})
@@ -317,7 +352,7 @@ def predict_motion_student(model,motion,transform,partition,*,protocol,context,d
     if partition not in protocol.partitions or phase!=mr.phase:raise ValueError('motion prediction phase/population mismatch')
     validate_transform(protocol,motion,transform,context);record,arrays=load_motion(motion,protocol=protocol,context=context)
     inputs=load_stage_inputs(protocol,partition,'predict',context=context);index=row_index(read_public_rows(inputs.public_manifest))
-    root=protocol.run_root/'A5'/phase
+    root=motion_output_root(protocol,revision=mr.config.get('task8_revision'))/phase
     paths={kind:root/(partition+'_'+kind+'_targets.npz') for kind in ['skeleton','imu','combined']}
     if all(path.with_suffix('.artifact.json').exists() for path in paths.values()):
         results={}
@@ -356,7 +391,7 @@ def predict_motion_student(model,motion,transform,partition,*,protocol,context,d
         ref=registry.register(stage=stage,kind='predictions',phase='predict',files=[path],file_digests={str(path.resolve()):digest},
             parents=[model,motion,transform,inputs.parents['manifest']],rows=index,
             config={'partition':partition,'branch':kind,'phase':phase,'combined_role':'diagnostic_available_mean_not_source_learned_head' if kind=='combined' else 'source_branch',
-                'invalid_policy':'same_phase_fit_prior'},source_files=[Path(__file__)])
+                'invalid_policy':'same_phase_fit_prior','task8_revision':mr.config.get('task8_revision')},source_files=[Path(__file__)])
         write_json(path.with_suffix('.artifact.json'),ref);results[kind]=Prediction(index,scores,prob,valid,ref)
     return results
 
@@ -377,10 +412,11 @@ def run_motion_pipeline(protocol,*,device='cuda'):
             for kind,prediction in outputs[pop].items():
                 correct=prediction.logits.argmax(1)==y;metrics[pop][kind]={'correct':int(correct.sum()),'total':len(y),
                     'accuracy':float(correct.mean()),'valid':int(prediction.valid.sum()),'valid_correct':int(correct[prediction.valid].sum())}
-    write_json(protocol.run_root/'A5/development_metrics.json',metrics)
+    write_json(motion_output_root(protocol)/'development_metrics.json',metrics)
     body={'protocol_sha256':protocol.identity(),'complete':True,'budget_epochs':24,'models':models,'readiness':cap,
         'outputs':{pop:{kind:pred.artifact for kind,pred in results.items()} for pop,results in outputs.items()},
-        'final_labels_read':False,'task9_started':False,'combined_role':'diagnostic_available_mean_not_source_learned_head'}
-    immutable_bytes(protocol.run_root/'protocol/task8_artifacts_ready.json',canonical_bytes(body)+b'\n')
+        'final_labels_read':False,'task9_started':False,'combined_role':'diagnostic_available_mean_not_source_learned_head',
+        'task8_revision':TASK8_REVISION,'training_population_policy':TRAINING_POPULATION_POLICY}
+    immutable_bytes(motion_ready_path(protocol),canonical_bytes(body)+b'\n')
     print(json.dumps({'event':'motion_pretrain_pipeline_complete','metrics':metrics,'final_accuracy':None}),flush=True)
     return body

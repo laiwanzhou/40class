@@ -6,6 +6,8 @@
 
 ## 当前完成状态（Current Status）
 
+最新授权：用户已明确要求恢复IR-only并重训Task8。当前修复进行中，人口改为 `sk|imu|同phase A1.valid`，select1957／refit2342，各恢复1条并同步class_weights；新模型／输出写入 `A5/ir_supervision_v2`，capability／ready／complete均独立版本，旧A5/P33/P34不覆盖。Task1–7复用，仍各24轮随机重启，无val调预算；待重训与独立复审完成后再关闭P34-M1。Task9未启动。
+
 最新独立复审（2026-10-29）：**Task6／7 PASS，Task8 CONDITIONAL，P34-M1未解决。** 三个独立子智能体完成工程／方法／产物审查，详见[P34](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/reports/P34_Task6至8_独立复审.md)。A5按motion union剔除83／86行中各有1条IR-only仍具A1监督，改变源CE/KD／类别权重与batch人口；不能把事后披露当明确批准。建议恢复该行训练并版本化重生A5后复审，或由用户明确接受额外人口适配。本轮仅审计，不修改生产代码／模型，不代替用户接受，不推进Task9。Task1–7可复用。原task8_complete仍是自验完成历史，新的task6_8_independent_review_P34.json记录条件性审查，优先读此状态；下述“已完成／未独立审”属于当时实施记录。
 
 工程独立CPU恢复等价加强验证PASS（连续24 vs第7轮中断，dropout/shuffle/三RNG数据，model/optimizer/scaler/RNG/history一致）；P3完整缓存复用不重查raw IMU变化，仅在原输入变化后触发，无当前漂移证据。产物独立核验实际模型、mask/IDs/12份A5及8份RF预测与允许开发指标；未读final标签／重训／GPU复验／全cache扫描。

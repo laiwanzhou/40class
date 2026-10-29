@@ -78,7 +78,7 @@ v3运行名固定 `fixed-split-single-teacher-v3-source-ops`。保持v2配置、
 
 semantic2、token0.25、local0.05、global0.15、reconstruction0.1、visual KD0.75/T2、teacher feature0.25、IMU teacher1/T1、contrastive T0.08。视觉features取view mean保持[N,2,1024]；目标为v3校准early_late。无额外预训练motion checkpoint，无新domain/adversarial/instance norm选项。
 
-恢复源缺失损失行为：重建/局部对比及RF教师KL使用各自源mask；Skeleton/IMU监督CE、视觉KD等原代码按全拟合batch归约的项不因单分支缺失被自行置零。完全无有效输入的规范行仍用公开缺失策略。测试必须直接对照源losses数值/梯度，不能把v2“缺某模态所有损失零”当正确性标准。S/I是同一预训练模型的分支，不冒称两个大教师。
+恢复源缺失损失行为：重建/局部对比及RF教师KL使用各自源mask；Skeleton/IMU监督CE、视觉KD等原代码按全拟合batch归约的项不因单分支缺失被自行置零。2026-10-29用户批准P34-M1修复后，Task8拟合人口明确为 `Skeleton有效 OR IMU有效 OR 同phase A1视觉监督有效`；IR-only虽无S/I，仍参与源CE／视觉KD／特征损失和class_weights计算，不能按motion union单独剔除。仅上述三项全部无效的行按公开缺失策略不参与fit，完整预测分母保留。修正人口select1957／refit2342，各恢复1条IR-only；原1956／2341模型只作历史，不覆盖原身份。测试必须直接对照源losses数值/梯度，不能把v2“缺某模态所有损失零”当正确性标准。S/I是同一预训练模型的分支，不冒称两个大教师。
 
 ## 9. A6诊断与A7融合（Diagnostic Controls and Fusion）
 
