@@ -6,6 +6,9 @@
 
 ## 当前完成状态（Current Status）
 
+**用户要求暂停（Paused by User，2026-10-29 20:47）：** 已停止核验身份后的Depth／Thermal训练进程PID47268，当前无此后台训练；不要自动恢复。Depth select已完成2／15轮，`run/task11_reconstruction_v2/p12_depth/select/resume.pt`已实际用CPU装载核验：identity相符，history连续1、2，模型／AdamW／scheduler／scaler／sampler及全部RNG齐，scheduler.last_epoch=2。恢复从第3轮开始；当前未完整轮的进度舍弃，不增加预算。Skeleton两阶段及FP16四区产物已完成并保留；Depth refit与Thermal尚未启动，Task11未完成、Task12未启动。暂停凭据 `run/protocol/task11_reconstruction_v2/pause.json`，总progress已标paused_by_user。恢复时先看进程，再使用原producer89c1930对应的同脚本与配置；日志改用新的resume日志，保留原formal日志。当前分支后续提交2f94ebe只增加纯融合算子与文档，未改运行中的image producer，因此不影响本恢复点。等待用户明确继续。
+
+
 **最新续接（2026-10-29 20:45）：Task11近似复刻进行中，Depth／Thermal正式训练在跑，不要重复启动。** 主进程PID47268，代码producer `89c1930`（已推送）；日志 `outputs/task5_audit/P41-p12-images-formal.log`，错误 `P41-p12-images-formal-error.log`，PID `P41-p12-images-formal.pid`。Depth select第1轮347.69秒已完成，后续按15轮select→15轮refit→四区FP16导出，再Thermal。每完整轮resume保存模型/optimizer/scheduler/scaler/全部RNG和WeightedRandomSampler RNG，恢复只重做未完整轮。先看进程/日志/history，不能仅凭进程存在或编码100%认完成。运行脚本 `scripts/run_no_vote_p12_images.py --config configs/experiments/teammate_single_teacher_fixed_split_v3.yaml`；不要改正在运行的p12_visual_reconstruction.py，否则新进程identity会拒绝续跑。
 
 Skeleton已完成原两15轮与FP16导出，权威指针 `run/protocol/task11_reconstruction_v2/p12_skeleton_current.json`。两FP32 master来源Git69eed6d SHA已验证，不按当前扩展后的源码重写旧record。四区完整2039/388/2427/609，valid1939/385/2324/590，prior100/3/103/19；原共同三模态帧/首人姿态人口，与Task8不同。FP16逐张量为master.half、整数计数不变；保留旧FP32模型和预测。验收 `outputs/task5_audit/P41-p12-skeleton-acceptance.json/.log`，由 `scripts/check_no_vote_p12_skeleton_component.py` 完成；不要重复全3千小缓存或大raw哈希。

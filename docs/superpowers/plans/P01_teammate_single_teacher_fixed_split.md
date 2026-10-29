@@ -324,6 +324,9 @@ P34-M1：当前A5按 `sk|imu` 训练1956／2341行，分别比有效视觉监督
 
 ### Task 11：原保留专家与后处理（Retained Experts and Original Postprocessing）
 
+**用户要求暂停（Paused by User，2026-10-29 20:47）：** 已停止核验身份后的Depth／Thermal训练进程PID47268，当前无此后台训练；不要自动恢复。Depth select已完成2／15轮，`run/task11_reconstruction_v2/p12_depth/select/resume.pt`已实际用CPU装载核验：identity相符，history连续1、2，模型／AdamW／scheduler／scaler／sampler及全部RNG齐，scheduler.last_epoch=2。恢复从第3轮开始；当前未完整轮的进度舍弃，不增加预算。Skeleton两阶段及FP16四区产物已完成并保留；Depth refit与Thermal尚未启动，Task11未完成、Task12未启动。暂停凭据 `run/protocol/task11_reconstruction_v2/pause.json`，总progress已标paused_by_user。恢复时先看进程，再使用原producer89c1930对应的同脚本与配置；日志改用新的resume日志，保留原formal日志。当前分支后续提交2f94ebe只增加纯融合算子与文档，未改运行中的image producer，因此不影响本恢复点。等待用户明确继续。
+
+
 **近似复刻实施更新（2026-10-29）：** P41活动配置已冻结；原Skeleton select/refit各15轮、FP16副本及四区完整输出已完成有限验收。Depth／Thermal源Dataset/初始化/真实批次与恢复测试通过，正式训练PID47268进行中，每phase固定15轮、各自重新初始化，workers0/torch threads4工程覆盖明确记录。S+D/IMU/Thermal/global/KNN纯算子4项对照通过，但尚未正式fit/生成这些组件；完整bank／中间适配／A8仍未完成，不放行Task12，不修改下方历史门槛或旧protocol。详情与实时入口见P41及唯一P02；不得把局部测试/首轮完成当Task11完成。
 
 **2026-10-29推进状态（Partial／Blocked Formal Generation）：** Task9/10三独立复审PASS，详见[P39](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/reports/P39_Task9_Task10_独立复审.md)，允许进入本Task实现与来源闭合。已完成公共时间分块/原source会话函数适配、P310纯precedence/sharpening、缺producer拒绝与A18版本化排除证据；30 targeted GREEN14.34秒，四区公共时间真实验收4.01秒/标签open0。交付[P40](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/P40_Task11_来源闭合与会话适配.md)。本Task尚未完成，正式A8未生成，Task12未启动；下方完整流水线checkbox继续未勾选，不能把纯算子通过当完整producer闭合。

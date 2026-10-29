@@ -66,3 +66,7 @@ Depth／Thermal输入适配调用原采样、增强、归一化和模型类（So
 P12校准／融合纯算子（Calibration / Fusion Operators）已补入 `p12_fusion.py`：S+D的0.6／0.4、IMU温度及0–0.5十一格、设备数／5权重、Thermal 81格温度／21格权重及accuracy／macro-F1／较低权重决胜、89维路由、global simplex、原self-excluded三邻居0.4。4项源对照测试24.34秒通过；尚无正式拟合参数或全量组件表，不把纯算子测试称为完整producer闭合。固定划分若导致路由敏感行只有一个目标类别，复用原 `route_cross_fitted` 的常数回退（Constant Fallback），不加伪样本；这区别于源最终全量router遇此情况直接拒绝的分支，必须在实际触发时记录，仍不新增OOF。
 
 后续仍需正式P12八分量、global／KNN、中间独立适配、safe decision、完整bank／group／gate／sequence／A8。当前状态见 `run/protocol/task11_reconstruction_v2/progress.json`，它明确 `task11_complete=false`，无Task12启动或独立复审GO。
+
+## 用户暂停与恢复点（User Pause and Resume Point）
+
+**用户要求暂停（Paused by User，2026-10-29 20:47）：** 已停止核验身份后的Depth／Thermal训练进程PID47268，当前无此后台训练；不要自动恢复。Depth select已完成2／15轮，`run/task11_reconstruction_v2/p12_depth/select/resume.pt`已实际用CPU装载核验：identity相符，history连续1、2，模型／AdamW／scheduler／scaler／sampler及全部RNG齐，scheduler.last_epoch=2。恢复从第3轮开始；当前未完整轮的进度舍弃，不增加预算。Skeleton两阶段及FP16四区产物已完成并保留；Depth refit与Thermal尚未启动，Task11未完成、Task12未启动。暂停凭据 `run/protocol/task11_reconstruction_v2/pause.json`，总progress已标paused_by_user。恢复时先看进程，再使用原producer89c1930对应的同脚本与配置；日志改用新的resume日志，保留原formal日志。当前分支后续提交2f94ebe只增加纯融合算子与文档，未改运行中的image producer，因此不影响本恢复点。等待用户明确继续。
