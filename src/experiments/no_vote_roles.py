@@ -8,7 +8,7 @@ import numpy as np
 FAMILIES=frozenset({'early','late','window_mean','early_late','temporal_delta','kinetics'})
 FIXED_MODELS=frozenset({'A1','A2','A5','A6-VS','A6-VI','A6-VSI','A7','A7-mask',
     'A7-shuffle-S','A7-shuffle-I','visual_mechanism'})
-FITTED_OPERATORS={'p12_fusion':'statistics','global_mixture':'statistics','safe_base':'statistics','group_old':'supervised_model',
+FITTED_OPERATORS={'source_base_decoder':'transition','p12_fusion':'statistics','global_mixture':'statistics','safe_base':'statistics','group_old':'supervised_model',
     'group_new':'supervised_model','gate':'supervised_model','sequence':'transition','fullwindow_knn':'statistics'}
 P12_EXPERTS=frozenset({'p12_skeleton','p12_depth','p12_skeleton_depth','p12_thermal','imu_rf'})
 DIAGNOSTIC_STAGES=frozenset({'A6-VS','A6-VI','A6-VSI','A7-mask','A7-shuffle-S','A7-shuffle-I','A7-zero-S','A7-zero-I'})

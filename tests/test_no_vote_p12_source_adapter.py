@@ -112,6 +112,9 @@ def test_registered_p12_global_pipeline_and_wrong_parent_refusal(no_vote_fixture
     with pytest.raises(ValueError,match='parent payload'):
         m.predict_p12(p,model,'train12',c,components=(index,bad,masks,np.full(40,5),parents,statistic))
     actual=m.predict_global(p,global_model,'train12',c)
+    _,disk=m._read_prediction(p,actual.artifact,'global_mixture','train12',c)
+    np.testing.assert_array_equal(actual.logits,disk['logits'])
+    np.testing.assert_array_equal(actual.probabilities,disk['probabilities'])
     from src.experiments.no_vote_manifest import PUBLIC_COLUMNS,read_public_rows,row_index,csv_bytes
     public=read_public_rows(p.public_manifests['train12'])
     for i in range(40,80):public.append({**public[0],'sample_id':f'{i:064x}','user_id':'dev1'})

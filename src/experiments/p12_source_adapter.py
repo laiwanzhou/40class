@@ -240,8 +240,12 @@ def predict_global(protocol,model,partition,context):
         result=ref(json.loads(alias.read_text(encoding='utf-8')));_,a=_read_prediction(protocol,result,'global_mixture',partition,context)
         return Prediction(index,a['logits'],a['probabilities'],a['valid'],result)
     scores,prob=apply_global(table,record.config['weights'],valid,fallback)
-    digest=_write_npz(path,{'sample_ids':np.asarray(index.sample_ids),'class_ids':np.arange(40),'logits':scores.astype(np.float32),
-        'probabilities':prob.astype(np.float32),'valid':valid})
+    # The source KNN is a separate script: it sees saved FP32 global scores.
+    # Return that same persisted representation on first generation and resume.
+    scores=scores.astype(np.float32);prob=softmax(scores.astype(np.float64),axis=1).astype(np.float32)
+    prob[~valid]=fallback[~valid]
+    digest=_write_npz(path,{'sample_ids':np.asarray(index.sample_ids),'class_ids':np.arange(40),'logits':scores,
+        'probabilities':prob,'valid':valid})
     inputs=load_stage_inputs(protocol,partition,'predict',context=context)
     result=registry.register(stage='global_mixture',kind='predictions',phase='predict',files=[path],file_digests={str(path.resolve()):digest},
         parents=[model,*parents,inputs.parents['manifest']],rows=index,config={'partition':partition,'revision':REVISION,
@@ -278,8 +282,9 @@ def apply_fullwindow_knn(protocol,prediction,partition,context):
     lookup={s:i for i,s in enumerate(record.rows.sample_ids)}
     positions=np.asarray([lookup[s] for s in prediction.index.sample_ids]);valid=valid[positions]&prediction.valid
     if tuple(record.rows.user_ids[i] for i in positions)!=prediction.index.user_ids:raise ValueError('fullwindow subset user mismatch')
-    result=apply_knn(prediction.probabilities,features[positions],valid,p12_fusion_source_ops(protocol,context))
-    probability=result['probability'].astype(np.float32);scores=np.log(np.maximum(probability,1e-8))
+    emission=softmax(prediction.logits.astype(np.float64),axis=1);emission[~prediction.valid]=prediction.probabilities[~prediction.valid]
+    result=apply_knn(emission,features[positions],valid,p12_fusion_source_ops(protocol,context))
+    probability=result['probability'].astype(np.float32);scores=np.log(np.clip(result['probability'],1e-8,1.)).astype(np.float32)
     digest=_write_npz(path,{'sample_ids':np.asarray(prediction.index.sample_ids),'class_ids':np.arange(40),'logits':scores,
         'probabilities':probability,'valid':valid,'neighbor_indices':result['neighbor_indices'],'neighbor_similarities':result['neighbor_similarities']})
     output=registry.register(stage='global_mixture',kind='predictions',phase='predict',files=[path],file_digests={str(path.resolve()):digest},
