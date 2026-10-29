@@ -8,7 +8,72 @@
 **架构（Architecture）：** 复用源模型/算子，按新人口重新拟合；除教师根节点数量与固定划分替代OOF外，不随意增删归一化、掩码、温度、预算、后处理或适配参数。所有必要数据适配单独登记。
 **技术栈（Tech Stack）：** 当前Python3.12、PyTorch2.7/CUDA12.8、torchvision、NumPy、scikit-learn、OpenCV、pytest。
 **规格（Specification）：** [v3规格](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/superpowers/specs/2026-09-22-visual-motion-no-vote-ablation-design.md)。
-**差异清单（Difference Inventory）：** [源码一致性修订报告](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/reports/2026-10-04-plan-v3-source-parity-revision.md)。
+**差异清单（Difference Inventory）：** 以本计划下方“2026-10-29再核对”作为当前结论；[源码一致性修订报告](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/reports/2026-10-04-plan-v3-source-parity-revision.md)保留历史修订背景，不覆盖当前实现与新增发现。
+
+## 2026-10-29再核对：一致性、例外与蒸馏差距（Source-Parity Recheck）
+
+本次按用户指定的最终包 `D:/work/2026.7.14_kaggle/CUHK-X_Small_Model_Submission(1)` 只读核对，修改文档，不改训练源码、YAML、协议身份、已登记产物或历史独立复审报告，不重新训练，不进入Task6。结论是：**Task1–5工程交付完成，视觉主干的生效模型、损失与优化配方已有源对照；仍不能宣称除两项用户例外外，整个训练链已经完全一致。** 原因包括固定划分的连带变化、下列精度差异，以及尚未实施的Task6–14。当前唯一计划仍是P01，不另建plan或handoff。
+
+### 核对证据与范围（Evidence and Scope）
+
+最终包的[训练说明](D:/work/2026.7.14_kaggle/CUHK-X_Small_Model_Submission%281%29/docs/TRAINING_PIPELINE.md)指定基础训练入口为 `run_p87s_final_pipeline.py`，最终适配为 `adapt_p87s_test_student.py` 的实际40轮命令。本次对23个相关小源码文件逐文件比较最终包与本分支使用的队友快照，21个字节相同，两个不同：
+
+- `p89_build_multiexpert_test_logits.py`：最终包删除未启用的 `distill_missing_p46` 两个元专家及其main调用；AST比较确认现存 `build_p86` 等函数不变。当前十机制使用同一VideoMAE固定Ridge数学，不调用历史main或复活被删元专家。
+- `p310_union_repeat_precedence_teacher.py`：AST比较main只发现报告中删掉对两个旧候选CSV的比较；生成目标的覆盖规则和 `0.9805/0.0005` 表达式不变。Task11移植最终包的有效规则，不执行快照main中的旧报告读取。
+
+因此，“文件不完全相同”与“生效算子不同”分别登记；不能声称全快照逐字节等于最终包，也不需要改旧source pins来绕过身份校验。本次没有全扫1167文件，没有读取旧教师预测或final标签。过去真实batch的loss／梯度／anchor差0是同输入、同运行环境下的算子证据，不证明历史队友训练轨迹逐位重现。
+
+### 已核实的视觉处理（Verified Visual Operations）
+
+| 操作（Operation） | 最终包的生效行为 | 当前v3状态与证据 |
+|---|---|---|
+| 时间窗与视野（Windows / Views） | early `[0,.7]`、late `[.3,1]`；scene/person/workspace；16帧、160像素，person/workspace裁剪放大1.15/1.40 | 相同算子和参数；Task2/3已复用与抽样核验几何／pixels；不外推全部历史像素逐值一致 |
+| 教师表示（Teacher Representation） | 冻结VideoMAE-Large，逐clip L2、六族特征、StandardScaler→Ridge，原12格/族与决胜规则 | Task4六族共72候选已实现；选参人口与温度估计人口的差异见下表 |
+| 基础学生目标（Base Student Targets） | `P86VisualPixelDataset`实际读取 `early_late_logits`，relation消费同六clip教师features；此阶段不是直接读取最终30专家投票目标 | 当前固定early_late校准目标与原始六clip特征；未用最终A8、MC3机制或window_mean替代 |
+| 学生结构与初始化（Student Architecture / Initialization） | 公共Kinetics MC3-18 temporal、width512、dropout.18、gated、冻结至layer2及源BatchNorm行为；额外时空候选开关关闭 | 使用同源模型类／公开初始化；Task5已完成。工程上显式装载公共权重，不使用队友训练checkpoint |
+| 混合损失（Hybrid Loss） | `CE(label_smoothing=.1) + 1.0·T_KD²·KL + .2·relation`，`T_KD=2`；relation为六clip余弦Gram关系匹配 | 同一输入loss及参与梯度已验收差0；class_weights幂.35、有效mask与归约按源 |
+| 未启用损失（Inactive Losses） | 虽命令传 `feature_weight=.5`，但 `mode=hybrid` 时直接feature loss为0；stage distillation weight默认0 | 当前有效权重均0，符合实际分支；不能把增开feature／stage KD当作“补回原方法” |
+| 增强和优化（Augmentation / Optimization） | 原subject_robust六clip一致增强，AdamW分组head2e-4/backbone1e-5、wd.08、2轮warmup＋cosine、batch4/accum4、AMP、clip-grad2、singleton策略 | 原函数／同数学；select/refit各16轮末态，公开重新初始化；训练样本与批次顺序差异另记 |
+| 序列与锚点（Native Sequence / Anchor） | 本学生的原生layer4序列、同学生anchor用于后续融合 | 四区同phase输出已生成；序列float16 `[N,2,3,16,512]`，anchor与本阶段预测一致 |
+
+直接证据入口：[学生目标与增强](D:/work/2026.7.14_kaggle/CUHK-X_Small_Model_Submission%281%29/code/training/project/aligned_multimodal/p86_visual_pixel_data.py:39)、[最终基础训练命令](D:/work/2026.7.14_kaggle/CUHK-X_Small_Model_Submission%281%29/code/training/project/aligned_multimodal/run_p87s_final_pipeline.py:164)、[源学生训练与损失](D:/work/2026.7.14_kaggle/CUHK-X_Small_Model_Submission%281%29/code/training/project/aligned_multimodal/train_p86_visual_pixel_oof.py:426)、[本轮学生实现](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/src/experiments/visual_student_v3.py:55)。
+
+### 明确保留的差异及其连带影响（Explicit Differences and Consequences）
+
+| 类别（Category） | 队友原方法 | 当前实验 | 解释与约束（Interpretation / Constraint） |
+|---|---|---|---|
+| 用户要求：大教师根数量（Large Teacher Roots） | 最终专家链含多个大视觉根及派生头，不等于30个独立大骨干 | 只保留VideoMAE-Large根；同根六头／机制、合法非大教师按roster保留 | 专家列数、分组统计和后处理输入会自然改变；不能靠重复列／旧预测凑回原结果 |
+| 用户要求：划分（Fixed Split vs OOF） | P85头按三折用户OOF选参与生成训练目标；最终学生另走固定预算all-label refit | select训练train12，user6/7作为development2；refit14用于封存final4 | select的val结果与refit的训练结果分开；不引入内部OOF，也不把队友最终官方test分数当此处val基线 |
+| 固定划分的连带变化：目标（In-sample Targets） | 学生读取校准后的OOF `early_late_logits`，每行预测来自未fit该行所在折的头 | 学生训练行读取本phase教师的in-sample目标 | 没有使用val/final真值去fit教师，但样本内目标通常更容易拟合，不能宣称等价于源OOF监督；这是实验设计的已知限制，不据此自行加OOF |
+| 固定划分的连带变化：头校准（Head Calibration） | `fit_temperature(raw_oof, labels)`后用同一T输出OOF和全训练refit头的test logits | select在train12拟合预测估T；refit在refit14重新估T | 算子及范围相同，统计来源与T继承方式不同；由不生成OOF和不使用held标签校准的边界决定，不称温度数值复现。当前T分别.1206300185/.1397821300 |
+| 固定划分的连带变化：选参（Hyperparameter Selection） | 每族12格用全OOF指标选定 | 每族12格在固定development2选择；主family仍固定early_late | user6/7是开发集而非独立test；这些标签已用于头选择，不能称整条路线从未用val选择，也不能把反复看val当新的无偏证据 |
+| 数据适配：样本覆盖（Coverage / Missing Inputs） | 源脚本断言2914行；原学生输入基于其历史manifest/cache | 本实验固定完整2039/388/2427/609；有效IR1957/385/2342/591；无IR不进视觉训练，输出按同phase先验补齐 | 2914不能机械硬编码到新划分。此前已保留时间戳恢复和ROI回退；本次未逐行取得队友历史清单做对应差分，不声称覆盖差异只来自用户人数 |
+| 数据适配：ID与批次（IDs / Batch Order） | 原sample_id排序及原manifest位置 | 无标签opaque ID排序后按当前人口shuffle；seed相同 | 防止ID编码类别；但同seed不保证原样本顺序、batch组成、随机增强轨迹相同；不是额外网络设计，不宣称训练轨迹等价 |
+| 额外诊断（Additional Controls） | 最终包主链不是本实验16候选对照矩阵 | A6平均、mask/shuffle/zero控制及独立12轮适配只作诊断 | 不得回流主监督、按更高val替换主配方，或混称源最终操作 |
+
+当前 `T_head<1` 会先锐化Ridge分数，之后KD再用2软化：学生目标是 `softmax(raw / T_head / 2)`。相对raw分数的有效分母约为select `.24126`、refit `.27956`，不能只看“KD温度2”就把目标称为较软监督。没有队友原OOF温度／目标的本轮数值对照，不能断言谁更软或据此给出调温建议。
+
+### 新发现与尚未闭合的差异（Residual Differences / Open Evidence）
+
+1. **ROI质量值精度（ROI Quality Precision，未要求的数值差异）**：源[像素缓存](D:/work/2026.7.14_kaggle/CUHK-X_Small_Model_Submission%281%29/code/training/project/aligned_multimodal/build_p86_visual_pixel_cache.py:71)把 `view_quality` 写为FP16，[Dataset](D:/work/2026.7.14_kaggle/CUHK-X_Small_Model_Submission%281%29/code/training/project/aligned_multimodal/p86_visual_pixel_data.py:145)再转FP32；当前[pixel_cache](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/src/experiments/pixel_cache.py:62)／导入缓存直接保留FP32，[Dataset](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/src/experiments/no_vote_datasets.py:39)未补源FP16舍入。只读mmap抽查refit14中前三条有效train12行（位置0/1/3），每条最大舍入差均 `0.000244140625`，clip时间均值差分别约 `7.63e-5/4.58e-5/9.16e-5`。它进入源quality gate，不能保证数值全等；**没有证据把它解释为22个百分点差距的原因**。bool/uint8 mask及int64/int32索引仅存储类型不同、对应值语义相同，应与浮点舍入分开记录。
+   - [ ] 严格源精度闭合：若后续要求消除此差异，应先用fixture验证源FP16→FP32量化及quality gate，再用新producer／新产物身份应用于训练与推理；不得覆盖硬链接缓存、只改推理、或给已训练checkpoint追认一致。需要重训A2及受影响后代时另立版本并记录成本。本次只登记，不执行；Task6不消费quality，不因此阻断其独立运动算子工作，但最终Task14严格一致性结论前必须明确解决或显式接受该残余差异。
+2. **运行环境（Runtime Environment，非历史训练环境证据）**：当前torch2.7.0+cu128/torchvision.22.0、NumPy1.26.4、sklearn1.6.1、SciPy1.15.3、OpenCV4.10.0、Transformers4.49.0；最终包requirements-lock为torch2.9.1+cu130/torchvision.24.1、NumPy2.4.4、sklearn1.8.0、SciPy1.17.1、OpenCV4.13.0.92、Transformers5.8.1。该锁文件自己注明是干净推理验收环境，**不证明队友当时训练也用了这些版本**。已恢复VideoMAE旧注意力偏置并有局部源对照；不能声称跨版本全程bitwise一致，也不能无证据归因于环境或现在无条件重装／重提取。
+3. **后续链尚未实施（Pending Chain）**：Task6运动缓存、Task7 RF、Task8多模态预训练、Task10融合、Task11结构化目标与Task12适配还没有当前v3正式产物。P12 S+D／Thermal最终配置、公开资产与补充清单、P89 safe-base/A18 producer证据仍缺；全局 `formal_generation_ready=false` 保留。已完成的A2-only局部GO不放行这些环节。不能以“计划写了相同”代替实际实现／验收，也不能任意换A5或A7填补缺producer。
+4. **局部复审结论的范围（Review Scope）**：P28/P30保留其当时已验收的工程、源配方和有限数值证据；本次补充发现不回写已被完成标记绑定的历史报告。Task5的工程Complete与严格输入精度仍有残余差异可以同时成立，后续报告必须同时说明，不能继续无条件写“除单教师／固定划分以外全部完全相同”。
+
+### 队友用于知识转移的处理及其当前位置（Knowledge-Transfer Mechanisms）
+
+| 处理（Mechanism） | 作用与源事实 | 当前状态及不能声称的结论 |
+|---|---|---|
+| logits KD＋关系蒸馏（Logit / Relational KD） | T²·KL匹配类别分布，relation匹配六clip相似关系；避免只靠硬标签，允许学生／教师特征维数不同 | Task5已按源执行；不是缺了feature=.5才低分。具体泛化增益仍需消融，不能仅凭公式保证减少acc损失 |
+| 校准、增强、冻结与混合监督（Calibration / Regularization） | 原头温度、subject_robust、CE smoothing、低层/BN冻结与小backbone LR共同控制监督和更新 | 已按源算子／预算恢复，校准统计来源不同；增强与正则不保证本划分val提升，不按当前分数追加新配方 |
+| 跨模态对齐与监督（Cross-modal Alignment） | 源MoBind含时间token／身体局部／全局对比、重建、视觉KD／特征转移和RF监督；只保留源实际mask与权重 | Task8待实施；不能把未来S/I信息当作Task5已取得的增益 |
+| 选择性视觉锚定（Selective Visual Anchor） | 源 `selective_anchor_loss` 只在训练标签判断anchor正确的行约束fusion接近anchor；阶段A只动motion residual，B再开visual heads | Task10待实施；是训练监督下的保留视觉能力约束，不在val/final用真值决定路由，也不保证所有行无harm |
+| 结构化教师与末端适配（Structured Targets / Final Adaptation） | 源重复/分组/序列/precedence改善目标；P310选定类.9805、其余.0005，40轮训练heads_motion_encoder，视觉head LR5e-5、motion/fusion1e-4 | Task11/12待实施，目标锐化不是温度软化；conf_power0不进行额外置信度筛行。实际效果取决于新目标质量，不能把队友0.91归因于某一个模块 |
+
+区分**优化损失（Optimization Loss）**和**准确率转移差距（Accuracy Transfer Gap）**：当前select训练日志首轮→16轮KD为 `10.25695→0.25500`，总loss `13.27275→1.66318`；refit KD为 `8.89442→0.26416`。但固定user6/7上A1为268/388=69.07%，A2为182/388=46.91%，相差86条／22.16个百分点；这不是KL损失的单位。样本内有效IR教师1957/1957、学生1945/1957说明训练拟合很高，不能因此断言跨用户知识转移成功，也不能从这一个结果识别唯一原因。旧v2学生48.71%与本轮46.91%还同时改变预算／选择规则／目标校准，不是单因素消融。
+
+**后续执行约束（Execution Decision）：** 保留已授权的单大教师／固定划分，不加内部OOF、不按val重选温度或轮数；先如实保留上述差异，再按各Task移植其有效算子。Task5完成的是基础视觉学生，Task10和12仍会按源训练视觉头，不能称整个最终视觉参数已经冻结。本次没有新的性能消融或独立复审，不重跑模型、全cache或历史测试；任何未解释差异都要在Task14最终一致性声明中显式处理。
 
 ## 全局边界（Global Boundaries）
 
