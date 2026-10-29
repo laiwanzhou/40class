@@ -30,6 +30,8 @@ def model_kind(registry,stage):
 
 
 def validate_v3_role(registry,r):
+    if r.stage in {'A6-VS','A6-VI','A6-VSI'} and r.config.get('role')!='diagnostic_not_source_main':
+        raise ValueError('A6 requires explicit diagnostic role')
     if r.kind=='public_weights' and r.stage.startswith('source_initializer/'):
         role=r.stage.split('/',1)[1]
         asset=registry.protocol.recipe.get('teacher_only_assets',{}).get(role)
@@ -104,6 +106,8 @@ def validate_descriptor(registry,r):
 
 
 def validate_bank(registry,r):
+    if any(x in {'A6-VS','A6-VI','A6-VSI'} for x in r.config.get('experts',[])):
+        raise ValueError('diagnostic A6 experts cannot enter teacher bank')
     from .no_vote_manifest import read_public_rows,row_index
     partition=r.config.get('partition');parts=registry.protocol.partitions
     if partition not in parts or r.rows!=row_index(read_public_rows(registry.protocol.public_manifests[partition])):

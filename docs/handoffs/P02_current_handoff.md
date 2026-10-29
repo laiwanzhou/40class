@@ -6,6 +6,10 @@
 
 ## 当前完成状态（Current Status）
 
+**当前最新：Task1–9已实施，Task9额外平均融合诊断已完成四区12targets及有限自验；Task10未启动。** 本次用户要求先完成Task9，所有Task完成后再统一评估。A6消费Task5 A2和task8_current.json指向的ir_supervision_v2 A5-S/I，identity/fitted两策略只在dev A6-VSI选择；选中fitted，refit只在refit14重估温。33 targeted GREEN22.20秒；正式生成18.58秒，自验22.42秒。final4每候选609行、591有效／18prior、不评分；无网络重训或大缓存扫描。
+
+当前Task9入口为run/protocol/task9_complete.json，交付[P37](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/P37_Task9_额外平均融合诊断.md)。诊断角色diagnostic_not_source_main，注册器阻止其进入A7监督祖先及A8主bank；global false未改变。Task9本轮只有有限自验，没有独立子智能体复审，不能称独立GO。开发记录VS184/388、VI183/388、VSI196/388，仅作阶段记录。下一步是P01 Task10的源融合与控制，不以A6结果改主预算。旧前置完成标记/P35/P36保持原样；以下段落中的“Task9未启动”等均为此前历史，当前以本段为准。
+
 最新：**Task8修正版ir_supervision_v2已完成两阶段24轮、四区输出及独立GO，P34-M1对新模型CLOSED；Task9未启动。** select1957／refit2342、各恢复1IR-only，训练与class_weights人口一致；新dev S143/388=36.86%、I112/388=28.87%、combined诊断151/388=38.92%。30 targeted GREEN86.29秒，真实两64批含恢复行的源loss/grad/update差0；64final公共行实际模型禁teacher/labels打开0、logits差0。独立工程／方法／产物三者完成，最终P36确认新模型及12targets和旧证据完整。交付[P35](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/P35_Task8_IR监督恢复与重训.md)、复审[P36](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/reports/P36_Task8_IR监督修复独立复审.md)。当前入口protocol/task8_current.json→task8_ir_supervision_v2_complete.json；后续必须用其refs，不硬编码旧A5。
 
 新模型根run/A5/ir_supervision_v2/{select,refit}，独立capability/ready/complete。旧A5／原Task8 complete／P33／P34保留原身份和条件性历史，未追认修复。Task1–7可复用，全局false/P12等缺项与ROI精度残余仍在；不自动推进Task9。训练select241.91s/refit283.05s，日志跨度562.26s；PID39204/session52812已结束，无后台训练或自动化。源码修复281e770已推送，最终记录提交见Git日志。以下为阶段历史状态，当前以上述新入口为准。

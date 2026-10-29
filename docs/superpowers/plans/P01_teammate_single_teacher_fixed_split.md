@@ -2,7 +2,7 @@
 
 > 本分支唯一有效计划（Canonical Plan）；唯一交接入口为 [P02](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/handoffs/P02_current_handoff.md)。旧实验计划及交接已移入 docs/archive，仅作为历史记录（Historical Records）；reports/audit_inputs 为审计输入快照，不指导当前执行。
 
-> 执行者使用 superpowers:executing-plans；用户明确选择子智能体实施时才使用 subagent-driven-development。2026-10-06独立复审修订为v3.1，Task编号仍为1–14。初版v3的机制producer、KNN依赖和元数据/导入/角色/校验契约已在下文纠正；正式生成仍受逐阶段数值与依赖闭合门槛约束。v2 Task1–5已完成并推送6e31b6d；它们是历史基线，不表示新增v3要求已完成。2026-10-28 Task1已实现并独立复审GO；Task2准备与Task3几何一致性均已完成并获独立复审GO，Task4完整产物生成并通过有限独立验收GO；Task5固定16轮select/refit及四区预测／序列均已完成，有限独立复审GO；2026-10-29 Task6运动缓存／恒等外部转换已实现、正式生成及有限自验通过，未独立复审；Task7源RF教师已训练并完成四区双profile目标、有限自验通过，未独立复审；Task8新版已完成IR-only恢复、固定24轮select/refit及四区输出并独立GO（P35/P36）；Task9–14未实施，未训练大视觉骨干。旧规格/计划见reports/audit_inputs/2026-10-04/pre-v3/。
+> 执行者使用 superpowers:executing-plans；用户明确选择子智能体实施时才使用 subagent-driven-development。2026-10-06独立复审修订为v3.1，Task编号仍为1–14。初版v3的机制producer、KNN依赖和元数据/导入/角色/校验契约已在下文纠正；正式生成仍受逐阶段数值与依赖闭合门槛约束。v2 Task1–5已完成并推送6e31b6d；它们是历史基线，不表示新增v3要求已完成。2026-10-28 Task1已实现并独立复审GO；Task2准备与Task3几何一致性均已完成并获独立复审GO，Task4完整产物生成并通过有限独立验收GO；Task5固定16轮select/refit及四区预测／序列均已完成，有限独立复审GO；2026-10-29 Task6运动缓存／恒等外部转换已实现、正式生成及有限自验通过，未独立复审；Task7源RF教师已训练并完成四区双profile目标、有限自验通过，未独立复审；Task8新版已完成IR-only恢复、固定24轮select/refit及四区输出并独立GO（P35/P36）；Task9额外平均诊断已完成四区12targets及有限自验（P37；非独立复审），Task10–14未实施，未训练大视觉骨干。旧规格/计划见reports/audit_inputs/2026-10-04/pre-v3/。
 
 **目标（Goal）：** 一个大视觉教师、固定用户划分，在其余生效操作上按最终提交源码复刻完整路线。
 **架构（Architecture）：** 复用源模型/算子，按新人口重新拟合；除教师根节点数量与固定划分替代OOF外，不随意增删归一化、掩码、温度、预算、后处理或适配参数。所有必要数据适配单独登记。
@@ -296,9 +296,11 @@ P34-M1：当前A5按 `sk|imu` 训练1956／2341行，分别比有效视觉监督
 **文件：** simple_fusion.py及测试。
 **接口：** 保留select_calibration/combine_available，记录role=diagnostic_not_source_main。
 
-- [ ] 测试明确这些候选不进入A7监督目标、A8主bank或主预算选择；ID重排/缺模态prior契约不变。
-- [ ] 若执行温度拟合，仅fit预测/标签，保持v2诊断边界0.25–4及identity/fitted两候选；不能称为原最终校准。
-- [ ] 输出A6-VS/VI/VSI，完整609行；不因诊断更优改主链。
+- [x] 测试明确这些候选不进入A7监督目标、A8主bank或主预算选择；ID重排/缺模态prior契约不变。
+- [x] 若执行温度拟合，仅fit预测/标签，保持v2诊断边界0.25–4及identity/fitted两候选；不能称为原最终校准。
+- [x] 输出A6-VS/VI/VSI，完整609行；不因诊断更优改主链。
+
+**2026-10-29完成（Complete）：** Task9消费Task5 A2及task8_current指向的新A5-S/I，使用fitted策略，select/refit各自仅fit有效训练预测。四区12targets及两phase参数模型已齐；33项针对性测试通过22.20秒，正式生成18.58秒、有限自验22.42秒。final609／591有效／18prior，无标签评分。当前入口protocol/task9_complete.json，交付[P37](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/P37_Task9_额外平均融合诊断.md)。本轮未执行独立子智能体复审，不称独立GO；A6角色diagnostic_not_source_main、不可回流主链。用户要求所有Task完成后统一评估，本步仅留结果，不按诊断改配方。Task10未启动，Task1–8及既有全局门槛不变。
 
 ### Task 10：原融合full与独立训练控制（Fusion Parity and Controls）
 
@@ -370,6 +372,6 @@ P34-M1：当前A5按 `sk|imu` 训练1956／2341行，分别比有效视觉监督
 
 ## 状态与交接（Status and Handoff）
 
-v2已完成：Task4单头T1开发69.07%，Task5第17轮开发48.71%、四区目标/序列、工程及方法学验收GO。v3 Task1已实现并独立复审GO（68项针对性测试），Task2准备/缓存导入完成（P03）、Task3几何一致性完成（P24），两者实际独立复审GO（P25），Task4头部及完整全窗均已完成并独立GO（P28），Task5已完成并独立GO（P30），Task6运动缓存／恒等转换已完成生成与有限自验（P31，未独立复审）；source roster材料缺口保持完整bank/融合的全局生成阻断。Task7已完成源RF／双consumer输出及有限自验（P32，未独立复审）；Task8新版已完成IR-only恢复重训并独立GO（P35/P36；旧P33/P34仅历史）；下一任务为尚未启动的Task9诊断；不得把当前v2权重当v3已通过。
+v2已完成：Task4单头T1开发69.07%，Task5第17轮开发48.71%、四区目标/序列、工程及方法学验收GO。v3 Task1已实现并独立复审GO（68项针对性测试），Task2准备/缓存导入完成（P03）、Task3几何一致性完成（P24），两者实际独立复审GO（P25），Task4头部及完整全窗均已完成并独立GO（P28），Task5已完成并独立GO（P30），Task6运动缓存／恒等转换已完成生成与有限自验（P31，未独立复审）；source roster材料缺口保持完整bank/融合的全局生成阻断。Task7已完成源RF／双consumer输出及有限自验（P32，未独立复审）；Task8新版已完成IR-only恢复重训并独立GO（P35/P36；旧P33/P34仅历史）；Task9额外平均诊断已完成，下一任务为尚未启动的Task10；不得把当前v2权重当v3已通过。
 
-无定时自动化，Task5–8训练／导出与缓存进程均已结束；不推断final准确率，不自动进入Task9。2026-10-06原版复审问题已修订，Task1–5各规定节点已实际独立GO；Task5最终53项针对性测试与正式产物有限验收通过，Task6为40项针对回归及有限自验通过。后续按Task9–14各自依赖和复审节点执行，当前局部GO不代表全处理等价，不跳过manifest/roster或P12等材料门槛。v2已退休两resume.pt和四sequence.npy（1.02GiB），正式checkpoint/targets/anchors/公共缓存/来源记录保留；旧seq refs为历史证明，不再宣称可直接完整加载。修改后自检：source_ops覆盖、接口/角色/硬链接导入一致、固定人口/无OOF无矛盾、每主链参数有source、每验证只消费直接输入。
+无定时自动化，Task5–8训练／导出与缓存进程均已结束；Task9现已按后续授权完成，不推断final准确率，不自动进入Task10。2026-10-06原版复审问题已修订，Task1–5各规定节点已实际独立GO；Task5最终53项针对性测试与正式产物有限验收通过，Task6为40项针对回归及有限自验通过。后续按Task9–14各自依赖和复审节点执行，当前局部GO不代表全处理等价，不跳过manifest/roster或P12等材料门槛。v2已退休两resume.pt和四sequence.npy（1.02GiB），正式checkpoint/targets/anchors/公共缓存/来源记录保留；旧seq refs为历史证明，不再宣称可直接完整加载。修改后自检：source_ops覆盖、接口/角色/硬链接导入一致、固定人口/无OOF无矛盾、每主链参数有source、每验证只消费直接输入。
