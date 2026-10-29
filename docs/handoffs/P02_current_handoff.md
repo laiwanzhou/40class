@@ -10,7 +10,7 @@
 
 第7轮resume已实际CPU装载核验：history连续1–7、scheduler.last_epoch=7、模型／AdamW／scaler／采样器及全部RNG齐，identity和producer CRLF SHA完全不变。按持续任务授权已从第8轮恢复，日志明确p12_image_resume/completed_epochs=7；未重跑前七轮或修改训练代码。
 
-新worker PID56208，当前日志索引仍P41-p12-images-current-run.json；新supervisor PID29096，索引P42-continuation-current-run.json。两者改为本地WMI创建的hidden detached后台进程，工作目录／脚本／配方不变；没有安装服务或新增定时任务，不宣称能规避系统断电或一切退出。新日志均P43前缀并带20261030时间，不覆盖旧日志。恢复凭据revision/recovery_20261030.json，progress已running_after_unexpected_interruption。
+新worker PID56208，当前日志索引仍P41-p12-images-current-run.json；新supervisor PID18956（独立Python启动器PID6524），索引P42-continuation-current-run.json。两者改为本地WMI创建的hidden detached后台进程，工作目录／脚本／配方不变；没有安装服务或新增定时任务，不宣称能规避系统断电或一切退出。新日志均P43前缀并带20261030时间，不覆盖旧日志。首次直接WMI启动pwsh的PID29096未进入脚本即退出；现由独立Python启动器通过subprocess提供明确stdin/stdout/stderr句柄，PowerShell PID18956已实测持续等待worker56208且错误日志为空。两者父链归WmiPrvSE，不依附当前Codex终端，但不推断旧退出原因。恢复凭据revision/recovery_20261030.json，progress已running_after_unexpected_interruption。
 
 接续范围仍教师→P12/global/KNN→fit-pool targets→Task11 source-base两12轮及四区raw预测，之后停在safe/bank/A8剩余实现之前，不启动Task12。旧ETA因这段停止需顺延。当前Task11未完成，无新独立复审；两份既有未跟踪报告仍不提交。
 
