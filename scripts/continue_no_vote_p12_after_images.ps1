@@ -37,7 +37,17 @@ try {
     $taskTarget.WaitForExit()
     if ($taskTarget.ExitCode -ne 0) { throw "Source-base target producer failed: $taskTargetError" }
     if (-not (Test-Path -LiteralPath (Join-Path $taskProtocol 'source_base_structured_targets.json'))) { throw 'Source-base target marker absent' }
-    Write-Output 'P12/global/KNN and fit-pool targets finished; Task11 intermediate adapt12/bank/A8 still pending; Task12 not started'
+    Write-Output 'P12/global/KNN and fit-pool targets complete; starting Task11 own-phase source-base adaptation'
+    $taskState=Get-Content -LiteralPath (Join-Path $taskProtocol 'progress.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($taskState.status -eq 'paused_by_user') { Write-Output 'User paused the task; continuation stopped'; exit 0 }
+    $taskAdaptLog=Join-Path $taskOutput 'P43-source-base-training.log'
+    $taskAdaptError=Join-Path $taskOutput 'P43-source-base-training-error.log'
+    $taskAdapt=Start-Process -FilePath $taskPython -ArgumentList @('-B','-u','scripts/run_no_vote_source_base_adaptation.py','--config','configs/experiments/teammate_single_teacher_fixed_split_v3.yaml') -WorkingDirectory $taskRoot -RedirectStandardOutput $taskAdaptLog -RedirectStandardError $taskAdaptError -WindowStyle Hidden -PassThru
+    $taskAdapt.Id | Set-Content -LiteralPath (Join-Path $taskOutput 'P43-source-base-training.pid')
+    $taskAdapt.WaitForExit()
+    if ($taskAdapt.ExitCode -ne 0) { throw "Source-base adaptation failed: $taskAdaptError" }
+    if (-not (Test-Path -LiteralPath (Join-Path $taskProtocol 'source_base_adapt12_component.json'))) { throw 'Source-base adaptation completion marker absent' }
+    Write-Output 'Task11 source-base adaptation and four population predictions complete; safe-base/bank/A8 still pending; Task12 not started'
 } catch {
     Write-Error $_
     exit 1
