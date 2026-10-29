@@ -6,6 +6,12 @@
 
 ## 当前完成状态（Current Status）
 
+**当前最新：Task1–10已实施，Task10八组4＋20、四区24targets及最终有限自验完成；Task11未启动。** 入口run/protocol/task10_complete.json；交付[P38](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/P38_Task10_原融合与独立训练控制.md)。42 targeted GREEN43.74秒，另旧固定24恢复专项1GREEN9.36秒；真实64train12（含IR-only1）源Dataset/A/B loss/grad/update0；最终57.48秒验收八模型／配对初始化与每轮顺序／人口/CW／24小targets／prior。真实refit/full在64final公共输入的full/zero-S/I logits差0，教师目标/标签打开0、initializer参数装载0。final六候选均609/591valid/18prior，不评分。
+
+八组保留训练时间1400.40秒，续跑训练＋导出流程1589.0秒；首次序列化失败后的full/select从A4末态重跑B20，旧新全部history除seconds外相同，未追加模型预算。主实现1e9648f、保存修复8dbd621已推送，最终收尾见Git日志。八模型均各自同phase A2/ir_supervision_v2 A5初始化；A7与训练控制不混祖先，zero-S/I共用full checkpoint。当前开发full210/388=54.12%，control181/195/198，zero187/205，只记录不据分数改配方。按用户要求全部任务完成后统一评估。
+
+本轮无独立子智能体复审，不称独立GO；完整bank的P12/Thermal/P89/A18门槛、已有Task5精度残余继续保留。最新训练PID45888/session18327及验收session59416均结束，无后台训练或自动化。下一步P01 Task11尚未授权／实施；此前“Task10进行中／未完成”等段落保留阶段历史，以此最新段为准。source bool兼容子类应在后续A7使用中继续保留，不能直接换回Torch2.7下报错的源forward；旧原始数据、队友快照、Task1–9模型／完成记录不改。
+
 **当前最新：用户授权推进Task10，训练前41项针对回归及真实64批源对照通过，八组正式4＋20训练进行中，Task10未完成。** 实现源separate/additive/clip，直接调用train_stage，四独立full/mask_motion/shuffle_s/shuffle_i，select/refit均只用自身A2和task8_current指向的新A5。运行日志outputs/task5_audit/P38-task10-formal.log；后续先查日志、进程及各A7*目录artifact，不重复启动。Stage A保存阶段级恢复，B未完成时从A末态重跑B。Task10完成需八模型、四分区六候选24targets、最终有限验收与complete，不能只看full结束。交付进行中[P38](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/P38_Task10_原融合与独立训练控制.md)。
 
 续跑更新：首次full/select算完但保存最终checkpoint因nested mappingproxy不可pickle退出，原session41747已结束。共享_save_torch元数据序列化修复已42tests GREEN43.74s；主融合producer/训练identity不改，不动既有模型。新session18327从已有A4/RNG恢复后重跑B20，再继续其余七组；最新日志outputs/task5_audit/P38-task10-formal-resume.log，旧formal错误日志与小history副本保留。先查新进程/日志，不重复启动；当前仍未完成Task10。

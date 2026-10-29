@@ -2,7 +2,7 @@
 
 日期：2026-10-29，Asia/Shanghai。分支 `experiment/teammate-single-teacher-task1`。
 
-当前状态：实现及训练前验证通过，正式训练进行中，**尚未完成 Task10**。唯一 [P01 计划（Plan）](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/superpowers/plans/P01_teammate_single_teacher_fixed_split.md) 与 [P02 交接（Handoff）](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/handoffs/P02_current_handoff.md) 继续原位维护；本文件是交付记录。
+当前状态：**Task10 已完成八组固定预算训练、四分区 24 份预测及有限自验（Bounded Self-acceptance）**。本轮未执行独立子智能体复审（Independent Subagent Review），不称独立 GO；Task11 未启动。唯一 [P01 计划（Plan）](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/superpowers/plans/P01_teammate_single_teacher_fixed_split.md) 与 [P02 交接（Handoff）](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/handoffs/P02_current_handoff.md) 继续原位维护；本文件是交付记录。
 
 ## 方法（Method）
 
@@ -33,4 +33,31 @@ full 主模型采用队友原 `P86SeparateMotionEncoder`、additive residual 和
 
 运行根：`outputs/teammate_single_teacher_fixed_split/fixed-split-single-teacher-v3-source-ops`，协议身份仍 `2b563c9d2b0c4ee62297a1ec05062811f7059ee1778c7090cefede2cc507618a`。日志及证据在 `outputs/task5_audit/P38-task10-*.log/json`。全局 formal_generation_ready=false 不改，A7 获本任务自己的局部就绪（Scoped Readiness），不放行 P12／完整专家 bank。
 
-正式八组训练、24 份预测、最终自验及完成标记待生成；未执行独立子智能体复审，Task11 未启动。用户要求所有任务完成后统一评估，本步不据开发分数改主链。
+## 正式结果与最终验收（Formal Results and Final Acceptance）
+
+八个模型都完成 A4＋B20，共保留 192 轮，select 每轮 1957 条、refit 每轮 2342 条。每 phase 三个控制与 full 的实际初始化摘要、全部 24 轮 ID 顺序摘要一致，类别权重人口一致。refit 重新装载本 phase A2／新版 A5；四组之间也独立初始化，不以 full 的训练后权重初始化控制。主链参数未根据控制成绩变更。
+
+| 候选（Candidate） | development2 正确数／388 | 准确率（Accuracy） |
+|---|---:|---:|
+| A7 full | 210 | 54.12% |
+| A7-mask | 181 | 46.65% |
+| A7-shuffle-S | 195 | 50.26% |
+| A7-shuffle-I | 198 | 51.03% |
+| A7-zero-S | 187 | 48.20% |
+| A7-zero-I | 205 | 52.84% |
+
+full 的 train12 为 1980／2039＝97.11%，refit14 为 2353／2427＝96.95%。refit14 包含 user6/7，不能称验证成绩。表中开发分数只作固定端点记录，不挑模型、追加预算或作最终效果结论。所有任务结束后再统一评估。
+
+六候选都生成完整四分区输出：train12 2039／有效1957／prior82；development2 388／385／3；refit14 2427／2342／85；final4 609／591／18。共 24 份标准 NPZ，总计 9,287,337 字节（约 8.86 MiB），没有标签成员。final4 不读取真值、不评分。
+
+保留历史中的八组训练时间合计 1400.40 秒（23.34 分钟）；续跑训练＋导出流程 1589.0 秒（26.48 分钟）。首次保存失败造成额外 B20 重算成本，不计入已保留模型的 192 轮预算，也未把旧 B20 参数连续接到新 B20。旧／新 full/select 的 24 轮历史除耗时外逐项一致，证明本次阶段恢复没有改变其训练轨迹。
+
+最终自验 57.48 秒：核对八模型 metadata／两阶段固定学习率与预算／同 phase 祖先／人口与 CW／配对初始化与顺序／fit-only shuffle；24 份小预测的完整 ID、40 列、valid、prior、来源与允许的开发结果。实际正式 refit/full checkpoint 在 64 条 final4 公共输入上，对 full／zero-S／zero-I 三项 logits 的复算差均为 0。教师目标／标签打开尝试 0，A2／A5／public initializer 参数装载尝试 0。
+
+此推理探针仍运行在完整 provenance 协议中，来源校验会核对 A2／A5 初始化 checkpoint 的摘要；不能外推为把所有祖先文件物理移走仍可运行。实际前向只装载自己的 A7 权重和公共缓存，不读取教师目标或标签。没有原始目录／images／大 feature／sequence 整表哈希、额外重训或 final 标签读取。验证器检查当前实际消费的小输出与真实批次，不声称未抽查缓存载荷全部完整。
+
+最终针对回归 42 passed，43.74 秒；另旧 Task8 固定24轮／中断恢复引擎专项 1 passed，9.36 秒，确认共享保存修复没有破坏该使用路径。源数值对照证据保留训练前记录（其损失／优化逻辑未变），未为了文档收尾重复真实训练验证。
+
+当前入口 `run/protocol/task10_complete.json`，绑定 `task10_artifacts_ready.json`、八模型／24 输出及本交付、测试、真实批次、最终验收和恢复证据。各模型／目标路径为 `run/{A7,A7-mask,A7-shuffle-S,A7-shuffle-I,A7-zero-S,A7-zero-I}/{select,refit}`，zero-S／I 目录只有推理产物，引用同一个 full checkpoint。阶段 A resume 作为恢复中间产物保留。PID45888／session18327 已结束，最终验收 session59416 已结束，无后台训练或自动化。
+
+实现提交 `1e9648f`、序列化修复及验收脚本提交 `8dbd621` 已推送；最终收尾提交号见 Git 日志／台账。原数据、队友快照、旧 Task1–9 产物和两份未跟踪历史报告保持原样。全局 P12／Thermal／P89／A18 门槛与 Task5 已记录的精度残余仍在；Task11 尚未推进。
