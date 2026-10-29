@@ -6,6 +6,15 @@
 
 ## 当前完成状态（Current Status）
 
+**用户已明确恢复（Resumed，2026-10-29）：** 覆盖下方暂停记录。图像worker PID5632已从Depth select第3轮恢复并完成该轮，当前第4轮；原producer89c1930本地CRLF字节未改、恢复identity未改。最新日志 `outputs/task5_audit/P41-p12-images-resume-20261029-213159.log`／`-error.log`，当前worker索引 `P41-p12-images-current-run.json`。第3轮986.74秒，相对暂停前变慢，但读量／GPU／完整轮产物持续推进；不据此改配方或承诺原先ETA。
+
+本轮P12→global/KNN正式producer与scoped角色已实现（d689167、f704a13），FP32落盘往返修复，完整夹具验收通过；真实依赖检查仍拒绝Depth未完成，没有正式P12/global/KNN。两个source-base转移模型已真实fit：select2039／524sessions，refit2427／621sessions，有限归一化验收通过；不能称中间学生12轮已完成。新源后验／熵回退测试逐值一致，拒绝dev/final中间目标。最终18 targeted GREEN74.50s，无大cache SHA或final labels读取。
+
+接续supervisor PID42704（脚本32890fc）等待worker5632结束，要求三教师FP16 markers齐备再run P12/global/KNN，随后只生成train12/refit14中间structured targets；任何错误停止，之后停止在尚未实现的中间adapt12之前，不推进Task12。监督日志 `P42-continuation-supervisor.log`／`-error.log`；生产日志P42-p12-global-continuation与P42-source-base-targets。若再次暂停要停worker及supervisor并标paused_by_user，不能让等待者误续。精确scope和证据见[P42](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/P42_Task11_断点恢复与目标接续.md)。
+
+当前活动progress已经running_after_user_resume/source_base_decoder_fit_complete，旧pause.json仅保留历史。Task11仍未完成、A8未生成、Task12未启动；无新独立复审GO。余项为两图像教师／预测、正式P12/global/KNN、fit-pool targets、中间adapt12、safe base／完整bank／group／gate／sequence／P310／A8。不要改运行中的p12_visual_reconstruction.py或旧recipe/protocol，Skeleton与Task1–10继续复用。
+
+
 **用户要求暂停（Paused by User，2026-10-29 20:47）：** 已停止核验身份后的Depth／Thermal训练进程PID47268，当前无此后台训练；不要自动恢复。Depth select已完成2／15轮，`run/task11_reconstruction_v2/p12_depth/select/resume.pt`已实际用CPU装载核验：identity相符，history连续1、2，模型／AdamW／scheduler／scaler／sampler及全部RNG齐，scheduler.last_epoch=2。恢复从第3轮开始；当前未完整轮的进度舍弃，不增加预算。Skeleton两阶段及FP16四区产物已完成并保留；Depth refit与Thermal尚未启动，Task11未完成、Task12未启动。暂停凭据 `run/protocol/task11_reconstruction_v2/pause.json`，总progress已标paused_by_user。恢复时先看进程，再使用原producer89c1930对应的同脚本与配置；日志改用新的resume日志，保留原formal日志。当前分支后续提交2f94ebe只增加纯融合算子与文档，未改运行中的image producer，因此不影响本恢复点。等待用户明确继续。
 
 

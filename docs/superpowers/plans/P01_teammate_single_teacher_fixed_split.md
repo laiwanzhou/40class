@@ -324,6 +324,8 @@ P34-M1：当前A5按 `sk|imu` 训练1956／2341行，分别比有效视觉监督
 
 ### Task 11：原保留专家与后处理（Retained Experts and Original Postprocessing）
 
+**恢复与实施续接（2026-10-29）：** 用户明确恢复暂停。Depth select第3轮完成，worker5632继续；接续42704等真实教师齐备后仅生成P12/global/KNN和train12/refit14中间结构化目标。正式producer、原后验/entropy backoff及作用域门槛已实现，两个本phase转移模型已fit且有限自验通过。中间adapt12、bank/A8尚未完成，不放行Task12；旧暂停段落仅历史。详见[P42阶段记录](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/P42_Task11_断点恢复与目标接续.md)，唯一handoff P02已更新，唯一plan仍为本文件。
+
 **用户要求暂停（Paused by User，2026-10-29 20:47）：** 已停止核验身份后的Depth／Thermal训练进程PID47268，当前无此后台训练；不要自动恢复。Depth select已完成2／15轮，`run/task11_reconstruction_v2/p12_depth/select/resume.pt`已实际用CPU装载核验：identity相符，history连续1、2，模型／AdamW／scheduler／scaler／sampler及全部RNG齐，scheduler.last_epoch=2。恢复从第3轮开始；当前未完整轮的进度舍弃，不增加预算。Skeleton两阶段及FP16四区产物已完成并保留；Depth refit与Thermal尚未启动，Task11未完成、Task12未启动。暂停凭据 `run/protocol/task11_reconstruction_v2/pause.json`，总progress已标paused_by_user。恢复时先看进程，再使用原producer89c1930对应的同脚本与配置；日志改用新的resume日志，保留原formal日志。当前分支后续提交2f94ebe只增加纯融合算子与文档，未改运行中的image producer，因此不影响本恢复点。等待用户明确继续。
 
 

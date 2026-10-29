@@ -70,3 +70,7 @@ P12校准／融合纯算子（Calibration / Fusion Operators）已补入 `p12_fu
 ## 用户暂停与恢复点（User Pause and Resume Point）
 
 **用户要求暂停（Paused by User，2026-10-29 20:47）：** 已停止核验身份后的Depth／Thermal训练进程PID47268，当前无此后台训练；不要自动恢复。Depth select已完成2／15轮，`run/task11_reconstruction_v2/p12_depth/select/resume.pt`已实际用CPU装载核验：identity相符，history连续1、2，模型／AdamW／scheduler／scaler／sampler及全部RNG齐，scheduler.last_epoch=2。恢复从第3轮开始；当前未完整轮的进度舍弃，不增加预算。Skeleton两阶段及FP16四区产物已完成并保留；Depth refit与Thermal尚未启动，Task11未完成、Task12未启动。暂停凭据 `run/protocol/task11_reconstruction_v2/pause.json`，总progress已标paused_by_user。恢复时先看进程，再使用原producer89c1930对应的同脚本与配置；日志改用新的resume日志，保留原formal日志。当前分支后续提交2f94ebe只增加纯融合算子与文档，未改运行中的image producer，因此不影响本恢复点。等待用户明确继续。
+
+## 用户恢复（User Resume，2026-10-29）
+
+用户现已明确继续，下方／上方暂停只是历史；当前worker5632从第3轮恢复并完成，接续supervisor42704等待其完成后生成P12/global/KNN与fit-pool结构化目标。两phase转移模型已fit，不等于中间学生12轮适配。P41冻结配置不变，详细实施与有限验收见[P42](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/P42_Task11_断点恢复与目标接续.md)，最新状态以唯一P02与revision progress为准。Task11未完成，Task12未启动。
