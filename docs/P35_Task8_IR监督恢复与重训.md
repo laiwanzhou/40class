@@ -2,7 +2,7 @@
 
 日期：2026-10-29，Asia/Shanghai。唯一指导为[P01](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/superpowers/plans/P01_teammate_single_teacher_fixed_split.md)，唯一交接为[P02](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/handoffs/P02_current_handoff.md)。本文记录用户批准的[P34-M1](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/reports/P34_Task6至8_独立复审.md)修复，不是第二计划或交接。
 
-当前状态：**代码修复／针对性回归与真实批次通过，正式重训进行中（Retraining in Progress）**。独立工程、方法复审已确认实现消除IR-only过滤问题；正式产物需待两阶段24轮和四区输出完成后另验。Task9未启动。
+当前状态：**两阶段24轮重训、四区输出、有限自验及独立复审已完成（Complete / Independently Reviewed GO）**。新版ir_supervision_v2的P34-M1已CLOSED，无新增未解决P1/P2；正式独立结论见[P36](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/reports/P36_Task8_IR监督修复独立复审.md)。Task9未启动。
 
 ## 修正范围（Correction Scope）
 
@@ -30,3 +30,24 @@
 ```
 
 训练结束后必须核对新两phase24轮、实际1957/2342清单／类别权重／恢复行证据、四区12份输出与完整分母、旧证据完整性和独立产物复审，再写新complete／当前版本入口并更新唯一P01/P02。先不进入Task9，不改旧P33/P34的历史结论。
+
+## 重训结果（Retraining Results）
+
+select／refit各24轮末态已保存；每轮分别1957／2342条，恢复行1／1、排除真正无证据82／85，训练人口摘要与类别权重人口摘要完全一致。训练过程无开发标签评估／选轮，refit随机重启。原A5保持原人口与原模型，新结果不覆盖旧目标。
+
+| 人口（Population） | Skeleton | IMU | combined额外诊断 |
+|---|---:|---:|---:|
+| train12 | 1797/2039＝88.13% | 1930/2039＝94.65% | 1947/2039＝95.49% |
+| development2（user6/7） | 143/388＝36.86% | 112/388＝28.87% | 151/388＝38.92% |
+| refit14 | 2120/2427＝87.35% | 2289/2427＝94.31% | 2318/2427＝95.51% |
+| final4 | 不评分；590有效／19prior | 不评分；580有效／29prior | 不评分；590有效／19prior |
+
+相对旧Task8，开发S多4条（+1.03个百分点）、I多1条（+0.26个百分点）、combined诊断少3条（-0.77个百分点）。这次修正恢复了监督人口，不保证所有指标提升，也不能将单seed分数差外推为该样本在其他运行中的固定贡献；未追加调参或选择旧／新中分数更高的版本。后续以通过源方法复审的修正版为当前版本，combined仍不是主链候选。
+
+训练耗时select241.91秒、refit283.05秒，共524.96秒；正式日志跨度562.26秒，约9分22秒。模型与12份预测约29.97MiB，不含resume。PID39204／session52812已结束，没有新自动化或后台训练。
+
+正式有限自验11.49秒，证据 `outputs/task5_audit/P35-task8-final-acceptance.json/.log`：完整IDs／40类列／valid／prior和combined诊断通过；人口／class weights／恢复行的摘要独立重算一致。真实refit模型64条final公共输入推理，教师／标签载荷打开0，S/I logits对正式导出差0；旧Task6／7／8的15项小证据绑定保持。未读取final标签、扫描完整motion／visual大载荷或重跑大骨干。自验中的review=pending保留自验时事实，最终独立结果由P36／新版完成入口单独确认。
+
+独立方法审查已直接核对新两模型及历史、公共mask与A1.valid，裁定P34-M1在新版本**CLOSED／PASS**；不追认旧A5修复。独立工程审查确认新旧capability兼容、目录隔离、类别权重与训练清单共用mask，无新P1/P2。独立产物审查CPU加载两checkpoint、核对12份标准目标／完整分母／分支mask与prior、开发指标及旧模型文件摘要，最终PASS见P36。本记录不扩展为Task9或后续全局链的放行。
+
+完成入口为 `protocol/task8_ir_supervision_v2_complete.json`；当前权威版本入口 `protocol/task8_current.json`绑定新版完成标记和P36独立复审。后续Task9／10等须从该入口读取A5模型及目标，不能将原 `task8_artifacts_ready.json`当作当前修正版。原marker与P33／P34保留历史，未覆盖。修复源代码提交281e770；最终验收文档提交见Git最新日志。

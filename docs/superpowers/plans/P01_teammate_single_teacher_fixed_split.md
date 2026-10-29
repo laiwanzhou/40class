@@ -2,7 +2,7 @@
 
 > 本分支唯一有效计划（Canonical Plan）；唯一交接入口为 [P02](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/handoffs/P02_current_handoff.md)。旧实验计划及交接已移入 docs/archive，仅作为历史记录（Historical Records）；reports/audit_inputs 为审计输入快照，不指导当前执行。
 
-> 执行者使用 superpowers:executing-plans；用户明确选择子智能体实施时才使用 subagent-driven-development。2026-10-06独立复审修订为v3.1，Task编号仍为1–14。初版v3的机制producer、KNN依赖和元数据/导入/角色/校验契约已在下文纠正；正式生成仍受逐阶段数值与依赖闭合门槛约束。v2 Task1–5已完成并推送6e31b6d；它们是历史基线，不表示新增v3要求已完成。2026-10-28 Task1已实现并独立复审GO；Task2准备与Task3几何一致性均已完成并获独立复审GO，Task4完整产物生成并通过有限独立验收GO；Task5固定16轮select/refit及四区预测／序列均已完成，有限独立复审GO；2026-10-29 Task6运动缓存／恒等外部转换已实现、正式生成及有限自验通过，未独立复审；Task7源RF教师已训练并完成四区双profile目标、有限自验通过，未独立复审；Task8已完成源MoBind固定24轮select/refit、四区S/I及combined诊断输出和有限自验，未独立复审；Task9–14未实施，未训练大视觉骨干。旧规格/计划见reports/audit_inputs/2026-10-04/pre-v3/。
+> 执行者使用 superpowers:executing-plans；用户明确选择子智能体实施时才使用 subagent-driven-development。2026-10-06独立复审修订为v3.1，Task编号仍为1–14。初版v3的机制producer、KNN依赖和元数据/导入/角色/校验契约已在下文纠正；正式生成仍受逐阶段数值与依赖闭合门槛约束。v2 Task1–5已完成并推送6e31b6d；它们是历史基线，不表示新增v3要求已完成。2026-10-28 Task1已实现并独立复审GO；Task2准备与Task3几何一致性均已完成并获独立复审GO，Task4完整产物生成并通过有限独立验收GO；Task5固定16轮select/refit及四区预测／序列均已完成，有限独立复审GO；2026-10-29 Task6运动缓存／恒等外部转换已实现、正式生成及有限自验通过，未独立复审；Task7源RF教师已训练并完成四区双profile目标、有限自验通过，未独立复审；Task8新版已完成IR-only恢复、固定24轮select/refit及四区输出并独立GO（P35/P36）；Task9–14未实施，未训练大视觉骨干。旧规格/计划见reports/audit_inputs/2026-10-04/pre-v3/。
 
 **目标（Goal）：** 一个大视觉教师、固定用户划分，在其余生效操作上按最终提交源码复刻完整路线。
 **架构（Architecture）：** 复用源模型/算子，按新人口重新拟合；除教师根节点数量与固定划分替代OOF外，不随意增删归一化、掩码、温度、预算、后处理或适配参数。所有必要数据适配单独登记。
@@ -131,13 +131,15 @@ Task1–5保持完成状态：源操作／协议描述符、公共清单与缓�
 
 ## 2026-10-29 Task8后独立复审状态（Independent Review Status）
 
+**最新状态：用户批准P34-M1修复后，新版ir_supervision_v2已完成select/refit各24轮、四区输出并独立复审GO，P34-M1对新模型CLOSED。** 每轮人口1957／2342、恢复IR-only1／1，class_weights使用完全相同清单。交付[P35](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/P35_Task8_IR监督恢复与重训.md)，独立复审[P36](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/reports/P36_Task8_IR监督修复独立复审.md)。当前入口为protocol/task8_current.json，指向task8_ir_supervision_v2_complete.json；后续只消费其模型与目标。下方P34的CONDITIONAL保留旧A5历史，不能追认旧模型已修复。Task9未启动，Task1–7及全局材料门槛不变。
+
 三名独立审查者已按工程／方法／正式产物完成Task6–8复审，范围3c3dda6…bfcb3a9。**Task6／7 PASS；Task8 CONDITIONAL，存在未解决的条件性P2 P34-M1**，不是全链无保留GO。详见[P34独立复审](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/reports/P34_Task6至8_独立复审.md)。
 
 P34-M1：当前A5按 `sk|imu` 训练1956／2341行，分别比有效视觉监督1957／2342少1条IR-only，因而改变源CE／KD、class weights及batch组成。规格“完全无有效输入”的范围尚需裁定；P33及完成段是实施事实，不等于已经批准这项额外方法差异。建议恢复有视觉监督的IR-only行、明确真正全模态缺失边界后生成新版本A5并复审；或由用户明确接受额外人口适配，不能静默当作完全源等价。本轮不替用户接受或重训。
 
 **后续约束：P34-M1裁定／修复闭合前，不自动使用当前A5进入后续训练。Task9仍未启动。** Task1–7可复用，旧A5和原自验完成标记保持历史不覆盖；新增P34 review marker记录本次条件性结论。工程P3缓存复用依赖原始输入不变，未发现当前输入漂移，非本轮重训理由。P12等全局材料门槛及既有ROI精度残余仍独立存在。
 
-用户随后明确要求“恢复并重训Task8”：采用P34建议方案，训练人口为 `sk | imu | 同phase A1.valid`，class_weights按同一1957／2342人口计算，各恢复1条IR-only；仅全无输入／监督的82／85行不fit。新版本 `ir_supervision_v2` 使用 `A5/ir_supervision_v2/{select,refit}`、独立capability／ready／complete标记，保留旧A5及P33/P34原始记录。select/refit仍随机重启各24轮，不按val选预算；不改Task1–7或全局协议。完成重训和独立复审后才能关闭P34-M1；当前修复进行中，Task9不启动。
+用户随后明确要求“恢复并重训Task8”：采用P34建议方案，训练人口为 `sk | imu | 同phase A1.valid`，class_weights按同一1957／2342人口计算，各恢复1条IR-only；仅全无输入／监督的82／85行不fit。新版本 `ir_supervision_v2` 使用 `A5/ir_supervision_v2/{select,refit}`、独立capability／ready／complete标记，保留旧A5及P33/P34原始记录。select/refit仍随机重启各24轮，不按val选预算；不改Task1–7或全局协议。现已完成重训和独立复审，P34-M1对新版本关闭；旧版保持历史，Task9未启动。
 
 ## 复审重点（Review Focus）
 
@@ -277,12 +279,17 @@ P34-M1：当前A5按 `sk|imu` 训练1956／2341行，分别比有效视觉监督
 **文件：** mobind_pretrain.py及CLI/tests/test_no_vote_mobind_pretrain.py。
 **接口：** train_motion_student接受同phase A1/A4与Source Transform Descriptor；预算固定24。
 
+**当前修正版（Current Corrected Version）：** ir_supervision_v2已各24轮重训并独立GO（P35/P36），训练1957／2342，各恢复1条IR-only，CW同人口；开发S143/388=36.86%、I112/388=28.87%、combined额外诊断151/388=38.92%。30项针对回归与含恢复行的真实两批源对照通过。当前模型和12份输出从protocol/task8_current.json读取，旧A5/P33/P34保留历史。Task9未启动。
+
+
 - [x] RED：test_source_motion_losses_parity对正常、缺IMU、缺Skeleton小batch比较源losses各项与梯度；删去v2强制“缺分支CE/视觉KD全零”的测试断言；保留源重建/对比/RF-valid masks。
 - [x] 原模型最终motion config与全部损失权重/调度、temporal_augment、class_weights按规格8；从原随机seed重新初始化，不偷用已训练S/I分支。
 - [x] 24轮固定，末轮val诊断；refit随机重启同24轮。A1输入改为校准early_late和view-mean features；RF目标遵守阶段/valid。
 - [x] 真实两个train12批次比对缺失项、时间增强及teacher映射；输出A5-S/I/combined和四分区fallback记录。
 
-**2026-10-29实施完成／独立复审CONDITIONAL（Implementation Complete / Conditional Review）：** P34-M1的IR-only训练人口差异未决，下述为实际实施结果，不能视作无保留源等价。两阶段各24轮随机重启，源模型／全部loss／增强／教师映射／完整epoch恢复已实现；训练至少一种motion有效行1956／2341，部分缺失保留、无运动83／86行不参与fit且完整人口预测回退。四区S/I及显式combined available-mean诊断共12份targets齐；源无combined学习头，该项不入主bank或16候选。开发S139/388=35.82%、I111/388=28.61%、combined154/388=39.69%；final不评分。真实2×64批次源Dataset/损失/梯度/参数更新差0，峰值737.39MiB；最终27项针对回归GREEN68.29秒。训练185.18秒、正式日志跨度213.37秒，实际模型禁教师/标签载荷推理64行差0，有限自验10.37秒。A5-only motion_readiness不改全局false；原自验完成入口task8_complete.json保留；新增P34独立复审为CONDITIONAL，P34-M1未闭合，Task9未启动。详见[P33交付](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/P33_Task8_MoBind运动预训练.md)。
+**旧版2026-10-29实施与P34条件性复审记录（Legacy Implementation / Conditional Review）：** P34-M1的IR-only训练人口差异未决，下述为实际实施结果，不能视作无保留源等价。两阶段各24轮随机重启，源模型／全部loss／增强／教师映射／完整epoch恢复已实现；训练至少一种motion有效行1956／2341，部分缺失保留、无运动83／86行不参与fit且完整人口预测回退。四区S/I及显式combined available-mean诊断共12份targets齐；源无combined学习头，该项不入主bank或16候选。开发S139/388=35.82%、I111/388=28.61%、combined154/388=39.69%；final不评分。真实2×64批次源Dataset/损失/梯度/参数更新差0，峰值737.39MiB；最终27项针对回归GREEN68.29秒。训练185.18秒、正式日志跨度213.37秒，实际模型禁教师/标签载荷推理64行差0，有限自验10.37秒。A5-only motion_readiness不改全局false；原自验完成入口task8_complete.json保留；新增P34独立复审为CONDITIONAL，P34-M1未闭合，Task9未启动。详见[P33交付](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/P33_Task8_MoBind运动预训练.md)。
+
+后续依赖修正（Corrected Dependency）：Task9、Task10与最终编排均须从protocol/task8_current.json核对revision／新complete／P36后读取A5模型与targets，不得再硬编码旧A5根目录或旧Task8 ready。
 
 ### Task 9：额外平均融合诊断（Additional Mean-fusion Controls）
 
@@ -363,6 +370,6 @@ P34-M1：当前A5按 `sk|imu` 训练1956／2341行，分别比有效视觉监督
 
 ## 状态与交接（Status and Handoff）
 
-v2已完成：Task4单头T1开发69.07%，Task5第17轮开发48.71%、四区目标/序列、工程及方法学验收GO。v3 Task1已实现并独立复审GO（68项针对性测试），Task2准备/缓存导入完成（P03）、Task3几何一致性完成（P24），两者实际独立复审GO（P25），Task4头部及完整全窗均已完成并独立GO（P28），Task5已完成并独立GO（P30），Task6运动缓存／恒等转换已完成生成与有限自验（P31，未独立复审）；source roster材料缺口保持完整bank/融合的全局生成阻断。Task7已完成源RF／双consumer输出及有限自验（P32，未独立复审）；Task8已完成两阶段24轮、四区输出与有限自验（P33，未独立复审）；下一任务为尚未启动的Task9诊断；不得把当前v2权重当v3已通过。
+v2已完成：Task4单头T1开发69.07%，Task5第17轮开发48.71%、四区目标/序列、工程及方法学验收GO。v3 Task1已实现并独立复审GO（68项针对性测试），Task2准备/缓存导入完成（P03）、Task3几何一致性完成（P24），两者实际独立复审GO（P25），Task4头部及完整全窗均已完成并独立GO（P28），Task5已完成并独立GO（P30），Task6运动缓存／恒等转换已完成生成与有限自验（P31，未独立复审）；source roster材料缺口保持完整bank/融合的全局生成阻断。Task7已完成源RF／双consumer输出及有限自验（P32，未独立复审）；Task8新版已完成IR-only恢复重训并独立GO（P35/P36；旧P33/P34仅历史）；下一任务为尚未启动的Task9诊断；不得把当前v2权重当v3已通过。
 
 无定时自动化，Task5–8训练／导出与缓存进程均已结束；不推断final准确率，不自动进入Task9。2026-10-06原版复审问题已修订，Task1–5各规定节点已实际独立GO；Task5最终53项针对性测试与正式产物有限验收通过，Task6为40项针对回归及有限自验通过。后续按Task9–14各自依赖和复审节点执行，当前局部GO不代表全处理等价，不跳过manifest/roster或P12等材料门槛。v2已退休两resume.pt和四sequence.npy（1.02GiB），正式checkpoint/targets/anchors/公共缓存/来源记录保留；旧seq refs为历史证明，不再宣称可直接完整加载。修改后自检：source_ops覆盖、接口/角色/硬链接导入一致、固定人口/无OOF无矛盾、每主链参数有source、每验证只消费直接输入。

@@ -6,7 +6,11 @@
 
 ## 当前完成状态（Current Status）
 
-最新授权：用户已明确要求恢复IR-only并重训Task8。当前修复进行中，人口改为 `sk|imu|同phase A1.valid`，select1957／refit2342，各恢复1条并同步class_weights；新模型／输出写入 `A5/ir_supervision_v2`，capability／ready／complete均独立版本，旧A5/P33/P34不覆盖。Task1–7复用，仍各24轮随机重启，无val调预算；待重训与独立复审完成后再关闭P34-M1。Task9未启动。
+最新：**Task8修正版ir_supervision_v2已完成两阶段24轮、四区输出及独立GO，P34-M1对新模型CLOSED；Task9未启动。** select1957／refit2342、各恢复1IR-only，训练与class_weights人口一致；新dev S143/388=36.86%、I112/388=28.87%、combined诊断151/388=38.92%。30 targeted GREEN86.29秒，真实两64批含恢复行的源loss/grad/update差0；64final公共行实际模型禁teacher/labels打开0、logits差0。独立工程／方法／产物三者完成，最终P36确认新模型及12targets和旧证据完整。交付[P35](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/P35_Task8_IR监督恢复与重训.md)、复审[P36](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/reports/P36_Task8_IR监督修复独立复审.md)。当前入口protocol/task8_current.json→task8_ir_supervision_v2_complete.json；后续必须用其refs，不硬编码旧A5。
+
+新模型根run/A5/ir_supervision_v2/{select,refit}，独立capability/ready/complete。旧A5／原Task8 complete／P33／P34保留原身份和条件性历史，未追认修复。Task1–7可复用，全局false/P12等缺项与ROI精度残余仍在；不自动推进Task9。训练select241.91s/refit283.05s，日志跨度562.26s；PID39204/session52812已结束，无后台训练或自动化。源码修复281e770已推送，最终记录提交见Git日志。以下为阶段历史状态，当前以上述新入口为准。
+
+最新授权：用户已明确要求恢复IR-only并重训Task8。该授权后已完成修复，人口改为 `sk|imu|同phase A1.valid`，select1957／refit2342，各恢复1条并同步class_weights；新模型／输出写入 `A5/ir_supervision_v2`，capability／ready／complete均独立版本，旧A5/P33/P34不覆盖。Task1–7复用，仍各24轮随机重启，无val调预算；现已在新版完成重训与独立复审并关闭P34-M1；旧记录保持历史。Task9未启动。
 
 最新独立复审（2026-10-29）：**Task6／7 PASS，Task8 CONDITIONAL，P34-M1未解决。** 三个独立子智能体完成工程／方法／产物审查，详见[P34](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/reports/P34_Task6至8_独立复审.md)。A5按motion union剔除83／86行中各有1条IR-only仍具A1监督，改变源CE/KD／类别权重与batch人口；不能把事后披露当明确批准。建议恢复该行训练并版本化重生A5后复审，或由用户明确接受额外人口适配。本轮仅审计，不修改生产代码／模型，不代替用户接受，不推进Task9。Task1–7可复用。原task8_complete仍是自验完成历史，新的task6_8_independent_review_P34.json记录条件性审查，优先读此状态；下述“已完成／未独立审”属于当时实施记录。
 
