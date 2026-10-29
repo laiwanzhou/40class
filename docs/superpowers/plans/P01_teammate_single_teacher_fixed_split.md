@@ -304,6 +304,8 @@ P34-M1：当前A5按 `sk|imu` 训练1956／2341行，分别比有效视觉监督
 
 ### Task 10：原融合full与独立训练控制（Fusion Parity and Controls）
 
+**2026-10-29进行中（In Progress）：** 用户授权本Task。41项针对回归与真实train12 64条源Dataset／A/B loss／gradient／update对照通过，正在八组独立select/refit 4＋20训练；Task10尚未完成，Task11未启动。源三维safe_mask赋值在Torch2.7报错，适配子类仅等价改写首列OR empty，与独立flatten参考一致，不改源快照。Task10质量值与anchor按原缓存FP16语义消费，原Task5产物保留；其既有质量精度残余仍明示。Stage A末态保存RNG供阶段级恢复，未完成B会从A末态重跑B。详细证据见[P38](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/P38_Task10_原融合与独立训练控制.md)。
+
 **文件：** mobind_fusion.py、run_no_vote_mobind_fusion.py、tests/test_no_vote_mobind_fusion.py。
 **接口：** train_fusion(full|mask_motion|shuffle_s|shuffle_i,...)；full严格源操作，controls独立标注。
 

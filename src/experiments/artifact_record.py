@@ -175,7 +175,8 @@ class ArtifactRegistry:
             from .imu_rf_teacher import allows_rf_stage
             from .mobind_pretrain import allows_motion_stage
             from .simple_fusion import allows_diagnostic_stage
-            if not allows_visual_stage(self,r) and not allows_student_stage(self,r) and not allows_rf_stage(self,r) and not allows_motion_stage(self,r) and not allows_diagnostic_stage(self,r):
+            from .mobind_fusion import allows_fusion_stage
+            if not allows_visual_stage(self,r) and not allows_student_stage(self,r) and not allows_rf_stage(self,r) and not allows_motion_stage(self,r) and not allows_diagnostic_stage(self,r) and not allows_fusion_stage(self,r):
                 raise ValueError('source operations/teacher producers are not ready for supervised generation')
         if r.kind in LEARNED:
             pop={'select':'train12','refit':'refit14'}.get(r.phase)
@@ -282,10 +283,10 @@ class ArtifactRegistry:
             for parent in ancestors:descendants(parent,unique)
             lineage=list(unique.values())
             if self.protocol.recipe.get('source_contract_version') == 3:
-                from .simple_fusion import CANDIDATES
-                if (r.kind in LEARNED | {'predictions','adapted_model','teacher_bank'} and r.stage not in CANDIDATES
-                        and any(a.stage in CANDIDATES for a in lineage)):
-                    raise ValueError('diagnostic A6 ancestry cannot enter source main chain or teacher bank')
+                from .no_vote_roles import DIAGNOSTIC_STAGES
+                if (r.kind in LEARNED | {'predictions','adapted_model','teacher_bank'} and r.stage not in DIAGNOSTIC_STAGES
+                        and any(a.stage in DIAGNOSTIC_STAGES for a in lineage)):
+                    raise ValueError('diagnostic ancestry cannot enter source main chain or teacher bank')
             if r.complete and any(not a.complete for a in lineage):
                 raise ValueError('complete artifact cannot consume partial ancestors')
             if r.kind in LEARNED:

@@ -11,6 +11,7 @@ FIXED_MODELS=frozenset({'A1','A2','A5','A6-VS','A6-VI','A6-VSI','A7','A7-mask',
 FITTED_OPERATORS={'global_mixture':'statistics','safe_base':'statistics','group_old':'supervised_model',
     'group_new':'supervised_model','gate':'supervised_model','sequence':'transition','fullwindow_knn':'statistics'}
 P12_EXPERTS=frozenset({'p12_skeleton_depth','p12_thermal','imu_rf'})
+DIAGNOSTIC_STAGES=frozenset({'A6-VS','A6-VI','A6-VSI','A7-mask','A7-shuffle-S','A7-shuffle-I','A7-zero-S','A7-zero-I'})
 
 
 def expert_names(registry):
@@ -106,8 +107,8 @@ def validate_descriptor(registry,r):
 
 
 def validate_bank(registry,r):
-    if any(x in {'A6-VS','A6-VI','A6-VSI'} for x in r.config.get('experts',[])):
-        raise ValueError('diagnostic A6 experts cannot enter teacher bank')
+    if any(x in DIAGNOSTIC_STAGES for x in r.config.get('experts',[])):
+        raise ValueError('diagnostic controls cannot enter teacher bank')
     from .no_vote_manifest import read_public_rows,row_index
     partition=r.config.get('partition');parts=registry.protocol.partitions
     if partition not in parts or r.rows!=row_index(read_public_rows(registry.protocol.public_manifests[partition])):
