@@ -87,6 +87,42 @@
 - A6、A7训练controls和12轮适配是额外诊断；不能替代主链或改变主链预算。主端点为最终配方A9-40。
 - 保留16候选与最终一次揭示；Task1–2准备已按用户授权执行，后续训练仍需满足源证据与逐阶段门槛。
 
+## 2026-10-29补充：完整知识转移的评估契约（Knowledge-Transfer Evaluation Contract）
+
+用户已批准本节修订。仅补充Task11–13的输出证据、比较指标和解释；Task编号仍为1–14，主端点仍为固定40轮，原主比较 `A9-40−A1` 和16候选名单保持不变。不新增OOF、user6/user7伪标签适配、温度搜索或最佳epoch选择。
+
+### 同人口比较与解释（Matched-population Contrasts）
+
+以下准确率差（Accuracy Difference）均在Task13一次揭示后，按**同一refit阶段、同一final4完整609个ID、同一40类顺序、同一全缺失先验策略**计算，单位为百分点（Percentage Points，`100 × (acc_left−acc_right)`）。不把select模型的user6/7成绩与refit模型的final4成绩相减。完整分母是主报告；按公共 `A8.target_mask` 划分的591条适配行与18条先验回退行另作明确分母的分层报告，不按正确与否选行。
+
+| 比较（Contrast） | 目的与解释（Purpose / Interpretation） |
+|---|---|
+| `A9-40−A1` | 保留原主比较，描述单大教师条件下完整路线相对基础视觉教师的总体差值 |
+| `A8−A1` | 描述保留专家、融合与结构化处理后的最终教师相对基础教师的差值；是组合处理的比较，不单独归因于某个算子 |
+| `A9-40−A8` | 直接衡量适配学生相对它实际学习的结构化教师的准确率转移差距（Accuracy Transfer Gap）；负值表示准确率下降，正值表示学生更高 |
+| `A9-40−A7` | 描述同一基础融合学生经固定40轮伪标签适配后的准确率差值 |
+
+上述补充是现有候选间的配对诊断（Paired Diagnostics），不新增模型训练或改变主比较。准确率相同不代表逐行预测相同；分别报告正确数、百分点差、相对参考的纠错数（Rescue）和新增错误数（Harm），避免抵消后误称“完全复现教师”。单次、单seed结果只作当前人口的描述，不保证其他新用户或新数据同样无损。
+
+### 无标签一致率与阶段区分（Label-free Agreement and Stage Semantics）
+
+Task12固定端点训练完成后，用 `eval()`、关闭数据增强（Augmentation）、同phase的原始学生推理输出与**真正进入训练的A8伪标签argmax**比较。既不对A9再套A8后处理，也不把含时间增强的训练日志 `student_target_agreement` 当最终一致率。对40轮主端点和已计划的独立12轮诊断分别输出：
+
+- `teacher_student_agreement_all`：相同预测数／完整609行，同时记录分子、分母和disagreement数。
+- `teacher_student_agreement_adapted`：相同预测数／A8.target_mask=true的591行；另报18条excluded-prior行的一致数／分母，防止共同prior抬高总体一致率。
+- `teacher_student_agreement_before_adaptation`：同一人口上A7与A8的一致数／分母，采用同样分层；复用已生成的小预测表，不重复跑视觉骨干。
+- 证据必须绑定A8目标、A7基础模型及对应A9端点／预测的ArtifactRef、精确ID／类顺序和目标mask；重复ID、缺行、不同phase或错误目标引用均拒绝。文件保存于该端点 `output/teacher_student_agreement.json`，无真值label、correct或accuracy字段。
+
+**一致率不是准确率（Agreement Is Not Accuracy）**：无标签阶段只能说明学生是否复现教师的判断，不能给出真值准确率；100%一致不是验收必须达到的分数门槛。低于100%时如实保存差异，不能追加轮数、重选checkpoint、按一致率挑12或40端点，或混入教师预测直接覆盖学生以凑一致。最终准确率及rescue/harm只由Task13揭示后的评估器产生。
+
+user6/7的select阶段成绩继续作为开发划分上的结果，不参与本次伪标签适配。Task12只按原计划对final4公共输入做无标签目标适配（Target Adaptation）；Task13报告明确该输入人口参与过适配，不将其称为适配期间完全未见的新输入验证。不能用本轮46.91%基础学生成绩推断完整流程后的最终蒸馏差距，也不能将目标输入上的匹配外推到另一批未适配样本。
+
+### 已完成Task的复用（Reuse of Completed Tasks）
+
+Task1–5保持完成状态：源操作／协议描述符、公共清单与缓存、姿态／ROI、Task4教师头／温度／四区targets／全窗特征，以及Task5学生checkpoint／四区预测／原生sequence和anchor均继续作为已登记依赖复用。本节不改变YAML、协议身份、producer源码或已训练目标，不重新生成这些产物，不回写P28/P30或已有完成标记；后续报告引用它们的原ArtifactRef。
+
+新增指标在Task11–13实现时只消费已有或届时新生成的小预测表和mask，遵守现有有限校验成本约束。**此前ROI质量FP16舍入的残余差异仍独立待闭合**；这次评估修订本身不要求重训Task5。如果后续另行要求消除该精度差异，按前述严格源精度条款创建新版本并处理受影响后代，不能用“本次可复用”将旧checkpoint追认为严格数值全等。P12／Thermal／P89／A18材料门槛不变，当前仍从未启动的Task6往后推进；本次文档修改不启动训练或最终揭示。
+
 ## 校验成本约束（Verification Cost Bound）
 
 沿用已修复的direct-metadata策略。取消raw全目录SHA、全images/features/sequence额外重读、祖先payload递归哈希和每Task全仓旧测试。实际消费的直接小产物/模型每阶段核验一次，Stage Verification Context缓存结果；祖先仅去重元数据遍历。大数组写入时计算摘要，load检查header/mask/ID及少量切片，不扫描整个数组。
@@ -268,6 +304,7 @@
 - [ ] 所有学习温度/threshold/gate/transition仅fit标签；refit重估于refit14，不能拿val标签代替原source cohorts。group、repeat、sequence均消费Task2新opaque-ID时间sidecar；build_session_blocks按(partition,user,date)外层分块，对每块调用源group_features/date_session_lists/cluster及build_sessions，再将索引映射回全局RowIndex。不得仅给源anonymous_date函数填user字段就认为已隔离。
 - [ ] 不调用依赖data[name].split.sessions的旧sessions_for；adapter直接提供显式session index数组。未知时间不连边、输出base；metadata IDs缺失则失败，不能空填取消全部后处理。test_known_user_session_adapter覆盖同日不同用户/跨partition、未知时间、ID乱序、同块与源anonymous_date纯函数结果一致。
 - [ ] RED：test_p310_sharpening断言可用行0.9805+39×0.0005、confidence0.9805，全缺失prior且target_mask=false；targets来自最终precedence预测，另保存锐化前group/emission和route，不替代为A7普通softmax。
+- [ ] 保存Task12真正消费的A8目标引用、最终precedence预测与target_mask，并保持完整609行／40类及同phase身份；用于后续A8教师对A9学生的精确ID配对，不只保存一次汇总acc或未锐化中间教师结果。此步骤不读final标签。
 - [ ] 合成完整会话/专家bank逐算子对照与一条train12接口验收；source_roster+实际参数+所有父记录齐全后才生成正式A8，不用简化替代品闭合流程。
 
 ### Task 12：最终40轮适配与12轮诊断（Final Adaptation Recipe）
@@ -280,6 +317,9 @@
 - [ ] A8需本run完整保留bank/group/sequence/precedence祖先；Pseudo目标采用锐化概率。联合final609输入，591进入loss、18回退prior，不按最终准确率或confidence选行。
 - [ ] 小型无标签batch逐梯度/参数组比对源函数；真实接口只用train12模拟target。训练范围拒绝label键，禁止把12继续训到40。
 - [ ] 输出原始模型概率，不再执行A8；两端点都不访问final标签，主比较A9-40−A1。
+- [ ] RED：在tests/test_no_vote_target_adaptation.py新增test_teacher_student_agreement_label_free、test_agreement_mask_denominators与test_agreement_is_not_a_selection_gate。小fixture覆盖完整／适配／prior三种分母、重复或缺失ID／错phase拒绝，以及一致率未达100%仍完成固定预算且不追加训练；禁读标签探针必须通过。
+- [ ] 按本计划评估契约，对固定40轮与独立12轮端点分别写output/teacher_student_agreement.json：关闭增强、eval模式、A9原始推理对A8训练目标argmax，分开609全体／591适配／18prior计数，附同人口A7对A8适配前一致率及绑定引用。只复用小预测表和mask，不重扫序列、不重复跑骨干；该指标不选择端点、不判断真值准确率。
+- [ ] 不新增user6/user7目标适配；训练日志的增强样本一致率只作优化日志，不代替训练完成后的无增强推理一致率。结果说明区分user6/7开发成绩、final4目标输入适配和其他未适配新输入的泛化，不能混称同一val_acc。
 
 ### Task 13：完整冻结与一次最终评估（Freeze and Reveal）
 
@@ -290,6 +330,8 @@
 - [ ] RED：test_freeze_requires_v3_source_ops拒绝缺roster/操作证据、v2目标、未闭合bank；test_exact_final_ids_classes_prior核对609/40列/18prior，类别覆盖布尔不代替样本ID校验。
 - [ ] prepared→generating→frozen→revealed，不可倒退。freeze只看直接输出/去重元数据及配置，不扫描raw/全cache或打开标签。
 - [ ] evaluator先持久化revealed再打开用户显式提供私有标签，报告acc/fixed40 macro-F1、实际test类别支持、各用户/模态/rescue-harm。不得从这一步回到新训练。
+- [ ] RED：在tests/test_no_vote_evaluation.py新增test_transfer_contrasts_same_population与test_accuracy_and_agreement_are_distinct。覆盖同人口四项比较、正确数／百分点差／rescue-harm配对关系、acc相同但预测不同，以及不同phase／人口不能混减；一致率报告无标签、准确率报告必须等待revealed。
+- [ ] 揭示后保留原主比较A9-40−A1，补充A8−A1、A9-40−A8、A9-40−A7。每项按完整609行及固定A8.target_mask分层报告；A9-40−A8负值表明准确率下降，即使总体acc相同仍报告disagreement／rescue／harm。不以任一差值重新训练、挑端点或变更候选名单。
 - [ ] 只用fixture测试状态、标签ID重排和错误集合。现阶段不运行正式揭示。
 
 ### Task 14：编排、资源与全链验收（Orchestration and Acceptance）

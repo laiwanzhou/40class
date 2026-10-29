@@ -6,6 +6,8 @@
 
 ## 当前完成状态（Current Status）
 
+2026-10-29用户批准补充完整知识转移的评估契约（Knowledge-Transfer Evaluation Contract），已原位写入P01及Task11–13：保留主比较A9-40−A1，新增A8−A1／A9-40−A8／A9-40−A7；Task12端点后无增强eval输出教师—学生一致率，分别报告609全体／591适配／18prior并绑定A8目标与A7/A9引用。100%一致不设门槛、不追加训练或选端点；准确率和rescue/harm只在Task13冻结揭示后计算。保持user6/7未参与伪标签适配，区分开发成绩和目标输入已参与适配的结果。仅文档／后续评估输出修订，不改YAML、协议或producer；Task1–5正式产物及原完成标记／复审继续复用，ROI精度差异与P12/P89等后续门槛仍独立保留。Task6未启动，没有新训练或标签揭示。
+
 2026-10-29用户要求再次对照最终(1)包并注明差异，结论已原位补入唯一[P01的再核对章节](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/superpowers/plans/P01_teammate_single_teacher_fixed_split.md)。23个直接小源码中21个与快照字节相同，P89/P310两文件仅无效元专家／旧报告比较不同，当前相关生效算子未改。新增发现：源pixels质量值FP16存储后转FP32，当前直接FP32，三条train12抽样舍入差最大2.44e-4；已列待闭合精度差异，本次不改缓存或模型、不重训。固定划分另带来in-sample目标、校准来源／refit重新估T、val选参及ID批次顺序等差异；不再无条件宣称只两项差异且全链完全一致。P28/P30与完成标记保持历史原样。Task5基础视觉完成，Task10/12仍会训练视觉头；Task6未启动，P12/P89/A18全局门槛不变。
 
 v3.1 Task1–5已完成。Task1、Task2＋3、Task4和Task5均经实际独立复审GO。Task4完成全部六族select/refit头、两个先验、两phase固定Ridge机制头、四区68组targets/raw scores与两个完整全窗特征。Task5两阶段固定16轮与四区预测／原生序列已完成；没有训练进程或定时自动化，Task6未启动。
