@@ -224,11 +224,23 @@ def validate_reconstructed_a8(r,record):
     for stage,kind in [('teacher_bank','teacher_bank'),('safe_base','predictions'),('group_old','supervised_model'),('group_new','supervised_model'),('sequence','transition'),('gate','supervised_model'),('class_prior','statistics')]:
         matches=[x for x in parents if x.stage==stage and x.kind==kind]
         if len(matches)!=1 or matches[0].phase!=('predict' if kind in {'teacher_bank','predictions'} else phase):raise ValueError('A8 requires full own-phase bank/group/gate/sequence chain')
+    predicted=[(reference,parent) for reference,parent in zip(record.parents,parents) if parent.stage in {'teacher_bank','safe_base'}]
+    if any(parent.rows!=record.rows or parent.config.get('partition')!=pop for _,parent in predicted):raise ValueError('A8 bank/safe prediction rows/partition mismatch')
+    bank=next(parent for _,parent in predicted if parent.stage=='teacher_bank')
+    safe=next(reference for reference,parent in predicted if parent.stage=='safe_base')
+    bank_safe=[reference for reference in bank.parents if r.read(reference).stage=='safe_base']
+    if bank_safe!=[safe]:raise ValueError('A8 direct safe must be exact bank safe parent')
     if rr not in record.parents:raise ValueError('A8 needs frozen reconstruction recipe')
 
 def apply_postprocessor(p,pop,bank,models,c):
     from .imu_rf_teacher import _write_npz
-    recipe,rr,_=load_reconstruction(p,c);r=_registry(p,c);phase=phase_for(pop);br,a,s,visual,meta,rows=_bank_data(p,bank,c);index=br.rows
+    recipe,rr,_=load_reconstruction(p,c);r=_registry(p,c);phase=phase_for(pop)
+    path=_root(p)/'A8'/phase/(pop+'_targets.npz');existing=path.with_suffix('.artifact.json')
+    if existing.exists():
+        result=alias(existing);record=r.verify(result,'A8','predict',row_index(read_public_rows(p.public_manifests[pop])))
+        if bank not in record.parents or not all(x in record.parents for x in models.values()):raise ValueError('cached A8 must use exact bank and post models')
+        return result
+    br,a,s,visual,meta,rows=_bank_data(p,bank,c);index=br.rows
     old=r.verify(models['group_old'],'group_old',phase);new=r.verify(models['group_new'],'group_new',phase)
     seq=r.verify(models['sequence'],'sequence',phase);gate=r.verify(models['gate'],'gate',phase)
     if new.config.get('old_group_model')!=json.loads(canonical_bytes(models['group_old'])):raise ValueError('new group alias must use exact old group model')
@@ -251,7 +263,7 @@ def apply_postprocessor(p,pop,bank,models,c):
         'safe_decision':s['decision'],'old_group_prediction':old_prediction,'new_group_prediction':new_prediction,
         'group_probability':stored_prob,'group_route':route,'sequence_prediction':sequence,'sequence_route':seqroute,
         'raw_sequence_prediction':raw_sequence,'visual_available':visual,'known_time':known}
-    path=_root(p)/'A8'/phase/(pop+'_targets.npz');digest=_write_npz(path,payload)
+    digest=_write_npz(path,payload)
     safe=next(x for x in br.parents if r.read(x).stage=='safe_base')
     result=r.register(stage='A8',kind='predictions',phase='predict',files=[path],file_digests={str(path.resolve()):digest},
         parents=[rr,bank,safe,*models.values(),pr,meta],rows=index,config={'partition':pop,'revision':REVISION,'post_contract':CONTRACT,
