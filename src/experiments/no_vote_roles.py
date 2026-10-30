@@ -54,6 +54,9 @@ def validate_v3_role(registry,r):
         if r.stage!='teacher_bank' or r.phase!='predict' or r.rows is None or not r.complete:
             raise ValueError('invalid teacher_bank role')
         validate_bank(registry,r)
+    if r.kind=='predictions' and r.stage=='A8' and r.config.get('revision')=='task11_reconstruction_v2':
+        from .source_postprocessing import validate_reconstructed_a8
+        validate_reconstructed_a8(registry,r)
 
 
 def verify_prediction_ancestry(registry,r,lineage):
@@ -107,6 +110,9 @@ def validate_descriptor(registry,r):
 
 
 def validate_bank(registry,r):
+    if r.config.get('post_contract')=='reconstructed_source_post_v1' and r.config.get('revision')=='task11_reconstruction_v2':
+        from .source_postprocessing import validate_reconstructed_bank
+        return validate_reconstructed_bank(registry,r)
     if any(x in DIAGNOSTIC_STAGES for x in r.config.get('experts',[])):
         raise ValueError('diagnostic controls cannot enter teacher bank')
     from .no_vote_manifest import read_public_rows,row_index
