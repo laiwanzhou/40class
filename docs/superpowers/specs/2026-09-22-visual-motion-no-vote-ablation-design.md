@@ -98,7 +98,7 @@ teacher_roster逐项展开p88 CANDIDATE_SOURCES、p165 bank、p173新增项及P2
 
 分组特征复用p137_group_classifier_selector.group_features：sqrt posterior、full layout、full retained bank、include_quality_features=false、embedding_lookup=None、原CONFIG及重复会话对齐；StandardScaler→LogisticRegression(C0.03,max_iter1000,lbfgs)，peer_weight2、balanced=false、class-frequency power0。原CONFIG保持rank distance2/start gap300/prob similarity0.75/path overlap0.20/length ratio0.80/consensus0.50/alignment penalty0.20/group size3。
 
-序列复用p257.emission(p,base,0.65)及DecoderConfig(gap30,transition0.45,trigram_backoff1,beam50)，fit_transition_model的alpha=1。使用p139.gate_features/select_gate的五项评分、401阈值网格和七分位数、net/rescue/harm/changed决胜，不另造固定posterior>=0.80门槛。没有disagreement/合法会话时沿用源identity/threshold2结果，不计算空分位数。
+序列复用p257.emission(p,base,0.65)及DecoderConfig(gap30,transition0.45,trigram_backoff1,beam50)，fit_transition_model的alpha=0.25（源默认值，Source Default）。使用p139.gate_features/select_gate的五项评分、401阈值网格和七分位数、net/rescue/harm/changed决胜，不另造固定posterior>=0.80门槛。没有disagreement/合法会话时沿用源identity/threshold2结果，不计算空分位数。
 
 源base/fallback必须锁定：safe=normalise(0.95*原safe-base producer概率+0.05*softmax(RF terminal logits/3))。各full40列的非detail行、各独立专家available=false行回退bank第0列，同时保留availability；不是复制假专家。P255/P309 group路由必须AND源detail_ids的visual_available，P270 sequence路由没有这个额外AND，P310仍按new!=old。不能猜detail_ids等于ir_available或任用A7当source_base。
 

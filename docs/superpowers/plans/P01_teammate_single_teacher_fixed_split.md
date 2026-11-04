@@ -2,7 +2,7 @@
 
 > 本分支唯一有效计划（Canonical Plan）；唯一交接入口为 [P02](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/handoffs/P02_current_handoff.md)。旧实验计划及交接已移入 docs/archive，仅作为历史记录（Historical Records）；reports/audit_inputs 为审计输入快照，不指导当前执行。
 
-> 执行者使用 superpowers:executing-plans；用户明确选择子智能体实施时才使用 subagent-driven-development。2026-10-06独立复审修订为v3.1，Task编号仍为1–14。初版v3的机制producer、KNN依赖和元数据/导入/角色/校验契约已在下文纠正；正式生成仍受逐阶段数值与依赖闭合门槛约束。v2 Task1–5已完成并推送6e31b6d；它们是历史基线，不表示新增v3要求已完成。2026-10-28 Task1已实现并独立复审GO；Task2准备与Task3几何一致性均已完成并获独立复审GO，Task4完整产物生成并通过有限独立验收GO；Task5固定16轮select/refit及四区预测／序列均已完成，有限独立复审GO；2026-10-29 Task6运动缓存／恒等外部转换已实现、正式生成及有限自验通过，未独立复审；Task7源RF教师已训练并完成四区双profile目标、有限自验通过，未独立复审；Task8新版已完成IR-only恢复、固定24轮select/refit及四区输出并独立GO（P35/P36）；Task9额外平均诊断已完成四区12targets及有限自验（P37；非独立复审），Task10源融合与独立控制已完成八组训练／24targets及有限自验（P38；本轮无独立复审），Task9/10现经P39三独立复审PASS；Task11来源预检/会话/纯P310算子已部分实施但正式bank/A8阻断（P40），Task12–14未实施，未训练大视觉骨干。旧规格/计划见reports/audit_inputs/2026-10-04/pre-v3/。
+> 执行者使用 superpowers:executing-plans；用户明确选择子智能体实施时才使用 subagent-driven-development。2026-10-06独立复审修订为v3.1，Task编号仍为1–14。初版v3的机制producer、KNN依赖和元数据/导入/角色/校验契约已在下文纠正；正式生成仍受逐阶段数值与依赖闭合门槛约束。v2 Task1–5已完成并推送6e31b6d；它们是历史基线，不表示新增v3要求已完成。2026-10-28 Task1已实现并独立复审GO；Task2准备与Task3几何一致性均已完成并获独立复审GO，Task4完整产物生成并通过有限独立验收GO；Task5固定16轮select/refit及四区预测／序列均已完成，有限独立复审GO；2026-10-29 Task6运动缓存／恒等外部转换已实现、正式生成及有限自验通过，未独立复审；Task7源RF教师已训练并完成四区双profile目标、有限自验通过，未独立复审；Task8新版已完成IR-only恢复、固定24轮select/refit及四区输出并独立GO（P35/P36）；Task9额外平均诊断已完成四区12targets及有限自验（P37；非独立复审），Task10源融合与独立控制已完成八组训练／24targets及有限自验（P38；本轮无独立复审），Task9/10现经P39三独立复审PASS；Task11近似复刻及四区A8正式产物已完成，三项独立复审与目录迁移复审通过（P44–P46），Task12–14未实施，未训练大视觉骨干。旧规格/计划见reports/audit_inputs/2026-10-04/pre-v3/。
 
 **目标（Goal）：** 一个大视觉教师、固定用户划分，保留已核实的源操作；用户2026-10-29已批准对缺失历史记录采用显式配置的近似复刻，完成整条路线。
 **架构（Architecture）：** 复用源模型/算子，按新人口重新拟合；除教师根节点数量与固定划分替代OOF外，不随意增删归一化、掩码、温度、预算、后处理或适配参数。所有必要数据适配单独登记。
@@ -16,7 +16,7 @@
 
 P11 Skeleton采用source skeleton_only，Depth采用source depth_layer3_spatial随机初始化，Thermal采用source resnet18_tsm_imagenet_12f/ImageNet V1；均固定15轮末态，不按开发/final补历史best选择。中间decoder固定30/.30/1/50/T1并用原entropy-backoff，保留独立source-base adapt12；中间适配只fit本phase训练人口，不适配user6/7或final4，区别原旧目标池，Task12最终final4适配保持原计划。safe probability仍为.95中间adapted raw+.05 RF terminal/T3，safe joint grouping使用source已有固定GLOBAL_REPEAT，明确替代缺失历史选参摘要。A18/P128依赖被删根而排除，保留20列，不凑数。
 
-新版Thermal输入由同一公开trial路径定位，无法定位保留unknown观察值及无可消费输入mask，不反解ID或读私有label恢复路径。真实准备已生成四区标准表和unknown观察表，不改完整行数。仍须有真实新producer、公开初始化receipt和有界验证，用户授权近似不代表bank/A8已经就绪；旧严格预检/历史报告保持原样。Task11当前进行中，Task12未启动。后续完成结论必须称近似复刻，不能称仅教师数量/划分两项差异。
+新版Thermal输入由同一公开trial路径定位，无法定位保留unknown观察值及无可消费输入mask，不反解ID或读私有label恢复路径。真实准备已生成四区标准表和unknown观察表，不改完整行数。仍须有真实新producer、公开初始化receipt和有界验证，用户授权近似不代表bank/A8已经就绪；旧严格预检/历史报告保持原样。Task11当前已完成近似复刻，Task12未启动。后续完成结论必须称近似复刻，不能称仅教师数量/划分两项差异。
 
 ## 2026-10-29再核对：一致性、例外与蒸馏差距（Source-Parity Recheck）
 
@@ -324,36 +324,29 @@ P34-M1：当前A5按 `sk|imu` 训练1956／2341行，分别比有效视觉监督
 
 ### Task 11：原保留专家与后处理（Retained Experts and Original Postprocessing）
 
-**P43续接（2026-10-29）：** Source-base独立12轮正式producer／按轮恢复／四区raw推理已实现并经源函数、随机恢复和真实CPU批次自验，未实际训练。接续脚本已排队在教师→global/KNN→fit-pool targets之后执行，不启动Task12。新分组几何适配经源逐值验收；源码证明P309仅增P306，该根被排除后old/new有效bank相同，允许记录并复用等价计算，不人为造差异，真实P310 route仍待生产确认。当前Depth select5/15，safe／bank／A8尚未完成。详情[P43](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/P43_Task11_中间适配与分组源码复核.md)。
+**2026-11-04收尾完成（Complete）：** 三个P12教师各select/refit 15轮及FP16副本、P12/global/KNN、中间source-base各12轮、safe、20列bank、group/gate/sequence/P310与四区A8已生成。独立方法／工程／产物复审PASS，P2人口绑定缺口修复并复审CLOSED；规格alpha文字纠正为源默认0.25。交付见[P44](../../P44_Task11_近似复刻交付与产物验收.md)，审计见[P45](../../../reports/P45_Task11_独立复审结论.md)。生成瞬间pending组件保持历史原字节，最终入口为protocol/task11_complete.json。
 
-**恢复与实施续接（2026-10-29）：** 用户明确恢复暂停。Depth select第3轮完成，worker5632继续；接续42704等真实教师齐备后仅生成P12/global/KNN和train12/refit14中间结构化目标。正式producer、原后验/entropy backoff及作用域门槛已实现，两个本phase转移模型已fit且有限自验通过。中间adapt12、bank/A8尚未完成，不放行Task12；旧暂停段落仅历史。详见[P42阶段记录](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/P42_Task11_断点恢复与目标接续.md)，唯一handoff P02已更新，唯一plan仍为本文件。
+**目录迁移补充（Root Relocation）：** 用户仅将父目录改名，并授权保留`D:/work/26.7.14_kaggle`真实目录。显式七锚点迁移和历史目录联接保留逻辑身份，不改旧SHA／配置／产物；42 targeted GREEN38.59秒，正式有界验收15.62秒通过，独立最终复审PASS。详情[P46](../../P46_项目目录迁移与历史身份兼容.md)。本次仅验证Task11依赖消费，不承诺旧ROI提取生产器的全部断点恢复；不通过重新哈希历史记录绕过校验。
 
-**用户要求暂停（Paused by User，2026-10-29 20:47）：** 已停止核验身份后的Depth／Thermal训练进程PID47268，当前无此后台训练；不要自动恢复。Depth select已完成2／15轮，`run/task11_reconstruction_v2/p12_depth/select/resume.pt`已实际用CPU装载核验：identity相符，history连续1、2，模型／AdamW／scheduler／scaler／sampler及全部RNG齐，scheduler.last_epoch=2。恢复从第3轮开始；当前未完整轮的进度舍弃，不增加预算。Skeleton两阶段及FP16四区产物已完成并保留；Depth refit与Thermal尚未启动，Task11未完成、Task12未启动。暂停凭据 `run/protocol/task11_reconstruction_v2/pause.json`，总progress已标paused_by_user。恢复时先看进程，再使用原producer89c1930对应的同脚本与配置；日志改用新的resume日志，保留原formal日志。当前分支后续提交2f94ebe只增加纯融合算子与文档，未改运行中的image producer，因此不影响本恢复点。等待用户明确继续。
-
-
-**近似复刻实施更新（2026-10-29）：** P41活动配置已冻结；原Skeleton select/refit各15轮、FP16副本及四区完整输出已完成有限验收。Depth／Thermal源Dataset/初始化/真实批次与恢复测试通过，正式训练PID47268进行中，每phase固定15轮、各自重新初始化，workers0/torch threads4工程覆盖明确记录。S+D/IMU/Thermal/global/KNN纯算子4项对照通过，但尚未正式fit/生成这些组件；完整bank／中间适配／A8仍未完成，不放行Task12，不修改下方历史门槛或旧protocol。详情与实时入口见P41及唯一P02；不得把局部测试/首轮完成当Task11完成。
-
-**2026-10-29推进状态（Partial／Blocked Formal Generation）：** Task9/10三独立复审PASS，详见[P39](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/reports/P39_Task9_Task10_独立复审.md)，允许进入本Task实现与来源闭合。已完成公共时间分块/原source会话函数适配、P310纯precedence/sharpening、缺producer拒绝与A18版本化排除证据；30 targeted GREEN14.34秒，四区公共时间真实验收4.01秒/标签open0。交付[P40](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/P40_Task11_来源闭合与会话适配.md)。本Task尚未完成，正式A8未生成，Task12未启动；下方完整流水线checkbox继续未勾选，不能把纯算子通过当完整producer闭合。
-
-**来源修订（Source Dependency Correction，P39-M1/M2/M3）：** A18实际经a18_full_teacher_data→p100a_global_teacher_data消费VideoMAEv2与InternVideo2，按已批准单大根约束排除；新增task11_source_closure_v1仅作evidence-only视图，parent原roster与pinned源证据，旧Task1–10的roster/SHA/protocol不改，完整消费端绑定待闭合。P89 safe-base的base_probability实际来自先12轮中间结构目标适配的P87S学生，不是普通A7；必须先建立P85 KNN→中间structured target/decoder→独立adapt12→P87S raw→P89 safe_base的phase通用子链，不能以A7或最终Task12 A9-12代替/形成循环。该中间decoder的outer-fold摘要/选参绑定与P89 joint grouping证据尚缺，正式生成继续阻断。P12 S+D实际p11_fp16所选配置仍未知；Thermal runner绑定的是p11_thermal_imagenet而非已证明的_fp16链；ResNet18_Weights.IMAGENET1K_V1名称已知但actual selected config/receipt、Thermal四分区公共sidecar未闭合。不得自行选默认参数解除门槛。
+四区完整行数2039/388/2427/609，A8有效1957/385/2342/591，prior82/3/85/18；固定fit边界不变，无新开发或final准确率。20列old/new group因P306剪枝而等价，P310额外覆盖0，是明确自然退化，不凑列。Task12–14仍未实施。本节下方步骤按已授权P41近似配置执行；早期暂停、恢复及严格材料缺口见P40–P43和台账，只作历史，不再指导当前执行。
 
 **文件：** 新p12_source_adapter.py、source_teacher_bank.py、session_metadata.py、build_no_vote_teacher_bank.py；session_repeat.py及tests/test_no_vote_source_teacher_bank.py/test_no_vote_session_repeat.py。
 **接口：** build_p12_source_chain(inputs, producers, protocol, context) -> ArtifactRef；fit_global_mixture(fit, p12, visual_heads, protocol, context) -> ArtifactRef；apply_fullwindow_knn(global_prediction, fullwindow_features, rows, protocol, context) -> Prediction；build_source_bank(roster, inputs, producers, protocol, context) -> ArtifactRef；build_session_blocks(rows: RowIndex, metadata: ArtifactRef) -> list[np.ndarray]；fit_source_postprocessor(bank, metadata, fit, protocol, context) -> ArtifactRef；apply_source_postprocessor(bank, state, metadata, rows, prior, protocol, context) -> Prediction。所有参数metadata属于被预测人口，不得从fit状态推测目标metadata或读旧全局CSV。
 
-- [ ] RED：test_retained_roster_complete拒绝缺producer、历史bank、复制凑列或用A5任意替换源专家；test_source_group_features_parity按实际保留列对照p137，允许teacher数减少产生的自然退化。
-- [ ] Task1 manifest逐项指定保留专家原producer/输入/参数；在当前fit人口重新训练非大视觉/非视觉与源派生头。独立小资产按已登记公开权重；不能读旧预测。P231/P238/P253/P306等名称“physical”不等于独立非视觉，必须按实际PATHS核实是否依赖被删VideoMAEv2/InternVideo2；无合法源输入就明确排除，不用当前A5替代。任何未说明差异阻止此Task完成。
-- [ ] P12子链在本Task完成并绑定自身producer：train.py/ aligned_model.py给skeleton_logits/depth_logits；Task7 RF给imu_logits/imu_present；thermal_baseline/train_imagenet_oof.py给thermal_logits/thermal_present。复用build_complete_p11_oof的S+D 0.6/0.4与IMU校准混合，analyze_thermal_oof_fusion的温度/21点权重网格及决胜，evaluate_conditional_expert_routing的features/sensitive、StandardScaler→LR(C0.05,max_iter2000)、threshold0.5和单类退化。原折循环改为固定fit→apply，不能填假folds。若必要独立producer实际配置/公开资产/输入尚未锁定，Task1 preflight拒绝正式生成，不以泛泛“移植source”放行。
-- [ ] P12八列固定顺序skeleton/depth/sd/imu/sd_imu/thermal/thermal_candidate/final，加Task4六visual头的log_softmax；按build_p85_multiexpert_submission_v1.fit_simplex的softmax权重、L-BFGS-B(maxiter500,ftol1e-12)只用fit标签拟合，给各分区生成其global scores。然后用build_p85_fullwindow_knn_teacher_v3.unit_features/top_neighbors/smooth：本分区无标签全窗特征三邻居（排除self）、0.40混合。不得用A1/A7概率替代global fusion、补oof包装/2241历史正确数，或跨val/final用标签；全缺失边界不参与传播。n<4的fixture按原算法前提拒绝，不靠改邻居数通过。
-- [ ] test_p12_global_knn_dependency_order核对P12→global mixture→KNN→bank，没有Task4→Task7→Task6→Task5→Task4循环；逐算子toy数值对照，固定精确专家列顺序。
-- [ ] 移植p134原CONFIG/evidence/repeat alignment、p137.group_features/fit_probability/choose_threshold及p165非OOF适配；sqrt/full/full，include_quality_features=false、embedding_lookup=None、C0.03/peer2/balanced=false/frequency_power0；源重复参数原样，不用v2“两peer+cosine+margin”替代。
-- [ ] 锁定p165/p173/P255/P309 bank逐行规则：safe=normalise(0.95*source_base_probability+0.05*softmax(RF_terminal_logits/3))；source_base从原P89/safe-base producer产生，不能任取A7替换。缺detail视觉行的full40列及各available=false专家按原规则回退bank第0列，同时保留available=false；这是合法逐行fallback，不是复制假专家凑列。group route=(proposal!=base)&(p_proposal-p_base>=threshold)&visual_available，其中visual_available来自对应detail_ids精确成员资格，不能仅按姓名猜为ir_available。P270序列route不额外AND visual_available；P310仍仅new!=old覆盖，18全缺失最后统一prior。
-- [ ] test_source_bank_fallback_and_route覆盖正常、缺IR但有motion、单专家缺失和全缺失；source_base/detail_ids映射必须来自新run原producer，不能用旧官方IDs、旧预测或补造available=true。
-- [ ] RED：test_source_sequence_gate_and_precedence对照P270的emission0.65/transition0.45/alpha0.25/trigram1（源fit_transition_model默认值）/beam50和p139五项gate/401点阈值网格/源决胜；old/new group与序列结果按P310 route公式逐元素一致。空disagreement仅恒等返回，不进行空quantile。
-- [ ] 所有学习温度/threshold/gate/transition仅fit标签；refit重估于refit14，不能拿val标签代替原source cohorts。group、repeat、sequence均消费Task2新opaque-ID时间sidecar；build_session_blocks按(partition,user,date)外层分块，对每块调用源group_features/date_session_lists/cluster及build_sessions，再将索引映射回全局RowIndex。不得仅给源anonymous_date函数填user字段就认为已隔离。
-- [ ] 不调用依赖data[name].split.sessions的旧sessions_for；adapter直接提供显式session index数组。未知时间不连边、输出base；metadata IDs缺失则失败，不能空填取消全部后处理。test_known_user_session_adapter覆盖同日不同用户/跨partition、未知时间、ID乱序、同块与源anonymous_date纯函数结果一致。
-- [ ] RED：test_p310_sharpening断言可用行0.9805+39×0.0005、confidence0.9805，全缺失prior且target_mask=false；targets来自最终precedence预测，另保存锐化前group/emission和route，不替代为A7普通softmax。
-- [ ] 保存Task12真正消费的A8目标引用、最终precedence预测与target_mask，并保持完整609行／40类及同phase身份；用于后续A8教师对A9学生的精确ID配对，不只保存一次汇总acc或未锐化中间教师结果。此步骤不读final标签。
-- [ ] 合成完整会话/专家bank逐算子对照与一条train12接口验收；source_roster+实际参数+所有父记录齐全后才生成正式A8，不用简化替代品闭合流程。
+- [x] RED：test_retained_roster_complete拒绝缺producer、历史bank、复制凑列或用A5任意替换源专家；test_source_group_features_parity按实际保留列对照p137，允许teacher数减少产生的自然退化。
+- [x] Task1 manifest逐项指定保留专家原producer/输入/参数；在当前fit人口重新训练非大视觉/非视觉与源派生头。独立小资产按已登记公开权重；不能读旧预测。P231/P238/P253/P306等名称“physical”不等于独立非视觉，必须按实际PATHS核实是否依赖被删VideoMAEv2/InternVideo2；无合法源输入就明确排除，不用当前A5替代。任何未说明差异阻止此Task完成。
+- [x] P12子链在本Task完成并绑定自身producer：train.py/ aligned_model.py给skeleton_logits/depth_logits；Task7 RF给imu_logits/imu_present；thermal_baseline/train_imagenet_oof.py给thermal_logits/thermal_present。复用build_complete_p11_oof的S+D 0.6/0.4与IMU校准混合，analyze_thermal_oof_fusion的温度/21点权重网格及决胜，evaluate_conditional_expert_routing的features/sensitive、StandardScaler→LR(C0.05,max_iter2000)、threshold0.5和单类退化。原折循环改为固定fit→apply，不能填假folds。若必要独立producer实际配置/公开资产/输入尚未锁定，Task1 preflight拒绝正式生成，不以泛泛“移植source”放行。
+- [x] P12八列固定顺序skeleton/depth/sd/imu/sd_imu/thermal/thermal_candidate/final，加Task4六visual头的log_softmax；按build_p85_multiexpert_submission_v1.fit_simplex的softmax权重、L-BFGS-B(maxiter500,ftol1e-12)只用fit标签拟合，给各分区生成其global scores。然后用build_p85_fullwindow_knn_teacher_v3.unit_features/top_neighbors/smooth：本分区无标签全窗特征三邻居（排除self）、0.40混合。不得用A1/A7概率替代global fusion、补oof包装/2241历史正确数，或跨val/final用标签；全缺失边界不参与传播。n<4的fixture按原算法前提拒绝，不靠改邻居数通过。
+- [x] test_p12_global_knn_dependency_order核对P12→global mixture→KNN→bank，没有Task4→Task7→Task6→Task5→Task4循环；逐算子toy数值对照，固定精确专家列顺序。
+- [x] 移植p134原CONFIG/evidence/repeat alignment、p137.group_features/fit_probability/choose_threshold及p165非OOF适配；sqrt/full/full，include_quality_features=false、embedding_lookup=None、C0.03/peer2/balanced=false/frequency_power0；源重复参数原样，不用v2“两peer+cosine+margin”替代。
+- [x] 锁定p165/p173/P255/P309 bank逐行规则：safe=normalise(0.95*source_base_probability+0.05*softmax(RF_terminal_logits/3))；source_base从原P89/safe-base producer产生，不能任取A7替换。缺detail视觉行的full40列及各available=false专家按原规则回退bank第0列，同时保留available=false；这是合法逐行fallback，不是复制假专家凑列。group route=(proposal!=base)&(p_proposal-p_base>=threshold)&visual_available，其中visual_available来自对应detail_ids精确成员资格，不能仅按姓名猜为ir_available。P270序列route不额外AND visual_available；P310仍仅new!=old覆盖，18全缺失最后统一prior。
+- [x] test_source_bank_fallback_and_route覆盖正常、缺IR但有motion、单专家缺失和全缺失；source_base/detail_ids映射必须来自新run原producer，不能用旧官方IDs、旧预测或补造available=true。
+- [x] RED：test_source_sequence_gate_and_precedence对照P270的emission0.65/transition0.45/alpha0.25/trigram1（源fit_transition_model默认值）/beam50和p139五项gate/401点阈值网格/源决胜；old/new group与序列结果按P310 route公式逐元素一致。空disagreement仅恒等返回，不进行空quantile。
+- [x] 所有学习温度/threshold/gate/transition仅fit标签；refit重估于refit14，不能拿val标签代替原source cohorts。group、repeat、sequence均消费Task2新opaque-ID时间sidecar；build_session_blocks按(partition,user,date)外层分块，对每块调用源group_features/date_session_lists/cluster及build_sessions，再将索引映射回全局RowIndex。不得仅给源anonymous_date函数填user字段就认为已隔离。
+- [x] 不调用依赖data[name].split.sessions的旧sessions_for；adapter直接提供显式session index数组。未知时间不连边、输出base；metadata IDs缺失则失败，不能空填取消全部后处理。test_known_user_session_adapter覆盖同日不同用户/跨partition、未知时间、ID乱序、同块与源anonymous_date纯函数结果一致。
+- [x] RED：test_p310_sharpening断言可用行0.9805+39×0.0005、confidence0.9805，全缺失prior且target_mask=false；targets来自最终precedence预测，另保存锐化前group/emission和route，不替代为A7普通softmax。
+- [x] 保存Task12真正消费的A8目标引用、最终precedence预测与target_mask，并保持完整609行／40类及同phase身份；用于后续A8教师对A9学生的精确ID配对，不只保存一次汇总acc或未锐化中间教师结果。此步骤不读final标签。
+- [x] 合成完整会话/专家bank逐算子对照与一条train12接口验收；source_roster+实际参数+所有父记录齐全后才生成正式A8，不用简化替代品闭合流程。
 
 ### Task 12：最终40轮适配与12轮诊断（Final Adaptation Recipe）
 
@@ -395,6 +388,6 @@ P34-M1：当前A5按 `sk|imu` 训练1956／2341行，分别比有效视觉监督
 
 ## 状态与交接（Status and Handoff）
 
-v2已完成：Task4单头T1开发69.07%，Task5第17轮开发48.71%、四区目标/序列、工程及方法学验收GO。v3 Task1已实现并独立复审GO（68项针对性测试），Task2准备/缓存导入完成（P03）、Task3几何一致性完成（P24），两者实际独立复审GO（P25），Task4头部及完整全窗均已完成并独立GO（P28），Task5已完成并独立GO（P30），Task6运动缓存／恒等转换已完成生成与有限自验（P31，未独立复审）；source roster材料缺口保持完整bank/融合的全局生成阻断。Task7已完成源RF／双consumer输出及有限自验（P32，未独立复审）；Task8新版已完成IR-only恢复重训并独立GO（P35/P36；旧P33/P34仅历史）；Task9额外平均诊断已完成，Task10源融合已完成，下一任务为尚未启动的Task11；不得把当前v2权重当v3已通过。
+Task1–10保留原产物和既有审计证据；Task9/10已独立PASS（P39）。Task11按P41批准的近似配方完成，四区A8与完整依赖已通过有界验收和独立复审（P44/P45）；2026-11-04新增目录迁移通过回归、正式消费验收和独立复审（P46）。唯一handoff为P02，完成入口protocol/task11_complete.json。既有ROI质量FP16残余与其他近似仍披露，不追认全链精确重现。
 
-无定时自动化，Task5–8训练／导出与缓存进程均已结束；Task9现已按后续授权完成，不推断final准确率，Task10现已按后续授权完成，不自动进入Task11。2026-10-06原版复审问题已修订，Task1–5各规定节点已实际独立GO；Task5最终53项针对性测试与正式产物有限验收通过，Task6为40项针对回归及有限自验通过。后续按Task9–14各自依赖和复审节点执行，当前局部GO不代表全处理等价，不跳过manifest/roster或P12等材料门槛。v2已退休两resume.pt和四sequence.npy（1.02GiB），正式checkpoint/targets/anchors/公共缓存/来源记录保留；旧seq refs为历史证明，不再宣称可直接完整加载。修改后自检：source_ops覆盖、接口/角色/硬链接导入一致、固定人口/无OOF无矛盾、每主链参数有source、每验证只消费直接输入。
+下一任务为尚未启动的Task12，之后依次Task13冻结及一次评估、Task14编排收尾。当前不读取final私有标签、不更新main历史回顾、不新增定时任务。用户本次仅要求完成Task11，不自动开始Task12。v2退休记录与源材料阻断的旧false保持历史；新阶段按其版本化真实producer与完成凭据判定，不能单翻旧全局标记放行。
