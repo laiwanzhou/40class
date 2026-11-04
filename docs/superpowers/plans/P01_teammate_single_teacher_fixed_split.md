@@ -350,6 +350,8 @@ P34-M1：当前A5按 `sk|imu` 训练1956／2341行，分别比有效视觉监督
 
 ### Task 12：最终40轮适配与12轮诊断（Final Adaptation Recipe）
 
+**2026-11-04实施中（In Progress）：** 新producer、精确输入/完成凭据/模型绑定、原训练及按轮恢复、raw推理与三分母无标签一致率已实现。30 targeted GREEN38.20秒，真实train12四条源更新差0；quality FP16残余继续披露。生成前独立复审GO，缓存模型绑定P2已修复并复审关闭。即将正式40＋独立12轮；完成前不勾选全部交付，不进入Task13。
+
 **文件：** target_adaptation.py、run_no_vote_target_adaptation.py、tests/test_no_vote_target_adaptation.py。
 **接口：** adapt_target(inputs: AdaptationInputs, endpoint: Literal[12,40], output: Path) -> ArtifactRef；无final label或accuracy参数。
 

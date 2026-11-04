@@ -4,7 +4,7 @@
 
 ## 当前状态（Current Status）
 
-**Task11近似复刻已完成，独立复审GO；Task12尚未启动。** 正式生成于2026-10-30，本次完成中断后的审计落档、目录迁移与收尾。交付[P44](../P44_Task11_近似复刻交付与产物验收.md)，三项历史独立审计[P45](../../reports/P45_Task11_独立复审结论.md)，本日目录迁移及独立复审[P46](../P46_项目目录迁移与历史身份兼容.md)。
+**Task11已完成且独立GO；用户已授权推进Task12，目前代码／真实批次／独立生成前复审通过，即将正式训练。** 正式生成于2026-10-30，本次完成中断后的审计落档、目录迁移与收尾。交付[P44](../P44_Task11_近似复刻交付与产物验收.md)，三项历史独立审计[P45](../../reports/P45_Task11_独立复审结论.md)，本日目录迁移及独立复审[P46](../P46_项目目录迁移与历史身份兼容.md)。
 
 分支`experiment/teammate-single-teacher-task1`，origin为`https://github.com/laiwanzhou/40class.git`。用户只改父目录名：真实项目目录`D:/work/26.7.14_kaggle`；工作树为其下`_single_visual_processing_replication`。历史`D:/work/2026.7.14_kaggle`现为同文件目录联接（Directory Junction），保持读取历史字符串路径。用户明确要求保留新真实目录名。
 
@@ -49,6 +49,10 @@ train12为12用户；开发为user6/7；refit14为两者并集；final4为user4/
 
 遵守有界校验（Bounded Verification）：不重新全SHA raw/images/features/sequence、不递归加载祖先大payload、不每步重跑全仓旧suite。只核实当前消费输入／小预测表／去重元数据；新问题才加针对回归。
 
-下一阶段按唯一P01的Task12执行最终40轮主端点和独立12轮诊断，各自从相同A7 refit初始化，消费本Task A8。两端点不得串接；不得在开发user6/7另做伪标签适配，不用一致率或最终分数选端点。用户本轮只要求完成Task11，因此停在Task12之前。Task13负责完整冻结及一次最终揭示，Task14负责编排收尾。
+当前按唯一P01的Task12执行最终40轮主端点和独立12轮诊断，各自从相同A7 refit初始化，消费本Task A8。两端点不得串接；不得在开发user6/7另做伪标签适配，不用一致率或最终分数选端点。用户已明确推进Task12；本轮完成其生成／验收／独立复审后停在Task13之前。Task13负责完整冻结及一次最终揭示，Task14负责编排收尾。
 
 没有定时自动化或新服务。本机正式Python为`D:/Anaconda/envs/PyTorch2.7/python.exe -B`。早期训练中断、暂停、恢复及源配方细节见P41–P43和现有台账，无需重做已完成训练。
+
+## Task12最新实施（Latest Target Adaptation）
+
+新增target_adaptation.py及CLI，40轮与独立12轮从同A7 refit初始化；原训练函数＋完整轮恢复、强制609/591/18、三监督标签payload拒绝探针、无增强raw概率及三分母一致率。30 targeted GREEN38.20秒；真实train12四条含IR-only，原最终Dataset除既有quality FP16残余2.44140625e-4外tensor精确一致，原40scope真实更新全state差0，29.60秒。生成前独立p47_task12_review GO；缓存预测requested-model/endpoint/target绑定P2经RED→GREEN并复审CLOSED。无正式A9产物已生成；正式日志将为outputs/task5_audit/P47-target-formal.log，运行状态run/protocol/task12_status.json；不要重跑旧Task11 continuation。训练中不改target_adaptation.py，以免恢复身份漂移。
