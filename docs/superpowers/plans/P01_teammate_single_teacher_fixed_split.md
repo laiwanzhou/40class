@@ -2,7 +2,7 @@
 
 > 本分支唯一有效计划（Canonical Plan）；唯一交接入口为 [P02](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/handoffs/P02_current_handoff.md)。旧实验计划及交接已移入 docs/archive，仅作为历史记录（Historical Records）；reports/audit_inputs 为审计输入快照，不指导当前执行。
 
-> 执行者使用 superpowers:executing-plans；用户明确选择子智能体实施时才使用 subagent-driven-development。2026-10-06独立复审修订为v3.1，Task编号仍为1–14。初版v3的机制producer、KNN依赖和元数据/导入/角色/校验契约已在下文纠正；正式生成仍受逐阶段数值与依赖闭合门槛约束。v2 Task1–5已完成并推送6e31b6d；它们是历史基线，不表示新增v3要求已完成。2026-10-28 Task1已实现并独立复审GO；Task2准备与Task3几何一致性均已完成并获独立复审GO，Task4完整产物生成并通过有限独立验收GO；Task5固定16轮select/refit及四区预测／序列均已完成，有限独立复审GO；2026-10-29 Task6运动缓存／恒等外部转换已实现、正式生成及有限自验通过，未独立复审；Task7源RF教师已训练并完成四区双profile目标、有限自验通过，未独立复审；Task8新版已完成IR-only恢复、固定24轮select/refit及四区输出并独立GO（P35/P36）；Task9额外平均诊断已完成四区12targets及有限自验（P37；非独立复审），Task10源融合与独立控制已完成八组训练／24targets及有限自验（P38；本轮无独立复审），Task9/10现经P39三独立复审PASS；Task11近似复刻及四区A8正式产物已完成，三项独立复审与目录迁移复审通过（P44–P46），Task12已完成并独立GO（P47/P48）；Task13–14未实施，未训练大视觉骨干。旧规格/计划见reports/audit_inputs/2026-10-04/pre-v3/。
+> 执行者使用 superpowers:executing-plans；用户明确选择子智能体实施时才使用 subagent-driven-development。2026-10-06独立复审修订为v3.1，Task编号仍为1–14。初版v3的机制producer、KNN依赖和元数据/导入/角色/校验契约已在下文纠正；正式生成仍受逐阶段数值与依赖闭合门槛约束。v2 Task1–5已完成并推送6e31b6d；它们是历史基线，不表示新增v3要求已完成。2026-10-28 Task1已实现并独立复审GO；Task2准备与Task3几何一致性均已完成并获独立复审GO，Task4完整产物生成并通过有限独立验收GO；Task5固定16轮select/refit及四区预测／序列均已完成，有限独立复审GO；2026-10-29 Task6运动缓存／恒等外部转换已实现、正式生成及有限自验通过，未独立复审；Task7源RF教师已训练并完成四区双profile目标、有限自验通过，未独立复审；Task8新版已完成IR-only恢复、固定24轮select/refit及四区输出并独立GO（P35/P36）；Task9额外平均诊断已完成四区12targets及有限自验（P37；非独立复审），Task10源融合与独立控制已完成八组训练／24targets及有限自验（P38；本轮无独立复审），Task9/10现经P39三独立复审PASS；Task11近似复刻及四区A8正式产物已完成，三项独立复审与目录迁移复审通过（P44–P46），Task12已完成并独立GO（P47/P48）；Task13已完成冻结与一次最终评估（P49/P50）；Task14未实施，未训练大视觉骨干。旧规格/计划见reports/audit_inputs/2026-10-04/pre-v3/。
 
 **目标（Goal）：** 一个大视觉教师、固定用户划分，保留已核实的源操作；用户2026-10-29已批准对缺失历史记录采用显式配置的近似复刻，完成整条路线。
 **架构（Architecture）：** 复用源模型/算子，按新人口重新拟合；除教师根节点数量与固定划分替代OOF外，不随意增删归一化、掩码、温度、预算、后处理或适配参数。所有必要数据适配单独登记。
@@ -328,7 +328,7 @@ P34-M1：当前A5按 `sk|imu` 训练1956／2341行，分别比有效视觉监督
 
 **目录迁移补充（Root Relocation）：** 用户仅将父目录改名，并授权保留`D:/work/26.7.14_kaggle`真实目录。显式七锚点迁移和历史目录联接保留逻辑身份，不改旧SHA／配置／产物；42 targeted GREEN38.59秒，正式有界验收15.62秒通过，独立最终复审PASS。详情[P46](../../P46_项目目录迁移与历史身份兼容.md)。本次仅验证Task11依赖消费，不承诺旧ROI提取生产器的全部断点恢复；不通过重新哈希历史记录绕过校验。
 
-四区完整行数2039/388/2427/609，A8有效1957/385/2342/591，prior82/3/85/18；固定fit边界不变，无新开发或final准确率。20列old/new group因P306剪枝而等价，P310额外覆盖0，是明确自然退化，不凑列。Task12现已完成；Task13–14仍未实施。本节下方步骤按已授权P41近似配置执行；早期暂停、恢复及严格材料缺口见P40–P43和台账，只作历史，不再指导当前执行。
+四区完整行数2039/388/2427/609，A8有效1957/385/2342/591，prior82/3/85/18；固定fit边界不变，无新开发或final准确率。20列old/new group因P306剪枝而等价，P310额外覆盖0，是明确自然退化，不凑列。Task12现已完成；Task13现已完成；Task14仍未实施。本节下方步骤按已授权P41近似配置执行；早期暂停、恢复及严格材料缺口见P40–P43和台账，只作历史，不再指导当前执行。
 
 **文件：** 新p12_source_adapter.py、source_teacher_bank.py、session_metadata.py、build_no_vote_teacher_bank.py；session_repeat.py及tests/test_no_vote_source_teacher_bank.py/test_no_vote_session_repeat.py。
 **接口：** build_p12_source_chain(inputs, producers, protocol, context) -> ArtifactRef；fit_global_mixture(fit, p12, visual_heads, protocol, context) -> ArtifactRef；apply_fullwindow_knn(global_prediction, fullwindow_features, rows, protocol, context) -> Prediction；build_source_bank(roster, inputs, producers, protocol, context) -> ArtifactRef；build_session_blocks(rows: RowIndex, metadata: ArtifactRef) -> list[np.ndarray]；fit_source_postprocessor(bank, metadata, fit, protocol, context) -> ArtifactRef；apply_source_postprocessor(bank, state, metadata, rows, prior, protocol, context) -> Prediction。所有参数metadata属于被预测人口，不得从fit状态推测目标metadata或读旧全局CSV。
@@ -366,18 +366,20 @@ P34-M1：当前A5按 `sk|imu` 训练1956／2341行，分别比有效视觉监督
 
 ### Task 13：完整冻结与一次最终评估（Freeze and Reveal）
 
+**2026-11-04完成（Complete）：** 16候选609/591/18已正式冻结（12.19秒），精确SHA独立GO；按本轮固定划分标签授权，先持久化revealed后一次评估完成，之后聚合验收独立PASS，不再重训。A1 445/609=73.07%；A8与A9-40均467/609=76.68%，主提升+22条/+3.61个百分点；A9-12为460/609=75.53%。40学生对A8无准确率净损失但2处错类不同，macro-F1微差。72项回归及单独登记junction回归通过，真值只在独立评估步骤使用。交付[P49](../../P49_Task13_候选冻结与固定划分最终评估.md)，复审[P50](../../../reports/P50_Task13_独立复审与冻结代次验收.md)；状态revealed、Task14未启动。
+
 **2026-11-04当前授权（Current Authorization）：** 用户明确推进Task13，并进一步要求使用固定划分标签。此处正式评估对象为user4/17/23/24的609条封存样本，不是user6/7开发区或Kaggle官方隐藏测试。旧临时final_labels.csv已不存在；原准备记录指定本分支metadata/manifest.csv，现仅定位文件元数据，正式冻结并经独立复审后才能打开。评估器以canonical_manifest模式复用原NAMESPACE SHA映射公开opaque IDs，只提取冻结609行标签。该授权覆盖本节旧“现阶段不揭示”限制；不改变候选、预算、主比较或不按final重训的边界。
 
 **文件：** no_vote_evaluation.py及freeze/evaluate CLI/对应测试。
 **接口：** freeze_generation(protocol, registry, candidates) -> Path；evaluate_frozen(generation, private_labels, output) -> Path。
 
-- [ ] 保留16候选：A1、A2、A5-S、A5-I、A6-VS、A6-VI、A6-VSI、A7、A7-mask、A7-shuffle-S、A7-shuffle-I、A7-zero-S、A7-zero-I、A8、A9-12、A9-40。主端点改40，不根据final改名单。
-- [ ] RED：test_freeze_requires_v3_source_ops拒绝缺roster/操作证据、v2目标、未闭合bank；test_exact_final_ids_classes_prior核对609/40列/18prior，类别覆盖布尔不代替样本ID校验。
-- [ ] prepared→generating→frozen→revealed，不可倒退。freeze只看直接输出/去重元数据及配置，不扫描raw/全cache或打开标签。
-- [ ] evaluator先持久化revealed再打开用户显式提供私有标签，报告acc/fixed40 macro-F1、实际test类别支持、各用户/模态/rescue-harm。不得从这一步回到新训练。
-- [ ] RED：在tests/test_no_vote_evaluation.py新增test_transfer_contrasts_same_population与test_accuracy_and_agreement_are_distinct。覆盖同人口四项比较、正确数／百分点差／rescue-harm配对关系、acc相同但预测不同，以及不同phase／人口不能混减；一致率报告无标签、准确率报告必须等待revealed。
-- [ ] 揭示后保留原主比较A9-40−A1，补充A8−A1、A9-40−A8、A9-40−A7。每项按完整609行及固定A8.target_mask分层报告；A9-40−A8负值表明准确率下降，即使总体acc相同仍报告disagreement／rescue／harm。不以任一差值重新训练、挑端点或变更候选名单。
-- [ ] 先用fixture测试状态、标签ID重排和错误集合；完整冻结且独立复审绑定精确代次SHA后，按本轮用户授权使用原固定划分清单进行一次正式揭示。必须先持久化revealed，失败也不重置状态重跑。
+- [x] 保留16候选：A1、A2、A5-S、A5-I、A6-VS、A6-VI、A6-VSI、A7、A7-mask、A7-shuffle-S、A7-shuffle-I、A7-zero-S、A7-zero-I、A8、A9-12、A9-40。主端点改40，不根据final改名单。
+- [x] RED：test_freeze_requires_v3_source_ops拒绝缺roster/操作证据、v2目标、未闭合bank；test_exact_final_ids_classes_prior核对609/40列/18prior，类别覆盖布尔不代替样本ID校验。
+- [x] prepared→generating→frozen→revealed，不可倒退。freeze只看直接输出/去重元数据及配置，不扫描raw/全cache或打开标签。
+- [x] evaluator先持久化revealed再打开用户显式提供私有标签，报告acc/fixed40 macro-F1、实际test类别支持、各用户/模态/rescue-harm。不得从这一步回到新训练。
+- [x] RED：在tests/test_no_vote_evaluation.py新增test_transfer_contrasts_same_population与test_accuracy_and_agreement_are_distinct。覆盖同人口四项比较、正确数／百分点差／rescue-harm配对关系、acc相同但预测不同，以及不同phase／人口不能混减；一致率报告无标签、准确率报告必须等待revealed。
+- [x] 揭示后保留原主比较A9-40−A1，补充A8−A1、A9-40−A8、A9-40−A7。每项按完整609行及固定A8.target_mask分层报告；A9-40−A8负值表明准确率下降，即使总体acc相同仍报告disagreement／rescue／harm。不以任一差值重新训练、挑端点或变更候选名单。
+- [x] 先用fixture测试状态、标签ID重排和错误集合；完整冻结且独立复审绑定精确代次SHA后，按本轮用户授权使用原固定划分清单进行一次正式揭示。必须先持久化revealed，失败也不重置状态重跑。
 
 ### Task 14：编排、资源与全链验收（Orchestration and Acceptance）
 
@@ -394,4 +396,4 @@ P34-M1：当前A5按 `sk|imu` 训练1956／2341行，分别比有效视觉监督
 
 Task1–10保留原产物和既有审计证据；Task9/10已独立PASS（P39）。Task11按P41批准的近似配方完成，四区A8与完整依赖已通过有界验收和独立复审（P44/P45）；2026-11-04新增目录迁移通过回归、正式消费验收和独立复审（P46）。唯一handoff为P02，完成入口protocol/task11_complete.json。既有ROI质量FP16残余与其他近似仍披露，不追认全链精确重现。
 
-Task12固定40轮与独立12轮适配现已完成并独立GO（P47/P48）。下一任务为尚未启动的Task13冻结及一次评估，之后Task14编排收尾。当前不读取final私有标签、不更新main历史回顾、不新增定时任务。用户本次授权Task12，已完成后停止，不自动开始Task13。v2退休记录与源材料阻断的旧false保持历史；新阶段按其版本化真实producer与完成凭据判定，不能单翻旧全局标记放行。
+Task12固定40轮与独立12轮适配现已完成并独立GO（P47/P48）。Task13已完成完整冻结及一次授权评估（P49/P50）。下一任务为尚未启动的Task14编排收尾；真实run已revealed，禁止再生成或训练。当前不再读取final私有标签、不更新main历史回顾、不新增定时任务。用户本次授权Task13与固定划分一次评估，已完成后停止，不自动开始Task14。v2退休记录与源材料阻断的旧false保持历史；新阶段按其版本化真实producer与完成凭据判定，不能单翻旧全局标记放行。

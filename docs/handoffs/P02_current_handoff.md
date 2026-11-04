@@ -1,71 +1,61 @@
 # P02 当前实验交接（Current Experiment Handoff）
 
-更新：2026-11-04，Asia/Shanghai。本文件是本分支唯一交接入口（Canonical Handoff），后续原位更新；唯一指导为[P01计划](../superpowers/plans/P01_teammate_single_teacher_fixed_split.md)。旧归档和审计输入快照只作历史，不作为第二份计划或交接。
+更新：2026-11-04，Asia/Shanghai。本文件是本分支唯一交接入口（Canonical Handoff），后续原位更新；唯一指导为[P01计划](../superpowers/plans/P01_teammate_single_teacher_fixed_split.md)。归档和审计输入快照仅作历史，不作为另一份plan或handoff。
 
 ## 当前状态（Current Status）
 
-**Task12已独立GO；Task13代码及模拟评估验收通过，用户授权使用固定划分标签，当前准备正式冻结。** 正式生成于2026-10-30，此前已完成Task11审计落档和目录迁移；本轮另完成Task12最终适配，见[P47](../P47_Task12_最终无标签适配与一致率验收.md)与[P48](../../reports/P48_Task12_独立复审结论.md)。交付[P44](../P44_Task11_近似复刻交付与产物验收.md)，三项历史独立审计[P45](../../reports/P45_Task11_独立复审结论.md)，本日目录迁移及独立复审[P46](../P46_项目目录迁移与历史身份兼容.md)。
+**Task13已完成完整冻结、一次授权最终评估与独立聚合验收；Task14尚未启动。真实run已revealed，禁止继续生成／训练、改候选或重复评估。**
 
-分支`experiment/teammate-single-teacher-task1`，origin为`https://github.com/laiwanzhou/40class.git`。用户只改父目录名：真实项目目录`D:/work/26.7.14_kaggle`；工作树为其下`_single_visual_processing_replication`。历史`D:/work/2026.7.14_kaggle`现为同文件目录联接（Directory Junction），保持读取历史字符串路径。用户明确要求保留新真实目录名。
-
-显式迁移配置`configs/experiments/project_root_relocation.json`绑定七项小文件锚点；物理路径用于实际访问，逻辑路径用于原身份。历史JSON/SHA、训练配置、权重和预测未改写。迁移已通过42项针对性回归（38.59秒）、正式消费验收（15.62秒）及独立最终复审，无未解决P1/P2。旧ROI提取生产器的raw_input_hashes字串比较未认证迁移，不能宣称所有旧提取/训练断点均可直接恢复。
+工作树`D:/work/26.7.14_kaggle/_single_visual_processing_replication`，分支`experiment/teammate-single-teacher-task1`，origin为`https://github.com/laiwanzhou/40class.git`。用户只改父目录名，真实项目目录为26.7.14_kaggle；历史2026.7.14_kaggle保留同文件目录联接（Directory Junction）。显式七锚点迁移配置为configs/experiments/project_root_relocation.json，旧协议、记录和产物SHA保持。原ROI提取生产器raw_input_hashes的全套旧断点恢复未认证，不宣称全旧路线可重启。
 
 ## 权威入口（Authoritative Records）
 
-Run为`outputs/teammate_single_teacher_fixed_split/fixed-split-single-teacher-v3-source-ops`。
+Run为outputs/teammate_single_teacher_fixed_split/fixed-split-single-teacher-v3-source-ops。
 
-- Task11完成：`run/protocol/task11_complete.json`，含四区A8/bank、组件、配方、验收和审计引用及SHA。
-- Task11独立审计：`run/protocol/task11_independent_review_P45.json`，verdict=GO。
-- 当前Task12完成：`run/protocol/task12_complete.json`，绑定两端点模型／预测／三分母报告及验收证据；独立审计`task12_independent_review_P48.json`，GO。
-- 当前状态：`run/protocol/task12_status.json`；Task11 revision/progress亦已记录Task12完成。Task11不可变完成凭据中旧task12_started=false是早期历史，不能覆盖当前Task12完成事实。
-- 原`source_postprocessing_component.json`中的pending/false为2026-10-30生成瞬间历史，原字节保留；不能覆盖它伪造当时已审计。
-- 原暂停／恢复和早期preflight记录只供历史。当前没有训练worker或待接续supervisor，不启动旧continuation脚本。
+- run/run_state.json：state=revealed；内含冻结代次和审计登记绑定。真实生成已关闭。
+- run/protocol/task13_complete.json：本Task完整结果、证据及审计入口。
+- run/protocol/task13_frozen_generation.json：精确16候选和消费文件绑定，SHA256为0a120e444d6142ed72213f1d02d5af4587dbb57a361605ddf890bf732cecc4ee。
+- run/protocol/task13_freeze_review.json：精确代次独立GO；run/protocol/task13_independent_review_P50.json记录完整复审。
+- run/evaluation/task13_final4_once/metrics.json：唯一一次真实评估结果，不重复计算或打开原真值。
+- 原Task11／12 complete及其独立审计记录继续保留；生成瞬间pending／false和当时task13_started=false属于历史，不覆盖当前完成事实。
 
-基础协议身份（Protocol Identity）仍`2b563c9d2b0c4ee62297a1ec05062811f7059ee1778c7090cefede2cc507618a`；活动revision为`task11_reconstruction_v2`，配方SHA`39f5c5a5a67a6d128ae089dfc619ccfdb537aea92b595aaf9d2d4bd7c67ba89c`。不得改identity/旧描述符/配方来绕过校验。
+基础协议身份仍2b563c9d2b0c4ee62297a1ec05062811f7059ee1778c7090cefede2cc507618a；Task11修订task11_reconstruction_v2，配方SHA39f5c5a5a67a6d128ae089dfc619ccfdb537aea92b595aaf9d2d4bd7c67ba89c。不可修改旧身份或描述符绕过校验。
 
-## 产物与处理（Artifacts and Operations）
+## 最终结果（Final Results）
 
-Task1–10既有产物继续复用，Task9/10已独立PASS（P39）。Task11新增三个P12教师各select/refit固定15轮、FP16副本、P12八分量/global混合/本分区KNN，中间source-base各12轮适配，safe base、20列真实bank、group/gate/sequence/P310与四区A8。
+固定final4为user4/17/23/24共609条，591条有效输入、18条prior。实际真值联合覆盖40类，不假定每名用户分别覆盖全部40类。
 
-| 分区（Partition） | 完整行数 | 有效A8 | 先验回退 |
+| 阶段（Stage） | 正确/609 | 准确率（Accuracy） | 40类宏平均F1（Macro-F1） |
 |---|---:|---:|---:|
-| train12 | 2039 | 1957 | 82 |
-| development2 | 388 | 385 | 3 |
-| refit14 | 2427 | 2342 | 85 |
-| final4 | 609 | 591 | 18 |
+| A1 单大视觉教师 | 445/609 | 73.07% | 68.16% |
+| A2 基础视觉学生 | 394/609 | 64.70% | 58.86% |
+| A7 基础融合 | 398/609 | 65.35% | 59.21% |
+| A8 完整教师表与后处理 | 467/609 | 76.68% | 71.36% |
+| A9-12 诊断适配 | 460/609 | 75.53% | 70.17% |
+| A9-40 主端点 | 467/609 | 76.68% | 71.32% |
 
-分组改判分别0/0/6/154，序列与P310额外覆盖均0；没有用真值判断这些改判是否正确。P306被单根约束排除后，old/new合法20列与配方等价，是自然退化，不复制专家造差异。四区40列表示类别轴，不需要重开最终标签检查类别支持。
+主比较A9-40−A1：+22条／+3.61个百分点，rescue32／harm10。相对A7：+69条／+11.33个百分点，rescue92／harm23。A9-40对A8准确率无净损失，但2条预测不同且两者在这两条都错，不能声称逐行或全部指标完全相同。18prior全部错误，固定591分母的主端点为467/591=79.02%；主指标仍完整609。
 
-## 近似与数据边界（Approximation and Data Boundaries）
+全部16候选、四项配对比较、用户／模态及A8.mask分层和40×40混淆矩阵均保留在metrics.json；交付[P49](../P49_Task13_候选冻结与固定划分最终评估.md)，独立复审[P50](../../reports/P50_Task13_独立复审与冻结代次验收.md)。
 
-这不是精确历史重现：单大视觉根、固定划分替代三折OOF、缺记录下批准的15轮末态及decoder/repeat配方、中间仅本phase fit池适配、剪枝20列等价bank均已披露。组分类／温度／门控在本phase训练人口内拟合，为in-sample而非OOF。既有Task5 ROI质量FP16舍入残余保留，不把Task1–10追认为严格数值全等。
+## 标签、冻结与一次性边界（Truth, Freeze and One-time Boundary）
 
-train12为12用户；开发为user6/7；refit14为两者并集；final4为user4/17/23/24。开发只用select，refit可用已纳入训练的user6/7；不得把refit给开发报分。只允许前三分区训练所需标签，禁止读取final4私有标签、分布或准确率，禁止按最终结果调参。
+用户本轮明确使用固定划分真实标签，覆盖旧“暂不正式揭示”。旧temp final_labels.csv不存在；原prepare记录docs/task23_input_pose_roi.md指定本分支metadata/manifest.csv。冻结前只stat定位；精确代次独立GO后先写revealed，再以canonical_manifest模式按原NAMESPACE SHA映射opaque IDs，仅提取冻结609行，核对用户归属。没有使用官方Kaggle隐藏测试标签，也没有用开发user6/7替代final4。
 
-原始数据、队友源码快照、两份提交包只读。禁止用历史教师预测作新祖先。main历史回顾文档等整个复刻实验完成才更新。两个既有未跟踪报告`reports/2026-10-02-history-cache-reuse-inventory.md`、`reports/2026-10-02-old-visual-worktree-retirement.md`不顺手提交或删除。
+真值仅在唯一一次真实评估步骤使用。之后独立验收只读混淆矩阵／聚合计数／冻结预测，真实标签读取0、evaluate重跑0、训练0。不能把已揭示final结果用来改预算、阈值、候选或追加训练。
 
-## 验证与后续（Verification and Next Step）
+Task12使用过final4公共输入和A8伪标签，属于转导式目标适配（Transductive Target Adaptation），不是对另一批完全未适配输入的纯归纳成绩。单根／固定划分、缺历史记录的近似配方、20列合法bank剪枝、既有quality FP16残余继续披露，不能宣称单因素严格因果消融。
 
-最新日志`outputs/task5_audit/P46-final-regression.log`、`P46-migrated-acceptance-final.log`；结果JSON`P44-final-acceptance.json`本次更新，原2026-10-30结果保留在旧P44日志。237份祖先元数据、四区小输出、15/12轮预算与先验验收通过；cached A8引用及payload stamp不变，监督标签打开0，准确率未计算。
+## 实现与验证（Implementation and Verification）
 
-遵守有界校验（Bounded Verification）：不重新全SHA raw/images/features/sequence、不递归加载祖先大payload、不每步重跑全仓旧suite。只核实当前消费输入／小预测表／去重元数据；新问题才加针对回归。
+Task13代码736b14e；迁移安全审计登记CLI为2ec0591。固定16候选与四项contrast；revealed先持久化、失败不重置。ArtifactRegistry和phase_lock拒绝冻结／揭示后的生成训练。metadata_only模式不读raw／权重／模型／序列大payload，已消费小descriptor等仍验SHA且揭示前复查。
 
-Task12已按唯一P01完成最终40轮主端点和独立12轮诊断，各自从相同A7 refit初始化，消费Task11 A8。两端点不得串接；不得在开发user6/7另做伪标签适配，不用一致率或最终分数选端点。用户已明确推进Task12；本轮完成其生成／验收／独立复审后停在Task13之前。Task13负责完整冻结及一次最终揭示，Task14负责编排收尾。
+72项针对性回归46.39秒通过，另junction审计登记1项3.57秒通过并独立复审。真实预检12.70秒、冻结12.19秒，176去重metadata／308消费小文件，禁止标签打开0。初版开销profile和失败日志保留；优化不重写旧SHA。精确代次审计GO，最终聚合验收PASS，无剩余阻断。
 
-没有定时自动化或新服务。本机正式Python为`D:/Anaconda/envs/PyTorch2.7/python.exe -B`。早期训练中断、暂停、恢复及源配方细节见P41–P43和现有台账，无需重做已完成训练。
+原内置approve辅助函数会因旧逻辑路径与新物理路径比较而误拒绝；正式登记使用scripts/review_no_vote_frozen.py，将两个根都resolve后执行同等或更严格边界，保持被冻结评估器源码和generation字节不变。不要为修复历史辅助接口改写已冻结代次。
 
-## Task12交付与后续（Target Adaptation Delivery and Next Step）
+## 下一步（Next Step）
 
-producer为7a05347；正式生成20:49:33–20:51:55，约142秒，训练本身40轮37.57秒／12轮8.59秒。复用native backbone sequence，原训练函数、时间增强、参数组和完整轮恢复保持。30 targeted GREEN38.20秒，真实train12四条更新state差0；quality FP16残余2.44140625e-4单独披露。缓存requested-model/endpoint/target绑定P2先RED再GREEN，独立复审CLOSED。
+只剩Task14编排与全链交付收尾，当前未启动；真实run已revealed，后续编排测试应使用隔离fixture，不能在该run重训或再次揭示。main历史回顾文档仍等整个复刻实验完成再更新。
 
-最终有界验收59.21秒PASS，无标签payload打开0；独立p47_task12_review正式产物复审PASS／GO，无未解决P1/P2/P3。40轮与A8匹配607/609、589/591、18/18；12轮581/609、563/591、18/18；适配前438/609、420/591、18/18。这是无标签一致率，不是真值准确率。未据此选轮次或追加训练。
-
-正式日志outputs/task5_audit/P47-target-formal.log及-error.log；自动验收P47-target-acceptance.json/.log；原task12_artifacts_ready.json的pending/false保留生成瞬间历史，最终看task12_complete.json。全部worker已退出，不重复启动；两端点checkpoint/history/resume/targets/teacher_student_agreement.json均保留。
-
-本轮停在Task13之前，不读取final私有标签、不计算最终准确率、不更新main历史回顾。下一阶段须按P01完整冻结16候选后执行规定的一次评估；当前没有Task13正式揭示。不可根据本次一致率修改最终候选名单或主端点。
-
-## Task13当前实施（Current Freeze and Reveal）
-
-用户明确推进Task13并要求使用固定划分标签；按P01本轮授权修订，先完整冻结＋精确代次独立GO，再打开原准备记录的metadata/manifest.csv，以原NAMESPACE SHA选择四封存用户609条标签，不使用Kaggle隐藏测试标签或user6/7开发标签替代。临时final_labels.csv已不存在，仅原清单已stat定位，当前尚未读真值。
-
-新增freeze/evaluator/CLI，固定16候选及四对比较；revealed在truth打开之前持久化，失败不重置。metadata_only只读不读原始/大payload，descriptor等小metadata按SHA且揭示前复查；独立发现P2已RED→GREEN并复审CLOSED。72 targeted GREEN46.39秒、原协议与迁移测试通过；预检12.697秒/176去重metadata/308小文件绑定/16候选609行591有效18prior，state仍generating。身份缓存保持原SHA，不是override。正式freeze后等待p49_task13_review对精确generation SHA的GO，未通过前不揭示；Task14不进入。
+原始数据、队友快照和两份提交包只读。两份旧untracked报告reports/2026-10-02-history-cache-reuse-inventory.md与reports/2026-10-02-old-visual-worktree-retirement.md不顺手提交／删除。正式Python为D:/Anaconda/envs/PyTorch2.7/python.exe -B；没有自动化、新服务或存活训练worker。
