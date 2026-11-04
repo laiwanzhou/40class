@@ -32,7 +32,7 @@ class VerificationContext:
     Cache keys include protocol, ref and resolved path. Stat changes invalidate
     trust. No context may grant cross-protocol registration or writable arrays.
     """
-    def __init__(self, protocol):
+    def __init__(self, protocol, *, metadata_only=False):
         self.protocol=protocol
         self.identity=protocol.identity()
         self.validated_records={}
@@ -41,12 +41,21 @@ class VerificationContext:
         self.import_memo={}
         self.source_contexts={}
         self.public_rows={}
+        self.metadata_only=bool(metadata_only)
+        self.metadata_verified={}
+        self.metadata_payload_lists={}
+
+    def _payload_scope(self,path):
+        path=Path(path)
+        if self.metadata_only and (path.suffix.lower() in {'.pt','.pth','.npy','.safetensors','.joblib'} or path.stat().st_size>8*1024**2):
+            raise ValueError('metadata-only verification cannot read large/model payload')
 
     def stamp(self,path):
         stat=Path(path).stat()
         return stat.st_dev,stat.st_ino,stat.st_size,stat.st_mtime_ns
 
     def hash_file(self,path,expected=None):
+        self._payload_scope(path)
         path=Path(path).resolve();key=(self.identity,str(path))
         stamp=self.stamp(path);cached=self.direct_files.get(key)
         if cached:
@@ -62,6 +71,7 @@ class VerificationContext:
         self.direct_files[(self.identity,str(Path(path).resolve()))]=(self.stamp(path),digest)
 
     def load_arrays(self,path):
+        self._payload_scope(path)
         path=Path(path).resolve();key=(self.identity,str(path));stamp=self.stamp(path)
         if key in self.loaded_arrays:
             saved,arrays=self.loaded_arrays[key]
@@ -134,6 +144,18 @@ class ArtifactRegistry:
         if context is not None and context.identity!=self.identity:raise ValueError('verification context protocol mismatch')
         self.context=context
 
+    def _small_metadata(self,record,record_sha):
+        if not self.context or not self.context.metadata_only or record.kind=='supervised_labels':return
+        # Raw cache indices and initializer files are ancestor payloads, not
+        # consumed role metadata. Explicit recipe payload is the exception;
+        # actual source/recipe consumers bind any additional small inputs.
+        if record.kind in {'raw_cache','public_weights'} and record.stage!='reconstruction_recipe':return
+        cache=self.context.metadata_payload_lists
+        if record_sha not in cache:
+            cache[record_sha]=tuple((Path(path),digest) for path,digest in record.files.items()
+                                   if Path(path).suffix.lower() in {'.json','.csv'})
+        for path,digest in cache[record_sha]:self.context.hash_file(path,digest)
+
     def read(self,ref: ArtifactRef) -> ArtifactRecord:
         path=ref.record_path.resolve()
         if not path.is_relative_to(self.root) or not path.is_file():
@@ -141,7 +163,9 @@ class ArtifactRegistry:
         key=(self.identity,ref.sha256,str(path))
         if self.context:
             self.context.hash_file(path,ref.sha256)
-            if key in self.context.validated_records:return self.context.validated_records[key]
+            if key in self.context.validated_records:
+                record=self.context.validated_records[key];self._small_metadata(record,ref.sha256)
+                return record
         elif sha256_file(path)!=ref.sha256:raise ValueError('artifact record hash/location mismatch')
         d=json.loads(path.read_text(encoding='utf-8'))
         # Rendering file addresses at runtime does not alter the hashed JSON.
@@ -154,6 +178,7 @@ class ArtifactRegistry:
             d['rows']=RowIndex(tuple(d['rows']['sample_ids']),tuple(d['rows']['user_ids']),tuple(d['rows']['class_ids']))
         for field in ('fit_users','select_users','predict_users','adaptation_users'):d[field]=tuple(d[field])
         record=ArtifactRecord(**d)
+        self._small_metadata(record,ref.sha256)
         if self.context:self.context.validated_records[key]=record
         return record
 
@@ -271,6 +296,11 @@ class ArtifactRegistry:
         def walk(item):
             if item.sha256 in visiting:raise ValueError('artifact ancestor cycle')
             if item.sha256 in checked:return checked[item.sha256]
+            if self.context and self.context.metadata_only and item.sha256 in self.context.metadata_verified:
+                visiting.add(item.sha256);cached=self.read(item)
+                for parent in cached.parents:walk(parent)
+                visiting.remove(item.sha256);checked[item.sha256]=cached
+                return cached
             visiting.add(item.sha256);r=self.read(item)
             if r.protocol_sha256!=self.identity or r.config_sha256!=canonical_hash(r.config):
                 raise ValueError('artifact protocol/config hash mismatch')
@@ -281,7 +311,7 @@ class ArtifactRegistry:
             # Verify content-addressed ancestry metadata without reopening raw
             # payloads. Only the requested small outputs are consumed here;
             # raw/weight tables use verify_file for the selected payload.
-            if item == ref and r.kind not in {'raw_cache','public_weights'}:
+            if item == ref and r.kind not in {'raw_cache','public_weights'} and not (self.context and self.context.metadata_only):
                 for file in r.files:self.verify_file(r,Path(file))
             ancestors=[walk(parent) for parent in r.parents]
             def descendants(parent,seen=None):
@@ -333,7 +363,9 @@ class ArtifactRegistry:
                     raise ValueError('A8 adaptation targets must be complete final4 predictions')
                 target_lineage=descendants(targets[0])
                 if not any(a==bases[0][1] for a in target_lineage):raise ValueError('A8 does not descend from the same A7')
-            visiting.remove(item.sha256);checked[item.sha256]=r;return r
+            visiting.remove(item.sha256);checked[item.sha256]=r
+            if self.context and self.context.metadata_only:self.context.metadata_verified[item.sha256]=r
+            return r
         record=walk(ref)
         if expected_stage is not None and record.stage!=expected_stage:raise ValueError('artifact stage mismatch')
         if expected_phase is not None and record.phase!=expected_phase:raise ValueError('artifact phase mismatch')
@@ -360,6 +392,10 @@ class ArtifactRegistry:
     def register(self,*,stage: str,kind: str,phase: str,files,parents=(),fit_users=(),
                  select_users=(),predict_users=(),adaptation_users=(),rows=None,config=None,
                  raw_inputs=(),source_files=(),complete=True,file_digests=None) -> ArtifactRef:
+        if self.context and self.context.metadata_only:raise ValueError('metadata-only registry is read-only')
+        state_path=self.root/'run_state.json'
+        if state_path.exists() and json.loads(state_path.read_text(encoding='utf-8')).get('state') in {'frozen','revealed'}:
+            raise ValueError('generation registry is closed after frozen/revealed')
         if not _kind_allowed(self.protocol, kind):raise ValueError('unapproved artifact kind')
         paths=[Path(p).resolve() for p in files]
         if len(set(paths))!=len(paths) or any(not p.is_file() or not p.is_relative_to(self.root) for p in paths):

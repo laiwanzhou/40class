@@ -366,6 +366,8 @@ P34-M1：当前A5按 `sk|imu` 训练1956／2341行，分别比有效视觉监督
 
 ### Task 13：完整冻结与一次最终评估（Freeze and Reveal）
 
+**2026-11-04当前授权（Current Authorization）：** 用户明确推进Task13，并进一步要求使用固定划分标签。此处正式评估对象为user4/17/23/24的609条封存样本，不是user6/7开发区或Kaggle官方隐藏测试。旧临时final_labels.csv已不存在；原准备记录指定本分支metadata/manifest.csv，现仅定位文件元数据，正式冻结并经独立复审后才能打开。评估器以canonical_manifest模式复用原NAMESPACE SHA映射公开opaque IDs，只提取冻结609行标签。该授权覆盖本节旧“现阶段不揭示”限制；不改变候选、预算、主比较或不按final重训的边界。
+
 **文件：** no_vote_evaluation.py及freeze/evaluate CLI/对应测试。
 **接口：** freeze_generation(protocol, registry, candidates) -> Path；evaluate_frozen(generation, private_labels, output) -> Path。
 
@@ -375,7 +377,7 @@ P34-M1：当前A5按 `sk|imu` 训练1956／2341行，分别比有效视觉监督
 - [ ] evaluator先持久化revealed再打开用户显式提供私有标签，报告acc/fixed40 macro-F1、实际test类别支持、各用户/模态/rescue-harm。不得从这一步回到新训练。
 - [ ] RED：在tests/test_no_vote_evaluation.py新增test_transfer_contrasts_same_population与test_accuracy_and_agreement_are_distinct。覆盖同人口四项比较、正确数／百分点差／rescue-harm配对关系、acc相同但预测不同，以及不同phase／人口不能混减；一致率报告无标签、准确率报告必须等待revealed。
 - [ ] 揭示后保留原主比较A9-40−A1，补充A8−A1、A9-40−A8、A9-40−A7。每项按完整609行及固定A8.target_mask分层报告；A9-40−A8负值表明准确率下降，即使总体acc相同仍报告disagreement／rescue／harm。不以任一差值重新训练、挑端点或变更候选名单。
-- [ ] 只用fixture测试状态、标签ID重排和错误集合。现阶段不运行正式揭示。
+- [ ] 先用fixture测试状态、标签ID重排和错误集合；完整冻结且独立复审绑定精确代次SHA后，按本轮用户授权使用原固定划分清单进行一次正式揭示。必须先持久化revealed，失败也不重置状态重跑。
 
 ### Task 14：编排、资源与全链验收（Orchestration and Acceptance）
 

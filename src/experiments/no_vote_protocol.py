@@ -36,11 +36,14 @@ class NoVoteProtocol:
         canonical_bytes(self)
         for name in ("partitions", "public_manifests", "supervised_labels", "weights", "recipe"):
             object.__setattr__(self, name, freeze(getattr(self, name)))
+        # All identity fields are now recursively immutable. Preserve the same
+        # canonical digest without reopening Windows path handles on each call.
+        object.__setattr__(self, '_sealed_identity', canonical_hash(self))
 
     def identity(self) -> str:
         if not self.recipe.get("asset_bindings", {}).get("verified", False):
             raise ValueError("protocol assets have not been verified; acquire weights first")
-        return canonical_hash(self)
+        return self._sealed_identity
 
 
 def _path(base: Path, value) -> Path:

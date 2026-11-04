@@ -143,6 +143,7 @@ def load_stage_inputs(protocol: NoVoteProtocol,partition: str,phase: str,*,conte
     state=json.loads((protocol.run_root/'run_state.json').read_text(encoding='utf-8'))
     if state['protocol_sha256']!=protocol.identity():raise ValueError('prepared protocol changed')
     if state['state']=='revealed':raise ValueError('generation forbidden after final label reveal')
+    if state['state']=='frozen' and phase in {'select','refit','adapt'}:raise ValueError('training generation forbidden after frozen')
     receipt_path=protocol.run_root/'protocol/prepared_inputs.json'
     digest=context.hash_file(receipt_path) if context else sha256_file(receipt_path)
     if digest!=state['prepared_inputs_sha256']:raise ValueError('prepared receipt hash drift')

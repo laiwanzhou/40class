@@ -4,7 +4,7 @@
 
 ## 当前状态（Current Status）
 
-**Task12已完成并通过独立正式产物复审GO；Task13尚未启动。** 正式生成于2026-10-30，此前已完成Task11审计落档和目录迁移；本轮另完成Task12最终适配，见[P47](../P47_Task12_最终无标签适配与一致率验收.md)与[P48](../../reports/P48_Task12_独立复审结论.md)。交付[P44](../P44_Task11_近似复刻交付与产物验收.md)，三项历史独立审计[P45](../../reports/P45_Task11_独立复审结论.md)，本日目录迁移及独立复审[P46](../P46_项目目录迁移与历史身份兼容.md)。
+**Task12已独立GO；Task13代码及模拟评估验收通过，用户授权使用固定划分标签，当前准备正式冻结。** 正式生成于2026-10-30，此前已完成Task11审计落档和目录迁移；本轮另完成Task12最终适配，见[P47](../P47_Task12_最终无标签适配与一致率验收.md)与[P48](../../reports/P48_Task12_独立复审结论.md)。交付[P44](../P44_Task11_近似复刻交付与产物验收.md)，三项历史独立审计[P45](../../reports/P45_Task11_独立复审结论.md)，本日目录迁移及独立复审[P46](../P46_项目目录迁移与历史身份兼容.md)。
 
 分支`experiment/teammate-single-teacher-task1`，origin为`https://github.com/laiwanzhou/40class.git`。用户只改父目录名：真实项目目录`D:/work/26.7.14_kaggle`；工作树为其下`_single_visual_processing_replication`。历史`D:/work/2026.7.14_kaggle`现为同文件目录联接（Directory Junction），保持读取历史字符串路径。用户明确要求保留新真实目录名。
 
@@ -63,3 +63,9 @@ producer为7a05347；正式生成20:49:33–20:51:55，约142秒，训练本身4
 正式日志outputs/task5_audit/P47-target-formal.log及-error.log；自动验收P47-target-acceptance.json/.log；原task12_artifacts_ready.json的pending/false保留生成瞬间历史，最终看task12_complete.json。全部worker已退出，不重复启动；两端点checkpoint/history/resume/targets/teacher_student_agreement.json均保留。
 
 本轮停在Task13之前，不读取final私有标签、不计算最终准确率、不更新main历史回顾。下一阶段须按P01完整冻结16候选后执行规定的一次评估；当前没有Task13正式揭示。不可根据本次一致率修改最终候选名单或主端点。
+
+## Task13当前实施（Current Freeze and Reveal）
+
+用户明确推进Task13并要求使用固定划分标签；按P01本轮授权修订，先完整冻结＋精确代次独立GO，再打开原准备记录的metadata/manifest.csv，以原NAMESPACE SHA选择四封存用户609条标签，不使用Kaggle隐藏测试标签或user6/7开发标签替代。临时final_labels.csv已不存在，仅原清单已stat定位，当前尚未读真值。
+
+新增freeze/evaluator/CLI，固定16候选及四对比较；revealed在truth打开之前持久化，失败不重置。metadata_only只读不读原始/大payload，descriptor等小metadata按SHA且揭示前复查；独立发现P2已RED→GREEN并复审CLOSED。72 targeted GREEN46.39秒、原协议与迁移测试通过；预检12.697秒/176去重metadata/308小文件绑定/16候选609行591有效18prior，state仍generating。身份缓存保持原SHA，不是override。正式freeze后等待p49_task13_review对精确generation SHA的GO，未通过前不揭示；Task14不进入。

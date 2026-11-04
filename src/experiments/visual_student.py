@@ -225,6 +225,13 @@ def phase_prior(protocol,phase):
 
 @contextmanager
 def phase_lock(root):
+    root=Path(root)
+    for parent in (root,*root.parents):
+        state=parent/'run_state.json'
+        if state.exists():
+            if json.loads(state.read_text(encoding='utf-8')).get('state') in {'frozen','revealed'}:
+                raise ValueError('training generation is closed after frozen/revealed')
+            break
     root.mkdir(parents=True,exist_ok=True)
     lock=FileLock(root/'training.lock',timeout=0)
     try:lock.acquire()
