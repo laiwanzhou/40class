@@ -218,7 +218,8 @@ def import_public_cache(source: ArtifactRef,destination_protocol,rows: RowIndex 
 
 
 def verify_imported_file(record,path):
-    entry=record.config.get('import_provenance',{}).get('files',{}).get(str(path))
+    from .path_relocation import path_entry
+    entry=path_entry(record.config.get('import_provenance',{}).get('files',{}),path)
     if (not record.config.get('immutable') or entry is None or entry['sha256']!=record.files[str(path)]
             or path.stat().st_size!=entry['bytes'] or path.stat().st_mtime_ns!=entry['mtime_ns']
             or not os.path.samefile(path,entry['path'])):

@@ -115,7 +115,8 @@ def load_protocol(config: str | Path, *, verify_assets: bool = True,
         raise ValueError("formal source snapshot pin changed")
     source_path = Path(source_root).resolve() if source_root else _path(base, source["root"])
     manifest_path = source_path.parent / "source_manifest.json" if source_root else _path(base, source["manifest"])
-    specs = {name: dict(entry, local_path=str(_path(base, entry["local_path"])))
+    from .path_relocation import logical_path
+    specs = {name: dict(entry, local_path=str(logical_path(_path(base, entry["local_path"]))))
              for name, entry in raw["weights"].items()}
     recipe = dict(recipe)
     if recipe.get('source_contract_version') == 3:
@@ -134,7 +135,7 @@ def load_protocol(config: str | Path, *, verify_assets: bool = True,
             if body.get('schema_version')!=3 or body.get('training_executed') is not False or body.get('oof_enabled') is not False:
                 raise ValueError('invalid source descriptor contract')
             bodies[role]=body
-            bindings[role+'_path']=str(payload)
+            bindings[role+'_path']=str(logical_path(payload))
         if bodies['roster'].get('source_ops_sha256')!=bindings['manifest_sha256']:
             raise ValueError('source roster does not bind the source operations')
         if bodies['roster'].get('retained_large_roots')!=['videomae_large']:

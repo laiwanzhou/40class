@@ -18,7 +18,8 @@ def canonical_data(value):
     if is_dataclass(value):
         return {f.name: canonical_data(getattr(value, f.name)) for f in fields(value)}
     if isinstance(value, Path):
-        return os.path.normcase(str(value.resolve())).replace("\\", "/")
+        from .path_relocation import logical_path
+        return os.path.normcase(str(logical_path(value))).replace("\\", "/")
     if isinstance(value, Mapping):
         if not all(isinstance(k, str) for k in value):
             raise ValueError("protocol keys must be strings")

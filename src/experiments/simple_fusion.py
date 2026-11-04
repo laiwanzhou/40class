@@ -113,7 +113,8 @@ def current_inputs(protocol,context):
     def read(path,expected=None):
         path=Path(path).resolve()
         if not path.is_relative_to(root/'protocol'):raise ValueError('diagnostic prerequisite outside protocol')
-        digest=context.hash_file(path,expected);proofs[str(path)]=digest
+        from .path_relocation import logical_path
+        digest=context.hash_file(path,expected);proofs[str(logical_path(path))]=digest
         return json.loads(path.read_text(encoding='utf-8'))
     task5=read(root/'protocol/task5_complete.json')
     pointer=read(root/'protocol/task8_current.json')

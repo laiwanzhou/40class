@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "historical_root": "D:/work/2026.7.14_kaggle",
+  "runtime_root": "D:\\work\\26.7.14_kaggle",
+  "anchors": {
+    "_single_visual_processing_replication/configs/experiments/teammate_single_teacher_fixed_split_v3.yaml": "da6170d41c047e5c4139035f7d60b7b0688302c601ea325e83f3f4be682d19f6",
+    "_single_visual_processing_replication/configs/experiments/task11_reconstruction_v2.json": "39f5c5a5a67a6d128ae089dfc619ccfdb537aea92b595aaf9d2d4bd7c67ba89c",
+    "_teacher_branch_upload/teammate_teacher/source_manifest.json": "a80a20a0f6fe23a5b3288f51a9e4a02daf83157c4b6a598bfb6fa0ec8b73649a",
+    "_single_visual_processing_replication/outputs/teammate_single_teacher_fixed_split/fixed-split-single-teacher-v3-source-ops/protocol/weights_manifest.json": "289f49c46a83d8c18070263ed047e52f589e93c21f04267dc80df8a12493e5ac",
+    "_single_visual_processing_replication/outputs/teammate_single_teacher_fixed_split/fixed-split-single-teacher-v3-source-ops/protocol/source_ops_manifest.json": "6eb7fb5b8a72eff9dfb10d66595b18d8cd915452a11cb901ea9f63939a97f10e",
+    "_single_visual_processing_replication/outputs/teammate_single_teacher_fixed_split/fixed-split-single-teacher-v3-source-ops/protocol/teacher_roster.json": "812c3449b9fa6cc797a51a5927ee61bd1e1725a918802bb997ec3a552eda8a17",
+    "_single_visual_processing_replication/outputs/teammate_single_teacher_fixed_split/fixed-split-single-teacher-v3-source-ops/protocol/task11_reconstruction_v2/source_postprocessing_component.json": "1fa5a57e873de96c143d720f024087c176bcd9297ab48959ab9941f6792541b1"
+  },
+  "purpose": "Approved directory rename; preserve logical addresses and verify original bytes; no identity override"
+}

@@ -144,6 +144,11 @@ class ArtifactRegistry:
             if key in self.context.validated_records:return self.context.validated_records[key]
         elif sha256_file(path)!=ref.sha256:raise ValueError('artifact record hash/location mismatch')
         d=json.loads(path.read_text(encoding='utf-8'))
+        # Rendering file addresses at runtime does not alter the hashed JSON.
+        # Ref/config identity still uses the explicitly anchored logical root.
+        files={str(Path(k).resolve()):v for k,v in d['files'].items()}
+        if len(files)!=len(d['files']):raise ValueError('ambiguous relocated file addresses')
+        d['files']=files
         d['parents']=tuple(ArtifactRef(Path(r['record_path']),r['sha256']) for r in d['parents'])
         if d['rows'] is not None:
             d['rows']=RowIndex(tuple(d['rows']['sample_ids']),tuple(d['rows']['user_ids']),tuple(d['rows']['class_ids']))
