@@ -63,3 +63,5 @@ Task14编排与交付收尾已完成；真实run已revealed，后续编排测试
 ## Task14完成（Orchestration Complete）
 
 2026-11-05新增scripts/run_teammate_single_teacher_pipeline.py，preflight/smoke/generate/freeze，25节点覆盖完整源链及人工review gates；原生成CLI负责各自context/epoch resume，外层stage receipt绑定配置、命令、wrapper和src/experiments源码摘要及小marker。38回归7.57秒、独立7项0.60秒GO；P1全窗路径和P2门槛/读取插桩/耗时层级均修复。隔离outputs/task5_audit/P51-isolated-smoke-final包含16合成输出、到frozen、58读取/外部0，epoch计数不适用，不能当真实ML重现。真实preflight-final.json只读revealed，generation_allowed=false。P51使用与收尾文档、P52独立复审，protocol/task14_complete.json为完成入口。计划无剩余任务，保留当前实验分支/工作树，不创建PR、不合并代码、不删除权重，真实run永远不因收尾重开。
+
+main历史回顾已于完整收尾后追加固定划分结果并推送dc52e06；仅改docs/2026-10-03-cuhkx-project-experiment-history.md，未合并实验代码。实验编排实现提交b55bc5e，保留现有分支与worktree。
