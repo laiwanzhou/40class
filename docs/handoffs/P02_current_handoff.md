@@ -1,10 +1,10 @@
 # P02 当前实验交接（Current Experiment Handoff）
 
-更新：2026-11-04，Asia/Shanghai。本文件是本分支唯一交接入口（Canonical Handoff），后续原位更新；唯一指导为[P01计划](../superpowers/plans/P01_teammate_single_teacher_fixed_split.md)。归档和审计输入快照仅作历史，不作为另一份plan或handoff。
+更新：2026-11-05，Asia/Shanghai。本文件是本分支唯一交接入口（Canonical Handoff），后续原位更新；唯一指导为[P01计划](../superpowers/plans/P01_teammate_single_teacher_fixed_split.md)。归档和审计输入快照仅作历史，不作为另一份plan或handoff。
 
 ## 当前状态（Current Status）
 
-**Task13已完成完整冻结、一次授权最终评估与独立聚合验收；Task14尚未启动。真实run已revealed，禁止继续生成／训练、改候选或重复评估。**
+**Task1–14全部完成，Task14编排和独立复审GO；真实结果保持原一次揭示，不再训练或重评。真实run已revealed，禁止继续生成／训练、改候选或重复评估。**
 
 工作树`D:/work/26.7.14_kaggle/_single_visual_processing_replication`，分支`experiment/teammate-single-teacher-task1`，origin为`https://github.com/laiwanzhou/40class.git`。用户只改父目录名，真实项目目录为26.7.14_kaggle；历史2026.7.14_kaggle保留同文件目录联接（Directory Junction）。显式七锚点迁移配置为configs/experiments/project_root_relocation.json，旧协议、记录和产物SHA保持。原ROI提取生产器raw_input_hashes的全套旧断点恢复未认证，不宣称全旧路线可重启。
 
@@ -56,6 +56,10 @@ Task13代码736b14e；迁移安全审计登记CLI为2ec0591。固定16候选与�
 
 ## 下一步（Next Step）
 
-只剩Task14编排与全链交付收尾，当前未启动；真实run已revealed，后续编排测试应使用隔离fixture，不能在该run重训或再次揭示。main历史回顾文档仍等整个复刻实验完成再更新。
+Task14编排与交付收尾已完成；真实run已revealed，后续编排测试应使用隔离fixture，不能在该run重训或再次揭示。本轮完整收尾后按既有授权更新main历史回顾，仅文档，不合并实验代码。
 
 原始数据、队友快照和两份提交包只读。两份旧untracked报告reports/2026-10-02-history-cache-reuse-inventory.md与reports/2026-10-02-old-visual-worktree-retirement.md不顺手提交／删除。正式Python为D:/Anaconda/envs/PyTorch2.7/python.exe -B；没有自动化、新服务或存活训练worker。
+
+## Task14完成（Orchestration Complete）
+
+2026-11-05新增scripts/run_teammate_single_teacher_pipeline.py，preflight/smoke/generate/freeze，25节点覆盖完整源链及人工review gates；原生成CLI负责各自context/epoch resume，外层stage receipt绑定配置、命令、wrapper和src/experiments源码摘要及小marker。38回归7.57秒、独立7项0.60秒GO；P1全窗路径和P2门槛/读取插桩/耗时层级均修复。隔离outputs/task5_audit/P51-isolated-smoke-final包含16合成输出、到frozen、58读取/外部0，epoch计数不适用，不能当真实ML重现。真实preflight-final.json只读revealed，generation_allowed=false。P51使用与收尾文档、P52独立复审，protocol/task14_complete.json为完成入口。计划无剩余任务，保留当前实验分支/工作树，不创建PR、不合并代码、不删除权重，真实run永远不因收尾重开。

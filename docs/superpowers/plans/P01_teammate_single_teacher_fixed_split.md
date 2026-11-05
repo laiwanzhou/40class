@@ -2,7 +2,7 @@
 
 > 本分支唯一有效计划（Canonical Plan）；唯一交接入口为 [P02](D:/work/2026.7.14_kaggle/_single_visual_processing_replication/docs/handoffs/P02_current_handoff.md)。旧实验计划及交接已移入 docs/archive，仅作为历史记录（Historical Records）；reports/audit_inputs 为审计输入快照，不指导当前执行。
 
-> 执行者使用 superpowers:executing-plans；用户明确选择子智能体实施时才使用 subagent-driven-development。2026-10-06独立复审修订为v3.1，Task编号仍为1–14。初版v3的机制producer、KNN依赖和元数据/导入/角色/校验契约已在下文纠正；正式生成仍受逐阶段数值与依赖闭合门槛约束。v2 Task1–5已完成并推送6e31b6d；它们是历史基线，不表示新增v3要求已完成。2026-10-28 Task1已实现并独立复审GO；Task2准备与Task3几何一致性均已完成并获独立复审GO，Task4完整产物生成并通过有限独立验收GO；Task5固定16轮select/refit及四区预测／序列均已完成，有限独立复审GO；2026-10-29 Task6运动缓存／恒等外部转换已实现、正式生成及有限自验通过，未独立复审；Task7源RF教师已训练并完成四区双profile目标、有限自验通过，未独立复审；Task8新版已完成IR-only恢复、固定24轮select/refit及四区输出并独立GO（P35/P36）；Task9额外平均诊断已完成四区12targets及有限自验（P37；非独立复审），Task10源融合与独立控制已完成八组训练／24targets及有限自验（P38；本轮无独立复审），Task9/10现经P39三独立复审PASS；Task11近似复刻及四区A8正式产物已完成，三项独立复审与目录迁移复审通过（P44–P46），Task12已完成并独立GO（P47/P48）；Task13已完成冻结与一次最终评估（P49/P50）；Task14未实施，未训练大视觉骨干。旧规格/计划见reports/audit_inputs/2026-10-04/pre-v3/。
+> 执行者使用 superpowers:executing-plans；用户明确选择子智能体实施时才使用 subagent-driven-development。2026-10-06独立复审修订为v3.1，Task编号仍为1–14。初版v3的机制producer、KNN依赖和元数据/导入/角色/校验契约已在下文纠正；正式生成仍受逐阶段数值与依赖闭合门槛约束。v2 Task1–5已完成并推送6e31b6d；它们是历史基线，不表示新增v3要求已完成。2026-10-28 Task1已实现并独立复审GO；Task2准备与Task3几何一致性均已完成并获独立复审GO，Task4完整产物生成并通过有限独立验收GO；Task5固定16轮select/refit及四区预测／序列均已完成，有限独立复审GO；2026-10-29 Task6运动缓存／恒等外部转换已实现、正式生成及有限自验通过，未独立复审；Task7源RF教师已训练并完成四区双profile目标、有限自验通过，未独立复审；Task8新版已完成IR-only恢复、固定24轮select/refit及四区输出并独立GO（P35/P36）；Task9额外平均诊断已完成四区12targets及有限自验（P37；非独立复审），Task10源融合与独立控制已完成八组训练／24targets及有限自验（P38；本轮无独立复审），Task9/10现经P39三独立复审PASS；Task11近似复刻及四区A8正式产物已完成，三项独立复审与目录迁移复审通过（P44–P46），Task12已完成并独立GO（P47/P48）；Task13已完成冻结与一次最终评估（P49/P50）；Task14已完成（P51/P52），未训练大视觉骨干。旧规格/计划见reports/audit_inputs/2026-10-04/pre-v3/。
 
 **目标（Goal）：** 一个大视觉教师、固定用户划分，保留已核实的源操作；用户2026-10-29已批准对缺失历史记录采用显式配置的近似复刻，完成整条路线。
 **架构（Architecture）：** 复用源模型/算子，按新人口重新拟合；除教师根节点数量与固定划分替代OOF外，不随意增删归一化、掩码、温度、预算、后处理或适配参数。所有必要数据适配单独登记。
@@ -328,7 +328,7 @@ P34-M1：当前A5按 `sk|imu` 训练1956／2341行，分别比有效视觉监督
 
 **目录迁移补充（Root Relocation）：** 用户仅将父目录改名，并授权保留`D:/work/26.7.14_kaggle`真实目录。显式七锚点迁移和历史目录联接保留逻辑身份，不改旧SHA／配置／产物；42 targeted GREEN38.59秒，正式有界验收15.62秒通过，独立最终复审PASS。详情[P46](../../P46_项目目录迁移与历史身份兼容.md)。本次仅验证Task11依赖消费，不承诺旧ROI提取生产器的全部断点恢复；不通过重新哈希历史记录绕过校验。
 
-四区完整行数2039/388/2427/609，A8有效1957/385/2342/591，prior82/3/85/18；固定fit边界不变，无新开发或final准确率。20列old/new group因P306剪枝而等价，P310额外覆盖0，是明确自然退化，不凑列。Task12现已完成；Task13现已完成；Task14仍未实施。本节下方步骤按已授权P41近似配置执行；早期暂停、恢复及严格材料缺口见P40–P43和台账，只作历史，不再指导当前执行。
+四区完整行数2039/388/2427/609，A8有效1957/385/2342/591，prior82/3/85/18；固定fit边界不变，无新开发或final准确率。20列old/new group因P306剪枝而等价，P310额外覆盖0，是明确自然退化，不凑列。Task12现已完成；Task13现已完成；Task14亦已完成。本节下方步骤按已授权P41近似配置执行；早期暂停、恢复及严格材料缺口见P40–P43和台账，只作历史，不再指导当前执行。
 
 **文件：** 新p12_source_adapter.py、source_teacher_bank.py、session_metadata.py、build_no_vote_teacher_bank.py；session_repeat.py及tests/test_no_vote_source_teacher_bank.py/test_no_vote_session_repeat.py。
 **接口：** build_p12_source_chain(inputs, producers, protocol, context) -> ArtifactRef；fit_global_mixture(fit, p12, visual_heads, protocol, context) -> ArtifactRef；apply_fullwindow_knn(global_prediction, fullwindow_features, rows, protocol, context) -> Prediction；build_source_bank(roster, inputs, producers, protocol, context) -> ArtifactRef；build_session_blocks(rows: RowIndex, metadata: ArtifactRef) -> list[np.ndarray]；fit_source_postprocessor(bank, metadata, fit, protocol, context) -> ArtifactRef；apply_source_postprocessor(bank, state, metadata, rows, prior, protocol, context) -> Prediction。所有参数metadata属于被预测人口，不得从fit状态推测目标metadata或读旧全局CSV。
@@ -366,7 +366,7 @@ P34-M1：当前A5按 `sk|imu` 训练1956／2341行，分别比有效视觉监督
 
 ### Task 13：完整冻结与一次最终评估（Freeze and Reveal）
 
-**2026-11-04完成（Complete）：** 16候选609/591/18已正式冻结（12.19秒），精确SHA独立GO；按本轮固定划分标签授权，先持久化revealed后一次评估完成，之后聚合验收独立PASS，不再重训。A1 445/609=73.07%；A8与A9-40均467/609=76.68%，主提升+22条/+3.61个百分点；A9-12为460/609=75.53%。40学生对A8无准确率净损失但2处错类不同，macro-F1微差。72项回归及单独登记junction回归通过，真值只在独立评估步骤使用。交付[P49](../../P49_Task13_候选冻结与固定划分最终评估.md)，复审[P50](../../../reports/P50_Task13_独立复审与冻结代次验收.md)；状态revealed、Task14未启动。
+**2026-11-04完成（Complete）：** 16候选609/591/18已正式冻结（12.19秒），精确SHA独立GO；按本轮固定划分标签授权，先持久化revealed后一次评估完成，之后聚合验收独立PASS，不再重训。A1 445/609=73.07%；A8与A9-40均467/609=76.68%，主提升+22条/+3.61个百分点；A9-12为460/609=75.53%。40学生对A8无准确率净损失但2处错类不同，macro-F1微差。72项回归及单独登记junction回归通过，真值只在独立评估步骤使用。交付[P49](../../P49_Task13_候选冻结与固定划分最终评估.md)，复审[P50](../../../reports/P50_Task13_独立复审与冻结代次验收.md)；状态revealed、Task14现已完成收尾。
 
 **2026-11-04当前授权（Current Authorization）：** 用户明确推进Task13，并进一步要求使用固定划分标签。此处正式评估对象为user4/17/23/24的609条封存样本，不是user6/7开发区或Kaggle官方隐藏测试。旧临时final_labels.csv已不存在；原准备记录指定本分支metadata/manifest.csv，现仅定位文件元数据，正式冻结并经独立复审后才能打开。评估器以canonical_manifest模式复用原NAMESPACE SHA映射公开opaque IDs，只提取冻结609行标签。该授权覆盖本节旧“现阶段不揭示”限制；不改变候选、预算、主比较或不按final重训的边界。
 
@@ -383,17 +383,19 @@ P34-M1：当前A5按 `sk|imu` 训练1956／2341行，分别比有效视觉监督
 
 ### Task 14：编排、资源与全链验收（Orchestration and Acceptance）
 
+**2026-11-05完成（Complete）：** 新25节点编排入口、显式人工门槛、源代码指纹与stage成功/失败凭据、锁和日志已实现。38 targeted GREEN7.57秒；独立编排7项0.60秒通过，P1/P2修复并复审GO。隔离CLI synthetic smoke生成16合成输出至frozen，58次实际隔离读取、外部读取0；不冒称ML数值重训，epoch检查不适用。真实preflight只读确认revealed并禁止生成，未重训/重评。使用说明[P51](../../P51_全链编排使用说明与实验收尾.md)，复审[P52](../../../reports/P52_Task14_编排独立复审.md)。保持现有实验分支，不合并模型代码到main；整个计划收尾后仅更新此前约定main历史回顾。
+
 **文件：** run_teammate_single_teacher_pipeline.py、tests/test_no_vote_orchestrator.py、docs/teammate_single_teacher_fixed_split.md。
 **接口：** run_pipeline(preflight|smoke|generate|freeze, config)；evaluate独立。
 
-- [ ] RED：test_dependency_order包含六头/全窗/mechanism/保留非大专家与group/sequence/precedence/sharpening，不止于A7；smoke走16候选直到frozen，不读真实final标签。
-- [ ] preflight只读明确资产/磁盘/GPU/配置及producer清单；按保留教师真实依赖估时估空间，不用旧10–20小时假设，不以缩短时间为由跳过算子。
-- [ ] 编排每stage复用验证上下文、每完整epoch恢复、OS锁、成功/失败标记及持续日志。Fixture读取计数验证rawSHA0/ancestor-payload0/epoch资产校验0；不真实全扫再记录“很快”。
-- [ ] 各Task针对性回归、原源函数同输入数值/梯度/模型config对照、真实train12小批次通过后再正式generate。最终操作清单无未解释差异才freeze。
-- [ ] 持续提交当前实验分支。主分支历史回顾文档仍等整个复刻实验完成后更新，不混入此轮计划修订或诊断报告。
+- [x] RED：test_dependency_order包含六头/全窗/mechanism/保留非大专家与group/sequence/precedence/sharpening，不止于A7；smoke走16候选直到frozen，不读真实final标签。
+- [x] preflight只读明确资产/磁盘/GPU/配置及producer清单；按保留教师真实依赖估时估空间，不用旧10–20小时假设，不以缩短时间为由跳过算子。
+- [x] 编排每stage复用验证上下文、每完整epoch恢复、OS锁、成功/失败标记及持续日志。Fixture读取计数验证rawSHA0/ancestor-payload0/epoch资产校验0；不真实全扫再记录“很快”。
+- [x] 各Task针对性回归、原源函数同输入数值/梯度/模型config对照、真实train12小批次通过后再正式generate。最终操作清单无未解释差异才freeze。
+- [x] 持续提交当前实验分支。主分支历史回顾文档仍等整个复刻实验完成后更新，不混入此轮计划修订或诊断报告。
 
 ## 状态与交接（Status and Handoff）
 
 Task1–10保留原产物和既有审计证据；Task9/10已独立PASS（P39）。Task11按P41批准的近似配方完成，四区A8与完整依赖已通过有界验收和独立复审（P44/P45）；2026-11-04新增目录迁移通过回归、正式消费验收和独立复审（P46）。唯一handoff为P02，完成入口protocol/task11_complete.json。既有ROI质量FP16残余与其他近似仍披露，不追认全链精确重现。
 
-Task12固定40轮与独立12轮适配现已完成并独立GO（P47/P48）。Task13已完成完整冻结及一次授权评估（P49/P50）。下一任务为尚未启动的Task14编排收尾；真实run已revealed，禁止再生成或训练。当前不再读取final私有标签、不更新main历史回顾、不新增定时任务。用户本次授权Task13与固定划分一次评估，已完成后停止，不自动开始Task14。v2退休记录与源材料阻断的旧false保持历史；新阶段按其版本化真实producer与完成凭据判定，不能单翻旧全局标记放行。
+Task12固定40轮与独立12轮适配现已完成并独立GO（P47/P48）。Task13已完成完整冻结及一次授权评估（P49/P50）。Task14编排收尾现已完成，Task1–14全部交付；真实run已revealed，禁止再生成或训练。当前不再读取final私有标签、不更新main历史回顾、不新增定时任务。用户本次授权Task13与固定划分一次评估，Task14现按后续授权完成，本计划无剩余Task。v2退休记录与源材料阻断的旧false保持历史；新阶段按其版本化真实producer与完成凭据判定，不能单翻旧全局标记放行。
